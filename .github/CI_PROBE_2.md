@@ -2,4 +2,4 @@
 
 Temporary trigger for validating the corrected Phase 0.1 workflow. This branch will not be merged.
 
-Rerun after replacing the upstream GitHub shortcut icon with an accessible custom nav item.
+Final rerun against the committed lockfile and permanent read-only CI configuration.
