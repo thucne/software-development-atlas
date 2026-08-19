@@ -32,8 +32,13 @@ export function Mermaid({ chart }: { chart: string }) {
           `mermaid-${id}`,
           chart.replaceAll('\\n', '\n'),
         );
+        const accessibleSvg = result.svg.replace(
+          '<svg ',
+          '<svg aria-label="Mermaid diagram" ',
+        );
+
         if (!cancelled) {
-          setRendered({ svg: result.svg, failed: false });
+          setRendered({ svg: accessibleSvg, failed: false });
         }
       } catch {
         if (!cancelled) {
