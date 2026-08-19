@@ -3,16 +3,21 @@
 import { useEffect, useId, useState } from 'react';
 import { useTheme } from 'next-themes';
 
+type RenderState = {
+  svg: string;
+  failed: boolean;
+};
+
 export function Mermaid({ chart }: { chart: string }) {
   const id = useId().replaceAll(':', '');
   const { resolvedTheme } = useTheme();
-  const [svg, setSvg] = useState('');
-  const [failed, setFailed] = useState(false);
+  const [rendered, setRendered] = useState<RenderState>({
+    svg: '',
+    failed: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setFailed(false);
-    setSvg('');
 
     void import('mermaid').then(async ({ default: mermaid }) => {
       mermaid.initialize({
@@ -27,9 +32,13 @@ export function Mermaid({ chart }: { chart: string }) {
           `mermaid-${id}`,
           chart.replaceAll('\\n', '\n'),
         );
-        if (!cancelled) setSvg(result.svg);
+        if (!cancelled) {
+          setRendered({ svg: result.svg, failed: false });
+        }
       } catch {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) {
+          setRendered({ svg: '', failed: true });
+        }
       }
     });
 
@@ -38,7 +47,7 @@ export function Mermaid({ chart }: { chart: string }) {
     };
   }, [chart, id, resolvedTheme]);
 
-  if (failed) {
+  if (rendered.failed) {
     return (
       <pre aria-label="Mermaid diagram source" className="overflow-x-auto">
         {chart}
@@ -46,7 +55,7 @@ export function Mermaid({ chart }: { chart: string }) {
     );
   }
 
-  if (!svg) {
+  if (!rendered.svg) {
     return (
       <div
         role="status"
@@ -58,7 +67,7 @@ export function Mermaid({ chart }: { chart: string }) {
 
   return (
     <figure aria-label="Mermaid diagram" className="my-6 overflow-x-auto">
-      <div dangerouslySetInnerHTML={{ __html: svg }} />
+      <div dangerouslySetInnerHTML={{ __html: rendered.svg }} />
       <figcaption className="sr-only">{chart}</figcaption>
     </figure>
   );

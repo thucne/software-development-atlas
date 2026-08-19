@@ -1,16 +1,5 @@
-import { lessonFrontmatterSchema } from './lib/content/schema';
 import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
-import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
-
-export const docs = defineDocs({
-  dir: 'content/docs',
-  docs: {
-    schema: lessonFrontmatterSchema,
-    postprocess: {
-      includeProcessedMarkdown: true,
-    },
-  },
-});
+import { defineConfig } from 'fumadocs-mdx/config';
 
 export default defineConfig({
   mdxOptions: {

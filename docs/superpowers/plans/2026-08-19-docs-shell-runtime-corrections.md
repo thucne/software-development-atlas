@@ -1,27 +1,17 @@
 # Phase 0.1 Documentation Shell — Runtime Corrections
 
-**Status:** Normative implementation note discovered immediately before execution.
+**Status:** Normative implementation note discovered immediately before and during execution.
 
-Current Fumadocs MDX uses generated server entry files under `.source/server` and the `collections/*` TypeScript alias. The preferred loader integration is `docs.toFumadocsSource()`.
+## Fumadocs MDX Macro API
 
-Therefore Phase 0.1 uses:
+Current Fumadocs MDX supports the Macro API, which defines the content collection directly in application code and avoids generated `.source` collection imports. Phase 0.1 therefore uses `defineDocs()` from `fumadocs-mdx/macro` in `lib/source.ts` while keeping `source.config.ts` only for global MDX plugin configuration.
 
-```ts
-import { docs } from 'collections/server';
-import { loader } from 'fumadocs-core/source';
+This removes the need for a `collections/*` TypeScript alias and a `postinstall` code-generation command while preserving build-time schema validation and processed Markdown output.
 
-export const source = loader({
-  baseUrl: '/docs',
-  source: docs.toFumadocsSource(),
-});
-```
+## Client provider boundary
 
-and `tsconfig.json` maps:
+The custom static-search dialog is passed into `RootProvider` through a dedicated `components/provider.tsx` Client Component. This follows the current Fumadocs Next.js example and avoids passing a component reference through a Server Component boundary.
 
-```json
-"collections/*": ["./.source/*"]
-```
+## Lockfile bootstrap
 
-This replaces the older `@/.source` plus `createMDXSource()` example in the original plan.
-
-The first CI run intentionally installs with `--no-frozen-lockfile` and uploads the generated `pnpm-lock.yaml` as an artifact because the execution sandbox cannot reach the npm registry. After the artifact is committed, CI must switch to `pnpm install --frozen-lockfile`.
+The execution sandbox cannot reach the npm registry, so it cannot generate `pnpm-lock.yaml` locally. The branch workflow temporarily installs with `--no-frozen-lockfile`; once a lockfile can be generated in a networked runner, it must be committed and CI switched to `pnpm install --frozen-lockfile`.
