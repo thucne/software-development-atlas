@@ -5,10 +5,9 @@ on:
   push:
     branches:
       - main
-      - agent/docs-shell
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -26,20 +25,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Commit generated lockfile on bootstrap branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/docs-shell'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pnpm-lock.yaml
-          if ! git diff --cached --quiet; then
-            git commit -m 'chore: commit pnpm lockfile'
-            git push origin HEAD:agent/docs-shell
-          fi
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
