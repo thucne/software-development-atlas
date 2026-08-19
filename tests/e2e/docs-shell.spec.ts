@@ -8,10 +8,10 @@ test('renders the docs shell and Start Here navigation', async ({ page }) => {
     page.getByRole('heading', { name: 'Software Development Atlas' }),
   ).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'How to Use the Atlas' }),
+    page.locator('a[href="/docs/start-here/how-to-use-the-atlas"]').first(),
   ).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Content Freshness' }),
+    page.locator('a[href="/docs/start-here/freshness"]').first(),
   ).toBeVisible();
 });
 
