@@ -1,0 +1,47 @@
+name: New lesson
+description: Propose a new Software Development Atlas lesson.
+title: "lesson: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a lesson. Strong proposals explain the learner need, prerequisites, and why the topic belongs in the Atlas.
+  - type: input
+    id: topic
+    attributes:
+      label: Lesson topic
+      placeholder: e.g. Database transaction isolation
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What should a learner understand or be able to do afterward?
+    validations:
+      required: true
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Concepts a learner should know first.
+  - type: dropdown
+    id: freshness
+    attributes:
+      label: Expected freshness category
+      options:
+        - evergreen
+        - evolving
+        - frontier
+    validations:
+      required: true
+  - type: textarea
+    id: interactivity
+    attributes:
+      label: Would interaction or visualization materially help?
+      description: Explain the teaching value; "none" is a good answer.
+  - type: textarea
+    id: sources
+    attributes:
+      label: Primary sources
+      description: Standards, official documentation, original research, or upstream repositories.
