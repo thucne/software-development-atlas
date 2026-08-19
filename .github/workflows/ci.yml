@@ -43,7 +43,7 @@ jobs:
         run: pnpm build
 
       - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Browser and accessibility tests
         run: pnpm test:e2e
