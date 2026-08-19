@@ -1,0 +1,30 @@
+name: Correction
+description: Report an incorrect or misleading claim or example.
+title: "correction: "
+labels: []
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or lesson
+      placeholder: URL or repository path
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is incorrect or misleading?
+      description: Quote only the small portion needed to identify the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Supporting source(s)
+      description: Prefer primary sources for factual or version-sensitive corrections.

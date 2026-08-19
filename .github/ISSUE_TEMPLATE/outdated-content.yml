@@ -1,0 +1,31 @@
+name: Outdated content
+description: Report guidance that was previously correct but is no longer current.
+title: "outdated: "
+labels: []
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or lesson
+      placeholder: URL or repository path
+    validations:
+      required: true
+  - type: textarea
+    id: outdated
+    attributes:
+      label: What has changed?
+      description: Include the old behavior/guidance and the current behavior when known.
+    validations:
+      required: true
+  - type: input
+    id: technology
+    attributes:
+      label: Relevant technology and version
+      placeholder: e.g. Next.js 16
+  - type: textarea
+    id: sources
+    attributes:
+      label: Primary source(s)
+      description: Official documentation, release notes, standards, research, or upstream repository evidence.
+    validations:
+      required: true
