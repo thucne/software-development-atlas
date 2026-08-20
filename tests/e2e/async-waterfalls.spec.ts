@@ -29,7 +29,7 @@ test('renders the lab with correct default timing', async ({ page }) => {
   await page.goto(lessonPath);
 
   await expect(
-    page.getByRole('heading', { name: 'Async Waterfall Lab' }),
+    page.getByRole('heading', { name: 'Async Waterfall Lab', exact: true }),
   ).toBeVisible();
   await expect(page.getByTestId('sequential-total')).toHaveText('1500ms');
   await expect(page.getByTestId('concurrent-total')).toHaveText('800ms');
