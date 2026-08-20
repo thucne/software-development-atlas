@@ -31,8 +31,496 @@ technologies:
 
 ## TL;DR
 
-Browser JavaScript runs the currently selected work to completion. After relevant work finishes, the browser coordinates microtask checkpoints, later tasks, and rendering-related work. Do not model the browser as one universal FIFO macrotask queue.
+**Browser JavaScript runs the currently selected work to completion. After a task finishes, the browser performs the relevant microtask checkpoint before selecting later task work. Rendering is browser-controlled and is not guaranteed between arbitrary callbacks.**
+
+Promise reactions and `queueMicrotask()` participate in browser microtask processing. A timer callback is later task work; `setTimeout(fn, 0)` does not mean “run immediately.”
+
+Do not model the browser as **one universal FIFO macrotask queue**. The HTML Standard defines one or more task queues, associates task sources with those queues, and allows the user agent to choose among runnable task queues in an implementation-defined manner while preserving ordering requirements within a task source.
+
+And do not carry this browser diagram directly into Node.js. JavaScript defines language-level jobs, while hosts integrate them into their own scheduling systems.
+
+## Mental model
+
+For day-to-day browser code, reason about four surfaces:
+
+1. **Currently running work** — the script or callback that is executing now.
+2. **Microtask queue** — Promise-related work and work queued with `queueMicrotask()`.
+3. **Task-source work** — timers, user interaction, networking, and other task-producing platform features.
+4. **Rendering-related work** — rendering opportunities and callbacks such as `requestAnimationFrame()` when the browser performs a rendering update.
+
+A useful simplified cycle is:
+
+```text
+selected task / script
+        │
+        │ runs to completion
+        ▼
+ microtask checkpoint
+        │
+        │ drains until empty
+        ▼
+ browser continues event-loop work
+        │
+        ├─ may select runnable task work
+        │
+        └─ rendering-related work happens when the
+           browser takes a rendering opportunity
+```
+
+That diagram is intentionally **not**:
+
+```text
+Call stack -> one macrotask FIFO -> microtask FIFO -> guaranteed paint
+```
+
+The second picture is memorable, but it combines several different mechanisms and invents guarantees the browser platform does not make.
+
+## Why this matters
+
+The event loop explains behavior that otherwise looks arbitrary:
+
+- Why can a fulfilled Promise callback run before `setTimeout(..., 0)`?
+- Why does a long synchronous loop freeze input and rendering?
+- Why can repeatedly creating microtasks delay later work?
+- Why is a zero-delay timer not a precise clock?
+- Why is a paint not guaranteed between two callbacks?
+- Why can code that relies on callback ordering break when moved between browser and Node.js runtimes?
+
+A correct model is useful for more than interview puzzles. It affects responsiveness, scheduling, rendering, performance work, test design, and whether an ordering assumption is actually guaranteed by the platform.
+
+## Run-to-completion
+
+Start with the simplest rule: **the currently executing JavaScript work is not normally interrupted halfway through so an unrelated later callback can run.**
+
+```ts
+console.log('A');
+console.log('B');
+console.log('C');
+```
+
+The current script finishes its synchronous work before later event-loop callbacks take over.
+
+That matters in this example:
+
+```ts
+console.log('A');
+
+setTimeout(() => console.log('timer'), 0);
+
+Promise.resolve().then(() => console.log('promise'));
+
+console.log('B');
+```
+
+The useful teaching order is:
+
+```text
+A
+B
+promise
+timer
+```
+
+Why?
+
+1. The current script prints `A`.
+2. The timer schedules callback work for later; it does not interrupt the script.
+3. The fulfilled Promise schedules its reaction through browser microtask processing.
+4. The current script still prints `B` before it finishes.
+5. After the task finishes, the browser reaches a microtask checkpoint, so the Promise reaction runs.
+6. The timer callback is later task work and can run afterward.
+
+This example demonstrates a guaranteed relationship that is useful to authors. It does **not** prove that every kind of later callback shares one global FIFO task queue.
+
+## Tasks are not one universal FIFO queue
+
+The HTML Standard uses the term **task**. “Macrotask” is common informal vocabulary, but it is not the core HTML-standard term.
+
+A browser event loop has one or more task queues. A subtle but important specification detail is that an HTML task queue is modeled as a **set of tasks**, not simply a universal FIFO queue. The event-loop processing model chooses a task queue with runnable work in an implementation-defined manner, then takes the first runnable task from that chosen queue.
+
+Tasks also have a **task source**. Task sources group logically related work and preserve ordering constraints that specifications require. Examples of generic sources include user interaction, networking, DOM manipulation, navigation, and rendering-related work.
+
+For a given event loop:
+
+- every task source is associated with a task queue;
+- multiple task sources can be coalesced into the same task queue;
+- a browser may use different queues to prioritize categories of work;
+- tasks from one task source must not be processed out of that source's required order;
+- unrelated runnable sources do not automatically gain one universal cross-source FIFO ordering rule.
+
+So this mental model is too strong:
+
+```text
+macrotask queue
+[ timer ][ click ][ network ][ message ][ ... ]
+
+always take the global oldest item
+```
+
+A safer model is:
+
+```text
+runnable browser task work
+
+user interaction  [ click ]
+timers             [ timeout ]
+networking         [ response ]
+...
+
+browser selects runnable work according to the platform model
+while preserving the ordering guarantees that actually apply
+```
+
+The lanes above are pedagogical. They do not mean the browser is required to maintain exactly one physical queue per source.
+
+## Microtasks and checkpoints
+
+The microtask queue is separate from the browser's regular task queues.
+
+After a task completes, the event-loop processing model performs a **microtask checkpoint**. During a checkpoint, the browser repeatedly takes the oldest microtask and runs it until the microtask queue is empty.
+
+That “until empty” rule has an important consequence: a microtask can queue another microtask, and the new microtask can run during the **same checkpoint**.
+
+```ts
+console.log('script');
+
+queueMicrotask(() => {
+  console.log('microtask A');
+
+  queueMicrotask(() => {
+    console.log('microtask B');
+  });
+});
+```
+
+The relevant ordering is:
+
+```text
+script
+microtask A
+microtask B
+```
+
+`microtask B` does not have to wait for an unrelated later task merely because it was created by another microtask. The checkpoint is still draining.
+
+This is powerful for short ordering work. It is also why recursively producing microtasks can delay later event-loop progress.
+
+## Promise reactions and `queueMicrotask()`
+
+ECMAScript defines **Jobs** and host hooks such as `HostEnqueuePromiseJob()` for Promise-related work. The host decides how those jobs integrate with its runtime.
+
+For HTML browsers, the integration is explicit: HTML's implementation of `HostEnqueuePromiseJob()` schedules Promise-related operations in the event loop's **microtask queue**.
+
+That is why a fulfilled Promise reaction fits naturally into the browser microtask mental model:
+
+```ts
+Promise.resolve().then(() => {
+  console.log('promise reaction');
+});
+```
+
+`queueMicrotask()` gives browser code a direct way to queue microtask work without constructing a Promise solely for deferral:
+
+```ts
+queueMicrotask(() => {
+  reconcileCachedState();
+});
+```
+
+A good use case is making two branches of an API produce a consistent asynchronous ordering when one branch has data synchronously and another gets it asynchronously.
+
+But microtasks are not a free “run sooner” priority lane. Work done in a microtask still consumes time, and newly produced microtasks can keep the checkpoint from becoming empty.
+
+## Timers mean later, not exactly on time
+
+**A timer delay is not an execution deadline.**
+
+`setTimeout(callback, delay)` schedules timer-based callback work after the timeout machinery permits it to proceed. Actual callback execution can be delayed by currently running JavaScript, microtasks, other tasks, browser scheduling, throttling, and system load.
+
+So:
+
+```ts
+setTimeout(doWork, 0);
+```
+
+means roughly:
+
+> Make `doWork` eligible as later timer callback work as soon as the timer rules allow.
+
+It does not mean:
+
+> Interrupt the current JavaScript and execute `doWork` now.
+
+Nor does:
+
+```ts
+setTimeout(doWork, 100);
+```
+
+mean that `doWork` is guaranteed to start exactly 100 milliseconds later.
+
+Browsers also apply timer rules such as minimum delays for sufficiently nested timers. If correctness depends on a callback starting at an exact wall-clock instant, a timer alone is the wrong synchronization mechanism.
+
+## Rendering opportunities and `requestAnimationFrame()`
+
+Rendering is where many event-loop diagrams become misleading.
+
+A common simplified story says:
+
+```text
+task -> all microtasks -> paint -> next task
+```
+
+That is **not a guaranteed per-callback paint sequence**.
+
+The HTML processing model treats rendering opportunities as browser-controlled. The browser considers factors such as display refresh behavior, page visibility, whether there is anything useful to render, and opportunities to coalesce work. The specification explicitly allows a user agent to skip unnecessary rendering and, for example, execute certain tasks back-to-back with microtask checkpoints but no intermediate rendering update.
+
+When a window has a rendering opportunity, current HTML processing queues rendering update work on a dedicated **rendering task source**. During the rendering update, the browser performs rendering steps that include running animation-frame callbacks.
+
+That gives `requestAnimationFrame()` a specific purpose:
+
+```ts
+requestAnimationFrame((timestamp) => {
+  updateVisualPosition(timestamp);
+});
+```
+
+The callback is associated with rendering-related processing. It is **not** a generic “callback that always runs immediately after microtasks,” and it is not the browser equivalent of Node.js `setImmediate()`.
+
+When reasoning about UI code, say:
+
+> The browser may take a rendering opportunity here.
+
+Do not say:
+
+> The browser definitely paints here.
+
+unless you have a stronger API-specific guarantee.
 
 ## Event Loop Lab
 
+The lab below uses a deterministic teaching model rather than executing arbitrary JavaScript. That lets it distinguish platform guarantees from browser scheduling choices instead of accidentally presenting one browser run as a universal law.
+
+It includes six scenarios:
+
+1. **Promise reaction vs timer** — shows `A`, `B`, Promise reaction, then timer.
+2. **A microtask queues another microtask** — shows that a checkpoint drains newly produced microtasks before becoming empty.
+3. **A timer queues a Promise reaction** — shows the microtask checkpoint after the timer task before later timer work continues.
+4. **Rendering opportunity + `requestAnimationFrame()`** — places animation-frame work inside a simplified rendering update rather than a fake post-microtask queue.
+5. **Bounded microtask starvation** — models a self-producing microtask chain for five iterations, then stops with a warning instead of freezing the Atlas page.
+6. **Multiple runnable task sources** — deliberately asks you to choose between two valid runnable sources rather than hard-coding a universal cross-source order.
+
+The visual state is supplementary. The rules and expected reasoning are all described in this page's Markdown.
+
 <EventLoopLab />
+
+## Multiple task sources and scheduler choice
+
+Suppose a simplified browser state has both of these runnable:
+
+```text
+Timer source             [ timer callback ]
+User-interaction source  [ click callback ]
+```
+
+If the only information you know is that the work comes from unrelated task sources and is simultaneously runnable, you should not invent a global FIFO guarantee that the platform has not promised.
+
+The HTML processing model allows the user agent to choose among task queues with runnable work in an implementation-defined manner. Task sources can be mapped to those queues in different ways, and browsers can use that freedom to keep interfaces responsive while respecting required source ordering.
+
+That is why the lab's scheduler-choice scenario accepts either initial choice. The point is not that browser ordering is random. The point is that **correct code should rely only on ordering guarantees the relevant APIs and task sources actually provide**.
+
+If operation B must happen after operation A, encode that dependency directly with data flow, a Promise, an event, a state transition, or another explicit synchronization mechanism. Do not rely on a guessed relationship between unrelated task sources.
+
+## Starvation and responsiveness
+
+Two different problems can keep later work from progressing.
+
+### Long synchronous work
+
+```ts
+button.addEventListener('click', () => {
+  expensiveCpuLoop();
+});
+```
+
+While that callback occupies the event loop with long synchronous work, later input handling and rendering-related work cannot simply jump into the middle of it. The page can feel frozen even if no network request is involved.
+
+The fix depends on the workload: reduce the work, split it into appropriately scheduled chunks, move suitable CPU work to a worker, or change the algorithm.
+
+### A microtask chain that keeps replenishing itself
+
+```ts
+function again() {
+  doSmallThing();
+  queueMicrotask(again);
+}
+
+queueMicrotask(again);
+```
+
+Each individual callback may be small, but the checkpoint keeps finding another microtask. If production never stops, later task work and rendering can be delayed because the queue never reaches the condition needed for the checkpoint to finish.
+
+The Atlas simulator intentionally stops after five iterations. Do not copy the unbounded example into a real page as a scheduling technique.
+
+Microtasks are not inherently harmful. The issue is **unbounded or excessive work before the event loop gets a chance to make other progress**.
+
+## Browser versus Node.js
+
+The browser event-loop model on this page is not a universal JavaScript-runtime diagram.
+
+ECMAScript defines language-level concepts such as Jobs and host hooks. Browsers integrate them through HTML's event loop; Node.js integrates JavaScript with a different runtime and event-loop implementation.
+
+Important differences include:
+
+| Browser | Node.js |
+| --- | --- |
+| HTML event loop and browser task sources | Node.js event loop and runtime-specific scheduling machinery |
+| rendering opportunities and a rendering pipeline | no browser rendering pipeline |
+| `requestAnimationFrame()` for rendering-related callbacks | `setImmediate()` is a Node timer API tied to Node's event loop, not an rAF analogue |
+| browser platform APIs | Node APIs may also involve libuv and other runtime facilities |
+
+Node's timer APIs intentionally look similar to browser timers, but Node's current documentation states that their internal implementation is built around the **Node.js Event Loop**.
+
+Node also has `process.nextTick()`. Current Node.js documentation marks it **Legacy** and recommends `queueMicrotask()` for most userland deferral needs. `process.nextTick()` has Node-specific scheduling behavior and deserves its own runtime-focused lesson rather than being folded into the browser diagram.
+
+So when moving code between hosts, ask:
+
+> Which scheduling guarantee comes from ECMAScript, and which comes from this host runtime?
+
+That question prevents many “but it worked in Chrome” or “but it worked in Node” ordering assumptions.
+
+## Production considerations
+
+**Keep main-thread work bounded.** A long task can delay user input and rendering. Measure hot paths, reduce unnecessary CPU work, split appropriate work, or move suitable computation to workers.
+
+**Keep microtask work bounded.** Promise-heavy code is normal, but recursively generating work during a checkpoint can starve later progress. Do not use an endless microtask chain as a generic scheduler.
+
+**Do not use timer precision for correctness.** Timers are scheduling tools, not hard real-time deadlines. If a deadline matters, compare actual timestamps/state when the callback runs and design for lateness.
+
+**Do not synchronize through guessed queue priority.** If two operations require ordering, express the dependency explicitly instead of hoping one task source wins browser selection.
+
+**Separate responsiveness from total throughput.** Breaking work into smaller pieces can improve responsiveness even when total CPU work stays similar. Conversely, producing more asynchronous callbacks does not make expensive CPU work disappear.
+
+**Profile the real browser.** DevTools performance traces, long-task observations, browser performance APIs, and application-level timings are better evidence than counting Promise or timer calls in source code.
+
+**Remember workers have their own context.** Dedicated workers can have their own event-loop/rendering-related capabilities. This lesson is centered on window/browser application reasoning, not a complete map of every worker processing model.
+
+## Exercise
+
+Predict the output of this browser example before reading the answer:
+
+```ts
+console.log('A');
+
+setTimeout(() => {
+  console.log('timer');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('promise');
+
+  queueMicrotask(() => {
+    console.log('nested microtask');
+  });
+});
+
+queueMicrotask(() => {
+  console.log('queued microtask');
+});
+
+console.log('B');
+```
+
+Questions:
+
+1. Which output is synchronous?
+2. Which callbacks are processed during the first relevant microtask checkpoint?
+3. Does the nested microtask wait for the timer?
+4. Is a paint guaranteed before `timer` runs?
+
+<details>
+<summary>Show the reasoning</summary>
+
+The synchronous script prints:
+
+```text
+A
+B
+```
+
+Before the script finishes, it has also arranged:
+
+- a later timer callback;
+- a Promise reaction in browser microtask processing;
+- a `queueMicrotask()` callback.
+
+At the checkpoint, the Promise reaction runs first because it was enqueued before the explicit `queueMicrotask()` call in this example:
+
+```text
+promise
+```
+
+That reaction then queues `nested microtask`. The checkpoint still has the already queued `queued microtask`, so the queue proceeds in order:
+
+```text
+queued microtask
+nested microtask
+```
+
+Only after the checkpoint can later task work such as the timer proceed:
+
+```text
+timer
+```
+
+So the teaching output is:
+
+```text
+A
+B
+promise
+queued microtask
+nested microtask
+timer
+```
+
+The nested microtask does **not** wait for the timer because it was added while the checkpoint was still draining.
+
+And no, this reasoning does **not** imply that a paint is guaranteed before `timer`. Rendering opportunities are browser-controlled; the platform can skip or coalesce rendering work between callbacks.
+
+</details>
+
+## Agent rule
+
+> In browser JavaScript, let currently selected work run to completion, then reason about microtask checkpoints separately from regular task work. Promise reactions and `queueMicrotask()` participate in browser microtask processing. Timers schedule later work and are not precise execution deadlines. Do not assume one universal FIFO task queue, guaranteed rendering between callbacks, or that browser scheduling rules transfer unchanged to Node.js.
+
+When reviewing scheduling-sensitive browser code, ask:
+
+1. What work is executing now, and can it block the event loop for too long?
+2. Which callbacks are microtasks, and can the checkpoint keep producing more work?
+3. Which later operations are tasks, and what ordering does their actual API/task source guarantee?
+4. Is the code assuming a paint or animation frame at a point where the browser has not promised one?
+5. Is a timer being used as a correctness deadline rather than a best-effort scheduling mechanism?
+6. Is browser-specific scheduling knowledge being copied into Node.js or another host without checking that host's rules?
+
+## Related concepts
+
+- Promise settlement and chaining
+- `queueMicrotask()`
+- async waterfalls and dependency scheduling
+- long tasks and main-thread responsiveness
+- `requestAnimationFrame()`
+- timers and scheduling
+- workers
+- the Node.js event loop
+
+These relationships become direct Atlas lesson links as the corresponding lessons are added.
+
+## Sources
+
+- [WHATWG HTML Standard — Event loops](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops) — normative browser task queues, task sources, event-loop processing, Promise-job integration, microtasks, checkpoints, and rendering scheduling.
+- [WHATWG HTML Standard — Timers](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers) — normative `setTimeout()` / `setInterval()` timing behavior, including the fact that callbacks are not guaranteed to run exactly on schedule.
+- [WHATWG HTML Standard — Animation frames](https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#animation-frames) — normative `requestAnimationFrame()` API and animation-frame callback storage.
+- [ECMAScript 2026 — Jobs and Host Operations to Enqueue Jobs](https://tc39.es/ecma262/2026/multipage/executable-code-and-execution-contexts.html#sec-jobs-and-host-operations-to-enqueue-jobs) — language-level Jobs and host scheduling hooks such as `HostEnqueuePromiseJob()`.
+- [Node.js v26 — Timers](https://nodejs.org/api/timers.html) — current Node timer and `setImmediate()` behavior and the distinction between Node and browser timer implementations.
+- [Node.js v26 — `process.nextTick()`](https://nodejs.org/api/process.html#processnexttickcallback-args) — current Node-specific next-tick behavior and Legacy status recommending `queueMicrotask()` for most userland deferral.
