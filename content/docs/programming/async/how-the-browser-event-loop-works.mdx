@@ -1,0 +1,38 @@
+---
+title: How the Browser Event Loop Actually Works
+description: Understand run-to-completion, tasks, microtasks, rendering opportunities, and why Node.js has a different scheduling model.
+category: programming
+level: intermediate
+status: evolving
+lastVerified: 2026-08-20
+reviewAfterDays: 180
+topics:
+  - javascript
+  - browser
+  - event-loop
+  - microtasks
+  - promises
+  - rendering
+  - performance
+prerequisites:
+  - promises
+related:
+  - async-waterfalls
+  - promises
+  - long-tasks
+  - request-animation-frame
+  - nodejs-event-loop
+technologies:
+  - javascript
+  - html
+  - browsers
+  - nodejs
+---
+
+## TL;DR
+
+Browser JavaScript runs the currently selected work to completion. After relevant work finishes, the browser coordinates microtask checkpoints, later tasks, and rendering-related work. Do not model the browser as one universal FIFO macrotask queue.
+
+## Event Loop Lab
+
+<EventLoopLab />
