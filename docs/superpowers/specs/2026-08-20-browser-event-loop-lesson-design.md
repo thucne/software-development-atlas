@@ -1,6 +1,6 @@
 # Browser Event Loop Lesson Design
 
-**Status:** Proposed for Phase 0.3 evidence-building / gold-standard lesson #2  
+**Status:** Proposed — gold-standard lesson #2 / Phase 0.3 evidence-building  
 **Date:** 2026-08-20  
 **Branch:** `agent/event-loop`  
 **Intended lesson title:** **How the Browser Event Loop Actually Works**
@@ -11,20 +11,15 @@ This specification defines the second gold-standard interactive lesson for Softw
 
 The lesson teaches the browser event loop accurately enough to survive common interview diagrams and runtime myths, while remaining approachable enough to build a durable mental model.
 
-It is also an architecture probe for Phase 0.3. The first interactive lesson, **Avoiding Sequential Async Waterfalls**, introduced a purpose-built timeline. This lesson must deliberately test whether timeline/step concepts repeat without prematurely extracting a generic `ExecutionTimeline` component.
+It is also an architecture probe for Phase 0.3. The first interactive lesson, **Avoiding Sequential Async Waterfalls**, introduced a purpose-built timeline. This lesson must test whether step/timeline concepts repeat without prematurely extracting a generic visualization framework.
 
-The result must be useful to:
-
-- human readers learning or correcting their browser scheduling mental model;
-- experienced engineers diagnosing ordering, responsiveness, or rendering problems;
-- coding agents that need concise, machine-readable scheduling rules;
-- future Atlas contributors deciding whether repeated learning primitives are now proven.
+The result must be useful to humans, experienced engineers, coding agents, and future Atlas contributors.
 
 ## 2. Scope classification
 
 This work is architectural rather than a bounded content edit because it introduces a second interactive teaching model and intentionally tests cross-lesson reuse boundaries.
 
-The implementation remains one lesson plus one specialized simulator and a pure scheduling model. It must not become a generic visualization framework.
+The implementation remains one lesson plus one specialized simulator and a pure scheduling model. It must not become a generic learning-component framework.
 
 ## 3. Primary teaching decision
 
@@ -36,21 +31,19 @@ The title therefore uses **Browser Event Loop**, not a universal “JavaScript E
 
 ## 4. Central rule
 
-The lesson should leave readers with this durable rule:
-
 > JavaScript runs the currently selected work to completion. Browser event-loop scheduling then coordinates later tasks, microtask checkpoints, and rendering-related work. Do not model the browser as one universal FIFO “macrotask queue,” and do not assume rendering happens after every callback.
 
 A shorter agent-facing version appears near the end of the lesson.
 
 ## 5. Standards model to teach
 
-The lesson should be grounded primarily in the current WHATWG HTML Standard and ECMAScript specification.
+The lesson is grounded primarily in the current WHATWG HTML Standard and ECMAScript specification.
 
 ### 5.1 Tasks are not one universal queue
 
-HTML event loops have one or more **task queues**. Tasks have **task sources** used to preserve ordering relationships and group logically related work.
+HTML event loops have one or more **task queues**. Tasks have **task sources** used to group logically related work and preserve source-specific ordering requirements.
 
-The event loop may choose among runnable task queues in an implementation-defined manner while preserving the ordering requirements that apply within a task source.
+The event loop may choose among runnable task queues in an implementation-defined manner while preserving the ordering constraints that apply within a task source.
 
 Therefore the lesson must not teach:
 
@@ -60,70 +53,70 @@ macrotask queue = [everything FIFO]
 
 as a platform guarantee.
 
-For beginner-friendly prose, the term **task** is preferred. “Macrotask” may be mentioned only as common informal terminology, with a note that HTML standard terminology is “task.”
+For beginner-friendly prose, prefer the HTML-standard term **task**. “Macrotask” may be mentioned only as common informal terminology.
 
-### 5.2 Microtasks are a distinct queue
+### 5.2 Microtasks are distinct
 
 Each event loop has a **microtask queue** separate from its regular task queues.
 
-After a selected task finishes, the HTML event loop performs a microtask checkpoint. During that checkpoint, microtasks are dequeued until the microtask queue is empty.
+After selected task work finishes, the HTML event loop performs a microtask checkpoint. During that checkpoint, microtasks are dequeued until the microtask queue is empty.
 
-If a running microtask queues another microtask, the new microtask can run during the same checkpoint before the queue becomes empty.
-
-This property is central to the starvation scenario.
+If a running microtask queues another microtask, that new microtask can run during the same checkpoint.
 
 ### 5.3 Promise reactions are language jobs integrated by the host
 
 ECMAScript defines Promise-related Jobs and host hooks such as `HostEnqueuePromiseJob`. The browser host integrates those jobs with its scheduling model.
 
-The lesson should explain this boundary without turning into an ECMAScript execution-agent deep dive:
+The lesson should explain the boundary without turning into an ECMAScript-agent deep dive:
 
 - ECMAScript defines Promise Jobs;
 - the host schedules them;
-- in the browser mental model relevant to application authors, Promise reactions participate in microtask processing.
+- for the browser application mental model, Promise reactions participate in microtask processing.
 
 ### 5.4 Run-to-completion
 
 When JavaScript callback/script work is currently executing, unrelated later callbacks do not preempt it halfway through normal execution.
 
-The lesson can use “run-to-completion” as the practical mental model, while avoiding claims about OS-level preemption or workers that are outside this page’s scope.
+Use “run-to-completion” as the practical mental model while avoiding claims about OS scheduling or worker execution that are outside this page.
 
 ### 5.5 Timers establish eligibility, not exact execution time
 
-A timer delay does not mean “run exactly N milliseconds later.” It controls when timer-related work can become eligible/runnable; actual callback execution depends on the event loop and other work.
+A timer delay does not mean “run exactly N milliseconds later.” It controls when timer-related work can become eligible/runnable; actual callback execution depends on event-loop scheduling and other work.
 
-The simulator therefore must not present a `0ms` timer as immediate execution.
+The simulator must not present a `0ms` timer as immediate execution.
 
 ### 5.6 Rendering is browser-controlled
 
-The lesson must use the phrase **rendering opportunity** and avoid the outdated oversimplification:
+Use the phrase **rendering opportunity** and explicitly reject:
 
 ```text
 one task -> all microtasks -> guaranteed paint -> next task
 ```
 
-The current HTML processing model allows the browser to decide when rendering opportunities occur. Rendering-related work is scheduled through the rendering task source and the rendering update algorithm. A user agent may also skip unnecessary rendering or coalesce work.
+as a universal sequence.
 
-`requestAnimationFrame()` callbacks run as part of the rendering update process when that rendering work occurs. They are not a generic “queue that always runs after microtasks.”
+The current HTML processing model allows the user agent to decide when rendering opportunities occur. Rendering-related work is queued via the rendering task source and processed through the rendering-update algorithm. The browser may skip unnecessary rendering or coalesce work.
 
-### 5.7 Multiple task-source ordering can be intentionally unspecified
+`requestAnimationFrame()` callbacks run during the rendering update process when that rendering work occurs. They are not a generic queue that always runs immediately after microtasks.
+
+### 5.7 Some cross-source ordering is intentionally unspecified
 
 The simulator must distinguish:
 
-- ordering that is guaranteed by the model; and
-- ordering that is one valid browser scheduling choice but not a universal guarantee.
+- ordering guaranteed by the model; and
+- one valid browser scheduling choice that is not a universal guarantee.
 
-When unrelated task sources are simultaneously runnable, the lesson must not invent a standard-mandated ordering.
+When unrelated task sources are simultaneously runnable, the lesson must not invent a standards-mandated ordering.
 
 ## 6. Lesson location and metadata
 
-Recommended canonical file:
+Canonical file:
 
 ```text
 content/docs/programming/async/how-the-browser-event-loop-works.mdx
 ```
 
-It remains under:
+Navigation:
 
 ```text
 Programming
@@ -165,15 +158,15 @@ technologies:
   - nodejs
 ```
 
-Exact metadata values may be adjusted only to satisfy the existing schema or established Atlas naming conventions. The teaching scope must not change during such cleanup.
+Metadata may be adjusted only to satisfy the existing schema or naming conventions; the teaching scope must not change during cleanup.
 
 ## 7. Lesson anatomy
 
-The page follows the established Atlas lesson anatomy, adapted to this topic.
+The page follows the established Atlas anatomy.
 
 ### 7.1 TL;DR
 
-State the practical ordering rule and immediately reject the universal “macrotask FIFO” myth.
+State the practical ordering rule and immediately reject the universal macrotask-FIFO myth.
 
 ### 7.2 Mental model
 
@@ -181,29 +174,29 @@ Introduce four conceptual surfaces:
 
 1. currently running JavaScript;
 2. microtask queue;
-3. regular task queues / task sources;
+3. runnable regular work grouped by task source;
 4. browser rendering-related work.
 
-The diagram must clearly label the browser model rather than a universal JavaScript runtime.
+The diagram must be explicitly labeled as a browser model.
 
 ### 7.3 Why this matters
 
-Connect the model to real engineering symptoms:
+Connect the model to real symptoms:
 
-- “Why did my Promise callback run before my `setTimeout(..., 0)`?”
+- Promise callback versus `setTimeout(..., 0)` ordering;
 - UI freezes and long synchronous tasks;
-- microtask-heavy code delaying other work;
+- microtask-heavy code delaying later work;
 - animation/rendering misconceptions;
-- ordering bugs caused by assuming one FIFO callback queue;
+- bugs caused by assuming one FIFO callback queue;
 - code copied between browser and Node.js with incorrect scheduling assumptions.
 
 ### 7.4 Run-to-completion
 
-Use a tiny synchronous example and show that the current task finishes before later callbacks run.
+Use a tiny synchronous example and show that current work finishes before later callbacks run.
 
 ### 7.5 Tasks versus microtasks
 
-Introduce HTML-standard task terminology, Promise reactions, and `queueMicrotask()`.
+Introduce task terminology, Promise reactions, and `queueMicrotask()`.
 
 ### 7.6 Microtask checkpoints
 
@@ -211,11 +204,11 @@ Explain draining until empty, including newly queued microtasks.
 
 ### 7.7 Timers
 
-Explain timer eligibility and why `setTimeout(fn, 0)` means “later task,” not “immediately after this line.”
+Explain timer eligibility and why `setTimeout(fn, 0)` means later task work, not immediate execution.
 
 ### 7.8 Rendering opportunities
 
-Explain that rendering timing is browser-controlled and that `requestAnimationFrame()` belongs to rendering updates, not a simplistic post-microtask queue.
+Explain browser-controlled rendering and place `requestAnimationFrame()` inside rendering updates rather than a simplistic post-microtask queue.
 
 ### 7.9 Event Loop Lab
 
@@ -229,18 +222,18 @@ Use the simulator’s scheduler-choice scenario to demonstrate that not every cr
 
 Cover both:
 
-- long synchronous tasks blocking later event-loop progress;
-- microtasks recursively producing more microtasks and delaying later work.
+- long synchronous work blocking later progress;
+- microtasks recursively producing more microtasks and delaying later progress.
 
-The lesson should not suggest that microtasks are inherently bad; the issue is unbounded or excessive work before progress can continue.
+Do not imply microtasks are inherently bad; the problem is excessive or unbounded work before progress can continue.
 
 ### 7.12 Browser versus Node.js
 
 Keep this section intentionally bounded. Explain that Node.js has different runtime scheduling machinery, no browser rendering pipeline, APIs such as `setImmediate()`, and Node-specific `process.nextTick()` behavior.
 
-Current Node.js documentation marks `process.nextTick()` as legacy in favor of `queueMicrotask()` for most userland deferral needs. The lesson may mention this as a contemporary runtime distinction, but must not turn into a Node phase tutorial.
+Current Node.js documentation marks `process.nextTick()` as Legacy and recommends `queueMicrotask()` for most portable userland deferral needs.
 
-A future dedicated Node event-loop lesson can go deeper.
+Do not teach the full libuv phase model here. A dedicated Node event-loop lesson can go deeper.
 
 ### 7.13 Production considerations
 
@@ -251,11 +244,11 @@ Include:
 - do not rely on timer precision for correctness;
 - do not use guessed scheduling order as synchronization;
 - profile real browser behavior when responsiveness matters;
-- remember workers have their own event-loop contexts and are outside this page’s primary model.
+- workers have their own event-loop contexts and are outside this page’s primary model.
 
 ### 7.14 Exercise
 
-Give a code-ordering problem that includes:
+Give a code-ordering problem with:
 
 - synchronous logs;
 - one timer;
@@ -263,26 +256,25 @@ Give a code-ordering problem that includes:
 - one `queueMicrotask()`;
 - a microtask that queues another microtask.
 
-Ask readers to predict the guaranteed portion of the output, then explain it in terms of the current task and one microtask checkpoint.
+Ask readers to predict the guaranteed output and explain it through the current task plus one microtask checkpoint.
 
-A second mini-question should ask whether a paint is guaranteed between two callbacks; the correct answer is no.
+A second mini-question asks whether a paint is guaranteed between two callbacks; the correct answer is no.
 
 ### 7.15 Agent rule
 
-Recommended rule:
-
-> In browser JavaScript, let the current work run to completion, then reason about microtask checkpoints separately from regular task queues. Promise reactions and `queueMicrotask()` run as microtasks; timers queue later tasks and are not precise deadlines. Do not assume one global FIFO task queue, guaranteed rendering between callbacks, or browser scheduling rules in Node.js.
+> In browser JavaScript, let the current work run to completion, then reason about microtask checkpoints separately from regular task scheduling. Promise reactions and `queueMicrotask()` run as microtasks; timers queue later task work and are not precise deadlines. Do not assume one global FIFO task queue, guaranteed rendering between callbacks, or browser scheduling rules in Node.js.
 
 ### 7.16 Sources and freshness
 
-Primary sources should include:
+Primary sources:
 
-- WHATWG HTML Standard — event loops, task queues, microtask checkpoints, rendering update processing;
+- WHATWG HTML Standard — event loops, task queues, microtask checkpoints, rendering updates;
 - ECMAScript — Jobs and `HostEnqueuePromiseJob`;
-- MDN only where a more approachable secondary explanation materially helps;
-- current Node.js official documentation for the comparison section.
+- current Node.js official docs for the comparison section.
 
-The lesson remains `evolving` with a 180-day review target because browser scheduling specification details and Node runtime guidance can change.
+MDN may supplement readability but must not override primary behavior.
+
+The lesson remains `evolving` with a 180-day review target.
 
 ## 8. Interactive architecture
 
@@ -295,17 +287,15 @@ Why:
 - deterministic tests;
 - no Sandpack/WebContainer dependency;
 - no accidental reliance on one browser implementation for teaching output;
-- allows explicit representation of guaranteed versus implementation-defined choices;
-- preserves the zero-cost boundary;
-- keeps the visualization explainable and accessible.
+- explicit representation of guaranteed versus implementation-defined choices;
+- zero-cost and portable;
+- explainable and accessible.
 
 ### 8.2 Explicit non-goal: JavaScript interpreter
 
 The simulator does not parse or execute arbitrary code.
 
-It models predefined scenarios using a small typed event-loop state machine. Code snippets shown beside scenarios are explanatory source examples whose expected scheduling behavior is encoded in the scenario definition.
-
-This avoids building an interpreter, instrumentation runtime, or sandbox inside the lesson.
+It models predefined scenarios using a small typed event-loop state machine. Code snippets are explanatory examples whose expected scheduling behavior is encoded in scenario definitions.
 
 ### 8.3 Proposed files
 
@@ -316,13 +306,13 @@ tests/browser-event-loop.test.ts
 tests/e2e/browser-event-loop.spec.ts
 ```
 
-The existing `AsyncWaterfallLab` stays unchanged unless a tiny proven accessibility/style helper is shared naturally. No generic timeline component should be extracted in this PR.
+`AsyncWaterfallLab` stays unchanged unless a tiny identical accessibility/style helper emerges naturally. No generic timeline component is extracted in this PR.
 
 ## 9. Pure simulator model
 
 The pure TypeScript module owns scenario state and transitions.
 
-A representative shape:
+Representative shape:
 
 ```ts
 type TaskSource =
@@ -344,12 +334,12 @@ type WorkItem = {
 type EventLoopState = {
   current: WorkItem | null;
   microtasks: WorkItem[];
-  taskQueues: Partial<Record<TaskSource, WorkItem[]>>;
+  runnableTasksBySource: Partial<Record<TaskSource, WorkItem[]>>;
   animationFrameCallbacks: WorkItem[];
   output: string[];
   stepIndex: number;
   status:
-    | 'running-task'
+    | 'running-work'
     | 'microtask-checkpoint'
     | 'scheduler-choice'
     | 'rendering-opportunity'
@@ -358,60 +348,61 @@ type EventLoopState = {
 };
 ```
 
-This is illustrative, not an API freeze. The implementation plan may refine names while preserving the boundaries below.
+`runnableTasksBySource` is deliberately **not** called `taskQueues`. It is a pedagogical grouping used by the simulator. Real user agents may coalesce task sources into task queues; the simulator must not imply a one-source-to-one-queue browser implementation.
+
+The shape above is illustrative rather than an API freeze.
 
 ### 9.1 Transition granularity
 
-A simulator **Step** represents one pedagogically meaningful scheduling transition, not one line of specification pseudocode.
+A **Step** is one pedagogically meaningful transition, not one specification pseudocode line.
 
 Examples:
 
-- start the current script task;
-- queue a timer task;
-- queue a Promise microtask;
+- start current script work;
+- queue timer task work;
+- queue Promise microtask;
 - finish current task;
 - begin microtask checkpoint;
 - run one microtask;
 - finish checkpoint;
 - choose one runnable task source;
 - expose a rendering opportunity;
-- run rendering update / animation-frame callbacks;
+- queue/run rendering-related work;
+- run animation-frame callback during rendering update;
 - become idle.
 
-The explanation panel must say what changed and why.
+Every transition has a concise explanation.
 
 ### 9.2 Determinism rule
 
-Scenarios that teach guaranteed ordering must be deterministic because only one standard-valid next choice matters for the concept.
+Scenarios teaching guaranteed ordering are deterministic because only one standards-relevant next choice matters for the concept.
 
-The one scenario specifically about multiple task sources must **not hide implementation-defined choice**. It should enter `scheduler-choice` state and allow the learner to select between at least two valid runnable task sources.
+The scenario specifically about multiple task sources must **not hide implementation-defined choice**. It enters `scheduler-choice` and allows the learner to select between at least two valid runnable sources.
 
-The UI then explains that both paths are valid under the simplified scenario because the platform does not guarantee a universal ordering between those unrelated sources.
-
-This is preferable to hard-coding an arbitrary scheduler and accidentally teaching it as a rule.
+Both choices are then explained as valid under the simplified scenario.
 
 ### 9.3 No wall-clock simulation
 
-The model does not simulate real milliseconds.
+The model does not simulate actual milliseconds.
 
-For timer scenarios, a transition may say “timer becomes runnable” after its threshold. The simulator teaches ordering/eligibility, not timer precision.
+For timer scenarios, a transition may say “timer becomes runnable.” The simulator teaches ordering/eligibility, not timer precision.
 
 ### 9.4 Bounded starvation model
 
-The starvation scenario must never create an actual infinite loop or recursive browser microtask chain.
+Never create a real infinite microtask loop.
 
-Use a bounded sequence, for example five self-enqueuing microtasks, then enter a pedagogical warning state:
+Use a bounded sequence such as five self-enqueuing microtasks, then show:
 
 ```text
 More microtasks keep being produced.
 Later tasks/rendering cannot make progress in this model until the checkpoint can finish.
 ```
 
-The simulator may offer “Stop chain” or simply end the scenario with the explanation. It must not freeze the actual Atlas page.
+The Atlas page must never be frozen by the demonstration.
 
 ## 10. Event Loop Lab UI
 
-The specialized component should be named:
+Specialized component:
 
 ```tsx
 <EventLoopLab />
@@ -419,95 +410,93 @@ The specialized component should be named:
 
 ### 10.1 Core layout
 
-Desktop layout can use two columns; mobile stacks vertically.
+Desktop may use two columns; mobile stacks.
 
 The component contains:
 
 - scenario selector;
-- short scenario source snippet or description;
-- Step, Run, and Reset controls;
-- currently running work panel;
-- microtask queue panel;
-- regular task-source queues panel;
-- rendering / animation-frame panel;
+- short source snippet or description;
+- Step, Run, Reset controls;
+- currently running work;
+- microtask queue;
+- runnable regular work grouped by task source;
+- rendering / animation-frame area;
 - output log;
-- “Why this step?” explanation panel;
-- progress indicator such as `Step 4 of 11` where the scenario has a fixed path.
+- “Why this step?” explanation;
+- progress text such as `Step 4 of 11` where the path is fixed.
 
-### 10.2 Queue visual design
+### 10.2 Semantic-first visualization
 
-Queues should be rendered as semantic lists first and visual lanes second.
+Queues and groups are semantic headings/lists first and visual lanes second.
 
-Possible presentation:
+Example:
 
 ```text
 Running JavaScript
-┌────────────────────────────┐
-│ initial script             │
-└────────────────────────────┘
+[ initial script ]
 
 Microtasks
-[ promise.then ] [ qMT #1 ]
+[ promise.then ] [ queueMicrotask #1 ]
 
-Tasks
+Runnable tasks grouped by source
 Timer            [ timeout ]
 User interaction [ click ]
 Networking       [ response ]
 
-Rendering
+Rendering-related work
 rAF callbacks    [ animate ]
 ```
 
-Do not visually imply that every task source always has its own browser queue; the UI is a pedagogical grouping of task sources/runnable work. Copy must explain that browsers can coalesce task sources into task queues.
+Visible copy must explain that grouping by source is pedagogical and does not claim each source maps to its own browser queue.
 
-### 10.3 Step control
+### 10.3 Step
 
 `Step` advances one transition.
 
-When the next state is a scheduler choice, Step should not silently choose. The UI presents the valid choices as buttons, for example:
+At `scheduler-choice`, it does not silently choose. The UI presents native buttons such as:
 
 ```text
 Choose one valid runnable source:
 [ Timer task ] [ User-interaction task ]
 ```
 
-### 10.4 Run control
+### 10.4 Run
 
-For deterministic scenarios, `Run` advances through the remaining transitions at a readable pace.
+For deterministic scenarios, `Run` advances remaining transitions at a readable pace.
 
-If execution reaches a scheduler-choice state, auto-run pauses and requires a learner choice.
+Auto-run pauses at scheduler-choice states.
 
-Under `prefers-reduced-motion: reduce`, automatic animated transitions should be disabled or effectively instantaneous while all state changes remain available through semantic content.
+With `prefers-reduced-motion: reduce`, animated transitions are disabled or effectively instantaneous while semantic state changes remain identical.
 
-### 10.5 Reset
+### 10.5 Reset and scenario change
 
-Reset restores the selected scenario’s initial state and output.
+Reset returns the exact initial scenario state and output.
 
 Changing scenarios also resets state.
 
 ### 10.6 Explanation panel
 
-Every transition includes a concise explanation such as:
+Each transition has visible explanatory text, for example:
 
 ```text
-The initial script task finished. The browser now performs a microtask checkpoint before selecting later task work.
+The initial script task finished. The browser now performs a microtask checkpoint before selecting later regular task work.
 ```
 
 or:
 
 ```text
-Both the timer and interaction task sources are runnable. The HTML Standard does not define one universal FIFO order across unrelated task queues, so either selection can be valid here.
+Both sources have runnable work. The HTML Standard does not define one universal FIFO order across unrelated task queues, so either selection can be valid here.
 ```
 
-This explanation is part of the accessible experience, not hover-only UI.
+No essential explanation is hover-only.
 
 ## 11. Required scenarios
 
-Ship six scenarios. Do not add more unless one is required to clarify a standards ambiguity during implementation.
+Ship exactly six unless implementation reveals a standards ambiguity that cannot otherwise be explained.
 
 ### Scenario 1 — Promise reaction versus timer
 
-Source concept:
+Conceptual source:
 
 ```js
 console.log('A');
@@ -516,7 +505,7 @@ Promise.resolve().then(() => console.log('promise'));
 console.log('B');
 ```
 
-Teaching outcome:
+Controlled-scenario output:
 
 ```text
 A
@@ -525,142 +514,127 @@ promise
 timer
 ```
 
-within this controlled scenario.
-
-Reasoning:
-
-- synchronous script runs to completion;
-- the Promise reaction is a microtask;
-- the timer callback is later regular task work;
-- the microtask checkpoint happens after the current task finishes.
+Teach run-to-completion, Promise microtasks, timer task work, and the post-task microtask checkpoint.
 
 ### Scenario 2 — A microtask queues another microtask
 
-Teach that the checkpoint drains until empty, so newly queued microtasks can execute during the same checkpoint.
+Teach that the checkpoint drains until empty and newly queued microtasks can run during the same checkpoint.
 
 ### Scenario 3 — Timer task queues a Promise reaction
 
-Teach that once the timer task starts and finishes, its newly queued Promise reaction participates in the following microtask checkpoint before later regular task work is selected.
+Teach that after the timer task runs, its Promise reaction participates in the following microtask checkpoint before later regular task selection.
 
 ### Scenario 4 — Rendering opportunity and `requestAnimationFrame()`
 
 Teach:
 
-- a rendering opportunity is controlled by the browser;
-- rendering-related work can be scheduled when an opportunity occurs;
-- `requestAnimationFrame()` callbacks run during the rendering update process;
-- no rule says every ordinary task is followed by a paint.
+- rendering opportunities are browser-controlled;
+- rendering-related task work is scheduled when opportunities occur;
+- `requestAnimationFrame()` callbacks run within the rendering update process;
+- no rule guarantees a paint after every ordinary task.
 
-The scenario should show at least one path where two ordinary tasks can occur without an intervening rendering update, to break the “task -> paint” myth.
+Show at least one valid path where two ordinary tasks occur without an intervening rendering update.
 
 ### Scenario 5 — Microtask starvation
 
-Teach that continuously producing microtasks can prevent the checkpoint from becoming empty and therefore delay later event-loop progress.
+Teach that continuously producing microtasks can prevent a checkpoint from becoming empty and delay later event-loop progress.
 
-Use a bounded simulation only.
+Use bounded simulation only.
 
 ### Scenario 6 — Multiple task sources and scheduler choice
 
-Provide simultaneously runnable tasks from two unrelated sources such as timer and user interaction.
+Provide simultaneously runnable work from two unrelated sources such as timer and user interaction.
 
-Pause at a scheduler-choice state and allow either path.
+Pause at scheduler-choice and allow either path.
 
-Copy must distinguish:
-
-- source-local ordering constraints; and
-- cross-queue selection freedom.
+Distinguish source-local ordering from cross-queue selection freedom.
 
 ## 12. Relationship to AsyncWaterfallLab
 
-This PR intentionally does **not** refactor `AsyncWaterfallLab` into a generic primitive.
+Do **not** refactor `AsyncWaterfallLab` into a generic primitive in this PR.
 
-After implementation, compare the two lessons for repeated patterns:
+After this lesson, compare the two implementations for proven repetition:
 
-- bordered interactive lesson card;
-- play/step/reset controls;
+- bordered interactive card;
+- run/step/reset controls;
 - reduced-motion behavior;
 - semantic fallback data;
 - active-step/timeline visualization;
 - explanation/output areas.
 
-Only after the Promises lesson or another third example should Phase 0.3 extract a generic primitive unless a truly identical low-level helper emerges naturally.
-
-This is the architectural experiment the lesson is supposed to support.
+The expected next lesson is **Promises**. After a third gold-standard lesson, Phase 0.3 can make an evidence-based extraction decision unless a truly identical low-level helper emerges earlier.
 
 ## 13. Accessibility contract
 
-The component must remain useful without interpreting motion or color.
+The simulator must remain useful without motion or color.
 
 Requirements:
 
-- scenario selector has an accessible label;
-- Step, Run, Reset, and scheduler-choice controls are native buttons/select controls where appropriate;
-- each queue is represented by semantic headings and lists;
-- the active/current work item is indicated textually, not only by color;
-- step explanation is visible text;
-- output log is semantic text and not solely an animation;
-- live announcements should be conservative; use `aria-live="polite"` only for a concise step summary rather than re-announcing the entire simulator;
-- keyboard operation covers all controls and scheduler choices;
-- focus must not jump unexpectedly when stepping;
-- reduced-motion users receive the same state transitions without required animation;
+- accessible scenario selector label;
+- native controls for Step, Run, Reset, and scheduler choices;
+- queue/source groups represented with semantic headings and lists;
+- current work indicated textually, not only by color;
+- visible step explanation;
+- semantic output log;
+- conservative `aria-live="polite"` only for concise step summaries if needed;
+- keyboard operation for all controls and scheduler choices;
+- no unexpected focus jumps during stepping;
+- reduced-motion parity;
 - no serious or critical axe violations;
-- syntax highlighting must retain the high-contrast theme established by the previous lesson.
+- retain the site’s high-contrast syntax theme.
 
-If panels become horizontally scrollable, they must follow the established focusable-region pattern already proven by `AsyncWaterfallLab`.
+Horizontally scrollable panels, if any, follow the focusable-region pattern already proven in `AsyncWaterfallLab`.
 
 ## 14. Raw Markdown and agent compatibility
 
-The simulator must not contain unique knowledge.
+The simulator contains no unique knowledge.
 
-The MDX lesson must independently state:
+Canonical MDX must independently state:
 
-- the expected output of deterministic scenarios;
-- why Promise reactions beat the timer in the introductory scenario;
-- that microtask checkpoints drain until empty;
-- that timers are not exact deadlines;
-- that the browser has multiple task queues/task sources rather than one universal FIFO macrotask queue;
-- that rendering opportunities are browser-controlled;
-- that `requestAnimationFrame()` belongs to rendering work;
-- that browser and Node.js scheduling models differ;
+- deterministic scenario output and reasoning;
+- microtask checkpoints drain until empty;
+- timers are not exact deadlines;
+- the browser does not have one universal FIFO macrotask queue;
+- rendering opportunities are browser-controlled;
+- `requestAnimationFrame()` belongs to rendering updates;
+- browser and Node.js scheduling differ;
 - the agent rule.
 
-The clean `.md` route must therefore remain a complete technical lesson for agents and non-interactive consumers.
+The clean `.md` route remains a complete technical lesson.
 
 ## 15. Node.js comparison boundary
 
-The Node.js section should be approximately one focused section, not a second lesson hidden inside this one.
+The Node.js comparison is one focused section, not a second hidden lesson.
 
 Required contrasts:
 
-| Browser model | Node.js comparison |
+| Browser | Node.js |
 | --- | --- |
-| HTML event loop/task sources | Node/libuv event-loop runtime machinery |
-| rendering opportunities | no browser rendering pipeline |
-| `requestAnimationFrame()` | `setImmediate()` and Node timer/I/O APIs instead |
-| browser-hosted Promise microtasks | Promise microtasks plus Node-specific scheduling such as `process.nextTick()` |
+| HTML task sources/task queues | Node/libuv runtime scheduling machinery |
+| browser rendering pipeline | no browser rendering pipeline |
+| `requestAnimationFrame()` is tied to rendering | no direct rendering equivalent; Node has different APIs such as `setImmediate()` for different scheduling needs |
+| Promise microtasks integrated by browser host | Promise microtasks plus Node-specific mechanisms such as `process.nextTick()` |
 
-The section should mention contemporary Node guidance:
+Mention current Node guidance that `process.nextTick()` has its own next-tick queue and is marked Legacy, with `queueMicrotask()` preferred for most portable userland deferral.
 
-- `process.nextTick()` has a separate next-tick queue;
-- current Node documentation marks it Legacy and recommends `queueMicrotask()` for most portable userland deferral needs;
-- CommonJS versus ESM can affect simple `nextTick`/microtask ordering examples because ESM evaluation itself participates in microtask processing.
+Do not require CommonJS-versus-ESM ordering trivia in the main lesson. Include it only if a chosen Node example would otherwise be misleading.
 
-Do not create a Node simulator in this PR.
+Do not build a Node simulator.
 
 ## 16. Error and edge-case handling
 
-Because scenarios are static data owned by the repository, invalid scenario definitions are developer errors rather than user input errors.
+Scenario definitions are repository-owned static data, so malformed definitions are developer errors.
 
-The pure model should fail clearly in tests for malformed definitions such as:
+The pure model should reject malformed definitions where practical, including:
 
 - duplicate work-item IDs;
-- scheduler choice with no valid options;
-- unknown work item referenced by a transition;
-- negative or impossible step index if such values are representable.
+- scheduler choice with no options;
+- transition references to unknown work;
+- invalid step progression.
 
-The UI should not expose arbitrary scenario JSON editing.
+No arbitrary scenario JSON editing is exposed to readers.
 
-If an unexpected state still occurs in production, render a readable fallback message rather than crashing the entire docs page.
+Unexpected runtime state should render a readable component-level fallback rather than crash the whole docs page.
 
 ## 17. Testing strategy
 
@@ -668,33 +642,33 @@ If an unexpected state still occurs in production, render a readable fallback me
 
 Cover at minimum:
 
-1. introductory scenario produces `A`, `B`, `promise`, `timer`;
+1. Scenario 1 produces `A`, `B`, `promise`, `timer`;
 2. microtask checkpoint drains a newly queued microtask before completing;
-3. timer task followed by Promise reaction enters microtask processing before later task selection;
-4. starvation scenario remains bounded and never creates an infinite transition loop;
-5. scheduler-choice state exposes both valid task-source choices;
+3. timer task followed by Promise reaction enters microtask processing before later regular task selection;
+4. starvation scenario remains bounded;
+5. scheduler-choice exposes both valid sources;
 6. reset returns the exact initial state;
-7. invalid static scenario definitions are rejected if validation is implemented in the model boundary.
+7. malformed static scenario definitions are rejected if validation exists at the model boundary.
 
 ### 17.2 Browser tests
 
-Add Playwright coverage for:
+Cover:
 
-1. lesson appears under Programming → Asynchronous Programming navigation;
+1. lesson is reachable through Programming → Asynchronous Programming navigation;
 2. default scenario renders expected initial state;
-3. Step moves from script completion into the expected microtask state;
+3. Step reaches the expected microtask state;
 4. Run reaches expected output for deterministic Scenario 1;
 5. Reset restores the scenario;
 6. changing scenarios resets state;
-7. scheduler-choice scenario exposes at least two valid choices and accepts keyboard activation;
-8. reduced-motion mode still allows all state changes and exposes text explanations;
+7. scheduler-choice exposes at least two valid choices and accepts keyboard activation;
+8. reduced-motion mode still exposes state changes and explanations;
 9. clean Markdown contains the essential standards explanation and Node boundary;
 10. Edit-on-GitHub targets the canonical MDX file;
 11. serious/critical axe scan is clean.
 
 ### 17.3 Existing gate
 
-The permanent CI gate remains:
+Permanent CI remains:
 
 ```text
 pnpm install --frozen-lockfile
@@ -706,80 +680,77 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-Do not split permanent CI into per-test diagnostic steps. Temporary diagnostics may be used on the feature branch only if a failure cannot otherwise be isolated, and must be removed before final verification.
+Do not permanently split CI into per-test diagnostic steps. Temporary branch-only diagnostics are allowed only when needed and must be removed before final verification.
 
 ## 18. Source verification requirements
 
-Implementation-time factual claims must be checked against current primary documentation rather than recalled from common event-loop diagrams.
+Implementation-time factual claims are checked against current primary documentation.
 
-Primary references for this design:
+Primary references:
 
-- WHATWG HTML Standard, Web application APIs / event loops: https://html.spec.whatwg.org/multipage/webappapis.html
-- ECMAScript, Jobs and host enqueue operations: https://tc39.es/ecma262/multipage/executable-code-and-execution-contexts.html
-- Node.js current timers documentation: https://nodejs.org/api/timers.html
-- Node.js current process / `process.nextTick()` documentation: https://nodejs.org/api/process.html
+- WHATWG HTML Standard — https://html.spec.whatwg.org/multipage/webappapis.html
+- ECMAScript Jobs / host operations — https://tc39.es/ecma262/multipage/executable-code-and-execution-contexts.html
+- Node.js timers — https://nodejs.org/api/timers.html
+- Node.js process / `process.nextTick()` — https://nodejs.org/api/process.html
 
-Secondary references such as MDN may be added for readability, but must not override primary-standard behavior.
+Secondary references may supplement readability but cannot override primary behavior.
 
 ## 19. Zero-cost and portability constraints
 
-This lesson introduces no paid or runtime hosted dependency.
-
-Specifically, it requires no:
+No:
 
 - LLM/model API;
 - database;
 - vector search;
 - telemetry vendor;
 - code-execution SaaS;
-- Sandpack dependency;
-- WebContainers dependency;
+- Sandpack;
+- WebContainers;
 - remote simulator service;
 - object storage.
 
-All scenarios and simulation logic ship in the repository and run locally in the browser.
+All scenarios and simulation logic live in the repository and run locally in the browser.
 
 ## 20. Non-goals
 
 This PR does not:
 
-- implement arbitrary JavaScript execution;
+- execute arbitrary JavaScript;
 - implement a JavaScript parser/interpreter;
-- implement Node.js event-loop phases in depth;
-- simulate actual wall-clock timing;
-- guarantee browser task-source ordering the standard leaves implementation-defined;
+- deeply teach Node.js event-loop phases;
+- simulate real wall-clock timing;
+- invent task-source ordering left implementation-defined;
 - model workers in depth;
-- model every rendering step in the HTML specification;
-- teach networking internals;
-- extract generic `ExecutionTimeline`, `LearningLab`, `QueueVisualizer`, or similar framework components;
-- add Sandpack or WebContainers;
+- model every rendering algorithm step;
+- extract generic `ExecutionTimeline`, `LearningLab`, or queue framework components;
+- add Sandpack/WebContainers;
 - redesign the docs shell.
 
 ## 21. Definition of done
 
-The phase is complete when:
+The lesson is ready when:
 
-- the written lesson accurately teaches the browser-first model;
-- all six simulator scenarios work deterministically where the standard gives deterministic teaching constraints;
-- the multiple-task-source scenario explicitly represents implementation-defined choice instead of inventing a guarantee;
-- rendering language avoids promising paint after every callback;
+- written content accurately teaches the browser-first model;
+- all six scenarios work deterministically where the standards give deterministic teaching constraints;
+- multiple-task-source choice is represented explicitly rather than invented;
+- rendering language never promises paint after every callback;
 - browser and Node.js models are clearly separated;
-- simulator knowledge is duplicated in readable canonical MDX rather than trapped in UI state;
-- accessibility and reduced-motion requirements pass automated checks and keyboard verification;
-- existing docs/search/raw-Markdown/Edit-on-GitHub behavior remains intact;
+- simulator knowledge remains available in canonical MDX/raw Markdown;
+- keyboard, reduced-motion, and accessibility checks pass;
+- docs/search/raw-Markdown/Edit-on-GitHub behavior remains intact;
 - permanent CI is green on the exact final branch;
-- no generic learning primitive is extracted without evidence from a third lesson.
+- no generic learning primitive is extracted without stronger evidence.
 
 ## 22. Post-lesson architectural question
 
 After this lesson lands, record what actually repeated between `AsyncWaterfallLab` and `EventLoopLab`.
 
-The expected next lesson remains **Promises**. After that third gold-standard lesson, Phase 0.3 should make an evidence-based decision about extracting reusable primitives such as:
+The expected next lesson remains **Promises**. After that third lesson, Phase 0.3 should decide whether to extract reusable primitives such as:
 
 - execution/step timeline;
 - code comparison;
-- agent rule presentation;
+- agent-rule presentation;
 - challenge/exercise shell;
 - freshness/source presentation.
 
-The extraction decision must be based on repeated authored code and UX needs, not on names that sounded reusable in the roadmap.
+The extraction decision must be based on repeated authored code and UX needs, not speculative component names.
