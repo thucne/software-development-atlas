@@ -1,9 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const lessonPath = '/docs/programming/async/how-the-browser-event-loop-works';
 
-async function step(page: Parameters<typeof test>[0] extends never ? never : any, count: number) {
+async function step(page: Page, count: number) {
   for (let index = 0; index < count; index += 1) {
     await page.getByRole('button', { name: 'Step', exact: true }).click();
   }
@@ -146,7 +146,9 @@ test('bounds the starvation demonstration instead of freezing the page', async (
   await expect(page.getByTestId('event-loop-output').locator('li')).toHaveCount(
     6,
   );
-  await expect(page.getByText(/Later tasks and rendering cannot make progress/)).toBeVisible();
+  await expect(
+    page.getByText(/Later tasks and rendering cannot make progress/),
+  ).toBeVisible();
 });
 
 test('step and reset controls are keyboard operable', async ({ page }) => {
@@ -179,7 +181,7 @@ test('clean Markdown preserves the essential event-loop model', async ({
   expect(markdown).toContain('rendering opportunity');
   expect(markdown).toContain('queueMicrotask()');
   expect(markdown).toContain('Node.js');
-  expect(markdown).toContain('both initial choice');
+  expect(markdown).toContain('accepts either initial choice');
 });
 
 test('edit action targets the canonical event-loop source', async ({ page }) => {
