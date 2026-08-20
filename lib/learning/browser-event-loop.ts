@@ -58,6 +58,8 @@ export type ScenarioDefinition = {
   source: string;
 };
 
+type Transition = (state: EventLoopState) => Partial<EventLoopState>;
+
 const scriptTask: WorkItem = {
   id: 'script',
   label: 'initial script',
@@ -76,6 +78,20 @@ const promiseMicrotask: WorkItem = {
   id: 'promise',
   label: 'Promise reaction',
   kind: 'microtask',
+};
+
+const timerChoiceTask: WorkItem = {
+  id: 'choice-timer',
+  label: 'timer task',
+  kind: 'task',
+  source: 'timer',
+};
+
+const interactionChoiceTask: WorkItem = {
+  id: 'choice-interaction',
+  label: 'user-interaction task',
+  kind: 'task',
+  source: 'user-interaction',
 };
 
 export const EVENT_LOOP_SCENARIOS = [
@@ -143,7 +159,7 @@ export function createScenarioState(id: ScenarioId): EventLoopState {
   return initialState(id);
 }
 
-function next(
+function advance(
   state: EventLoopState,
   patch: Partial<EventLoopState>,
 ): EventLoopState {
@@ -158,7 +174,7 @@ function appendOutput(state: EventLoopState, line: string) {
   return [...state.output, line];
 }
 
-function taskQueuesWith(
+function addRunnableTask(
   state: EventLoopState,
   source: TaskSource,
   item: WorkItem,
@@ -169,7 +185,7 @@ function taskQueuesWith(
   };
 }
 
-function withoutFirstTask(state: EventLoopState, source: TaskSource) {
+function removeFirstRunnableTask(state: EventLoopState, source: TaskSource) {
   const queue = state.runnableTasksBySource[source] ?? [];
   return {
     ...state.runnableTasksBySource,
@@ -177,260 +193,226 @@ function withoutFirstTask(state: EventLoopState, source: TaskSource) {
   };
 }
 
-function stepPromiseVsTimer(state: EventLoopState): EventLoopState {
-  switch (state.stepIndex) {
-    case 0:
-      return next(state, {
-        output: appendOutput(state, 'A'),
-        explanation: 'Synchronous code runs inside the current script task.',
-      });
-    case 1:
-      return next(state, {
-        runnableTasksBySource: taskQueuesWith(state, 'timer', timerTask),
-        explanation:
-          'The timer callback becomes later task work; a 0ms delay does not run it immediately.',
-      });
-    case 2:
-      return next(state, {
-        microtasks: [...state.microtasks, promiseMicrotask],
-        explanation:
-          'The fulfilled Promise queues its reaction for browser microtask processing.',
-      });
-    case 3:
-      return next(state, {
-        output: appendOutput(state, 'B'),
-        explanation:
-          'The current script keeps running to completion before later callbacks run.',
-      });
-    case 4:
-      return next(state, {
-        current: null,
-        status: 'microtask-checkpoint',
-        explanation:
-          'The script task has finished, so the browser reaches a microtask checkpoint.',
-      });
-    case 5:
-      return next(state, {
-        current: promiseMicrotask,
-        microtasks: state.microtasks.slice(1),
-        output: appendOutput(state, 'promise'),
-        status: 'microtask-checkpoint',
-        explanation:
-          'The Promise reaction runs during the microtask checkpoint before the later timer task.',
-      });
-    case 6:
-      return next(state, {
-        current: timerTask,
-        runnableTasksBySource: withoutFirstTask(state, 'timer'),
-        status: 'running-work',
-        explanation:
-          'The microtask queue is empty. The later timer task can now be selected.',
-      });
-    case 7:
-      return next(state, {
-        output: appendOutput(state, 'timer'),
-        explanation: 'The selected timer callback now runs.',
-      });
-    default:
-      return next(state, {
-        current: null,
-        status: 'idle',
-        complete: true,
-        explanation: 'No work remains in this scenario.',
-      });
-  }
+const promiseVsTimerTransitions: Transition[] = [
+  (state) => ({
+    output: appendOutput(state, 'A'),
+    explanation: 'Synchronous code runs inside the current script task.',
+  }),
+  (state) => ({
+    runnableTasksBySource: addRunnableTask(state, 'timer', timerTask),
+    explanation:
+      'The timer callback becomes later task work; a 0ms delay does not run it immediately.',
+  }),
+  (state) => ({
+    microtasks: [...state.microtasks, promiseMicrotask],
+    explanation:
+      'The fulfilled Promise queues its reaction for browser microtask processing.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'B'),
+    explanation:
+      'The current script keeps running to completion before later callbacks run.',
+  }),
+  () => ({
+    current: null,
+    status: 'microtask-checkpoint',
+    explanation:
+      'The script task has finished, so the browser reaches a microtask checkpoint.',
+  }),
+  (state) => ({
+    current: promiseMicrotask,
+    microtasks: state.microtasks.slice(1),
+    output: appendOutput(state, 'promise'),
+    status: 'microtask-checkpoint',
+    explanation:
+      'The Promise reaction runs during the microtask checkpoint before the later timer task.',
+  }),
+  (state) => ({
+    current: timerTask,
+    runnableTasksBySource: removeFirstRunnableTask(state, 'timer'),
+    status: 'running-work',
+    explanation:
+      'The microtask queue is empty. The later timer task can now be selected.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'timer'),
+    explanation: 'The selected timer callback now runs.',
+  }),
+];
+
+const nestedMicrotaskA: WorkItem = {
+  id: 'microtask-a',
+  label: 'microtask A',
+  kind: 'microtask',
+};
+
+const nestedMicrotaskB: WorkItem = {
+  id: 'microtask-b',
+  label: 'microtask B',
+  kind: 'microtask',
+};
+
+const nestedMicrotaskTransitions: Transition[] = [
+  (state) => ({
+    output: appendOutput(state, 'script'),
+    explanation: 'The initial script runs first.',
+  }),
+  () => ({
+    microtasks: [nestedMicrotaskA],
+    explanation: 'The script queues microtask A.',
+  }),
+  () => ({
+    current: null,
+    status: 'microtask-checkpoint',
+    explanation:
+      'The script finishes and the browser begins a microtask checkpoint.',
+  }),
+  (state) => ({
+    current: nestedMicrotaskA,
+    microtasks: [nestedMicrotaskB],
+    output: appendOutput(state, 'microtask A'),
+    explanation:
+      'Microtask A runs and queues microtask B while the checkpoint is still active.',
+  }),
+  (state) => ({
+    current: nestedMicrotaskB,
+    microtasks: [],
+    output: appendOutput(state, 'microtask B'),
+    explanation:
+      'The checkpoint keeps draining, so the newly queued microtask B runs before it finishes.',
+  }),
+];
+
+const laterTimerTask: WorkItem = {
+  id: 'later-task',
+  label: 'later timer task',
+  kind: 'task',
+  source: 'timer',
+};
+
+const promiseFromTimer: WorkItem = {
+  id: 'promise-from-timer',
+  label: 'Promise reaction from timer',
+  kind: 'microtask',
+};
+
+const timerQueuesPromiseTransitions: Transition[] = [
+  (state) => ({
+    output: appendOutput(state, 'script'),
+    explanation: 'The script runs first.',
+  }),
+  (state) => ({
+    runnableTasksBySource: {
+      ...state.runnableTasksBySource,
+      timer: [timerTask, laterTimerTask],
+    },
+    explanation:
+      'Two timer callbacks become runnable in their task source order.',
+  }),
+  (state) => ({
+    current: timerTask,
+    runnableTasksBySource: removeFirstRunnableTask(state, 'timer'),
+    explanation: 'After the script finishes, the first timer task is selected.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'timer'),
+    microtasks: [promiseFromTimer],
+    explanation:
+      'The timer callback runs and queues a Promise reaction as a microtask.',
+  }),
+  () => ({
+    current: null,
+    status: 'microtask-checkpoint',
+    explanation:
+      'When the timer task finishes, the browser reaches a microtask checkpoint.',
+  }),
+  (state) => ({
+    current: promiseFromTimer,
+    microtasks: [],
+    output: appendOutput(state, 'promise from timer'),
+    explanation:
+      'The Promise reaction runs during the checkpoint before the later timer task.',
+  }),
+  (state) => ({
+    current: laterTimerTask,
+    runnableTasksBySource: removeFirstRunnableTask(state, 'timer'),
+    status: 'running-work',
+    explanation:
+      'After the checkpoint empties, the next runnable timer task can be selected.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'later task'),
+    explanation: 'The later task now runs.',
+  }),
+];
+
+const animationFrameWork: WorkItem = {
+  id: 'animation-frame',
+  label: 'requestAnimationFrame callback',
+  kind: 'animation-frame',
+  source: 'rendering',
+};
+
+const renderingTransitions: Transition[] = [
+  () => ({
+    animationFrameCallbacks: [animationFrameWork],
+    explanation:
+      'The script registers a requestAnimationFrame callback for a future rendering update.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'script'),
+    explanation: 'The current script still runs to completion first.',
+  }),
+  () => ({
+    current: null,
+    status: 'microtask-checkpoint',
+    explanation:
+      'The current work has finished; the relevant microtask checkpoint is empty.',
+  }),
+  () => ({
+    status: 'rendering-opportunity',
+    explanation:
+      'This scenario now exposes a rendering opportunity. Real browsers control when such opportunities occur.',
+  }),
+  () => ({
+    current: animationFrameWork,
+    animationFrameCallbacks: [],
+    status: 'rendering-update',
+    explanation:
+      'During the rendering update, the requestAnimationFrame callback can run.',
+  }),
+  (state) => ({
+    output: appendOutput(state, 'animation frame'),
+    explanation:
+      'The animation-frame callback runs as part of rendering-related work, not as a generic post-microtask task queue.',
+  }),
+];
+
+const deterministicTransitions: Partial<Record<ScenarioId, Transition[]>> = {
+  'promise-vs-timer': promiseVsTimerTransitions,
+  'nested-microtasks': nestedMicrotaskTransitions,
+  'timer-queues-promise': timerQueuesPromiseTransitions,
+  'rendering-opportunity': renderingTransitions,
+};
+
+function completeScenario(state: EventLoopState, explanation: string) {
+  return advance(state, {
+    current: null,
+    status: 'idle',
+    complete: true,
+    explanation,
+  });
 }
 
-function stepNestedMicrotasks(state: EventLoopState): EventLoopState {
-  const microtaskA: WorkItem = {
-    id: 'microtask-a',
-    label: 'microtask A',
-    kind: 'microtask',
-  };
-  const microtaskB: WorkItem = {
-    id: 'microtask-b',
-    label: 'microtask B',
-    kind: 'microtask',
-  };
+function stepDeterministicScenario(state: EventLoopState) {
+  const transitions = deterministicTransitions[state.scenarioId] ?? [];
+  const transition = transitions[state.stepIndex];
 
-  switch (state.stepIndex) {
-    case 0:
-      return next(state, {
-        output: appendOutput(state, 'script'),
-        explanation: 'The initial script runs first.',
-      });
-    case 1:
-      return next(state, {
-        microtasks: [microtaskA],
-        explanation: 'The script queues microtask A.',
-      });
-    case 2:
-      return next(state, {
-        current: null,
-        status: 'microtask-checkpoint',
-        explanation:
-          'The script finishes and the browser begins a microtask checkpoint.',
-      });
-    case 3:
-      return next(state, {
-        current: microtaskA,
-        microtasks: [microtaskB],
-        output: appendOutput(state, 'microtask A'),
-        explanation:
-          'Microtask A runs and queues microtask B while the checkpoint is still active.',
-      });
-    case 4:
-      return next(state, {
-        current: microtaskB,
-        microtasks: [],
-        output: appendOutput(state, 'microtask B'),
-        explanation:
-          'The checkpoint keeps draining, so the newly queued microtask B runs before it finishes.',
-      });
-    default:
-      return next(state, {
-        current: null,
-        status: 'idle',
-        complete: true,
-        explanation: 'The microtask queue is empty and this scenario is complete.',
-      });
+  if (!transition) {
+    return completeScenario(state, 'No work remains in this scenario.');
   }
-}
 
-function stepTimerQueuesPromise(state: EventLoopState): EventLoopState {
-  const laterTask: WorkItem = {
-    id: 'later-task',
-    label: 'later timer task',
-    kind: 'task',
-    source: 'timer',
-  };
-  const promiseFromTimer: WorkItem = {
-    id: 'promise-from-timer',
-    label: 'Promise reaction from timer',
-    kind: 'microtask',
-  };
-
-  switch (state.stepIndex) {
-    case 0:
-      return next(state, {
-        output: appendOutput(state, 'script'),
-        explanation: 'The script runs first.',
-      });
-    case 1:
-      return next(state, {
-        runnableTasksBySource: {
-          ...state.runnableTasksBySource,
-          timer: [timerTask, laterTask],
-        },
-        explanation:
-          'Two timer callbacks become runnable in their task source order.',
-      });
-    case 2:
-      return next(state, {
-        current: timerTask,
-        runnableTasksBySource: withoutFirstTask(state, 'timer'),
-        explanation: 'After the script finishes, the first timer task is selected.',
-      });
-    case 3:
-      return next(state, {
-        output: appendOutput(state, 'timer'),
-        microtasks: [promiseFromTimer],
-        explanation:
-          'The timer callback runs and queues a Promise reaction as a microtask.',
-      });
-    case 4:
-      return next(state, {
-        current: null,
-        status: 'microtask-checkpoint',
-        explanation:
-          'When the timer task finishes, the browser reaches a microtask checkpoint.',
-      });
-    case 5:
-      return next(state, {
-        current: promiseFromTimer,
-        microtasks: [],
-        output: appendOutput(state, 'promise from timer'),
-        explanation:
-          'The Promise reaction runs during the checkpoint before the later timer task.',
-      });
-    case 6:
-      return next(state, {
-        current: laterTask,
-        runnableTasksBySource: withoutFirstTask(state, 'timer'),
-        status: 'running-work',
-        explanation:
-          'After the checkpoint empties, the next runnable timer task can be selected.',
-      });
-    case 7:
-      return next(state, {
-        output: appendOutput(state, 'later task'),
-        explanation: 'The later task now runs.',
-      });
-    default:
-      return next(state, {
-        current: null,
-        status: 'idle',
-        complete: true,
-        explanation: 'No work remains in this scenario.',
-      });
-  }
-}
-
-function stepRenderingOpportunity(state: EventLoopState): EventLoopState {
-  const animationFrame: WorkItem = {
-    id: 'animation-frame',
-    label: 'requestAnimationFrame callback',
-    kind: 'animation-frame',
-    source: 'rendering',
-  };
-
-  switch (state.stepIndex) {
-    case 0:
-      return next(state, {
-        animationFrameCallbacks: [animationFrame],
-        explanation:
-          'The script registers a requestAnimationFrame callback for a future rendering update.',
-      });
-    case 1:
-      return next(state, {
-        output: appendOutput(state, 'script'),
-        explanation: 'The current script still runs to completion first.',
-      });
-    case 2:
-      return next(state, {
-        current: null,
-        status: 'microtask-checkpoint',
-        explanation:
-          'The current work has finished; the relevant microtask checkpoint is empty.',
-      });
-    case 3:
-      return next(state, {
-        status: 'rendering-opportunity',
-        explanation:
-          'This scenario now exposes a rendering opportunity. Real browsers control when such opportunities occur.',
-      });
-    case 4:
-      return next(state, {
-        current: animationFrame,
-        animationFrameCallbacks: [],
-        status: 'rendering-update',
-        explanation:
-          'During the rendering update, the requestAnimationFrame callback can run.',
-      });
-    case 5:
-      return next(state, {
-        output: appendOutput(state, 'animation frame'),
-        explanation:
-          'The animation-frame callback runs as part of rendering-related work, not as a generic post-microtask task queue.',
-      });
-    default:
-      return next(state, {
-        current: null,
-        status: 'idle',
-        complete: true,
-        explanation: 'The simplified rendering scenario is complete.',
-      });
-  }
+  return advance(state, transition(state));
 }
 
 function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
@@ -439,17 +421,21 @@ function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
   ).length;
 
   if (state.stepIndex === 0) {
-    return next(state, {
+    return advance(state, {
       output: appendOutput(state, 'script'),
       microtasks: [
-        { id: 'microtask-1', label: 'self-producing microtask', kind: 'microtask' },
+        {
+          id: 'microtask-1',
+          label: 'self-producing microtask',
+          kind: 'microtask',
+        },
       ],
       explanation: 'The script queues a self-producing microtask.',
     });
   }
 
   if (state.stepIndex === 1) {
-    return next(state, {
+    return advance(state, {
       current: null,
       status: 'microtask-checkpoint',
       explanation:
@@ -465,7 +451,7 @@ function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
       kind: 'microtask',
     };
 
-    return next(state, {
+    return advance(state, {
       current: state.microtasks[0] ?? null,
       microtasks: [nextItem],
       output: appendOutput(state, `microtask ${nextCount}`),
@@ -475,7 +461,7 @@ function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
     });
   }
 
-  return next(state, {
+  return advance(state, {
     current: null,
     status: 'starvation-warning',
     complete: true,
@@ -483,20 +469,6 @@ function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
       'More microtasks keep being produced. Later tasks and rendering cannot make progress in this model until the checkpoint can finish.',
   });
 }
-
-const timerChoiceTask: WorkItem = {
-  id: 'choice-timer',
-  label: 'timer task',
-  kind: 'task',
-  source: 'timer',
-};
-
-const interactionChoiceTask: WorkItem = {
-  id: 'choice-interaction',
-  label: 'user-interaction task',
-  kind: 'task',
-  source: 'user-interaction',
-};
 
 function schedulerChoices(): SchedulerChoice[] {
   return [
@@ -512,40 +484,39 @@ function schedulerChoices(): SchedulerChoice[] {
 function stepMultipleTaskSources(state: EventLoopState): EventLoopState {
   if (state.status === 'scheduler-choice') return state;
 
-  if (state.current?.id === timerChoiceTask.id) {
-    return next(state, {
-      output: appendOutput(state, 'timer task'),
-      current: interactionChoiceTask,
-      runnableTasksBySource: withoutFirstTask(state, 'user-interaction'),
-      explanation:
-        'The timer path was one valid scheduling choice. With only the user-interaction task left in this simplified scenario, it can run later.',
-    });
-  }
+  if (
+    state.current?.id === timerChoiceTask.id ||
+    state.current?.id === interactionChoiceTask.id
+  ) {
+    const current = state.current;
+    const otherSource: TaskSource =
+      current.source === 'timer' ? 'user-interaction' : 'timer';
+    const remaining = state.runnableTasksBySource[otherSource]?.[0];
+    const output = appendOutput(state, current.label);
 
-  if (state.current?.id === interactionChoiceTask.id) {
-    return next(state, {
-      output: appendOutput(state, 'user-interaction task'),
-      current: timerChoiceTask,
-      runnableTasksBySource: withoutFirstTask(state, 'timer'),
-      explanation:
-        'The user-interaction path was one valid scheduling choice. With only the timer task left in this simplified scenario, it can run later.',
-    });
-  }
+    if (!remaining) {
+      return advance(state, {
+        output,
+        current: null,
+        status: 'idle',
+        complete: true,
+        explanation:
+          'Both runnable tasks have now run. Their initial cross-source order was intentionally not treated as a universal guarantee.',
+      });
+    }
 
-  if (state.stepIndex >= 5 && state.current) {
-    return next(state, {
-      output: appendOutput(state, state.current.label),
-      current: null,
-      status: 'idle',
-      complete: true,
-      explanation:
-        'Both runnable tasks have now run. Their initial cross-source order was intentionally not treated as a universal guarantee.',
+    return advance(state, {
+      output,
+      current: remaining,
+      runnableTasksBySource: removeFirstRunnableTask(state, otherSource),
+      status: 'running-work',
+      explanation: `${current.label} ran first as one valid scheduling choice. The remaining ${remaining.label} can run later.`,
     });
   }
 
   switch (state.stepIndex) {
     case 0:
-      return next(state, {
+      return advance(state, {
         runnableTasksBySource: {
           timer: [timerChoiceTask],
           'user-interaction': [interactionChoiceTask],
@@ -554,13 +525,14 @@ function stepMultipleTaskSources(state: EventLoopState): EventLoopState {
           'This simplified scenario has runnable work from two unrelated task sources.',
       });
     case 1:
-      return next(state, {
+      return advance(state, {
         current: null,
         status: 'microtask-checkpoint',
-        explanation: 'The current script is finished and the microtask queue is empty.',
+        explanation:
+          'The current script is finished and the microtask queue is empty.',
       });
     default:
-      return next(state, {
+      return advance(state, {
         status: 'scheduler-choice',
         choices: schedulerChoices(),
         explanation:
@@ -572,20 +544,15 @@ function stepMultipleTaskSources(state: EventLoopState): EventLoopState {
 export function stepEventLoop(state: EventLoopState): EventLoopState {
   if (state.complete) return state;
 
-  switch (state.scenarioId) {
-    case 'promise-vs-timer':
-      return stepPromiseVsTimer(state);
-    case 'nested-microtasks':
-      return stepNestedMicrotasks(state);
-    case 'timer-queues-promise':
-      return stepTimerQueuesPromise(state);
-    case 'rendering-opportunity':
-      return stepRenderingOpportunity(state);
-    case 'microtask-starvation':
-      return stepMicrotaskStarvation(state);
-    case 'multiple-task-sources':
-      return stepMultipleTaskSources(state);
+  if (state.scenarioId === 'microtask-starvation') {
+    return stepMicrotaskStarvation(state);
   }
+
+  if (state.scenarioId === 'multiple-task-sources') {
+    return stepMultipleTaskSources(state);
+  }
+
+  return stepDeterministicScenario(state);
 }
 
 export function chooseRunnableTask(
