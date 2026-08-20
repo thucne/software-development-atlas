@@ -7,8 +7,21 @@ const lessonPath =
 test('exposes the async waterfalls lesson in docs navigation', async ({ page }) => {
   await page.goto('/docs');
 
+  await page
+    .getByRole('button', { name: 'Programming', exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole('button', { name: 'Asynchronous Programming', exact: true })
+    .first()
+    .click();
+
+  const lessonLink = page.locator(`a[href="${lessonPath}"]`).first();
+  await expect(lessonLink).toBeVisible();
+  await lessonLink.click();
+  await expect(page).toHaveURL(lessonPath);
   await expect(
-    page.locator(`a[href="${lessonPath}"]`).first(),
+    page.getByRole('heading', { name: 'Avoiding Sequential Async Waterfalls' }),
   ).toBeVisible();
 });
 
