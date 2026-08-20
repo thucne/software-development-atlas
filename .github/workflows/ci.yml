@@ -45,5 +45,55 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install chromium
 
-      - name: Browser and accessibility tests
-        run: pnpm test:e2e
+      - name: Existing docs-shell browser tests
+        id: baseline
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/docs-shell.spec.ts
+
+      - name: Async navigation test
+        id: async_nav
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "exposes the async waterfalls lesson in docs navigation"
+
+      - name: Async default timing test
+        id: async_defaults
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "renders the lab with correct default timing"
+
+      - name: Async recalculate and reset test
+        id: async_recalculate
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "recalculates totals when a task duration changes and resets"
+
+      - name: Async keyboard playback test
+        id: async_keyboard
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "play control is keyboard operable"
+
+      - name: Async clean Markdown test
+        id: async_markdown
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "clean Markdown preserves the essential explanation"
+
+      - name: Async edit action test
+        id: async_edit
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "edit action targets the canonical lesson source"
+
+      - name: Async accessibility test
+        id: async_a11y
+        continue-on-error: true
+        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "has no automatically detectable serious accessibility violations"
+
+      - name: Fail on browser diagnostic failures
+        if: >-
+          always() &&
+          (steps.baseline.outcome == 'failure' ||
+           steps.async_nav.outcome == 'failure' ||
+           steps.async_defaults.outcome == 'failure' ||
+           steps.async_recalculate.outcome == 'failure' ||
+           steps.async_keyboard.outcome == 'failure' ||
+           steps.async_markdown.outcome == 'failure' ||
+           steps.async_edit.outcome == 'failure' ||
+           steps.async_a11y.outcome == 'failure')
+        run: exit 1
