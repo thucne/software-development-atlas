@@ -14,13 +14,15 @@ The central rule is:
 
 The lesson must explicitly avoid teaching the inaccurate shortcut “always use `Promise.all`.” It should distinguish truly independent operations from required sequencing, bounded concurrency, rate limits, error semantics, cancellation concerns, and cases where serial execution is intentionally correct.
 
+The lesson must also distinguish **concurrency** from **CPU parallelism**. The visualization models asynchronous operations whose waiting time can overlap. It does not claim that JavaScript executes the underlying work simultaneously on multiple CPU cores.
+
 ## Success criteria
 
 The phase is successful when a reader can:
 
 1. recognize an accidental async waterfall in realistic JavaScript/TypeScript code;
-2. explain why independent operations can overlap while dependent operations cannot;
-3. estimate sequential and fully parallel latency from task durations;
+2. explain why independent asynchronous operations can overlap while dependent operations cannot;
+3. estimate sequential and fully overlapped latency from task durations;
 4. refactor a simple sequential waterfall without introducing incorrect concurrency;
 5. understand important production caveats around `Promise.all`, failure behavior, fan-out, resource limits, and rate limits;
 6. use the lesson without JavaScript-enabled interaction because all essential knowledge remains present in canonical MDX and clean Markdown output;
@@ -115,13 +117,13 @@ The lesson should proceed from useful rule → mental model → diagnosis → re
 Recommended narrative order:
 
 1. **TL;DR** — independent work should overlap; dependencies determine ordering.
-2. **Mental model** — compare a serial timeline with an overlapping timeline.
+2. **Mental model** — compare a serial timeline with a concurrent/overlapped timeline.
 3. **Why it matters** — latency compounds in request handlers, server components, loaders, build steps, CLI workflows, and service-to-service calls.
 4. **A real accidental waterfall** — show several awaits that look harmless but serialize independent operations.
 5. **Better scheduling** — start independent promises first, then await them at the point their results are needed.
 6. **Interactive Async Waterfall Lab** — manipulate durations and compare schedules.
 7. **Dependencies change the answer** — show a case where B genuinely needs A and therefore cannot begin early.
-8. **`Promise.all` is a tool, not the rule** — explain fail-fast behavior and where it fits.
+8. **`Promise.all` is a tool, not the rule** — explain fail-fast rejection behavior, the fact that already-started operations are not automatically cancelled, and where the combinator fits.
 9. **Production considerations** — bounded concurrency, rate limits, resource pressure, error handling, cancellation, latency versus throughput.
 10. **When sequential is correct** — ordered writes, transactions, dependent computation, deliberate backpressure, and other genuine constraints.
 11. **Exercise** — ask the reader to identify which operations may overlap and estimate the latency improvement before revealing an explanation.
@@ -143,7 +145,7 @@ const flags = await getFeatureFlags(id);
 const recommendations = await getRecommendations(id);
 ```
 
-If these operations are actually independent, the total latency approaches the sum of their durations.
+If these operations are actually independent, the total latency approaches the sum of their durations plus runtime/transport overhead.
 
 ### Case B — independent work overlapped
 
@@ -161,7 +163,7 @@ const [user, flags, recommendations] = await Promise.all([
 ]);
 ```
 
-The key teaching point is **when the operations start**, not the presence of `Promise.all` by itself.
+The key teaching point is **when the operations start**, not the presence of `Promise.all` by itself. The operations are concurrent from the JavaScript program's point of view because their waiting periods overlap; this does not imply CPU-parallel execution of JavaScript code.
 
 ### Case C — genuine dependency
 
@@ -182,15 +184,15 @@ Examples may be refined for clarity during implementation, but the three concept
 
 The lab is the only new specialized interactive component required by this phase. It exists to make elapsed time and scheduling visible.
 
-The initial model contains three tasks: A, B, and C. The reader can edit each duration within a safe bounded range. The UI compares two schedules:
+The initial model contains three tasks: A, B, and C. The reader can edit each duration. The UI compares two idealized schedules:
 
 - **Sequential:** A then B then C;
-- **Parallel:** A, B, and C start together.
+- **Concurrent:** A, B, and C start at the same logical time because they are independent.
 
 For durations A=800ms, B=400ms, C=300ms:
 
 ```text
-Sequential                         Parallel
+Sequential                         Concurrent
 
 A █████████ 800ms                 A █████████ 800ms
           B █████ 400ms           B █████     400ms
@@ -198,6 +200,8 @@ A █████████ 800ms                 A ████████�
 
 Total: 1500ms                     Total: 800ms
 ```
+
+The lab is a latency model, not a benchmark. The values are controlled teaching inputs and should never be presented as measured network/runtime performance.
 
 ### State model
 
@@ -225,24 +229,45 @@ The pure scheduling module should expose behavior equivalent to:
 
 ```ts
 buildSequentialSchedule(durations): Schedule
-buildParallelSchedule(durations): Schedule
+buildConcurrentSchedule(durations): Schedule
 ```
 
-The sequential total is the sum of durations. The fully parallel total is the maximum duration.
+The sequential total is the sum of durations. The fully overlapped concurrent total is the maximum duration.
 
 The implementation should not over-generalize into arbitrary DAG scheduling in this phase.
+
+### Input contract
+
+The default values are:
+
+```text
+A = 800ms
+B = 400ms
+C = 300ms
+```
+
+Each task duration uses a native numeric control with:
+
+```text
+minimum = 100ms
+maximum = 2000ms
+step = 100ms
+```
+
+These values keep the teaching model readable and provide deterministic boundaries for tests. They are not statements about realistic production latency distributions.
 
 ### Interaction
 
 The lab should support:
 
 - visible numeric controls for A/B/C duration;
-- sensible minimum/maximum values and increments;
 - immediate recalculation of both schedules;
-- a reset action;
+- a reset action that restores 800/400/300ms;
 - a play/replay action that animates elapsed progress;
 - a textual total for each schedule;
-- a clear statement of the amount of time saved for the current inputs.
+- a clear statement of the amount of modeled time saved for the current inputs.
+
+Playback should preserve the relative timing model but be visually normalized so one replay never takes longer than about two seconds, even when the conceptual sequential total is larger. Labels always show the real modeled milliseconds. With reduced motion enabled, replay should skip progressive animation and present the completed state directly.
 
 Interaction must remain understandable without animation.
 
@@ -262,7 +287,9 @@ The lab should:
 - provide meaningful accessible names for controls;
 - pass the existing serious/critical axe gate on the lesson page.
 
-A screen-reader user must be able to understand that sequential A/B/C total 1500ms while parallel A/B/C total 800ms without interpreting the visual bars.
+A screen-reader user must be able to understand that sequential A/B/C total 1500ms while concurrent A/B/C total 800ms without interpreting the visual bars.
+
+If an `aria-live` summary is used, it should announce meaningful input/result changes only. Animation frames must not generate repeated live-region announcements.
 
 ## Pure scheduling module
 
@@ -284,9 +311,9 @@ Required invariants include:
 - no negative start times;
 - `endMs = startMs + durationMs`;
 - sequential task N starts when task N-1 ends;
-- parallel tasks all start at zero;
+- concurrent independent tasks all start at zero;
 - sequential total equals the sum of durations;
-- parallel total equals the maximum duration;
+- concurrent total equals the maximum duration;
 - input validation or UI constraints prevent nonsensical durations.
 
 ## Agent and raw-Markdown compatibility
@@ -301,7 +328,7 @@ The raw representation should include information equivalent to:
 Sequential example:
 800ms + 400ms + 300ms = 1500ms
 
-Parallel example:
+Concurrent independent example:
 max(800ms, 400ms, 300ms) = 800ms
 ```
 
@@ -332,7 +359,9 @@ The lesson must teach that reducing latency can create new operational risks if 
 
 Required nuances:
 
-- `Promise.all` rejects when one input promise rejects; the lesson should not imply independent failures are automatically collected;
+- `Promise.all` rejects when one input promise rejects;
+- rejection of the aggregate promise does not automatically cancel the other already-started operations;
+- independent failures are not automatically collected; APIs such as `Promise.allSettled` have different semantics and belong in related/future material;
 - starting many operations concurrently can overwhelm connection pools, remote APIs, memory, file descriptors, or rate limits;
 - some operations need bounded concurrency rather than full fan-out;
 - cancellation/abort behavior is related but does not need a complete implementation in this lesson;
@@ -382,18 +411,20 @@ Required unit coverage:
 
 - sequential start/end calculations;
 - sequential total;
-- parallel start/end calculations;
-- parallel total;
-- representative edge values allowed by the model.
+- concurrent start/end calculations;
+- concurrent total;
+- default 800/400/300ms example;
+- allowed boundary values at 100ms and 2000ms.
 
 Required browser coverage:
 
 - lesson is reachable through documentation navigation;
 - the Async Waterfall Lab renders;
-- default sequential and parallel totals are correct;
+- default sequential total is 1500ms and concurrent total is 800ms;
 - changing a duration updates totals;
-- reset restores defaults;
+- reset restores 800/400/300ms;
 - play/replay control is keyboard operable;
+- reduced-motion mode does not require progressive animation to reveal results;
 - essential timing information is present as text;
 - clean Markdown contains the essential non-interactive explanation;
 - Edit on GitHub points to the canonical lesson source;
@@ -441,15 +472,16 @@ Phase 0.2 is ready to merge only when all of the following are true:
 1. the lesson reads well as a standalone reference without interacting with the lab;
 2. the lab makes the timing model materially easier to understand;
 3. independent versus dependent work is explained accurately;
-4. the page avoids “always use `Promise.all`” advice;
-5. production caveats include failure behavior and concurrency/resource limits;
-6. clean Markdown preserves all essential knowledge;
-7. the lesson is integrated into navigation and Edit-on-GitHub behavior;
-8. unit tests validate schedule arithmetic;
-9. browser tests validate the key interaction and accessibility behavior;
-10. the existing full CI gate is green;
-11. no paid or billable infrastructure dependency is introduced;
-12. no speculative generic learning-component framework is added.
+4. concurrency is not conflated with JavaScript CPU parallelism;
+5. the page avoids “always use `Promise.all`” advice;
+6. production caveats include failure behavior, lack of automatic cancellation, and concurrency/resource limits;
+7. clean Markdown preserves all essential knowledge;
+8. the lesson is integrated into navigation and Edit-on-GitHub behavior;
+9. unit tests validate schedule arithmetic;
+10. browser tests validate the key interaction and accessibility behavior;
+11. the existing full CI gate is green;
+12. no paid or billable infrastructure dependency is introduced;
+13. no speculative generic learning-component framework is added.
 
 ## Deferred follow-ups
 
