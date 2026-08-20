@@ -83,7 +83,12 @@ function SchedulePanel({
         comparisonTotalMs={comparisonTotalMs}
         isPlaying={isPlaying}
       />
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2"
+        role="region"
+        aria-label={`${label} timing table`}
+        tabIndex={0}
+      >
         <table className="w-full min-w-80 text-sm">
           <thead>
             <tr className="border-b">
