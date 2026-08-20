@@ -45,26 +45,5 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install chromium
 
-      - name: Existing docs-shell browser tests
-        run: pnpm exec playwright test tests/e2e/docs-shell.spec.ts
-
-      - name: Async navigation test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "exposes the async waterfalls lesson in docs navigation"
-
-      - name: Async default timing test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "renders the lab with correct default timing"
-
-      - name: Async recalculate and reset test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "recalculates totals when a task duration changes and resets"
-
-      - name: Async keyboard playback test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "play control is keyboard operable"
-
-      - name: Async clean Markdown test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "clean Markdown preserves the essential explanation"
-
-      - name: Async edit action test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "edit action targets the canonical lesson source"
-
-      - name: Async accessibility test
-        run: pnpm exec playwright test tests/e2e/async-waterfalls.spec.ts --grep "has no automatically detectable serious accessibility violations"
+      - name: Browser and accessibility tests
+        run: pnpm test:e2e
