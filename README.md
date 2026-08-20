@@ -76,6 +76,40 @@ Corrections and reports of outdated material are particularly valuable.
 
 Software Development Atlas may integrate with AI tools, but its core experience must not depend on a maintainer-funded model API. Preferred integrations are user-owned or local: copy Markdown/context, open a lesson in an external AI tool, export agent instructions, or run compatible models on the user's device when practical.
 
+## Development
+
+Requirements:
+
+- Node.js 22
+- pnpm 10
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open `http://localhost:3000`; the root route redirects to `/docs`.
+
+### Quality checks
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+### Content
+
+Canonical lessons live in `content/docs` as Markdown/MDX. Frontmatter is validated during content generation/build. Do not add a runtime database for ordinary lesson content.
+
+### Cost boundary
+
+The core site must work without maintainer-funded model APIs, paid search, a hosted vector database, paid CMS/database infrastructure, or per-user server compute.
+
+See [docs/deployment.md](./docs/deployment.md) for deployment and scale boundaries.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).
