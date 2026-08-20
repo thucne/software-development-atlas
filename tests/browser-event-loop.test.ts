@@ -21,6 +21,20 @@ function runDeterministicScenario(
   return state;
 }
 
+function reachSchedulerChoice() {
+  let state = createScenarioState('multiple-task-sources');
+
+  for (
+    let guard = 0;
+    guard < 100 && state.status !== 'scheduler-choice';
+    guard += 1
+  ) {
+    state = stepEventLoop(state);
+  }
+
+  return state;
+}
+
 describe('browser event-loop simulator', () => {
   it('runs synchronous output before Promise microtasks and timer tasks', () => {
     const state = runDeterministicScenario('promise-vs-timer');
@@ -67,15 +81,7 @@ describe('browser event-loop simulator', () => {
   });
 
   it('requires an explicit valid choice between unrelated runnable task sources', () => {
-    let state = createScenarioState('multiple-task-sources');
-
-    for (
-      let guard = 0;
-      guard < 100 && state.status !== 'scheduler-choice';
-      guard += 1
-    ) {
-      state = stepEventLoop(state);
-    }
+    let state = reachSchedulerChoice();
 
     expect(state.status).toBe('scheduler-choice');
     expect(state.choices.map((choice) => choice.source).sort()).toEqual([
@@ -93,16 +99,30 @@ describe('browser event-loop simulator', () => {
     expect(state.explanation).toContain('valid scheduling choice');
   });
 
-  it('rejects a scheduler choice that is not currently valid', () => {
-    let state = createScenarioState('multiple-task-sources');
+  it.each(['timer', 'user-interaction'] as const)(
+    'completes after choosing the %s source first',
+    (source) => {
+      let state = reachSchedulerChoice();
+      const choice = state.choices.find((candidate) => candidate.source === source);
 
-    for (
-      let guard = 0;
-      guard < 100 && state.status !== 'scheduler-choice';
-      guard += 1
-    ) {
-      state = stepEventLoop(state);
-    }
+      expect(choice).toBeDefined();
+      state = chooseRunnableTask(state, choice!.id);
+
+      for (let guard = 0; guard < 20 && !state.complete; guard += 1) {
+        state = stepEventLoop(state);
+      }
+
+      expect(state.complete).toBe(true);
+      expect(state.status).toBe('idle');
+      expect([...state.output].sort()).toEqual([
+        'timer task',
+        'user-interaction task',
+      ]);
+    },
+  );
+
+  it('rejects a scheduler choice that is not currently valid', () => {
+    const state = reachSchedulerChoice();
 
     expect(() => chooseRunnableTask(state, 'not-a-valid-choice')).toThrow(
       /valid scheduler choice/i,
