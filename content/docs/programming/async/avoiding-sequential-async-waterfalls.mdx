@@ -26,4 +26,274 @@ technologies:
 
 ## TL;DR
 
-Start independent asynchronous work as early as possible. Await only where a real dependency requires ordering.
+**Start independent asynchronous work as early as possible. Await only where a real dependency requires ordering.**
+
+An `await` pauses the current async function until the awaited promise settles. That is useful when the next operation needs the result, but it can accidentally serialize work that could have overlapped.
+
+Do not replace every sequence of `await`s with `Promise.all`. First identify the dependency graph. Independent operations may overlap; dependent operations must preserve their real ordering constraints.
+
+## Mental model
+
+Think in terms of **start times** and **dependencies**, not simply the number of `await` keywords.
+
+If A takes 800ms, B takes 400ms, and C takes 300ms:
+
+- sequential elapsed time is approximately `800 + 400 + 300 = 1500ms`;
+- if A, B, and C are independent and start together, elapsed time is approximately `max(800, 400, 300) = 800ms`.
+
+The second schedule saves about `700ms` because the waiting periods overlap.
+
+This is **concurrent/overlapped asynchronous work**. It does not mean JavaScript is executing the tasks' CPU work in parallel on the same thread. The operations might involve network I/O, timers, databases, worker threads, other processes, or remote services; the important point here is that the current function does not unnecessarily wait for one independent operation before starting another.
+
+A useful question is:
+
+> What information must exist before this operation can start?
+
+If the answer is “nothing produced by the earlier operation,” you may have an opportunity to start it earlier.
+
+## Why waterfalls happen
+
+Sequential code is easy to read, so accidental waterfalls often look perfectly reasonable:
+
+```ts
+const user = await getUser(id);
+const flags = await getFeatureFlags(id);
+const recommendations = await getRecommendations(id);
+```
+
+Suppose all three functions only need `id`. The result of `getUser()` is not needed to start `getFeatureFlags()`, and neither result is needed to start `getRecommendations()`.
+
+Yet the code says:
+
+1. start `getUser()` and wait;
+2. only then start `getFeatureFlags()` and wait;
+3. only then start `getRecommendations()` and wait.
+
+The dependency graph says the operations are independent, but the control flow has imposed a dependency that does not exist.
+
+Waterfalls commonly appear in request handlers, page loaders, server-rendering code, command-line workflows, build steps, and service-to-service calls. They are especially costly on latency-sensitive paths because every unnecessary wait can extend the critical path seen by the user or caller.
+
+## A real accidental waterfall
+
+Consider a request that needs three independent pieces of information:
+
+```ts
+export async function buildHomePage(id: string) {
+  const user = await getUser(id);
+  const flags = await getFeatureFlags(id);
+  const recommendations = await getRecommendations(id);
+
+  return { user, flags, recommendations };
+}
+```
+
+There is nothing inherently wrong with using `await` here. The problem is **when the calls start**.
+
+If the three calls take 800ms, 400ms, and 300ms, this implementation takes roughly 1500ms before accounting for application overhead.
+
+That extra latency is not buying correctness. It is only a consequence of starting independent work late.
+
+## Start independent work early
+
+Start each independent operation before awaiting earlier results:
+
+```ts
+export async function buildHomePage(id: string) {
+  const userPromise = getUser(id);
+  const flagsPromise = getFeatureFlags(id);
+  const recommendationsPromise = getRecommendations(id);
+
+  const [user, flags, recommendations] = await Promise.all([
+    userPromise,
+    flagsPromise,
+    recommendationsPromise,
+  ]);
+
+  return { user, flags, recommendations };
+}
+```
+
+All three operations are started before the function waits for their combined results.
+
+`Promise.all` is convenient here because the function needs all three values before it can return. But the deeper rule is not “use `Promise.all`.” The deeper rule is **start independent work before an unrelated wait delays it**.
+
+Sometimes that means starting one promise early and awaiting it much later:
+
+```ts
+const flagsPromise = getFeatureFlags(id);
+
+const user = await getUser(id);
+const organization = await getOrganization(user.organizationId);
+
+const flags = await flagsPromise;
+
+return { user, organization, flags };
+```
+
+`getOrganization()` genuinely depends on `user`, while `getFeatureFlags()` does not. Starting the flags request early allows that independent wait to overlap with the user → organization dependency chain.
+
+## Try it: Async Waterfall Lab
+
+The lab below compares the same three task durations on one shared elapsed-time scale.
+
+With the defaults:
+
+- sequential: `800 + 400 + 300 = 1500ms`;
+- concurrent: `max(800, 400, 300) = 800ms`;
+- elapsed time saved: `700ms`.
+
+The exact start, duration, and end values are shown in tables as well as visual bars. The animation is optional; the timing model does not depend on it.
+
+<AsyncWaterfallLab />
+
+## Dependencies change the answer
+
+Not every sequence is an accidental waterfall.
+
+```ts
+const user = await getUser(id);
+const organization = await getOrganization(user.organizationId);
+```
+
+`getOrganization()` needs `user.organizationId`, so it cannot start until `getUser()` has produced that value. The ordering represents a real data dependency.
+
+The useful optimization question becomes: **what else can overlap with this dependency chain?**
+
+```ts
+const flagsPromise = getFeatureFlags(id);
+const recommendationsPromise = getRecommendations(id);
+
+const user = await getUser(id);
+const organization = await getOrganization(user.organizationId);
+
+const [flags, recommendations] = await Promise.all([
+  flagsPromise,
+  recommendationsPromise,
+]);
+```
+
+Here the user → organization path remains sequential, while unrelated work starts immediately.
+
+In larger systems, latency is often determined by the **critical path** through a dependency graph, not by the total amount of work. Improving scheduling means shortening that critical path without violating correctness constraints.
+
+## `Promise.all` is a tool, not the rule
+
+`Promise.all(iterable)` returns a promise that fulfills when all of its inputs fulfill. The fulfillment values are returned in the same order as the inputs, regardless of which operation finishes first.
+
+It rejects when an input promise rejects. This is often described as *fail-fast* behavior because the aggregate promise can reject as soon as one input rejects rather than waiting to produce a successful array of all results.
+
+There is an important operational detail: **rejection of the `Promise.all` result does not automatically cancel other operations that already started.** Those operations may continue unless their underlying APIs provide cancellation and your code explicitly uses it.
+
+For example:
+
+```ts
+const profilePromise = getProfile(id);
+const auditPromise = writeAuditEntry(id);
+
+const [profile] = await Promise.all([
+  profilePromise,
+  auditPromise,
+]);
+```
+
+If `getProfile()` rejects, that does not mean an already-started `writeAuditEntry()` is automatically stopped. This matters when concurrent operations have side effects.
+
+If you need to observe every independent outcome—even when some fail—that is a different error-handling requirement. A combinator such as `Promise.allSettled` may be relevant, but changing error semantics should be a deliberate decision rather than a side effect of trying to reduce latency.
+
+So use `Promise.all` when its aggregation and failure semantics match the work. Do not treat it as a magic concurrency switch.
+
+## Production considerations
+
+Concurrency has costs. Removing a waterfall can make one request faster while placing more simultaneous pressure on other resources.
+
+**Bound fan-out when necessary.** Starting three independent calls is different from starting 50,000. Large fan-out may exhaust database connection pools, sockets, file descriptors, memory, CPU, or downstream service capacity. When the set is large, use a concurrency limit, queue, worker pool, batching strategy, or other form of deliberate backpressure.
+
+**Respect downstream rate limits.** Overlapping requests changes arrival patterns. A remote API that comfortably handles ten sequential calls may reject or throttle ten simultaneous calls. The fastest local schedule is not automatically the best system-wide schedule.
+
+**Think about side effects and errors.** Once several operations have started, one failure may occur after others have already changed state. Design idempotency, transactions, compensation, or failure isolation according to the domain rather than assuming promise aggregation provides those guarantees.
+
+**Cancellation is separate.** Some APIs support cancellation—for example through an abort signal—but `Promise.all` itself does not retroactively stop the work represented by its inputs. Cancellation deserves its own lifecycle and ownership design.
+
+**Latency is not throughput.** Overlapping waits can reduce the elapsed time of one request without increasing the number of requests the whole system can sustainably process. It can even reduce throughput if increased concurrency saturates a bottleneck.
+
+**Measure the real path.** The simple `sum` versus `max` model is excellent for understanding independent waits, but real systems include queueing, connection setup, caching, contention, retries, scheduling overhead, and partial dependencies. Profile or trace the path before making large architectural changes.
+
+## When sequential execution is correct
+
+Sequential execution is not a code smell by itself. Preserve it when ordering is part of correctness or system control.
+
+Examples include:
+
+- a later operation needs data produced by an earlier operation;
+- writes must happen in a defined order;
+- a transaction protocol requires a sequence of steps;
+- the system intentionally applies backpressure;
+- a shared resource cannot safely handle concurrent access;
+- an operation should only run after a previous validation or authorization succeeds;
+- later work would be wasteful or harmful if an earlier step fails.
+
+The goal is not maximum concurrency. The goal is to remove **false dependencies** while preserving real ones.
+
+## Exercise
+
+A request needs four operations:
+
+| Operation | Duration | Dependency |
+| --- | ---: | --- |
+| `getUser(id)` | 500ms | none |
+| `getFeatureFlags(id)` | 300ms | none |
+| `getRecommendations(id)` | 700ms | none |
+| `getOrganization(user.organizationId)` | 400ms | `getUser` |
+
+Before reading the answer, decide:
+
+1. Which operations can start immediately?
+2. Which operation must wait?
+3. What is the approximate best-case elapsed time if the independent work overlaps?
+
+<details>
+<summary>Show the reasoning</summary>
+
+`getUser`, `getFeatureFlags`, and `getRecommendations` can start immediately.
+
+`getOrganization` must wait for `getUser` because it needs `user.organizationId`.
+
+The important paths are:
+
+- user → organization: `500 + 400 = 900ms`;
+- feature flags: `300ms`;
+- recommendations: `700ms`.
+
+The critical path is therefore about `900ms`. A fully sequential implementation would take about `500 + 300 + 700 + 400 = 1900ms`.
+
+Notice that this is **not** equivalent to putting all four calls into one `Promise.all`: the organization request cannot be constructed correctly until the user result exists.
+
+</details>
+
+## Agent rule
+
+> When asynchronous operations are independent, start them before awaiting unrelated earlier results. Preserve sequential awaits when later work depends on earlier results or when ordering/backpressure is intentional. Do not introduce unbounded concurrency merely to reduce latency, and do not assume `Promise.all` rejection cancels already-started work.
+
+When reviewing code, ask these questions before changing scheduling:
+
+1. Does operation B need A's result, or is the ordering accidental?
+2. Are there side effects or error semantics that make overlap unsafe?
+3. Could the proposed fan-out overwhelm a bounded resource?
+4. Is there independent work that can start while a required dependency chain is running?
+
+## Related concepts
+
+- Promise aggregation and `Promise.all`
+- Promise settlement and `Promise.allSettled`
+- cancellation and `AbortSignal`
+- bounded concurrency and backpressure
+- critical paths and dependency graphs
+- latency versus throughput
+
+These graph edges will become direct Atlas lesson links as the related lessons are added.
+
+## Sources
+
+- [ECMAScript Language Specification — `Promise.all`](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-promise.all) — normative promise-combinator semantics.
+- [MDN — `Promise.all()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all) — readable reference for fulfillment ordering, rejection behavior, and common concurrent-await patterns.
+- [MDN — Using promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — promise composition guidance, including the fact that other operations can continue after the `Promise.all` result rejects.
