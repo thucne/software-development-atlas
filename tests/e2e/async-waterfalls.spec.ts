@@ -113,20 +113,5 @@ test('has no automatically detectable serious accessibility violations', async (
     ['serious', 'critical'].includes(violation.impact ?? ''),
   );
 
-  if (serious.length > 0) {
-    const details = serious
-      .map((violation) => {
-        const nodes = violation.nodes
-          .map(
-            (node) =>
-              `${node.html} :: ${node.failureSummary ?? 'No failure summary'}`,
-          )
-          .join(' || ');
-
-        return `${violation.id} (${violation.impact}): ${nodes}`;
-      })
-      .join('\n');
-
-    throw new Error(details);
-  }
+  expect(serious).toEqual([]);
 });
