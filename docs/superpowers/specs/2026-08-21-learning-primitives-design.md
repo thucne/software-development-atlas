@@ -7,33 +7,37 @@
 
 ## Summary
 
-Phase 0.3 extracts the smallest reusable learning UI primitives that have now been proven across three gold-standard lessons:
+Phase 0.3 extracts the smallest reusable learning UI primitives proven across three gold-standard lessons:
 
 1. `AsyncWaterfallLab`
 2. `EventLoopLab`
 3. `PromiseResolutionLab`
 
-The purpose is not to build a generic lesson framework. The purpose is to remove repeated presentation and accessibility structure while keeping each lesson's teaching model, state transitions, data types, and specialized visualization independently understandable.
+The goal is not a generic lesson framework. The goal is to remove repeated presentation and accessibility structure while keeping each lesson's teaching model, state transitions, types, and specialized visualization independently understandable.
 
-The design follows the roadmap rule: extract only repeated teaching patterns that are already useful, and avoid speculative abstractions.
+The governing rule is:
 
-## Evidence from the three completed labs
+> **Extract structure, not semantics.**
+
+A shared primitive is justified only when a lesson can use it without reshaping domain data or behavior to fit the abstraction.
+
+## Evidence from the three labs
 
 ### Async Waterfall Lab
 
-The async-waterfall lesson is fundamentally a numeric timing comparison. Its core state is task duration input plus two derived schedules. Its playback is decorative timeline animation, not a semantic step-through state machine.
+The waterfall lab is a numeric timing comparison. Its state is task-duration input plus two derived schedules. Its Play control drives decorative timeline animation rather than a semantic state-machine walkthrough.
 
-Reusable evidence:
+Repeated presentation evidence:
 
-- accessible outer lab card with generated heading id
+- named outer learning-lab section
 - title and explanatory description
-- shared action-row/button styling
-- bordered titled sections/panels
-- accessible live result surface
+- action-row layout
+- titled bordered sections
+- polite live result surface
 
-Specialized behavior that must remain local:
+Must remain specialized:
 
-- task-duration controls
+- duration inputs and clamping
 - sequential/concurrent schedule computation
 - shared elapsed-time scale
 - timeline rendering and reduced-motion animation
@@ -42,70 +46,62 @@ Specialized behavior that must remain local:
 
 ### Event Loop Lab
 
-The event-loop lesson is a deterministic browser-scheduling simulator with predefined scenarios and an explicit scheduler-choice state.
+The event-loop lab is a deterministic browser-scheduling simulator with predefined scenarios plus one explicit scheduler-choice state.
 
-Reusable evidence:
+Repeated presentation evidence:
 
-- accessible outer lab card
-- controlled scenario selector with title/description
-- named, keyboard-focusable, horizontally scrollable source region
-- Step / Run / Reset action row with trailing step indicator
-- live status surface
-- repeated bordered titled panels
+- named outer learning-lab section
+- controlled scenario selector with description
+- named keyboard-focusable horizontally scrollable source region
+- Step / Run / Reset row with trailing step indicator
+- polite live status surface
+- titled bordered panels
 - explanatory live region
 
-Specialized behavior that must remain local:
+Must remain specialized:
 
 - browser event-loop domain state
-- task sources and work-item types
-- microtask queue rendering
-- scheduler-choice interaction
+- task-source/work-item types
+- queue rendering
+- scheduler-choice behavior
 - rendering-opportunity state
-- starvation warning semantics
-- all transition algorithms
+- starvation-warning semantics
+- transition algorithms
 
 ### Promise Resolution Lab
 
-The Promise lesson is a deterministic language-semantics simulator with predefined scenarios and promise-state nodes.
+The Promise lab is a deterministic language-semantics simulator with predefined scenarios and Promise-state nodes.
 
-Reusable evidence:
+Repeated presentation evidence:
 
-- accessible outer lab card
-- controlled scenario selector with title/description
-- named, keyboard-focusable source region
-- Step / Run / Reset action row with trailing step indicator
-- live status surface
-- repeated bordered titled panels
+- named outer learning-lab section
+- controlled scenario selector with description
+- named keyboard-focusable source region
+- Step / Run / Reset row with trailing step indicator
+- polite live status surface
+- titled bordered panels
 - explanatory live region
 
-Specialized behavior that must remain local:
+Must remain specialized:
 
-- Promise resolution/adoption state
-- promise-node rendering and labels
-- active handler semantics
+- Promise state/resolution/adoption types
+- Promise-node rendering
+- active-handler semantics
 - fulfillment/rejection/adoption transitions
 - branching semantics
-- all transition algorithms
+- transition algorithms
 
-## Design principle
+## Proposed primitive boundary
 
-**Extract structure, not semantics.**
-
-A shared primitive is justified only when consumers can use it without translating their domain into a generic abstraction first.
-
-If a proposed component requires Event Loop and Promise to rename or reshape their domain state to fit a shared model, it is too high-level for Phase 0.3.
-
-## Proposed primitives
-
-All new primitives live under:
+New primitives live under:
 
 `components/learning/primitives/`
 
-The initial set is intentionally small.
+The initial set is intentionally small and presentation-only.
 
 ### 1. `LabShell`
 
-Purpose: provide the consistent accessible container and heading/description structure for an interactive learning lab.
+Purpose: provide the consistent accessible container and introduction for an interactive learning lab.
 
 Conceptual API:
 
@@ -120,25 +116,26 @@ Conceptual API:
 
 Responsibilities:
 
-- generate or own the heading id
-- render a semantic `<section aria-labelledby=...>`
+- call `useId()` internally for its heading id
+- render `<section aria-labelledby={headingId}>`
 - render the common outer border/card/padding/spacing
-- render `<h3>` title and muted description
-- render arbitrary children below the introduction
+- render the visible `<h3>` title and muted description
+- render arbitrary children after the introduction
 
 Non-responsibilities:
 
 - no scenario state
 - no playback state
 - no timers
-- no data-model knowledge
-- no test ids
+- no domain-model imports
+- no `data-testid` ownership
+- no render props or context
 
-The title and description remain visible text, not metadata hidden behind props.
+Consumers do not pass or coordinate the heading id.
 
 ### 2. `LabPanel`
 
-Purpose: provide the repeated titled bordered panel used for queues, handlers, output, explanations, or other domain-specific content.
+Purpose: provide the repeated titled bordered section used for queues, handlers, output, explanations, and other domain-specific content.
 
 Conceptual API:
 
@@ -150,10 +147,10 @@ Conceptual API:
 
 Responsibilities:
 
-- semantic section container
-- consistent border/background/padding
-- visible heading
-- optional accessible naming hook when consumers need a stable relation
+- call `useId()` internally for the panel heading
+- render a semantic section named by its visible heading
+- provide consistent border/background/padding
+- render arbitrary children
 
 Non-responsibilities:
 
@@ -161,10 +158,11 @@ Non-responsibilities:
 - no output-list rendering
 - no queue rendering
 - no Promise-card rendering
+- no domain status logic
 
 ### 3. `LabControls`
 
-Purpose: provide layout for lab actions and an optional trailing indicator.
+Purpose: provide layout for lab actions and optional trailing information.
 
 Conceptual API:
 
@@ -179,21 +177,21 @@ Conceptual API:
 Responsibilities:
 
 - flex/wrap/alignment/spacing
-- optional trailing content placement
+- optional trailing-content placement
 
 Non-responsibilities:
 
-- does not render semantic action buttons on behalf of consumers
+- does not render buttons on behalf of consumers
 - does not own Step/Run/Reset labels
-- does not own disabled logic
+- does not own enabled/disabled logic
 - does not own keyboard handlers
 - does not own autoplay or timers
 
-Buttons remain in each lab so accessible names and domain-specific enabled/disabled rules stay explicit.
+Native buttons remain in each lab so accessible names and domain-specific rules remain explicit. Shared button styling is not extracted in this PR unless implementation shows a simple style constant/component can be introduced without hiding button semantics; the default expectation is to leave the buttons local.
 
 ### 4. `ScenarioSelect`
 
-Purpose: standardize the controlled scenario-selector presentation shared by Event Loop and Promise labs.
+Purpose: standardize controlled scenario-selection presentation shared by Event Loop and Promise.
 
 Conceptual API:
 
@@ -201,7 +199,10 @@ Conceptual API:
 <ScenarioSelect
   label="Promise scenario"
   value={scenarioId}
-  options={PROMISE_SCENARIOS.map(({ id, title }) => ({ value: id, label: title }))}
+  options={PROMISE_SCENARIOS.map(({ id, title }) => ({
+    value: id,
+    label: title,
+  }))}
   description={scenario.description}
   onChange={handleScenarioChange}
 />
@@ -209,25 +210,27 @@ Conceptual API:
 
 Responsibilities:
 
-- accessible label/select association
-- controlled `value`
-- string-valued options
-- visible description
-- common styling
+- call `useId()` internally for the label/select relationship
+- render a visible `<label>`
+- render a controlled string-valued `<select>`
+- render string-valued options
+- render the visible scenario description
+- emit the selected string through `onChange`
+- common layout/styling
 
 Non-responsibilities:
 
-- no generic `ScenarioDefinition` domain type
+- no shared `ScenarioDefinition` domain type
 - no scenario lookup
-- no state reset
-- no parsing/casting to lesson-specific scenario ids
-- no scenario source rendering
+- no reset behavior
+- no lesson-specific parsing/casting
+- no source-code rendering
 
-The component emits the selected string value and the consumer translates it into its own domain type.
+The consuming lab translates the emitted string into its own scenario-id type.
 
 ### 5. `ScrollableCodeRegion`
 
-Purpose: standardize the accessible source-code surface used by deterministic labs.
+Purpose: standardize the accessible source-code surface used by deterministic teaching labs.
 
 Conceptual API:
 
@@ -239,24 +242,23 @@ Conceptual API:
 
 Responsibilities:
 
-- `role="region"`
-- explicit accessible label
-- `tabIndex={0}` so horizontal overflow can be keyboard reached
-- visible focus treatment
-- horizontal scrolling
-- `<pre><code>` presentation suitable for short simulator source strings
+- render `role="region"`
+- apply the supplied explicit accessible label
+- render `tabIndex={0}` so overflow is keyboard reachable
+- provide visible focus treatment
+- provide horizontal scrolling
+- render `<pre><code>` for short simulator-owned source strings
 
 Non-responsibilities:
 
-- no syntax highlighting engine
+- no syntax-highlighting engine
 - no arbitrary code execution
-- no copy/execution controls
-
-This primitive is for lab-owned source snippets, not a replacement for the site's MDX/Shiki code-block rendering.
+- no copy/run toolbar
+- no replacement for MDX/Shiki code blocks
 
 ### 6. `LiveStatus`
 
-Purpose: standardize the small status/result surface that announces important state changes.
+Purpose: standardize the compact result/status surface that announces meaningful state changes.
 
 Conceptual API:
 
@@ -268,7 +270,7 @@ Conceptual API:
 
 Responsibilities:
 
-- common muted status surface styling
+- common muted status/result styling
 - `aria-live="polite"`
 - optional visible label
 - arbitrary child content
@@ -278,45 +280,66 @@ Non-responsibilities:
 - no status enum
 - no completion logic
 - no test-id ownership
+- no domain formatting
 
-Stable test ids remain on domain-specific children.
+Stable domain selectors remain on consumer-owned children.
 
 ## Explicit non-goals
 
-PR #8 must not introduce any of the following:
+PR #8 must not introduce:
 
-- generic `ScenarioDefinition` shared across lessons
-- generic scenario/state-machine engine
-- `useScenarioRunner`, `usePlayback`, or generic autoplay hook
-- common transition/state types for Event Loop and Promise
-- generic execution timeline
-- generic queue visualization
-- generic Promise/node visualization
+- a shared `ScenarioDefinition` type across lessons
+- generic scenario/state-machine engines
+- `useScenarioRunner`, `usePlayback`, or another generic autoplay hook
+- shared transition/state types for Event Loop and Promise
+- generic execution timelines
+- generic queue visualizations
+- generic Promise/node visualizations
 - `CodeComparison`
-- quiz/challenge framework
-- benchmark framework
-- freshness component extraction
-- source-list component extraction
+- quiz/challenge frameworks
+- benchmark frameworks
+- freshness-badge extraction
+- source-list extraction
 - Sandpack
 - WebContainers
 - arbitrary code execution
-- new runtime dependency
-- database, hosted state, analytics, or model API
+- new runtime dependencies
+- databases, hosted state, analytics, or model APIs
 
-Those ideas remain candidates only when future lessons provide concrete repeated implementations.
+Those remain candidates only when future lessons supply concrete evidence.
 
-## Migration plan at the design level
+## Dependency direction
+
+The required dependency direction is one-way:
+
+```text
+lesson MDX
+   ↓
+specialized lab component
+   ├──→ learning primitives (presentation only)
+   └──→ pure lesson model (domain semantics only)
+```
+
+Rules:
+
+1. Primitives must not import anything from `lib/learning/*`.
+2. Pure models must remain React-free and must not import primitives.
+3. Primitives must not import specialized labs.
+4. Specialized labs retain their domain types and model orchestration.
+5. No context provider is introduced for lab state.
+
+## Migration design
 
 ### `AsyncWaterfallLab`
 
-Adopt only primitives that fit without changing its timing model:
+Adopt only what fits naturally:
 
 - `LabShell`
 - `LabControls`
-- `LiveStatus` for the elapsed-time savings result if the resulting semantics remain equivalent
-- `LabPanel` only where it reduces real duplication without obscuring the existing schedule sections
+- `LiveStatus` for the elapsed-time savings result only if the rendered semantics remain equivalent
+- `LabPanel` only where it reduces real structural duplication without obscuring schedule semantics
 
-Do not force `ScenarioSelect`, `ScrollableCodeRegion`, or a step-run model into this lab.
+Do not force `ScenarioSelect`, `ScrollableCodeRegion`, Step/Run semantics, or scenario types into this lab.
 
 ### `EventLoopLab`
 
@@ -329,7 +352,14 @@ Adopt:
 - `LiveStatus`
 - `LabPanel`
 
-Keep all event-loop types, constants, choices, transition functions, and queue rendering local.
+Keep local:
+
+- all event-loop types/constants
+- state creation and transition functions
+- autoplay eligibility rules
+- scheduler-choice interaction
+- queue/work-item rendering
+- user-facing domain labels
 
 ### `PromiseResolutionLab`
 
@@ -342,80 +372,78 @@ Adopt:
 - `LiveStatus`
 - `LabPanel`
 
-Keep all Promise-state types, cards, handler rendering, transition functions, and domain labels local.
+Keep local:
 
-## API constraints
+- all Promise-state types/constants
+- state creation and transition functions
+- autoplay eligibility rules
+- Promise-card rendering
+- handler rendering
+- user-facing domain labels
 
-The primitives should have intentionally boring React APIs.
+## API rules
 
-Rules:
+The APIs should remain intentionally boring.
 
 1. Prefer `children` and small scalar props over render-prop frameworks.
 2. Do not introduce context providers.
-3. Do not introduce generic type parameters unless TypeScript requires them for a simple controlled component.
+3. Avoid generic type parameters unless required for a simple controlled component.
 4. Do not normalize lesson data into shared schemas.
-5. Consumers retain control of accessible names for domain actions and regions.
-6. Consumers retain stable `data-testid` values.
-7. Primitives must not import anything from `lib/learning/*`.
-8. Pure domain models must not import primitives or React.
-
-These rules keep the dependency direction one-way:
-
-```text
-lesson MDX
-   ↓
-specialized lab component
-   ├──→ learning primitives (presentation only)
-   └──→ pure lesson model (domain semantics only)
-```
-
-There must be no dependency from primitives back into specialized labs or pure models.
+5. Consumer code retains domain action labels and accessible names.
+6. Consumer code retains stable `data-testid` values.
+7. Accessibility ids that exist only to wire a primitive's own markup are generated internally by that primitive.
+8. A primitive should be understandable without reading any lesson model.
+9. A lab should be understandable without reading primitive internals.
 
 ## Accessibility contract
 
-Extraction must preserve or improve the existing accessibility baseline.
+Extraction must preserve or improve the current baseline.
 
 Required invariants:
 
 - every lab remains a named semantic section
 - scenario selects remain visibly labeled
-- source regions remain keyboard-focusable and explicitly named
+- source regions remain explicitly named and keyboard-focusable
 - horizontal overflow remains keyboard reachable
 - Step/Run/Reset remain native buttons
 - disabled states remain native `disabled` where applicable
 - status/explanation announcements remain `aria-live="polite"` where currently present
 - no interaction relies on color alone
 - visible keyboard focus remains present
-- existing axe checks remain enabled with no exclusions or disabled rules
+- axe serious/critical checks remain enabled with no exclusions or disabled rules
 
-The extraction must not change user-facing accessible names relied on by the current Playwright tests unless a change is necessary to correct an accessibility defect. Any such change requires a new explicit test and rationale.
+The extraction must not change user-facing accessible names relied on by current Playwright tests unless required to fix an accessibility defect. Such a change requires an explicit test and rationale.
 
 ## Behavioral compatibility contract
 
-PR #8 is primarily a refactor. Existing lesson behavior is normative.
-
-The following must remain unchanged:
+PR #8 is primarily a refactor. Existing behavior is normative.
 
 ### Async Waterfall
 
+Must preserve:
+
 - default 1500ms sequential / 800ms concurrent / 700ms saved
-- duration editing and clamping behavior
-- reset behavior
-- play/replay behavior
+- duration editing and clamping
+- reset
+- Play/Replay
 - reduced-motion-safe visualization
-- stable `sequential-total`, `concurrent-total`, and `time-saved` selectors
+- `sequential-total`, `concurrent-total`, and `time-saved` selectors
 
 ### Event Loop
+
+Must preserve:
 
 - all six scenario definitions
 - deterministic transition ordering
 - both valid scheduler-choice branches
 - bounded starvation behavior
 - rendering-opportunity semantics
-- Step/Run/Reset rules
-- stable status/output selectors
+- Step/Run/Reset behavior
+- existing status/output selectors
 
 ### Promises
+
+Must preserve:
 
 - all six scenario definitions
 - pending + adopting intermediate state
@@ -423,35 +451,43 @@ The following must remain unchanged:
 - catch recovery
 - finally transparency scenario
 - independent branching
-- Step/Run/Reset rules
-- stable promise/status/output selectors
+- Step/Run/Reset behavior
+- existing promise/status/output selectors
 
-Raw Markdown output and canonical lesson copy are not expected to change in PR #8.
+Canonical lesson MDX and raw Markdown output are not expected to change.
 
 ## Testing strategy
 
-### Primitive-level tests
+### Existing pure-model tests
 
-Add focused component/browser coverage only where it protects contracts not already covered by the lesson tests. Avoid building a large unit-test suite for class names.
+The current unit tests for `async-schedule`, `browser-event-loop`, and `promise-resolution` remain the domain correctness contracts. They should not change merely because React presentation is extracted.
 
-Useful direct coverage may include:
+### Existing browser/accessibility tests
 
-- `ScenarioSelect` label/value/change behavior
-- `ScrollableCodeRegion` semantic name and keyboard focusability
-- `LabShell` title/section relationship
+The existing lesson Playwright suites remain the primary integration contracts. They already protect:
+
+- navigation
+- core interactive behavior
+- keyboard operation
+- stable semantic names/selectors
+- raw Markdown completeness
+- Edit-on-GitHub targets
+- axe serious/critical accessibility
+
+### Primitive-specific coverage
+
+Add focused direct coverage only for contracts that are otherwise hard to see after migration. Candidates include:
+
+- `ScenarioSelect` visible label/value/change behavior
+- `ScrollableCodeRegion` region name and keyboard focusability
+- `LabShell` section/heading relationship
 - `LiveStatus` live-region semantics
 
-If existing end-to-end tests fully cover a primitive's behavior after migration, do not duplicate them merely to increase test counts.
+Do not add tests for Tailwind class strings or duplicate behaviors already strongly protected by the three lesson suites.
 
-### Existing lesson tests
+The permanent CI gate remains unchanged:
 
-All current unit tests for the three pure models must stay unchanged unless an assertion is demonstrably implementation-specific rather than behavioral.
-
-All current Playwright lesson suites remain the primary acceptance contracts.
-
-The permanent CI gate remains:
-
-- frozen pnpm install
+- `pnpm install --frozen-lockfile`
 - lint
 - typecheck
 - unit tests
@@ -459,20 +495,6 @@ The permanent CI gate remains:
 - Chromium install
 - full Playwright suite
 - axe serious/critical accessibility checks
-
-## Success criteria
-
-Phase 0.3 PR #8 succeeds when:
-
-1. all three existing labs preserve behavior and accessibility;
-2. Event Loop and Promise no longer duplicate the common scenario/source/control/status/panel presentation structure;
-3. Async Waterfall uses only genuinely applicable shared structure;
-4. all three pure learning models remain independent and React-free;
-5. the primitives have no knowledge of lesson domain types;
-6. no generic scenario runner or state-machine abstraction is introduced;
-7. no new dependency or hosted service is added;
-8. authoring the next interactive lesson can reuse consistent accessible structure without reshaping its domain model;
-9. the resulting abstraction layer remains small enough to understand in one file or a handful of focused files.
 
 ## Expected files
 
@@ -484,19 +506,35 @@ Likely additions:
 - `components/learning/primitives/scenario-select.tsx`
 - `components/learning/primitives/scrollable-code-region.tsx`
 - `components/learning/primitives/live-status.tsx`
-- optional `components/learning/primitives/index.ts` only if it improves imports without hiding ownership
+
+An `index.ts` barrel is optional and should be added only if it improves imports without hiding ownership.
 
 Likely modifications:
 
 - `components/learning/async-waterfall-lab.tsx`
 - `components/learning/event-loop-lab.tsx`
 - `components/learning/promise-resolution-lab.tsx`
-- tests only where necessary to protect primitive contracts or accessibility
+- tests only where necessary to protect new primitive contracts
 
 No lesson MDX, content schema, package manifest, lockfile, or CI workflow change is expected.
 
-## Exit decision for Phase 0.3
+## Success criteria
 
-After PR #8 is implemented and verified, Phase 0.3 should be considered complete only for the primitives proven by these lessons. It does not mean every candidate in the roadmap is now required.
+PR #8 succeeds when:
 
-The project should then proceed to Phase 0.4 lesson production. New primitives such as `CodeComparison`, quiz/challenge, benchmarks, freshness badges, or execution timelines should be introduced later through the same evidence rule: at least one real lesson need, preferably repeated use, and a clear reduction in authoring or accessibility risk.
+1. all three labs preserve behavior and accessibility;
+2. Event Loop and Promise no longer duplicate scenario/source/control/status/panel presentation structure;
+3. Async Waterfall adopts only genuinely applicable shared structure;
+4. all three pure models remain independent and React-free;
+5. primitives have no lesson-domain knowledge;
+6. no generic scenario runner/state machine is introduced;
+7. no new dependency or hosted service is introduced;
+8. existing browser and unit contracts remain green;
+9. a future interactive lesson can reuse accessible lab structure without reshaping its domain model;
+10. the primitive layer stays small enough to understand as a handful of focused presentation components.
+
+## Phase 0.3 exit decision
+
+After PR #8 is implemented and verified, Phase 0.3 is complete only for the patterns actually proven by these three lessons. It does not require implementing every candidate named in the roadmap.
+
+The next project phase should be Phase 0.4 lesson production. Future primitives such as `CodeComparison`, quizzes/challenges, benchmarks, freshness badges, source lists, or execution timelines should follow the same evidence rule: a real lesson need, preferably repeated use, and a clear reduction in authoring or accessibility risk.
