@@ -9,11 +9,15 @@ import type { MDXComponents } from 'mdx/types';
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
-    pre: ({ ref: _ref, ...props }) => (
-      <CodeBlock keepBackground {...props}>
-        <Pre>{props.children}</Pre>
-      </CodeBlock>
-    ),
+    pre: ({ ref, ...props }) => {
+      void ref;
+
+      return (
+        <CodeBlock keepBackground {...props}>
+          <Pre>{props.children}</Pre>
+        </CodeBlock>
+      );
+    },
     AsyncWaterfallLab,
     EventLoopLab,
     PromiseResolutionLab,
