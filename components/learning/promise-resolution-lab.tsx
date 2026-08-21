@@ -1,6 +1,14 @@
 'use client';
 
 import {
+  LabControls,
+  LabPanel,
+  LabShell,
+  LiveStatus,
+  ScenarioSelect,
+  ScrollableCodeRegion,
+} from '@/components/learning/primitives';
+import {
   createPromiseScenarioState,
   PROMISE_SCENARIOS,
   stepPromiseScenario,
@@ -8,7 +16,7 @@ import {
   type PromiseResolutionState,
   type PromiseScenarioId,
 } from '@/lib/learning/promise-resolution';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const STATE_LABELS: Record<PromiseNode['state'], string> = {
   pending: 'Pending',
@@ -74,8 +82,6 @@ function handlerDescription(state: PromiseResolutionState) {
 }
 
 export function PromiseResolutionLab() {
-  const titleId = useId();
-  const explanationId = useId();
   const [scenarioId, setScenarioId] =
     useState<PromiseScenarioId>('return-value');
   const [state, setState] = useState(() =>
@@ -123,54 +129,32 @@ export function PromiseResolutionLab() {
   }
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="my-8 space-y-6 rounded-xl border bg-fd-card p-4 sm:p-6"
-    >
-      <div className="space-y-2">
-        <h3 id={titleId} className="text-xl font-semibold">
-          Promise Resolution Lab
-        </h3>
-        <p className="text-fd-muted-foreground">
+    <LabShell
+      title="Promise Resolution Lab"
+      description={
+        <>
           Step through predefined Promise-resolution scenarios. The lab models
           language semantics for teaching; it does not execute arbitrary
           JavaScript or inspect hidden native Promise state.
-        </p>
-      </div>
+        </>
+      }
+    >
+      <ScenarioSelect
+        label="Promise scenario"
+        value={scenarioId}
+        options={PROMISE_SCENARIOS.map((candidate) => ({
+          value: candidate.id,
+          label: candidate.title,
+        }))}
+        description={scenario.description}
+        onChange={handleScenarioChange}
+      />
 
-      <div className="grid gap-3">
-        <label htmlFor={`${titleId}-scenario`} className="font-medium">
-          Promise scenario
-        </label>
-        <select
-          id={`${titleId}-scenario`}
-          value={scenarioId}
-          onChange={(event) => handleScenarioChange(event.currentTarget.value)}
-          className="max-w-xl rounded-md border bg-fd-background px-3 py-2"
-        >
-          {PROMISE_SCENARIOS.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.title}
-            </option>
-          ))}
-        </select>
-        <p className="text-sm text-fd-muted-foreground">
-          {scenario.description}
-        </p>
-      </div>
+      <ScrollableCodeRegion label="Promise scenario source">
+        {scenario.source}
+      </ScrollableCodeRegion>
 
-      <div
-        role="region"
-        aria-label="Promise scenario source"
-        tabIndex={0}
-        className="overflow-x-auto rounded-lg border bg-fd-muted p-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <pre className="min-w-max text-sm leading-relaxed">
-          <code>{scenario.source}</code>
-        </pre>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
+      <LabControls trailing={<span>Step {state.stepIndex}</span>}>
         <button
           type="button"
           onClick={handleStep}
@@ -194,17 +178,13 @@ export function PromiseResolutionLab() {
         >
           Reset
         </button>
-        <span className="ml-auto text-sm text-fd-muted-foreground">
-          Step {state.stepIndex}
-        </span>
-      </div>
+      </LabControls>
 
-      <div className="rounded-md bg-fd-muted p-3 text-sm" aria-live="polite">
-        <strong>Status:</strong>{' '}
+      <LiveStatus label="Status">
         <span data-testid="promise-lab-status">
           {state.complete ? 'Complete' : 'In progress'}
         </span>
-      </div>
+      </LiveStatus>
 
       <section className="space-y-3" aria-label="Promise states">
         <h4 className="font-semibold">Promise states</h4>
@@ -225,8 +205,7 @@ export function PromiseResolutionLab() {
           <p className="text-sm leading-relaxed">{handlerDescription(state)}</p>
         </section>
 
-        <section className="rounded-lg border bg-fd-card p-4">
-          <h4 className="mb-3 font-semibold">Outcome log</h4>
+        <LabPanel title="Outcome log">
           {state.output.length === 0 ? (
             <p className="text-sm text-fd-muted-foreground">No output yet</p>
           ) : (
@@ -239,20 +218,14 @@ export function PromiseResolutionLab() {
               ))}
             </ol>
           )}
-        </section>
+        </LabPanel>
       </div>
 
-      <section
-        aria-labelledby={explanationId}
-        className="rounded-lg border bg-fd-card p-4"
-      >
-        <h4 id={explanationId} className="mb-3 font-semibold">
-          Why this step?
-        </h4>
+      <LabPanel title="Why this step?">
         <p className="text-sm leading-relaxed" aria-live="polite">
           {state.explanation}
         </p>
-      </section>
-    </section>
+      </LabPanel>
+    </LabShell>
   );
 }
