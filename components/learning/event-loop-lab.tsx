@@ -1,6 +1,14 @@
 'use client';
 
 import {
+  LabControls,
+  LabPanel,
+  LabShell,
+  LiveStatus,
+  ScenarioSelect,
+  ScrollableCodeRegion,
+} from '@/components/learning/primitives';
+import {
   chooseRunnableTask,
   createScenarioState,
   EVENT_LOOP_SCENARIOS,
@@ -10,7 +18,7 @@ import {
   type TaskSource,
   type WorkItem,
 } from '@/lib/learning/browser-event-loop';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const TASK_SOURCES: TaskSource[] = [
   'script',
@@ -54,18 +62,7 @@ function QueueList({ items, emptyLabel = 'Empty' }: { items: WorkItem[]; emptyLa
   );
 }
 
-function StatePanel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border bg-fd-card p-4">
-      <h4 className="mb-3 font-semibold">{title}</h4>
-      {children}
-    </section>
-  );
-}
-
 export function EventLoopLab() {
-  const titleId = useId();
-  const explanationId = useId();
   const [scenarioId, setScenarioId] = useState<ScenarioId>('promise-vs-timer');
   const [state, setState] = useState(() =>
     createScenarioState('promise-vs-timer'),
@@ -128,46 +125,31 @@ export function EventLoopLab() {
   }
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="my-8 space-y-6 rounded-xl border bg-fd-card p-4 sm:p-6"
-    >
-      <div className="space-y-2">
-        <h3 id={titleId} className="text-xl font-semibold">
-          Event Loop Lab
-        </h3>
-        <p className="text-fd-muted-foreground">
+    <LabShell
+      title="Event Loop Lab"
+      description={
+        <>
           Step through predefined browser scheduling scenarios. The simulator
           models teaching transitions; it does not execute arbitrary JavaScript.
-        </p>
-      </div>
+        </>
+      }
+    >
+      <ScenarioSelect
+        label="Event loop scenario"
+        value={scenarioId}
+        options={EVENT_LOOP_SCENARIOS.map((candidate) => ({
+          value: candidate.id,
+          label: candidate.title,
+        }))}
+        description={scenario.description}
+        onChange={handleScenarioChange}
+      />
 
-      <div className="grid gap-3">
-        <label htmlFor={`${titleId}-scenario`} className="font-medium">
-          Event loop scenario
-        </label>
-        <select
-          id={`${titleId}-scenario`}
-          value={scenarioId}
-          onChange={(event) => handleScenarioChange(event.currentTarget.value)}
-          className="max-w-xl rounded-md border bg-fd-background px-3 py-2"
-        >
-          {EVENT_LOOP_SCENARIOS.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.title}
-            </option>
-          ))}
-        </select>
-        <p className="text-sm text-fd-muted-foreground">{scenario.description}</p>
-      </div>
+      <ScrollableCodeRegion label="Scenario source">
+        {scenario.source}
+      </ScrollableCodeRegion>
 
-      <div className="overflow-x-auto rounded-lg border bg-fd-muted p-4 focus-visible:outline-2 focus-visible:outline-offset-2" role="region" aria-label="Scenario source" tabIndex={0}>
-        <pre className="min-w-max text-sm leading-relaxed">
-          <code>{scenario.source}</code>
-        </pre>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
+      <LabControls trailing={<span>Step {state.stepIndex}</span>}>
         <button
           type="button"
           onClick={handleStep}
@@ -195,15 +177,11 @@ export function EventLoopLab() {
         >
           Reset
         </button>
-        <span className="ml-auto text-sm text-fd-muted-foreground">
-          Step {state.stepIndex}
-        </span>
-      </div>
+      </LabControls>
 
-      <div className="rounded-md bg-fd-muted p-3 text-sm" aria-live="polite">
-        <strong>Status:</strong>{' '}
+      <LiveStatus label="Status">
         <span data-testid="event-loop-status">{STATUS_LABELS[state.status]}</span>
-      </div>
+      </LiveStatus>
 
       {state.status === 'scheduler-choice' && state.choices.length > 0 ? (
         <section className="space-y-3 rounded-lg border p-4" aria-label="Valid scheduler choices">
@@ -228,7 +206,7 @@ export function EventLoopLab() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <StatePanel title="Currently running work">
+        <LabPanel title="Currently running work">
           {state.current ? (
             <p className="rounded-md border bg-fd-background px-3 py-2 text-sm">
               {state.current.label}
@@ -236,13 +214,13 @@ export function EventLoopLab() {
           ) : (
             <p className="text-sm text-fd-muted-foreground">None</p>
           )}
-        </StatePanel>
+        </LabPanel>
 
-        <StatePanel title="Microtasks">
+        <LabPanel title="Microtasks">
           <QueueList items={state.microtasks} />
-        </StatePanel>
+        </LabPanel>
 
-        <StatePanel title="Runnable task-source work">
+        <LabPanel title="Runnable task-source work">
           <div className="space-y-4">
             {TASK_SOURCES.map((source) => (
               <div key={source} className="space-y-2">
@@ -256,9 +234,9 @@ export function EventLoopLab() {
             not imply that every task source maps one-to-one to a browser task
             queue; user agents may coalesce task sources into task queues.
           </p>
-        </StatePanel>
+        </LabPanel>
 
-        <StatePanel title="Rendering-related work">
+        <LabPanel title="Rendering-related work">
           <div className="space-y-3">
             <p className="text-sm">
               <strong>Rendering state:</strong> {STATUS_LABELS[state.status]}
@@ -268,11 +246,11 @@ export function EventLoopLab() {
               <QueueList items={state.animationFrameCallbacks} />
             </div>
           </div>
-        </StatePanel>
+        </LabPanel>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <StatePanel title="Output log">
+        <LabPanel title="Output log">
           {state.output.length === 0 ? (
             <p className="text-sm text-fd-muted-foreground">No output yet</p>
           ) : (
@@ -282,20 +260,14 @@ export function EventLoopLab() {
               ))}
             </ol>
           )}
-        </StatePanel>
+        </LabPanel>
 
-        <section
-          aria-labelledby={explanationId}
-          className="rounded-lg border bg-fd-card p-4"
-        >
-          <h4 id={explanationId} className="mb-3 font-semibold">
-            Why this step?
-          </h4>
+        <LabPanel title="Why this step?">
           <p className="text-sm leading-relaxed" aria-live="polite">
             {state.explanation}
           </p>
-        </section>
+        </LabPanel>
       </div>
-    </section>
+    </LabShell>
   );
 }

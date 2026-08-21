@@ -151,8 +151,29 @@ test('bounds the starvation demonstration instead of freezing the page', async (
   ).toBeVisible();
 });
 
-test('step and reset controls are keyboard operable', async ({ page }) => {
+test('step and reset controls preserve shared accessibility semantics', async ({
+  page,
+}) => {
   await page.goto(lessonPath);
+
+  const labHeading = page.getByRole('heading', {
+    name: 'Event Loop Lab',
+    exact: true,
+  });
+  const labHeadingId = await labHeading.getAttribute('id');
+  expect(labHeadingId).not.toBeNull();
+  await expect(labHeading.locator('xpath=ancestor::section[1]')).toHaveAttribute(
+    'aria-labelledby',
+    labHeadingId!,
+  );
+
+  const sourceRegion = page.getByRole('region', { name: 'Scenario source' });
+  await expect(sourceRegion).toHaveAttribute('tabindex', '0');
+
+  const statusLiveRegion = page
+    .getByTestId('event-loop-status')
+    .locator('xpath=ancestor::*[@aria-live="polite"][1]');
+  await expect(statusLiveRegion).toHaveAttribute('aria-live', 'polite');
 
   const stepButton = page.getByRole('button', { name: 'Step', exact: true });
   await stepButton.focus();

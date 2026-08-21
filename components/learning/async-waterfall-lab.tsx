@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  LabControls,
+  LabShell,
+  LiveStatus,
+} from '@/components/learning/primitives';
+import {
   buildConcurrentSchedule,
   buildSequentialSchedule,
   calculateTimeSavedMs,
@@ -12,7 +17,7 @@ import {
   type TaskDurations,
   type TaskId,
 } from '@/lib/learning/async-schedule';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const TASK_IDS: TaskId[] = ['A', 'B', 'C'];
 
@@ -121,7 +126,6 @@ function SchedulePanel({
 }
 
 export function AsyncWaterfallLab() {
-  const titleId = useId();
   const [durations, setDurations] = useState<TaskDurations>(
     DEFAULT_TASK_DURATIONS,
   );
@@ -180,10 +184,7 @@ export function AsyncWaterfallLab() {
   }
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="my-8 rounded-xl border bg-fd-card p-4 sm:p-6"
-    >
+    <>
       <style>{`
         @keyframes atlas-timeline-reveal {
           from { transform: scaleX(0); opacity: 0.45; }
@@ -202,83 +203,83 @@ export function AsyncWaterfallLab() {
         }
       `}</style>
 
-      <div className="space-y-2">
-        <h3 id={titleId} className="text-xl font-semibold">
-          Async Waterfall Lab
-        </h3>
-        <p className="text-fd-muted-foreground">
-          Change the durations to compare sequential waiting with independent
-          asynchronous work that starts together. Both timelines use the same
-          elapsed-time scale.
-        </p>
-      </div>
+      <LabShell
+        title="Async Waterfall Lab"
+        description={
+          <>
+            Change the durations to compare sequential waiting with independent
+            asynchronous work that starts together. Both timelines use the same
+            elapsed-time scale.
+          </>
+        }
+      >
+        <fieldset className="grid gap-4 sm:grid-cols-3">
+          <legend className="sr-only">Task durations</legend>
+          {TASK_IDS.map((id) => (
+            <label key={id} className="grid gap-2 font-medium">
+              Task {id} duration
+              <span className="flex items-center gap-2">
+                <input
+                  aria-label={`Task ${id} duration in milliseconds`}
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_TASK_DURATION_MS}
+                  max={MAX_TASK_DURATION_MS}
+                  step={TASK_DURATION_STEP_MS}
+                  value={durations[id]}
+                  onChange={(event) =>
+                    updateDuration(id, event.currentTarget.valueAsNumber)
+                  }
+                  className="w-28 rounded-md border bg-transparent px-3 py-2 tabular-nums"
+                />
+                <span aria-hidden="true">ms</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
 
-      <fieldset className="mt-6 grid gap-4 sm:grid-cols-3">
-        <legend className="sr-only">Task durations</legend>
-        {TASK_IDS.map((id) => (
-          <label key={id} className="grid gap-2 font-medium">
-            Task {id} duration
-            <span className="flex items-center gap-2">
-              <input
-                aria-label={`Task ${id} duration in milliseconds`}
-                type="number"
-                inputMode="numeric"
-                min={MIN_TASK_DURATION_MS}
-                max={MAX_TASK_DURATION_MS}
-                step={TASK_DURATION_STEP_MS}
-                value={durations[id]}
-                onChange={(event) =>
-                  updateDuration(id, event.currentTarget.valueAsNumber)
-                }
-                className="w-28 rounded-md border bg-transparent px-3 py-2 tabular-nums"
-              />
-              <span aria-hidden="true">ms</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+        <LabControls>
+          <button
+            type="button"
+            onClick={play}
+            className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {isPlaying ? 'Replay' : 'Play'} timelines
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Reset
+          </button>
+        </LabControls>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={play}
-          className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {isPlaying ? 'Replay' : 'Play'} timelines
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          Reset
-        </button>
-      </div>
+        <div key={playbackKey} className="grid gap-8 lg:grid-cols-2">
+          <SchedulePanel
+            label="Sequential"
+            schedule={sequential}
+            comparisonTotalMs={comparisonTotalMs}
+            testId="sequential-total"
+            isPlaying={isPlaying}
+          />
+          <SchedulePanel
+            label="Concurrent"
+            schedule={concurrent}
+            comparisonTotalMs={comparisonTotalMs}
+            testId="concurrent-total"
+            isPlaying={isPlaying}
+          />
+        </div>
 
-      <div key={playbackKey} className="mt-6 grid gap-8 lg:grid-cols-2">
-        <SchedulePanel
-          label="Sequential"
-          schedule={sequential}
-          comparisonTotalMs={comparisonTotalMs}
-          testId="sequential-total"
-          isPlaying={isPlaying}
-        />
-        <SchedulePanel
-          label="Concurrent"
-          schedule={concurrent}
-          comparisonTotalMs={comparisonTotalMs}
-          testId="concurrent-total"
-          isPlaying={isPlaying}
-        />
-      </div>
-
-      <p className="mt-6 rounded-md bg-fd-muted p-3" aria-live="polite">
-        With these durations, starting independent work together saves{' '}
-        <strong data-testid="time-saved" className="tabular-nums">
-          {savedMs}ms
-        </strong>{' '}
-        of elapsed time.
-      </p>
-    </section>
+        <LiveStatus>
+          With these durations, starting independent work together saves{' '}
+          <strong data-testid="time-saved" className="tabular-nums">
+            {savedMs}ms
+          </strong>{' '}
+          of elapsed time.
+        </LiveStatus>
+      </LabShell>
+    </>
   );
 }
