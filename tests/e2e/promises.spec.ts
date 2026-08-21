@@ -106,8 +106,24 @@ test('shows two independent downstream branches from one source promise', async 
   await expect(page.getByTestId('promise-lab-status')).toHaveText('Complete');
 });
 
-test('step and reset controls are keyboard operable', async ({ page }) => {
+test('step and reset controls preserve shared accessibility semantics', async ({
+  page,
+}) => {
   await page.goto(lessonPath);
+
+  await expect(
+    page.getByLabel('Promise scenario', { exact: true }),
+  ).toBeVisible();
+
+  const sourceRegion = page.getByRole('region', {
+    name: 'Promise scenario source',
+  });
+  await expect(sourceRegion).toHaveAttribute('tabindex', '0');
+
+  const statusLiveRegion = page
+    .getByTestId('promise-lab-status')
+    .locator('xpath=ancestor::*[@aria-live="polite"][1]');
+  await expect(statusLiveRegion).toHaveAttribute('aria-live', 'polite');
 
   const stepButton = page.getByRole('button', { name: 'Step', exact: true });
   await stepButton.focus();
