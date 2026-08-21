@@ -2,6 +2,7 @@
   "title": "Asynchronous Programming",
   "pages": [
     "avoiding-sequential-async-waterfalls",
-    "how-the-browser-event-loop-works"
+    "how-the-browser-event-loop-works",
+    "promises"
   ]
 }
