@@ -29,10 +29,986 @@ technologies:
 
 ## TL;DR
 
-A Promise represents an eventual outcome. Calling `then`, `catch`, or `finally` creates a new Promise; the new Promise's outcome is determined by what the handler returns, throws, or adopts.
+**A Promise represents an eventual outcome. Calling `then`, `catch`, or `finally` creates a new Promise; the new Promise's outcome is determined by what the handler returns, throws, or adopts.**
 
-**Resolved does not necessarily mean fulfilled.** A promise can already be resolved to another still-pending promise or thenable and therefore remain pending while it adopts that outcome.
+Three rules do most of the work:
 
-## Promise Resolution Lab
+1. Returning a plain value from a handler fulfills the new downstream Promise with that value.
+2. Throwing from a handler rejects the new downstream Promise with the thrown reason.
+3. Returning a Promise or thenable makes the new downstream Promise adopt that outcome.
+
+The most important terminology correction is:
+
+> **Resolved does not necessarily mean fulfilled.**
+
+A Promise can be resolved to another still-pending Promise or thenable. At that point its fate is locked to the adopted outcome, but it can remain **pending** until the adopted value settles.
+
+And remember that a Promise is not the operation itself. Rejecting a Promise does **not** inherently cancel network I/O, a timer, filesystem work, or another underlying operation.
+
+## The five terms that matter
+
+Promise discussions become much easier when these terms stay separate.
+
+### Pending
+
+The Promise has not yet fulfilled or rejected.
+
+```text
+P0
+state: pending
+```
+
+### Fulfilled
+
+The Promise completed successfully with a fulfillment value.
+
+```text
+P0
+state: fulfilled
+value: 42
+```
+
+### Rejected
+
+The Promise completed unsuccessfully with a rejection reason.
+
+```text
+P0
+state: rejected
+reason: Error('network')
+```
+
+### Settled
+
+A Promise is **settled** once it is either fulfilled or rejected.
+
+```text
+settled = fulfilled OR rejected
+```
+
+Pending Promises are not settled.
+
+### Resolved
+
+**Resolved is not a fourth mutually exclusive state.** Resolution describes whether a Promise has been locked to an outcome.
+
+The simplest cases look unsurprising:
+
+```js
+Promise.resolve(42);        // resolved and fulfilled
+Promise.reject(new Error()); // resolved and rejected
+```
+
+But resolution can also mean adoption:
+
+```js
+let resolveInner;
+
+const inner = new Promise((resolve) => {
+  resolveInner = resolve;
+});
+
+const outer = Promise.resolve(inner);
+```
+
+While `inner` is still pending, `outer` is also pending—but `outer` is already resolved to `inner`. Its eventual outcome is now tied to the adopted Promise.
+
+Conceptually:
+
+```text
+inner: pending
+outer: pending + resolved/adopting inner
+
+later...
+
+inner: fulfilled with 42
+outer: fulfilled with 42
+```
+
+This distinction is why “resolved” and “fulfilled” should not be used as synonyms.
+
+## Promise construction: synchronous executor, asynchronous reactions
+
+Two timing facts are easy to mix up.
+
+### The Promise constructor executor runs synchronously
+
+```js
+const events = [];
+
+new Promise((resolve) => {
+  events.push('executor');
+  resolve();
+});
+
+events.push('after constructor');
+
+console.log(events);
+// ['executor', 'after constructor']
+```
+
+The executor function passed to `new Promise(...)` runs during construction. If the executor throws before settlement, the Promise is rejected with that thrown reason.
+
+This makes the constructor useful when adapting callback-style APIs:
+
+```js
+function readLegacyResource() {
+  return new Promise((resolve, reject) => {
+    callbackStyleApi((error, value) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(value);
+    });
+  });
+}
+```
+
+But do not wrap an API that already returns a Promise unless you have a specific semantic reason:
+
+```js
+// Usually unnecessary.
+function loadUser() {
+  return new Promise((resolve, reject) => {
+    fetch('/api/user').then(resolve, reject);
+  });
+}
+```
+
+Prefer:
+
+```js
+function loadUser() {
+  return fetch('/api/user');
+}
+```
+
+Extra Promise construction can obscure errors, cancellation ownership, and the real dependency graph.
+
+### Promise reaction handlers do not run inline
+
+A `then`, `catch`, or `finally` handler is not called synchronously just because the source Promise is already settled.
+
+```js
+console.log('A');
+
+Promise.resolve().then(() => {
+  console.log('promise handler');
+});
+
+console.log('B');
+```
+
+The useful order is:
+
+```text
+A
+B
+promise handler
+```
+
+For the browser host scheduling details behind that behavior, see [How the Browser Event Loop Actually Works](./how-the-browser-event-loop-works).
+
+The important boundary for this lesson is simpler: **construction/executor timing and reaction-handler timing are different concerns.**
+
+## Every chain method creates a new Promise
+
+Promise chains are easier to reason about when you stop imagining one Promise changing repeatedly.
+
+This:
+
+```js
+const p1 = p0.then(handleValue);
+const p2 = p1.catch(handleError);
+const p3 = p2.finally(cleanup);
+```
+
+is better pictured as:
+
+```text
+P0 --then(handleValue)--> P1 --catch(handleError)--> P2 --finally(cleanup)--> P3
+```
+
+`P0`, `P1`, `P2`, and `P3` are distinct Promise objects.
+
+That matters because each downstream Promise has its **own** outcome.
+
+For example:
+
+```js
+const p0 = Promise.resolve(10);
+const p1 = p0.then((value) => value * 2);
+```
+
+`p0` remains fulfilled with `10`. The handler return value determines `p1`, which becomes fulfilled with `20`.
+
+Do not reason like this:
+
+```text
+P0 changed from 10 into 20
+```
+
+Reason like this:
+
+```text
+P0 fulfilled with 10
+  ↓ handler returns 20
+P1 fulfilled with 20
+```
+
+## Return, throw, adopt
+
+This table is the core Promise-chain reasoning tool.
+
+| Handler result | Downstream Promise behavior |
+| --- | --- |
+| returns a plain value | fulfills with that value |
+| returns normally with no value | fulfills with `undefined` |
+| throws | rejects with the thrown reason |
+| returns a fulfilled Promise/thenable | adopts and eventually fulfills with that outcome |
+| returns a rejected Promise/thenable | adopts and eventually rejects with that outcome |
+| returns a still-pending Promise/thenable | becomes resolved to/adopts it while remaining pending |
+
+### Return a value
+
+```js
+const p0 = Promise.resolve(10);
+const p1 = p0.then((value) => value * 2);
+```
+
+Reasoning:
+
+```text
+P0 fulfilled: 10
+handler returns: 20
+P1 fulfilled: 20
+```
+
+### Return nothing
+
+```js
+const p1 = p0.then(() => {
+  recordMetric();
+});
+```
+
+A normal function completion with no explicit return is still a return of `undefined`:
+
+```text
+P1 fulfilled: undefined
+```
+
+This is a common source of broken chains when downstream work expected a Promise or value to be returned.
+
+### Throw
+
+```js
+const p1 = p0.then(() => {
+  throw new Error('boom');
+});
+```
+
+Reasoning:
+
+```text
+handler throws Error('boom')
+P1 rejected: Error('boom')
+```
+
+The throw does not mutate `p0`. It determines the Promise returned by `then`.
+
+### Return another Promise
+
+```js
+const p1 = p0.then(() => loadUser());
+```
+
+If `loadUser()` returns a Promise, `p1` adopts that Promise's eventual outcome.
+
+This is why ordinary Promise chains flatten asynchronous dependencies instead of producing a useful `Promise<Promise<T>>` nesting model.
+
+### Return a thenable
+
+Promise resolution also assimilates compatible **thenables**—objects with a callable `then` property.
+
+```js
+const thenable = {
+  then(resolve) {
+    resolve(42);
+  },
+};
+
+const p1 = Promise.resolve().then(() => thenable);
+```
+
+`p1` follows the thenable's eventual result.
+
+In application code, prefer real Promises from trustworthy APIs. Thenable assimilation matters because the language Promise-resolution procedure must interoperate with Promise-like values, not because custom thenables are usually the clearest architecture.
+
+## Try it: Promise Resolution Lab
+
+The lab below does **not** execute arbitrary JavaScript. Native Promises do not expose all internal resolution/adoption metadata as a public inspection API, so the lab uses a deterministic teaching model that makes those semantics visible directly.
 
 <PromiseResolutionLab />
+
+Pay special attention to **Adopt a still-pending promise**. There is an intentional intermediate step where:
+
+```text
+P1 state: Pending
+P1 resolution: Adopting another promise
+P1 adopts: P2
+P2 state: Pending
+```
+
+That is the concrete example behind “resolved does not necessarily mean fulfilled.”
+
+## Error propagation and recovery
+
+A chain does not require every link to define both fulfillment and rejection handlers.
+
+When the current outcome does not match a supplied handler, that outcome propagates until a matching handler is reached.
+
+### `catch()` can recover a chain
+
+```js
+loadUser()
+  .catch(() => ({ name: 'Guest' }))
+  .then(renderUser);
+```
+
+Suppose `loadUser()` rejects.
+
+The `catch` handler returns normally with:
+
+```js
+{ name: 'Guest' }
+```
+
+Therefore the Promise returned by `catch` becomes **fulfilled** with that fallback object. The following fulfillment handler can run normally.
+
+Conceptually:
+
+```text
+P0 rejected: network error
+  ↓ catch returns Guest
+P1 fulfilled: Guest
+  ↓ then(renderUser)
+P2 outcome follows renderUser
+```
+
+### Logging is not the same as propagating
+
+This changes the chain to fulfillment with `undefined`:
+
+```js
+loadUser().catch((error) => {
+  log(error);
+});
+```
+
+If the error must remain a failure, rethrow it:
+
+```js
+loadUser().catch((error) => {
+  log(error);
+  throw error;
+});
+```
+
+Or return a rejected Promise when that is the clearer API contract.
+
+The key question is never merely “did a `catch` run?” It is:
+
+> **What did the rejection handler return or throw, and therefore what happened to the new Promise returned by `catch`?**
+
+## `finally()` is transparent until cleanup fails or delays
+
+`finally()` is primarily for cleanup that should run regardless of fulfillment or rejection.
+
+### Successful cleanup preserves fulfillment
+
+```js
+Promise.resolve(2)
+  .finally(() => cleanup())
+  .then((value) => {
+    console.log(value); // 2, if cleanup succeeds
+  });
+```
+
+A normal successful `finally` return does not replace `2` with the cleanup callback's ordinary return value.
+
+### Successful cleanup preserves rejection
+
+```js
+const error = new Error('network');
+
+Promise.reject(error)
+  .finally(() => cleanup())
+  .catch((reason) => {
+    console.log(reason === error); // true, if cleanup succeeds
+  });
+```
+
+### Throwing from `finally()` replaces the downstream outcome
+
+```js
+Promise.resolve(2).finally(() => {
+  throw new Error('cleanup failed');
+});
+```
+
+The Promise returned by `finally` rejects with the cleanup error.
+
+### Returning a rejected Promise from `finally()` also rejects downstream
+
+```js
+Promise.resolve(2).finally(() =>
+  Promise.reject(new Error('cleanup failed')),
+);
+```
+
+The downstream Promise adopts that rejection.
+
+### Returning a pending Promise can delay propagation
+
+```js
+Promise.resolve(2).finally(() => waitForCleanup());
+```
+
+If `waitForCleanup()` is still pending, propagation of the original value waits for cleanup to settle. If cleanup later fulfills, the downstream Promise preserves the original `2`. If cleanup rejects, that cleanup rejection becomes the downstream failure.
+
+This is why:
+
+```js
+promise.finally(onFinally)
+```
+
+is **not** equivalent to:
+
+```js
+promise.then(onFinally, onFinally)
+```
+
+The value-propagation semantics are different.
+
+## Branching is not sequencing
+
+Calling `then()` multiple times on one source Promise creates separate downstream Promises.
+
+```js
+const source = Promise.resolve(10);
+
+const a = source.then((value) => value + 1);
+const b = source.then((value) => value * 2);
+```
+
+The shape is:
+
+```text
+          ┌─ handler A → a fulfilled with 11
+source 10 ┤
+          └─ handler B → b fulfilled with 20
+```
+
+It is **not**:
+
+```text
+source → handler A → handler B
+```
+
+unless you actually chain B from A:
+
+```js
+const a = source.then((value) => value + 1);
+const b = a.then((value) => value * 2);
+```
+
+That distinction connects directly to [Avoiding Sequential Async Waterfalls](./avoiding-sequential-async-waterfalls): chain shape represents dependency shape. Do not introduce ordering accidentally by chaining work that is actually independent.
+
+The Promise Resolution Lab displays the two branch handlers one after another so you can inspect each transition. That **display order is pedagogical**; it does not mean branch B depends on branch A.
+
+## Promise combinators by intent
+
+Promise combinators aggregate outcomes, but each has a different contract.
+
+| Need | API | Key failure behavior |
+| --- | --- | --- |
+| all inputs must fulfill | `Promise.all()` | rejects when an input rejects |
+| observe every input outcome | `Promise.allSettled()` | fulfills with per-input result records |
+| first fulfillment wins | `Promise.any()` | rejects with `AggregateError` if all reject |
+| first settlement wins | `Promise.race()` | settles with the first settled input |
+
+### `Promise.all()` — every input matters
+
+```js
+const [user, flags] = await Promise.all([
+  loadUser(),
+  loadFeatureFlags(),
+]);
+```
+
+Use this when the aggregate result requires every input to fulfill.
+
+If an input rejects, the aggregate Promise rejects. But the other already-started operations are **not automatically cancelled**.
+
+```text
+Promise.all rejects early
+≠
+all underlying operations stop
+```
+
+Cancellation must come from the operations themselves, when supported.
+
+### `Promise.allSettled()` — inspect every outcome
+
+```js
+const results = await Promise.allSettled([
+  saveProfile(),
+  writeAuditLog(),
+  refreshSearchIndex(),
+]);
+```
+
+The aggregate fulfills after every input settles, with records such as:
+
+```js
+{ status: 'fulfilled', value: ... }
+{ status: 'rejected', reason: ... }
+```
+
+Use it when partial success/failure information is itself the result you need.
+
+### `Promise.any()` — first fulfillment wins
+
+```js
+const result = await Promise.any([
+  readReplicaA(),
+  readReplicaB(),
+  readReplicaC(),
+]);
+```
+
+Rejections are ignored until one input fulfills. If every input rejects, the result rejects with an `AggregateError` containing the rejection reasons.
+
+### `Promise.race()` — first settlement wins
+
+```js
+const first = await Promise.race([
+  operation(),
+  timeoutSignal(),
+]);
+```
+
+The first fulfillment **or rejection** settles the returned Promise.
+
+Be careful with timeout-style races: winning a race does not automatically cancel the losing operation.
+
+### Empty inputs follow the combinator contract
+
+These cases are useful because they reveal the semantics:
+
+```text
+Promise.all([])        -> already fulfilled with []
+Promise.allSettled([]) -> already fulfilled with []
+Promise.any([])        -> already rejected with AggregateError
+Promise.race([])       -> remains pending
+```
+
+Why?
+
+- “All inputs fulfilled” is vacuously true for an empty set, so `all` can fulfill with an empty result.
+- “All inputs settled” is also already satisfied for an empty set.
+- `any` has no possible fulfillment winner, so the empty input is an all-rejected case.
+- `race` has no participant that can ever settle first, so there is no event that settles the result.
+
+Even when an aggregate Promise is already settled, attached reaction handlers still follow normal Promise reaction scheduling; “already fulfilled” does not mean a `.then(...)` callback runs inline.
+
+## Modern Promise APIs in 2026
+
+Two standardized APIs are still missing from many older Promise tutorials.
+
+### `Promise.withResolvers()`
+
+`Promise.withResolvers()` returns a new Promise together with the settlement functions associated with it:
+
+```js
+const { promise, resolve, reject } = Promise.withResolvers();
+```
+
+MDN labels it **Baseline 2024**.
+
+The important architectural difference from a normal constructor is scope.
+
+With a constructor:
+
+```js
+const promise = new Promise((resolve, reject) => {
+  // resolve/reject naturally live inside this callback scope.
+});
+```
+
+With `withResolvers()`:
+
+```js
+const { promise, resolve, reject } = Promise.withResolvers();
+
+registerLifecycleCallbacks({ resolve, reject });
+```
+
+That can be useful when the lifecycle owner needs settlement functions outside a constructor callback—for example event, queue, stream, or protocol integration.
+
+But treat that extra freedom as ownership you must manage.
+
+Good guardrails:
+
+- keep `resolve` and `reject` scoped to the component or subsystem that owns the lifecycle;
+- do not expose settlement functions broadly just because the API makes it convenient;
+- prefer an existing Promise-returning API over wrapping it;
+- settle from well-defined lifecycle transitions rather than unrelated modules.
+
+`Promise.withResolvers()` is a useful construction primitive, not a reason to turn Promises into globally mutable state.
+
+### `Promise.try()`
+
+ECMAScript 2026 includes `Promise.try()`:
+
+```js
+const result = Promise.try(fn, arg1, arg2);
+```
+
+MDN labels it **Baseline 2025**.
+
+It is useful at boundaries where a callback may:
+
+- return a plain value;
+- throw synchronously; or
+- return a Promise/thenable.
+
+`Promise.try()` invokes the callback **synchronously**, then uses the callback completion to resolve or reject the result Promise.
+
+```js
+const result = Promise.try(() => {
+  if (configurationIsInvalid()) {
+    throw new Error('invalid configuration');
+  }
+
+  return maybeAsyncLoad();
+});
+```
+
+A normal return resolves the result Promise with that returned value. A synchronous throw rejects it. A returned Promise or thenable is adopted through normal Promise resolution.
+
+#### `Promise.try(fn)` is not timing-equivalent to `Promise.resolve().then(fn)`
+
+Compare:
+
+```js
+const events = [];
+
+Promise.try(() => {
+  events.push('try callback');
+});
+
+Promise.resolve().then(() => {
+  events.push('then callback');
+});
+
+events.push('sync end');
+```
+
+Immediately after the synchronous code finishes, the array has already seen the `Promise.try` callback:
+
+```text
+try callback
+sync end
+```
+
+The `then` callback runs later as Promise reaction work.
+
+So these are not equivalent merely because both give you a Promise result:
+
+```js
+Promise.try(fn);              // invokes fn synchronously
+Promise.resolve().then(fn);   // invokes fn later
+```
+
+Use `Promise.try()` when you want to normalize a callback that may be synchronous or asynchronous into one Promise-shaped result. Do not treat it as a universal replacement for `async` functions or ordinary Promise chaining.
+
+## Cancellation and operation ownership
+
+The language Promise abstraction models an eventual result. It does not inherently own the work that may eventually produce that result.
+
+> **A Promise models an eventual result; it does not inherently own or cancel the underlying operation.**
+
+For example:
+
+```js
+const controller = new AbortController();
+
+const request = fetch('/api/report', {
+  signal: controller.signal,
+});
+
+controller.abort();
+```
+
+Here, cancellation belongs to the Fetch operation through `AbortSignal`. The Promise returned by `fetch` reflects the result of that operation; the Promise object itself is not a generic cancellation controller.
+
+This distinction matters with combinators too:
+
+```js
+Promise.race([request, timeout]);
+```
+
+or:
+
+```js
+Promise.all([a, b, c]);
+```
+
+does not magically cancel losing or remaining operations. If cancellation matters, design it explicitly using the API's cancellation mechanism and define which part of the system owns that lifecycle.
+
+## How `async` / `await` connects
+
+`async` / `await` is syntax built on Promise semantics, not a separate asynchronous universe.
+
+An `async` function returns a Promise:
+
+```js
+async function loadValue() {
+  return 42;
+}
+```
+
+Conceptually, the caller receives a Promise that fulfills with `42`.
+
+When you `await` a Promise-like value:
+
+```js
+const user = await loadUser();
+```
+
+you are expressing dependency on its eventual outcome. Fulfillment resumes with a value; rejection behaves like a throw at the `await` point.
+
+The syntax can make dependencies easier to read, but it does not remove them. You can still create accidental sequential waterfalls:
+
+```js
+const user = await loadUser();
+const flags = await loadFlags();
+```
+
+when the operations were actually independent.
+
+That is why Promise semantics, event-loop semantics, and async dependency structure are complementary lessons rather than competing models.
+
+## Production mistakes to avoid
+
+### Wrapping Promise APIs unnecessarily
+
+Avoid:
+
+```js
+return new Promise((resolve, reject) => {
+  existingPromiseApi().then(resolve, reject);
+});
+```
+
+Prefer returning or transforming the existing Promise unless you need genuinely different lifecycle semantics.
+
+### Forgetting to return asynchronous work from a handler
+
+Bug:
+
+```js
+loadUser()
+  .then((user) => {
+    saveUser(user); // forgot return
+  })
+  .then(() => {
+    // This does not wait for saveUser if saveUser returns a Promise.
+  });
+```
+
+Better:
+
+```js
+loadUser()
+  .then((user) => saveUser(user))
+  .then(() => {
+    // saveUser has fulfilled here.
+  });
+```
+
+### Accidentally swallowing a rejection
+
+```js
+operation().catch((error) => {
+  log(error);
+});
+```
+
+This returns a fulfilled Promise with `undefined` unless the handler throws or returns a rejected Promise. Decide whether recovery is intentional.
+
+### Assuming rejection cancels work
+
+It does not. Tie cancellation to the actual operation API.
+
+### Creating unbounded work because aggregation looks simple
+
+This:
+
+```js
+await Promise.all(items.map(processItem));
+```
+
+starts every mapped operation immediately if `processItem` starts work when called. That can overwhelm databases, APIs, file descriptors, memory, or rate limits.
+
+Promise aggregation and concurrency limits solve different problems.
+
+### Using guessed Promise timing as synchronization
+
+Do not write correctness logic that assumes “this Promise callback probably runs before that unrelated callback” unless the platform actually guarantees the ordering relationship.
+
+Use explicit dependencies, synchronization primitives, or documented host ordering rules.
+
+### Leaking settlement ownership
+
+`Promise.withResolvers()` makes settlement functions easy to obtain. Keep them near the lifecycle owner instead of passing them through unrelated modules.
+
+### Confusing unhandled rejection policy with Promise semantics
+
+A rejection is a Promise outcome. What a browser, Node.js process, test runner, or framework reports or terminates because of an unhandled rejection is **host/runtime policy around that outcome**.
+
+Do not define Promise rejection semantics by one host's current logging or process policy.
+
+## Exercise
+
+Predict the outcome of **P0 through P4** before reading the answer.
+
+```js
+let settleInner;
+
+const inner = new Promise((resolve) => {
+  settleInner = resolve;
+});
+
+const p0 = Promise.resolve(2);
+const p1 = p0.then((value) => value * 3);
+const p2 = p1.then(() => {
+  throw new Error('boom');
+});
+const p3 = p2.catch(() => inner);
+const p4 = p3.then((value) => value + 1);
+
+// later
+settleInner(10);
+```
+
+Questions:
+
+1. What is the final state/value of `p0`?
+2. What is the final state/value of `p1`?
+3. What is the final state/reason of `p2`?
+4. Is `p3` immediately fulfilled when its `catch` handler returns `inner`?
+5. What are the eventual values of `p3` and `p4` after `settleInner(10)`?
+
+### Answer
+
+`p0` is fulfilled with `2`:
+
+```text
+P0 fulfilled: 2
+```
+
+`p1` is a distinct Promise created by the first `then`. Its handler returns `6`:
+
+```text
+P1 fulfilled: 6
+```
+
+`p2` is another distinct Promise. Its handler throws:
+
+```text
+P2 rejected: Error('boom')
+```
+
+The `catch` handler for `p2` returns `inner`. That does **not** immediately fulfill `p3` with the Promise object.
+
+Instead:
+
+```text
+P3 pending + resolved/adopting inner
+inner pending
+```
+
+This is another concrete resolved-but-not-fulfilled state.
+
+When:
+
+```js
+settleInner(10);
+```
+
+runs, `inner` fulfills with `10`. `p3` adopts that outcome:
+
+```text
+P3 fulfilled: 10
+```
+
+Now the handler attached to `p3` can return `11`:
+
+```text
+P4 fulfilled: 11
+```
+
+Full result:
+
+```text
+P0 fulfilled: 2
+P1 fulfilled: 6
+P2 rejected: Error('boom')
+P3 temporarily pending + adopting inner, then fulfilled: 10
+P4 fulfilled: 11
+```
+
+Notice that each chain operation created its own Promise. The chain is a graph of dependent outcomes, not one Promise being rewritten several times.
+
+## Agent rule
+
+> **Treat every `then`, `catch`, and `finally` call as creating a new Promise. Determine that new Promise's outcome from the handler: returning a value fulfills it, throwing rejects it, and returning a promise/thenable makes it adopt that outcome. Do not equate resolved with fulfilled, do not assume rejection cancels underlying work, and choose combinators according to required success/failure semantics.**
+
+When changing Promise-heavy code, an agent should explicitly check:
+
+1. Which Promise does each chain call return?
+2. What does each handler return or throw?
+3. Does a returned Promise/thenable introduce a real dependency?
+4. Is an error being intentionally recovered or accidentally swallowed?
+5. Does a combinator match the required failure semantics?
+6. Is cancellation owned by the underlying operation rather than assumed from rejection?
+7. Is concurrency intentionally bounded where resources require it?
+8. Is any ordering assumption actually guaranteed by the host/runtime?
+
+## Related lessons
+
+- [Avoiding Sequential Async Waterfalls](./avoiding-sequential-async-waterfalls) — start independent asynchronous work early and await only real dependencies.
+- [How the Browser Event Loop Actually Works](./how-the-browser-event-loop-works) — understand where Promise reactions fit into browser scheduling.
+- **Async / Await** — future lesson on expressing Promise dependencies clearly without recreating waterfalls.
+- **Cancellation** — future lesson on AbortSignal, ownership, propagation, and cleanup.
+- **Bounded Concurrency** — future lesson on controlling resource pressure independently of Promise aggregation.
+
+## Primary sources
+
+This lesson was last verified on **2026-08-21** and is classified as **evolving** with a 180-day review target.
+
+Primary and authoritative references:
+
+- [ECMAScript 2026 — Promise Objects](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise-objects) — constructor, resolution procedures, combinators, `Promise.try()`, `Promise.withResolvers()`, and prototype methods.
+- [MDN — Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) — practical reference and compatibility context.
+- [MDN — Promise constructor](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/Promise) — executor timing and construction semantics.
+- [MDN — Promise.prototype.then()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/then) — chaining and downstream-Promise behavior.
+- [MDN — Promise.prototype.finally()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally) — cleanup transparency and exceptional outcomes.
+- [MDN — Promise.all()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all), [allSettled()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled), [any()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/any), and [race()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/race) — aggregation contracts and empty-input behavior.
+- [MDN — Promise.withResolvers()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) — Baseline 2024 construction primitive.
+- [MDN — Promise.try()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/try) — Baseline 2025 sync/async callback normalization.
