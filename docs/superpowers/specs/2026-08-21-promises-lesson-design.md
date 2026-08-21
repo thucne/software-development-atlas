@@ -1,6 +1,6 @@
 # Gold-Standard Lesson #3 — Promises: Resolution, Chaining, and Failure
 
-Status: approved design; written spec awaiting approval  
+Status: approved design and written spec  
 Date: 2026-08-21  
 Branch: `agent/promises`
 
@@ -88,7 +88,7 @@ The existing async metadata should append `promises` after the first two lessons
 ## Proposed frontmatter
 
 ```yaml
-title: Promises: Resolution, Chaining, and Failure
+title: "Promises: Resolution, Chaining, and Failure"
 description: Reason about Promise states, resolution, chaining, error recovery, adoption, combinators, and modern Promise APIs.
 category: programming
 level: intermediate
@@ -504,481 +504,251 @@ Exact type names may vary during implementation, but the following invariants ar
 1. each chain method's result is modeled as a distinct promise node;
 2. pending/fulfilled/rejected is separate from resolution/adoption metadata;
 3. the adoption scenario must represent a promise that is resolved/adopting while still pending;
-4. the model is pure and deterministic;
-5. React must not reimplement resolution semantics;
-6. the model is educational, not a drop-in Promise implementation.
+4. an adopted promise must be separately identifiable;
+5. `catch` recovery must produce a fulfilled downstream promise;
+6. successful `finally` must preserve the prior value/reason rather than replace it with the callback's ordinary return value;
+7. branching must produce two distinct downstream promise nodes;
+8. the model is deterministic and finite;
+9. the model must not attempt arbitrary user-defined Promise execution.
 
-## Required lab scenarios
+## Required simulator scenarios
 
-### Scenario 1 — Return a plain value
+### Scenario 1 — Handler returns a value
 
-Conceptual code:
-
-```js
-const p1 = Promise.resolve(10).then((value) => value * 2);
-```
-
-Teaching result:
+Conceptual chain:
 
 ```text
 P0 fulfilled: 10
-then returns 20
+  └─ then(value => value * 2)
+       ↓
 P1 fulfilled: 20
 ```
 
-### Scenario 2 — Throw from a handler
+The simulator should visibly create P1 as distinct from P0.
 
-Conceptual code:
-
-```js
-const p1 = Promise.resolve('start').then(() => {
-  throw new Error('boom');
-});
-```
-
-Teaching result:
+### Scenario 2 — Handler throws
 
 ```text
 P0 fulfilled
-handler throws Error('boom')
+  └─ then(() => { throw Error('boom') })
+       ↓
 P1 rejected: Error('boom')
 ```
 
 ### Scenario 3 — Adopt a still-pending Promise
 
-Conceptual code:
-
-```js
-let finish;
-const inner = new Promise((resolve) => {
-  finish = resolve;
-});
-
-const outer = Promise.resolve().then(() => inner);
-```
-
-The deterministic simulator should show an intermediate state equivalent to:
+Conceptual phases:
 
 ```text
-inner: pending
-outer: pending, resolved/adopting inner
-```
+P0 fulfilled
+  ↓ handler returns P2
+P1 pending + resolved/adopting P2
+P2 pending
 
-Then a later simulator step settles `inner`, and `outer` adopts the same fulfillment/rejection outcome.
-
-This scenario is mandatory because it proves the resolved-vs-fulfilled distinction visually.
-
-The teaching simulator does not need to literally create native promises.
-
-### Scenario 4 — `catch()` recovery
-
-Conceptual code:
-
-```js
-const recovered = Promise.reject('network')
-  .catch(() => 'fallback');
-```
-
-Teaching result:
-
-```text
-P0 rejected: network
-catch returns fallback
-P1 fulfilled: fallback
-```
-
-### Scenario 5 — `finally()` transparency
-
-Conceptual code:
-
-```js
-const next = Promise.resolve(42)
-  .finally(() => cleanup());
-```
-
-Default teaching path:
-
-```text
-P0 fulfilled: 42
-finally succeeds
+later:
+P2 fulfilled: 42
 P1 fulfilled: 42
 ```
 
-The scenario explanation must also state the throw/rejected-return exception, even if the interactive default path shows only transparent success.
+This is the most important scenario for the terminology correction. The UI must make the intermediate `P1 pending + adopting P2` state visible in text.
 
-### Scenario 6 — Independent branching
-
-Conceptual code:
-
-```js
-const source = Promise.resolve(10);
-const plusOne = source.then((value) => value + 1);
-const doubled = source.then((value) => value * 2);
-```
-
-Teaching result:
+### Scenario 4 — `catch()` recovery
 
 ```text
-source fulfilled: 10
-branch A fulfilled: 11
-branch B fulfilled: 20
+P0 rejected: network error
+  └─ catch(() => 'Guest')
+       ↓
+P1 fulfilled: Guest
 ```
 
-The visual must show two downstream nodes from one source rather than a single serial chain.
+The explanation must say that a rejection handler that returns normally can put the downstream chain back on the fulfillment path.
+
+### Scenario 5 — Successful `finally()` preserves outcome
+
+```text
+P0 fulfilled: 7
+  └─ finally(() => cleanup())
+       ↓
+P1 fulfilled: 7
+```
+
+The callback's successful ordinary return value must not replace 7.
+
+The canonical lesson text, not necessarily the simulator scenario, covers throwing/rejected/pending cleanup edge cases.
+
+### Scenario 6 — Two branches from one source
+
+```text
+         ┌─ then(value => value + 1) → P1 fulfilled: 11
+P0 = 10 ─┤
+         └─ then(value => value * 2) → P2 fulfilled: 20
+```
+
+Do not draw one branch as depending on the other.
 
 ## Lab UI contract
 
-The `PromiseResolutionLab` should include:
+### Controls
 
-- heading: `Promise Resolution Lab`;
-- scenario selector with six predefined scenarios;
-- source/example panel;
-- `Step` button;
-- `Run`/`Pause` or `Run` control as appropriate;
-- `Reset` button;
-- current step/status label;
-- promise-node visualization;
-- active-handler explanation;
-- text representation of every promise's state/resolution/value/reason;
-- output/result list only when a scenario benefits from it;
-- a persistent note that the simulator models semantics and does not execute arbitrary JavaScript.
+Required:
 
-### Promise-node representation
+- scenario selector;
+- `Step`;
+- `Run` / `Pause`;
+- `Reset`;
+- visible step count.
 
-Each node must expose text such as:
+Use native controls where possible.
 
-```text
-P1
-State: pending
-Resolution: adopting P-inner
-```
+### State display
 
-or:
+Required textual state:
 
-```text
-P2
-State: rejected
-Reason: boom
-```
+- promise nodes;
+- promise state;
+- resolution/adoption metadata;
+- active handler;
+- output/log only where useful;
+- current explanation.
 
-Color may reinforce state but must never be the only carrier of meaning.
+The adoption state must not rely on color or animation.
 
-### Diagram structure
+### Playback
 
-The visual can use CSS grid/flex and semantic HTML. Avoid a charting/graph dependency.
+The simulator's exact state must always be visible. Playback is convenience, not knowledge.
 
-Simple arrows/connectors may be CSS or decorative SVG with `aria-hidden="true"` when all semantic relationships are also represented in text.
+Run/replay may use short transitions, but the lab must remain understandable if all animation is disabled.
 
-For the branch scenario, responsive layout must remain readable on narrow screens; do not require horizontal dragging to understand the result.
+Reduced-motion users must receive the same state transitions without meaningful information being encoded in decorative movement.
 
-## Playback behavior
+### Accessibility
 
-The model advances one deterministic transition per `Step`.
+Required:
 
-`Run` may use a short normalized interval to advance until the scenario completes. It is pedagogical playback, not real Promise timing.
-
-Requirements:
-
-- auto-run must stop at completion;
-- reset restores the selected scenario to step 0;
-- switching scenarios resets state;
-- user interaction during auto-run must not corrupt model state;
-- no playback should take more than a few seconds;
-- labels must never imply wall-clock timing;
-- respect reduced-motion preferences if animated transitions are used;
-- animation is optional and must remain decorative.
-
-## Accessibility contract
-
-The lab must be understandable without animation, color, or spatial inference.
-
-Requirements:
-
-- native buttons/select controls;
-- full keyboard operation;
+- native select/buttons;
+- keyboard operation;
 - visible labels;
-- visible focus states;
-- semantic headings;
-- text state for every Promise node;
-- no color-only status encoding;
-- serious/critical axe violations: zero on the lesson page;
-- horizontally scrollable regions, if any, must be keyboard focusable and named;
-- code/example panels must preserve accessible contrast;
-- if `aria-live` is used, announce meaningful state changes only, not every decorative frame;
-- the lab should not steal focus during Step/Run transitions.
+- unique IDs via React `useId()`;
+- no color-only state distinction;
+- semantic text for pending/fulfilled/rejected/adopting;
+- named/focusable overflow regions if horizontal scrolling exists;
+- meaningful live announcements only for semantic step/result changes, never animation frames;
+- serious/critical axe violations must be zero on the lesson page.
 
-## Raw Markdown and agent compatibility
+## Raw Markdown / agent compatibility
 
-The `.md` representation of the page must remain a complete lesson without React.
+The cleaned Markdown route must include the complete reasoning model without requiring the React lab.
 
-It must include, in text:
+It must contain:
 
-- pending / fulfilled / rejected / settled / resolved definitions;
-- the statement that resolved does not necessarily mean fulfilled;
-- the return/throw/adopt table;
-- a resolved-but-pending adoption example;
-- `catch` recovery behavior;
-- `finally` transparency plus its failure exceptions;
-- independent branching explanation;
-- Promise combinator matrix and empty-input behavior;
-- `Promise.all` no-auto-cancellation warning;
-- `Promise.withResolvers()` and `Promise.try()` guidance;
-- the timing difference between `Promise.try(fn)` and `Promise.resolve().then(fn)`;
-- cancellation/AbortSignal separation;
-- compact agent rule;
-- primary sources and freshness metadata.
+- resolved-vs-fulfilled distinction;
+- return/throw/adopt table;
+- examples for `then`, `catch`, `finally`;
+- branching example;
+- Promise combinator matrix;
+- empty combinator behavior;
+- `Promise.withResolvers()` explanation;
+- `Promise.try()` synchronous invocation and timing distinction;
+- cancellation/ownership rule;
+- production mistakes;
+- exercise and answer;
+- agent rule;
+- primary sources.
 
-No essential concept may exist only inside `PromiseResolutionLab`.
+The raw Markdown should not attempt to serialize React lab state. It should explain the same ideas textually.
 
-## Current-standards requirements
-
-### ECMAScript Promise semantics
-
-Implementation and copy must be verified against current ECMAScript 2026 Promise algorithms, especially:
-
-- Promise constructor/executor behavior;
-- Promise resolving functions and thenable assimilation;
-- `Promise.prototype.then` / reaction jobs;
-- `Promise.prototype.catch`;
-- `Promise.prototype.finally`;
-- `Promise.all`;
-- `Promise.allSettled`;
-- `Promise.any`;
-- `Promise.race`;
-- `Promise.resolve`;
-- `Promise.try`;
-- `Promise.withResolvers`.
-
-### Modern API claims
-
-As of the design review on 2026-08-21:
-
-- `Promise.withResolvers()` is a standardized modern Promise static method and is broadly available in current browsers;
-- `Promise.try()` is present in ECMAScript 2026 and is broadly available in current browsers;
-- `Promise.try()` calls its callback synchronously before resolving/rejecting the returned Promise capability;
-- `Promise.withResolvers()` returns a new promise plus its associated resolve/reject functions.
-
-The lesson should avoid hard-coding browser-version tables in prose. Compatibility changes more quickly than language semantics; link to current compatibility references instead.
-
-## Error-handling boundaries
-
-The simulator itself should not expose arbitrary user input, so error handling is intentionally narrow.
-
-Model functions should:
-
-- accept only known scenario IDs;
-- reject or safely handle impossible transitions during development;
-- remain deterministic;
-- not silently invent states when the model invariant is violated.
-
-UI should:
-
-- disable impossible Step/Run actions where appropriate;
-- recover cleanly on Reset/scenario change;
-- never surface raw internal exceptions during ordinary supported interaction.
-
-## Testing strategy
+## Testing contract
 
 ### Unit tests
 
-Expected file:
+Create:
 
 ```text
 tests/promise-resolution.test.ts
 ```
 
-Minimum behavioral coverage:
+At minimum verify:
 
-1. plain-value return fulfills the downstream promise;
-2. thrown handler rejects the downstream promise;
-3. adoption scenario reaches an intermediate `pending + adopting` state;
-4. adoption later mirrors the inner fulfillment outcome;
-5. rejection handler recovery fulfills downstream with the recovery value;
-6. `finally` successful path preserves the original fulfillment value;
-7. branching creates two independent downstream promises with separate outcomes;
-8. impossible/unknown scenario transition behavior is safe and explicit if the public model API permits such input.
-
-If the `finally` failure exception is modeled interactively, add direct unit coverage. If it is text-only in this PR, canonical copy/browser raw-Markdown coverage is sufficient.
+1. plain return fulfills downstream P1;
+2. throw rejects downstream P1;
+3. adoption has an intermediate `P1.state === 'pending'` and `P1.resolution === 'adopting'` state;
+4. adopted P2 fulfillment eventually fulfills P1 with the same outcome;
+5. catch recovery fulfills downstream;
+6. successful finally preserves original fulfillment value;
+7. branching creates two distinct downstream promises and both settle correctly;
+8. every scenario terminates within a bounded transition count.
 
 ### Browser tests
 
-Expected file:
+Create:
 
 ```text
 tests/e2e/promises.spec.ts
 ```
 
-Minimum coverage:
+Cover:
 
-1. lesson is reachable through Programming → Asynchronous Programming navigation;
-2. default plain-value scenario steps to the expected fulfilled downstream promise;
-3. throw scenario reaches the expected rejected downstream promise;
-4. adoption scenario visibly shows a resolved/adopting promise that is still pending before settlement;
-5. catch recovery transitions rejected → fulfilled downstream;
-6. finally success preserves the prior value;
-7. branching visibly produces two independent downstream promises;
-8. reset works and Step/Reset are keyboard-operable;
-9. raw Markdown contains the essential semantic rules and modern API guidance;
-10. Edit-on-GitHub targets `content/docs/programming/async/promises.mdx` on `main`;
-11. no automatically detectable serious/critical axe accessibility violations.
+1. lesson appears through Programming → Asynchronous Programming navigation;
+2. lab renders default scenario;
+3. Step reaches expected states;
+4. adoption scenario visibly shows resolved/adopting while pending;
+5. catch recovery shows downstream fulfillment;
+6. branching shows two distinct downstream outcomes;
+7. reset restores the initial state;
+8. controls are keyboard operable;
+9. raw Markdown preserves essential Promise rules and modern APIs;
+10. GitHub edit action targets `content/docs/programming/async/promises.mdx`;
+11. no serious/critical axe violations.
 
-### Existing suite
+### Full quality gate
 
-PR #7 must keep all existing tests green, including both previous gold-standard lessons.
+Final branch head must pass the permanent CI sequence:
 
-## Expected implementation files
-
-Likely changed/added files:
-
-```text
-components/learning/promise-resolution-lab.tsx
-components/mdx.tsx
-content/docs/programming/async/meta.json
-content/docs/programming/async/promises.mdx
-lib/learning/promise-resolution.ts
-tests/promise-resolution.test.ts
-tests/e2e/promises.spec.ts
+```bash
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm exec playwright install chromium
+pnpm test:e2e
 ```
 
-Planning/spec documents are additional expected changes.
+Do not modify the permanent workflow or lockfile unless an unrelated repository defect genuinely requires it and is separately justified. No dependency change is expected.
 
-No package, lockfile, workflow, or deployment changes are expected.
+## Implementation sequence
 
-## TDD implementation order
+1. pure model tests RED;
+2. pure model minimal implementation GREEN;
+3. navigation + MDX skeleton;
+4. MDX registration RED on missing component;
+5. `PromiseResolutionLab` GREEN;
+6. primary-source verification;
+7. complete lesson prose;
+8. browser/accessibility tests;
+9. debug only from concrete failures;
+10. final full CI on exact branch head;
+11. update PR #7 description and mark ready for review;
+12. do not merge without explicit user approval.
 
-The future implementation plan should preserve this sequence:
+## Phase 0.3 boundary
 
-1. write failing pure-model tests;
-2. verify RED for missing/insufficient model behavior;
-3. implement minimum pure resolution model;
-4. verify GREEN;
-5. add navigation/skeleton and register the missing lab to create a deliberate component-boundary RED state;
-6. implement the specialized React lab;
-7. verify lint/type/unit/build;
-8. author the complete canonical lesson from current primary sources;
-9. add browser/accessibility/raw-Markdown contracts;
-10. fix evidence-driven integration issues without weakening assertions or axe rules;
-11. run permanent full CI on the exact final branch head;
-12. audit the diff for accidental dependency/workflow/framework changes;
-13. mark PR ready for review only after fresh green evidence.
+After PR #7 is implemented and, if approved, merged, compare:
 
-## Architecture evidence after lesson #3
+- `AsyncWaterfallLab`;
+- `EventLoopLab`;
+- `PromiseResolutionLab`.
 
-After PR #7, compare the three gold-standard lesson implementations.
+PR #8 should then decide whether repeated patterns justify extraction. Candidate evidence includes scenario selectors, Step/Run/Reset controllers, semantic state panels, code/source regions, accessibility behavior, and agent-rule presentation. Extraction is not authorized merely because a candidate is listed here.
 
-### Lesson #1 — Async Waterfalls
+## Self-review result
 
-Domain model:
-
-- durations;
-- sequential vs concurrent schedules;
-- critical-path latency.
-
-Interaction:
-
-- numeric input;
-- derived timelines;
-- play/replay/reset.
-
-### Lesson #2 — Browser Event Loop
-
-Domain model:
-
-- deterministic scheduler transitions;
-- tasks/microtasks/rendering;
-- explicit scheduler choice.
-
-Interaction:
-
-- predefined scenarios;
-- step/run/reset;
-- semantic state panels.
-
-### Lesson #3 — Promise Resolution
-
-Domain model:
-
-- deterministic resolution transitions;
-- distinct promise nodes;
-- handler return/throw/adoption semantics.
-
-Interaction:
-
-- predefined scenarios;
-- step/run/reset;
-- semantic state panels.
-
-### Extraction decision deferred to PR #8
-
-PR #8 should inspect actual code after all three lessons exist.
-
-Likely candidates to evaluate, not promises to build:
-
-- reusable scenario-playback controller;
-- standardized accessible lab shell;
-- code/example panel;
-- semantic state panel;
-- `AgentRule` presentation;
-- freshness badge or lesson metadata surface.
-
-Do **not** assume `ExecutionTimeline` is the first extraction merely because lesson #1 contains timelines. The Event Loop and Promise lessons may demonstrate that a scenario/state-machine shell is the more general repeated pattern.
-
-The extraction PR should favor deletion of duplication over creation of abstractions with speculative configuration surfaces.
-
-## Acceptance criteria
-
-PR #7 is ready for review only when all are true:
-
-- the lesson route exists and is in navigation;
-- frontmatter validates;
-- the canonical lesson teaches the required semantics accurately;
-- raw Markdown is complete and agent-usable;
-- six predefined lab scenarios work;
-- adoption visibly demonstrates resolved-but-pending;
-- the pure model owns semantics;
-- React does not duplicate resolution logic;
-- no generic learning framework is extracted;
-- no arbitrary code execution is introduced;
-- no new paid/cloud/runtime dependency is introduced;
-- unit tests cover the required model transitions;
-- browser tests cover all required user-facing behavior;
-- keyboard interaction works;
-- serious/critical axe violations are zero;
-- `pnpm install --frozen-lockfile` passes;
-- `pnpm lint` passes;
-- `pnpm typecheck` passes;
-- `pnpm test` passes;
-- `pnpm build` passes;
-- Chromium setup passes;
-- `pnpm test:e2e` passes;
-- final CI is green on the exact PR head;
-- diff audit confirms no unintended package/lockfile/workflow changes.
-
-## Primary references for implementation
-
-Use current versions of these sources during implementation rather than relying solely on this design document:
-
-- ECMAScript 2026 Language Specification — Promise objects, reactions, resolving functions, combinators, `Promise.try`, `Promise.withResolvers`;
-- MDN — Promise reference, constructor, `then`, `catch`, `finally`, combinators, `Promise.try`, `Promise.withResolvers`;
-- WHATWG HTML — only for host scheduling context where the Promise lesson links back to browser microtask processing.
-
-## Self-review corrections applied
-
-Before opening the spec for review, the draft was checked for placeholders, internal contradictions, scope creep, terminology ambiguity, and testability.
-
-Corrections applied:
-
-- removed the circular `promises` prerequisite and replaced it with lower-level `javascript-functions` and `callbacks` conceptual prerequisites;
-- clarified that `resolved` is not an additional mutually exclusive Promise state;
-- tightened `finally()` to cover the case where a returned pending promise delays downstream propagation before the original fulfillment/rejection is preserved;
-- kept `Promise.try()` timing explicitly distinct from `Promise.resolve().then(fn)`;
-- kept cancellation out of the lab and separated Promise outcome modeling from operation ownership;
-- preserved the no-generic-framework boundary so PR #8, not PR #7, owns extraction decisions.
-
-No implementation plan or production code is authorized by this spec until the written-spec review gate is approved.
-
-## Final design rule
-
-The lesson should make Promise behavior predictable from a small semantic rule set rather than from memorized snippets:
-
-> Follow the newly created downstream Promise. A handler's normal return fulfills it, a throw rejects it, and a returned Promise/thenable makes it adopt that outcome. Resolution can happen before settlement, and the Promise object is not the underlying operation.
+- No circular `promises` prerequisite remains.
+- `resolved` is not modeled as a fourth mutually exclusive Promise state.
+- The still-pending adoption phase is normative and tested.
+- `finally()` includes transparency, failure, and pending-cleanup delay semantics.
+- Promise cancellation remains separate from underlying operation cancellation.
+- `Promise.try()` is explicitly distinguished from `Promise.resolve().then(fn)` by synchronous callback invocation.
+- The lesson remains one cohesive implementation slice.
+- No generic learning framework is included.
+- Frontmatter title is quoted because it contains a colon followed by a space, avoiding YAML ambiguity.
