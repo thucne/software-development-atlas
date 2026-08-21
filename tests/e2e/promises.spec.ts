@@ -55,7 +55,9 @@ test('shows resolved-but-pending adoption before the adopted promise settles', a
 }) => {
   await page.goto(lessonPath);
 
-  await page.getByLabel('Promise scenario').selectOption('adopt-pending');
+  await page
+    .getByLabel('Promise scenario', { exact: true })
+    .selectOption('adopt-pending');
   await step(page, 3);
 
   const downstream = page.getByTestId('promise-node-P1');
@@ -63,7 +65,7 @@ test('shows resolved-but-pending adoption before the adopted promise settles', a
   await expect(downstream).toContainText('Resolution:Adopting another promise');
   await expect(downstream).toContainText('Adopts:P2');
   await expect(
-    page.getByText(/Resolved does not necessarily mean fulfilled/i),
+    page.getByText(/Resolved does not necessarily mean fulfilled/i).first(),
   ).toBeVisible();
 
   await step(page, 3);
@@ -77,7 +79,9 @@ test('shows catch recovery returning the downstream chain to fulfillment', async
 }) => {
   await page.goto(lessonPath);
 
-  await page.getByLabel('Promise scenario').selectOption('catch-recovery');
+  await page
+    .getByLabel('Promise scenario', { exact: true })
+    .selectOption('catch-recovery');
   await step(page, 4);
 
   const downstream = page.getByTestId('promise-node-P1');
@@ -91,7 +95,9 @@ test('shows two independent downstream branches from one source promise', async 
 }) => {
   await page.goto(lessonPath);
 
-  await page.getByLabel('Promise scenario').selectOption('branching');
+  await page
+    .getByLabel('Promise scenario', { exact: true })
+    .selectOption('branching');
   await step(page, 6);
 
   await expect(page.getByTestId('promise-node-P1')).toContainText('Value:11');
