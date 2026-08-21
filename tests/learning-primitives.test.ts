@@ -5,19 +5,47 @@ import {
   LiveStatus,
   ScenarioSelect,
   ScrollableCodeRegion,
+  type LabControlsProps,
+  type LabPanelProps,
+  type LabShellProps,
+  type LiveStatusProps,
+  type ScrollableCodeRegionProps,
 } from '@/components/learning/primitives';
-import { createElement } from 'react';
+import {
+  createElement,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
+
+type OptionalChildren<Props extends { children: ReactNode }> = Omit<
+  Props,
+  'children'
+> & {
+  children?: ReactNode;
+};
+
+const TestLabShell = LabShell as ComponentType<OptionalChildren<LabShellProps>>;
+const TestLabPanel = LabPanel as ComponentType<OptionalChildren<LabPanelProps>>;
+const TestScrollableCodeRegion = ScrollableCodeRegion as ComponentType<
+  OptionalChildren<ScrollableCodeRegionProps>
+>;
+const TestLiveStatus = LiveStatus as ComponentType<
+  OptionalChildren<LiveStatusProps>
+>;
+const TestLabControls = LabControls as ComponentType<
+  OptionalChildren<LabControlsProps>
+>;
 
 describe('learning primitives', () => {
   test('LabShell names its semantic section from its visible title', () => {
     const html = renderToStaticMarkup(
-      createElement(LabShell, {
-        title: 'Example Lab',
-        description: 'A teaching description',
-        children: createElement('p', null, 'Body'),
-      }),
+      createElement(
+        TestLabShell,
+        { title: 'Example Lab', description: 'A teaching description' },
+        createElement('p', null, 'Body'),
+      ),
     );
 
     expect(html).toContain('<section');
@@ -29,10 +57,11 @@ describe('learning primitives', () => {
 
   test('LabPanel is a titled semantic section', () => {
     const html = renderToStaticMarkup(
-      createElement(LabPanel, {
-        title: 'Output log',
-        children: createElement('p', null, 'None'),
-      }),
+      createElement(
+        TestLabPanel,
+        { title: 'Output log' },
+        createElement('p', null, 'None'),
+      ),
     );
 
     expect(html).toContain('<section');
@@ -65,10 +94,11 @@ describe('learning primitives', () => {
 
   test('ScrollableCodeRegion is named, focusable, and uses pre/code markup', () => {
     const html = renderToStaticMarkup(
-      createElement(ScrollableCodeRegion, {
-        label: 'Scenario source',
-        children: 'const value = 1;',
-      }),
+      createElement(
+        TestScrollableCodeRegion,
+        { label: 'Scenario source' },
+        'const value = 1;',
+      ),
     );
 
     expect(html).toContain('role="region"');
@@ -80,14 +110,11 @@ describe('learning primitives', () => {
 
   test('LiveStatus uses polite announcements and preserves domain-owned children', () => {
     const html = renderToStaticMarkup(
-      createElement(LiveStatus, {
-        label: 'Status',
-        children: createElement(
-          'span',
-          { 'data-testid': 'domain-status' },
-          'Idle',
-        ),
-      }),
+      createElement(
+        TestLiveStatus,
+        { label: 'Status' },
+        createElement('span', { 'data-testid': 'domain-status' }, 'Idle'),
+      ),
     );
 
     expect(html).toContain('aria-live="polite"');
@@ -98,10 +125,11 @@ describe('learning primitives', () => {
 
   test('LabControls lays out caller-owned actions and trailing content', () => {
     const html = renderToStaticMarkup(
-      createElement(LabControls, {
-        trailing: createElement('span', null, 'Step 2'),
-        children: createElement('button', { type: 'button' }, 'Step'),
-      }),
+      createElement(
+        TestLabControls,
+        { trailing: createElement('span', null, 'Step 2') },
+        createElement('button', { type: 'button' }, 'Step'),
+      ),
     );
 
     expect(html).toContain('<button type="button">Step</button>');
