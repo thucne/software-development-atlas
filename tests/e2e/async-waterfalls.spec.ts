@@ -25,7 +25,9 @@ test('exposes the async waterfalls lesson in docs navigation', async ({ page }) 
   ).toBeVisible();
 });
 
-test('renders the lab with correct default timing', async ({ page }) => {
+test('renders the lab with correct default timing and polite result status', async ({
+  page,
+}) => {
   await page.goto(lessonPath);
 
   await expect(
@@ -34,6 +36,11 @@ test('renders the lab with correct default timing', async ({ page }) => {
   await expect(page.getByTestId('sequential-total')).toHaveText('1500ms');
   await expect(page.getByTestId('concurrent-total')).toHaveText('800ms');
   await expect(page.getByTestId('time-saved')).toHaveText('700ms');
+
+  const savingsLiveRegion = page
+    .getByTestId('time-saved')
+    .locator('xpath=ancestor::*[@aria-live="polite"][1]');
+  await expect(savingsLiveRegion).toHaveAttribute('aria-live', 'polite');
 });
 
 test('recalculates totals when a task duration changes and resets', async ({
