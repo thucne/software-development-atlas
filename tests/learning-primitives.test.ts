@@ -13,11 +13,11 @@ import { describe, expect, test } from 'vitest';
 describe('learning primitives', () => {
   test('LabShell names its semantic section from its visible title', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        LabShell,
-        { title: 'Example Lab', description: 'A teaching description' },
-        createElement('p', null, 'Body'),
-      ),
+      createElement(LabShell, {
+        title: 'Example Lab',
+        description: 'A teaching description',
+        children: createElement('p', null, 'Body'),
+      }),
     );
 
     expect(html).toContain('<section');
@@ -29,11 +29,10 @@ describe('learning primitives', () => {
 
   test('LabPanel is a titled semantic section', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        LabPanel,
-        { title: 'Output log' },
-        createElement('p', null, 'None'),
-      ),
+      createElement(LabPanel, {
+        title: 'Output log',
+        children: createElement('p', null, 'None'),
+      }),
     );
 
     expect(html).toContain('<section');
@@ -66,11 +65,10 @@ describe('learning primitives', () => {
 
   test('ScrollableCodeRegion is named, focusable, and uses pre/code markup', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        ScrollableCodeRegion,
-        { label: 'Scenario source' },
-        'const value = 1;',
-      ),
+      createElement(ScrollableCodeRegion, {
+        label: 'Scenario source',
+        children: 'const value = 1;',
+      }),
     );
 
     expect(html).toContain('role="region"');
@@ -82,11 +80,14 @@ describe('learning primitives', () => {
 
   test('LiveStatus uses polite announcements and preserves domain-owned children', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        LiveStatus,
-        { label: 'Status' },
-        createElement('span', { 'data-testid': 'domain-status' }, 'Idle'),
-      ),
+      createElement(LiveStatus, {
+        label: 'Status',
+        children: createElement(
+          'span',
+          { 'data-testid': 'domain-status' },
+          'Idle',
+        ),
+      }),
     );
 
     expect(html).toContain('aria-live="polite"');
@@ -97,11 +98,10 @@ describe('learning primitives', () => {
 
   test('LabControls lays out caller-owned actions and trailing content', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        LabControls,
-        { trailing: createElement('span', null, 'Step 2') },
-        createElement('button', { type: 'button' }, 'Step'),
-      ),
+      createElement(LabControls, {
+        trailing: createElement('span', null, 'Step 2'),
+        children: createElement('button', { type: 'button' }, 'Step'),
+      }),
     );
 
     expect(html).toContain('<button type="button">Step</button>');
