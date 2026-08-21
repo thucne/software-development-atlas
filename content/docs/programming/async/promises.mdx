@@ -1,0 +1,38 @@
+---
+title: "Promises: Resolution, Chaining, and Failure"
+description: Reason about Promise states, resolution, chaining, error recovery, adoption, combinators, and modern Promise APIs.
+category: programming
+level: intermediate
+status: evolving
+lastVerified: 2026-08-21
+reviewAfterDays: 180
+topics:
+  - javascript
+  - typescript
+  - promises
+  - async
+  - errors
+  - concurrency
+prerequisites:
+  - javascript-functions
+  - callbacks
+related:
+  - avoiding-sequential-async-waterfalls
+  - how-the-browser-event-loop-works
+  - async-await
+  - cancellation
+  - bounded-concurrency
+technologies:
+  - javascript
+  - typescript
+---
+
+## TL;DR
+
+A Promise represents an eventual outcome. Calling `then`, `catch`, or `finally` creates a new Promise; the new Promise's outcome is determined by what the handler returns, throws, or adopts.
+
+**Resolved does not necessarily mean fulfilled.** A promise can already be resolved to another still-pending promise or thenable and therefore remain pending while it adopts that outcome.
+
+## Promise Resolution Lab
+
+<PromiseResolutionLab />
