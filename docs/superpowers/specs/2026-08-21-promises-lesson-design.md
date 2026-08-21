@@ -1,6 +1,6 @@
 # Gold-Standard Lesson #3 — Promises: Resolution, Chaining, and Failure
 
-Status: approved design, implementation not started  
+Status: approved design; written spec awaiting approval  
 Date: 2026-08-21  
 Branch: `agent/promises`
 
@@ -103,7 +103,8 @@ topics:
   - errors
   - concurrency
 prerequisites:
-  - promises
+  - javascript-functions
+  - callbacks
 related:
   - avoiding-sequential-async-waterfalls
   - how-the-browser-event-loop-works
@@ -115,7 +116,7 @@ technologies:
   - typescript
 ```
 
-The `prerequisites` value may remain `promises` because Atlas prerequisites are conceptual tags rather than necessarily canonical lesson slugs. Do not create a second introductory Promise page merely to avoid that tag.
+Prerequisites are conceptual tags, so they do not need canonical Atlas pages yet. The Promise lesson must not list `promises` as its own prerequisite.
 
 ## Lesson outcomes
 
@@ -255,10 +256,11 @@ Promise.reject(error)
   // still rejects with error if cleanup succeeds
 ```
 
-Then state the exceptions:
+Then state the exceptions and timing nuance:
 
 - if the `finally` callback throws, the downstream promise rejects with that thrown reason;
-- if it returns a rejected promise/thenable, the downstream promise adopts that rejection.
+- if it returns a rejected promise/thenable, the downstream promise adopts that rejection;
+- if it returns a still-pending promise/thenable that later fulfills, downstream propagation waits for it before preserving the original value/reason.
 
 Do not teach `finally` as equivalent to `then(onFinally, onFinally)`; their value propagation semantics differ.
 
@@ -959,6 +961,21 @@ Use current versions of these sources during implementation rather than relying 
 - ECMAScript 2026 Language Specification — Promise objects, reactions, resolving functions, combinators, `Promise.try`, `Promise.withResolvers`;
 - MDN — Promise reference, constructor, `then`, `catch`, `finally`, combinators, `Promise.try`, `Promise.withResolvers`;
 - WHATWG HTML — only for host scheduling context where the Promise lesson links back to browser microtask processing.
+
+## Self-review corrections applied
+
+Before opening the spec for review, the draft was checked for placeholders, internal contradictions, scope creep, terminology ambiguity, and testability.
+
+Corrections applied:
+
+- removed the circular `promises` prerequisite and replaced it with lower-level `javascript-functions` and `callbacks` conceptual prerequisites;
+- clarified that `resolved` is not an additional mutually exclusive Promise state;
+- tightened `finally()` to cover the case where a returned pending promise delays downstream propagation before the original fulfillment/rejection is preserved;
+- kept `Promise.try()` timing explicitly distinct from `Promise.resolve().then(fn)`;
+- kept cancellation out of the lab and separated Promise outcome modeling from operation ownership;
+- preserved the no-generic-framework boundary so PR #8, not PR #7, owns extraction decisions.
+
+No implementation plan or production code is authorized by this spec until the written-spec review gate is approved.
 
 ## Final design rule
 
