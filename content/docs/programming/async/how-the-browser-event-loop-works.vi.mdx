@@ -42,12 +42,7 @@ concepts:
 
 ## Ba vùng làm việc: Call Stack, Task Queues và Microtask Queue
 
-> 🖼️ **[Illustration Placeholder: Cấu trúc bộ 3 Event Loop Trình duyệt]**  
-> *Mô tả hình minh họa:* Sơ đồ trực quan thể hiện 3 vùng làm việc chính của JavaScript Runtime trên Main Thread trình duyệt:
-> 1. **Call Stack:** Ngăn xếp thực thi mã đồng bộ (Single-threaded).
-> 2. **Microtask Queue (VIP lane):** Hàng đợi ưu tiên cao cho Promise Jobs (`.then()`, `.catch()`), `queueMicrotask()`, và MutationObserver callbacks.
-> 3. **Task Queues (Macrotask Lanes):** Nhiều hàng đợi song song phân loại theo nguồn: Timer source (`setTimeout`), User interaction source (`click`, `keypress`), Network I/O source (`fetch` response).
-> 4. Mũi tên điều phối của Event Loop chỉ rõ: Main thread chỉ nhặt 1 Task từ Task Queue, thực thi xong -> Vét sạch Microtask Queue -> Đánh giá Rendering Opportunity -> Lặp lại.
+<AtlasIllustration id="event-loop-architecture" />
 
 <TermBox term="Task source">
 Một **Task source (nguồn tác vụ)** theo đặc tả HTML là một nguồn phát sinh các tác vụ cụ thể, ví dụ như DOM manipulation, user interaction, networking, hoặc timers. Trình duyệt có quyền lựa chọn hàng đợi tác vụ nào để xử lý tiếp theo nhằm tối ưu hóa độ phản hồi của giao diện.
@@ -61,13 +56,7 @@ Một **Task source (nguồn tác vụ)** theo đặc tả HTML là một nguồ
 Một **Microtask checkpoint** là thời điểm trình duyệt tạm dừng mọi công việc khác để xử lý dứt điểm toàn bộ microtask đang chờ. Nếu một microtask lại tạo ra microtask mới, microtask mới đó cũng sẽ được xử lý ngay trong cùng checkpoint này.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Cơ chế xả Microtask Checkpoint]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng trạng thái của một Microtask Checkpoint:
-> - Bắt đầu Checkpoint: Kiểm tra `microtaskQueue.length > 0`.
-> - Lấy microtask đầu tiên ra khỏi hàng đợi và thực thi.
-> - Nếu microtask đó lại gọi `queueMicrotask()`: Đẩy tác vụ mới vào CUỐI hàng đợi hiện tại.
-> - Tiếp tục lặp cho đến khi hàng đợi rỗng hoàn toàn (`empty`).
-> - Cảnh báo trực quan: Nếu tác vụ mới liên tục được sinh ra nhanh hơn tốc độ xử lý, checkpoint sẽ rơi vào vòng lặp vô tận (Starvation) và không bao giờ thoát ra để nhường chỗ cho Render hoặc Task khác.
+<AtlasIllustration id="microtask-checkpoint-drain" />
 
 ```js
 console.log('Script bắt đầu');
@@ -100,12 +89,7 @@ Timer callback
 
 Một sai lầm rất phổ biến là nghĩ rằng trình duyệt sẽ vẽ lại màn hình ngay sau mỗi tác vụ hay microtask. Thực tế, việc vẽ lại hoàn toàn độc lập và được điều phối bởi chu kỳ quét của màn hình (Refresh Rate).
 
-> 🖼️ **[Illustration Placeholder: Chu trình một Frame Render của Trình duyệt]**  
-> *Mô tả hình minh họa:* Sơ đồ vòng đời một frame render của trình duyệt (ví dụ ở màn hình 60Hz ~ 16.6ms):
-> 1. Main thread xử lý Task và Microtask checkpoint xong.
-> 2. Rendering Opportunity: Trình duyệt kiểm tra xem có cần update frame hay không (nếu tab background hoặc không có thay đổi DOM/CSS thì bỏ qua).
-> 3. Nếu có: Chạy theo thứ tự: Resize/Scroll events -> `requestAnimationFrame()` callbacks -> Style recalculation -> Layout (Reflow) -> Paint -> Composite -> Gửi sang GPU.
-> 4. Nhấn mạnh điểm quan trọng: rAF chạy TRƯỚC Style & Layout của frame sắp render, chứ không phải chạy sau khi vừa kết thúc mỗi microtask ngẫu nhiên.
+<AtlasIllustration id="browser-rendering-pipeline" />
 
 <TermBox term="Rendering opportunity">
 **Rendering opportunity (Cơ hội kết xuất)** là thời điểm trình duyệt quyết định có cần gửi một frame mới đến màn hình hay không. Nếu không có thay đổi hình ảnh hoặc tab đang chạy nền, trình duyệt sẽ bỏ qua bước này để tiết kiệm năng lượng.
@@ -123,10 +107,7 @@ Trải nghiệm trực quan cách Event Loop điều phối giữa Call Stack, M
 
 ## Hiện tượng Starvation và Đóng băng Main Thread
 
-> 🖼️ **[Illustration Placeholder: Đóng băng Main Thread: Long Task vs Microtask Loop]**  
-> *Mô tả hình minh họa:* So sánh trực quan 2 cơ chế làm nghẽn Main Thread:
-> - **Kịch bản A (Long Synchronous Task):** Một hàm tính toán CPU nặng chiếm Call Stack suốt 400ms -> User click chuột hoặc scroll màn hình bị đẩy vào Task Queue nhưng hoàn toàn không được xử lý -> DevTools Performance tab xuất hiện vệt đỏ "Long Task (>50ms)", INP tăng vọt.
-> - **Kịch bản B (Unbounded Microtask Chain):** Mỗi microtask chỉ tốn 0.5ms nhưng liên tục gọi đệ quy `queueMicrotask()` -> Microtask queue không bao giờ cạn (`empty`) -> Trình duyệt bị kẹt cứng trong checkpoint, hoàn toàn không thể thoát ra để nhường chỗ cho Macrotask hoặc Render frame -> Màn hình đơ cứng dù CPU không chạy một vòng lặp `while(true)` đồng bộ nào.
+<AtlasIllustration id="main-thread-starvation" />
 
 ---
 
