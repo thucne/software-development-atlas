@@ -16,6 +16,7 @@ Software Development Atlas is a living, open-source knowledge system for softwar
 6. **Accessibility is required:** interactive UI must be keyboard usable and should expose semantic/non-visual alternatives where practical.
 7. **Do not bulk-generate content:** quality, coverage value, and verification are more important than page count.
 8. **Do not weaken metadata validation:** required placement metadata must stay required; fix authored content rather than making the schema optional.
+9. **Do not game coverage:** never add incidental concept references merely to increase a domain or learning-path coverage count.
 
 ## Planned implementation direction
 
@@ -68,11 +69,28 @@ Start-here/meta guides may use `concepts: []` when they do not teach a software-
 
 Not every concept requires an interactive deep dive. Prefer a focused `concept` page when that communicates the mental model adequately. Use a `decision-guide` when the learner need is choosing among alternatives, and an `architecture-walkthrough` when the learning value is in cross-component boundaries and flow.
 
+## Learning paths and coverage
+
+`content/learning-paths.json` is the canonical source for curated path **order and learning intent only**. It is not a concept registry and must not duplicate authored page URLs.
+
+When changing a learning path:
+
+1. use only concept IDs that already exist in `content/atlas-map.json`;
+2. preserve deliberate ordering around learner outcomes rather than current page availability;
+3. allow important uncovered concepts to remain in the path;
+4. do not add or remove concepts merely to make the displayed coverage percentage look better;
+5. let available content links derive from validated MDX `concepts` frontmatter;
+6. run learning-path, coverage, build, and E2E validation.
+
+Atlas coverage currently means only that at least one substantive authored page references a canonical concept. It does not mean learner mastery, content quality, freshness health, or importance.
+
 ## Before changing architecture
 
 Read `docs/superpowers/specs/2026-08-19-atlas-foundation-design.md`, the current roadmap, and any later approved design that governs the area being changed.
 
-For the knowledge model specifically, read `docs/superpowers/specs/2026-09-09-atlas-knowledge-model-design.md`.
+For the knowledge model, read `docs/superpowers/specs/2026-09-09-atlas-knowledge-model-design.md`.
+
+For learning paths and coverage, read `docs/superpowers/specs/2026-09-09-learning-paths-coverage-design.md`.
 
 Significant architectural changes should begin with an issue/design discussion rather than an implementation-first pull request.
 
@@ -99,6 +117,14 @@ For changes to the Atlas map or placement metadata, verify at minimum that:
 - IDs use lowercase kebab-case;
 - all authored concept references resolve to the canonical map;
 - no authored content repeats a concept ID.
+
+For learning-path changes, verify at minimum that:
+
+- path IDs are unique lowercase kebab-case;
+- every path concept resolves to the canonical map;
+- a path does not repeat a concept ID;
+- uncovered concepts remain visible;
+- content recommendations are derived rather than hand-maintained.
 
 ## Pull requests
 
