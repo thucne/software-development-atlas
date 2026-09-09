@@ -44,17 +44,13 @@ concepts:
 
 ## Hai ranh giới cốt lõi: Đóng gói vs Vận hành
 
-> 🖼️ **[Illustration Placeholder: Ma trận Ranh giới Đóng gói vs Ranh giới Vận hành]**  
-> *Mô tả hình minh họa:* Sơ đồ ma trận 2 trục: Trục ngang là "Mô hình đóng gói" (Zip Code Bundle vs OCI Container Image); Trục dọc là "Mô hình vận hành" (Tự quản lý VM/Cluster vs Môi trường thực thi Serverless do Cloud Provider quản lý). Làm nổi bật giao điểm của các sản phẩm hiện đại (ví dụ: Cloud Run = Đóng gói Container + Vận hành Serverless).
+<AtlasIllustration id="packaging-vs-operating-boundary" />
 
 <TermBox term="Cold start">
 **Cold start (Khởi động lạnh)** là khoảng thời gian trễ phát sinh khi nền tảng phải cấp phát sandbox mới, tải image/code bundle và khởi tạo runtime trước khi có thể xử lý request đầu tiên.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Chi tiết vòng đời Cold Start vs Warm Start]**  
-> *Mô tả hình minh họa:* Sơ đồ 2 thanh timeline đối chiếu chi tiết:
-> - **Cold Start (100ms – vài giây):** Cấp phát tài nguyên sandbox -> Tải image/code bundle -> Khởi tạo Language Runtime -> Chạy top-level initialization code (kết nối DB, load config) -> Xử lý Request.
-> - **Warm Start (vài ms):** Tái sử dụng execution environment đã ấm -> Nhận và xử lý Request ngay lập tức.
+<AtlasIllustration id="cold-vs-warm-start" />
 
 ---
 
@@ -102,8 +98,7 @@ concepts:
 
 Một công ty thương mại điện tử chuyển đổi webhook xử lý đơn hàng từ cụm container cố định sang các serverless functions để "tiết kiệm chi phí và tự động co giãn":
 
-> 🖼️ **[Illustration Placeholder: Sự cố Serverless gây cạn kiệt Connection Pool]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng tải khi có đột biến lưu lượng (traffic burst): 1,500 serverless functions được tạo ra đồng thời -> Mỗi function mở 1 kết nối TCP đến Database -> Vượt quá ngưỡng tối đa (150 connections) của Database -> Database quá tải và trả về Connection Refused / Timeout cho toàn bộ hệ thống.
+<AtlasIllustration id="serverless-downstream-avalanche" />
 
 - **Hậu quả:** Trong đợt Flash Sale, lưu lượng tăng vọt 40 lần. Nền tảng Serverless co giãn mượt mà lên 1,500 functions đồng thời — và ngay lập tức làm tràn ngưỡng giới hạn 150 kết nối tối đa của PostgreSQL chính. Toàn bộ cơ sở dữ liệu rơi vào tình trạng treo nghẽn, kéo sập cả luồng thanh toán chính của website.
 - **Nguyên nhân cốt lõi:** Đội ngũ kỹ thuật quên rằng: khả năng co giãn của compute không đồng nghĩa với khả năng chịu tải của database hạ tầng. Trong mô hình container, connection pool được duy trì cố định (ví dụ 10 container x 10 connection = 100 connection). Khi chuyển sang serverless, mỗi invocation độc lập mở một kết nối mới trực tiếp.
@@ -113,8 +108,7 @@ Một công ty thương mại điện tử chuyển đổi webhook xử lý đơ
 
 ## Điểm giao thoa chi phí (Cost Crossover Point)
 
-> 🖼️ **[Illustration Placeholder: Đồ thị Điểm giao thoa Chi phí Tổng thể (TCO)]**  
-> *Mô tả hình minh họa:* Đồ thị đường cong chi phí theo thời gian/lưu lượng: Trục hoành là "Lưu lượng Request", trục tung là "Chi phí hàng tháng ($)". Đường biểu diễn Serverless xuất phát từ 0$ (khi scale to zero) và tăng dốc theo số lượng request; đường biểu diễn Container/VM có chi phí ban đầu cố định (base cost) nhưng đi ngang hoặc tăng rất chậm khi traffic tăng cao. Điểm giao nhau (Crossover Point) là ngưỡng chuyển dịch hiệu quả kinh tế giữa 2 mô hình.
+<AtlasIllustration id="tco-crossover" />
 
 ---
 
