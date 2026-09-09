@@ -33,6 +33,317 @@ concepts:
 
 # HTTP Request Lifecycle: From URL to Response
 
-This page traces the stages that may participate in one HTTP request path.
+## TL;DR
+
+An HTTP request is a request/response exchange, not necessarily a new network connection. Trace a real request by asking which cache, connection, intermediary, and origin stages actually participated.
+
+Do **not** assume that every request repeats DNS resolution, transport connection setup, secure-session setup, and origin processing. A fresh cache can answer before the network is used, an existing connection can carry another request, and a shared intermediary cache can answer before the origin application runs.
+
+HTTP/1.1, HTTP/2, and HTTP/3 share the HTTP semantics defined by RFC 9110. They differ in how those semantics are carried over the network.
+
+## Mental model
+
+Keep two layers separate:
+
+```text
+HTTP semantics
+request method + target + fields + optional body
+                      ↓
+response status + fields + optional body
+```
+
+Around that semantic exchange, a real client may need some of these stages:
+
+```text
+construct request
+      ↓
+check reusable cached response
+      ↓
+reuse or establish a connection path
+      ↓
+send HTTP request
+      ↓
+optional intermediary
+      ↓
+origin-side processing
+      ↓
+receive / cache / stream / redirect response
+```
+
+The second diagram is a set of possible stages, not one mandatory sequence.
+
+DNS resolves names to addresses. Transport protocols provide the connection or transport path that carries HTTP messages. HTTPS adds secure-session establishment. Those layers can affect end-to-end latency, but they are not the semantics of methods such as `GET`, response status codes such as `404`, or HTTP fields such as `Cache-Control`.
+
+## Vocabulary before the walkthrough
+
+An **origin** is the server-side authority identified by the request's scheme, host, and port. In a deployed system, requests associated with one origin can still pass through reverse proxies, gateways, load balancers, or CDNs before application code runs.
+
+An **intermediary** is a participant between client and origin, such as a proxy or gateway. An intermediary may forward a request, transform permitted message details, route traffic, or sometimes satisfy a request from a cache.
+
+A cached response is **fresh** when caching rules allow it to be reused without first validating it with another server. A stored response is **stale** when it is no longer fresh.
+
+**Revalidation** checks whether a stored response can still be reused. One common path uses a conditional request and receives `304 Not Modified`, but stale responses do not universally produce `304`; the validating server can return a new representation or another result.
+
+## One request, several possible paths
+
+A useful request trace asks what actually happened instead of starting from a memorized protocol diagram.
+
+### Path A: fresh client-cache hit
+
+```text
+construct request
+      ↓
+HTTP cache finds a fresh response
+      ↓
+return stored response
+```
+
+For this request path, no network request needs to leave the client. DNS resolution, new connection setup, secure-session setup, intermediaries, and origin application processing are therefore absent from this exchange.
+
+### Path B: cache miss, existing connection
+
+```text
+construct request
+      ↓
+cache miss
+      ↓
+reuse suitable connection
+      ↓
+send HTTP request
+      ↓
+origin/intermediary path
+      ↓
+response
+```
+
+The request is still a new HTTP request even though the connection is not new.
+
+### Path C: no suitable connection
+
+A request that needs the network and has no suitable existing connection may require address resolution, transport setup, and secure-session establishment before the HTTP exchange can proceed.
+
+Even here, avoid treating the setup as one universal wire sequence. An address result may already be cached. HTTP/1.1 and HTTP/2 commonly use TCP, while HTTP/3 maps HTTP semantics over QUIC. QUIC incorporates TLS-based security into its connection establishment, so a teaching diagram that draws “transport” and “secure session” as separate boxes is a conceptual separation, not a claim that every protocol performs two identical handshakes.
+
+### Path D: intermediary cache hit
+
+```text
+client cache miss
+      ↓
+network request
+      ↓
+shared/intermediary cache hit
+      ↓
+response
+
+origin application processing: skipped for this request
+```
+
+RFC 9110 describes caches as able to shorten a request/response chain when a participant can reuse an applicable stored response.
+
+## Constructing the request
+
+Before an HTTP exchange can happen, the caller needs request semantics: a method, target, fields, and optionally a body.
+
+For a browser Fetch operation, the browser also applies Fetch-specific policy such as request mode, credentials mode, redirect mode, and cache mode. Those policies are part of the browser's fetching model; they are not themselves generic HTTP semantics.
+
+This distinction matters when debugging. A browser can prevent, redirect, or satisfy a fetch before application code on the origin sees the request.
+
+## Cache before network
+
+HTTP caching exists to reuse previous responses when the rules allow it. A cache can be private to one user agent or shared by multiple clients through an intermediary.
+
+For the Fetch Standard's default cache mode, Fetch inspects the HTTP cache on the way to a network fetch. Broadly:
+
+- a matching fresh stored response can be returned without network validation;
+- a stale stored response may lead to a conditional network request;
+- a cache miss proceeds toward a normal network fetch.
+
+HTTP caching has more rules than this summary, including cache keys, authorization interactions, `Vary`, validation, freshness calculation, and directives. The operating lesson here is narrower: **verify whether the request reached the network before blaming DNS, TLS, a CDN, or backend code.**
+
+A browser developer-tools network entry can also be affected by browser tooling presentation and cache settings, so use actual request/response details rather than one UI label as your only evidence.
+
+## Connection reuse and setup
+
+When a request must use the network, ask whether a suitable connection already exists.
+
+If one can be reused, that exchange does not need a brand-new transport connection or a brand-new secure session. This is why “HTTP request latency” and “connection-establishment latency” are not interchangeable measurements.
+
+If no suitable connection exists, setup can include:
+
+1. obtaining a usable network address if one is not already available;
+2. establishing the transport required by the selected HTTP version;
+3. establishing the security state required for HTTPS;
+4. carrying the HTTP request once the path is usable.
+
+The exact mechanisms depend on HTTP version, existing connection pools, address caches, protocol negotiation, network environment, and implementation choices.
+
+## HTTP/1.1, HTTP/2, and HTTP/3
+
+RFC 9110 defines semantics shared by the major HTTP versions. The versions differ in message carriage and connection behavior.
+
+### HTTP/1.1
+
+HTTP/1.1 expresses HTTP messages using its own message syntax over a connection. Connections can be persistent and reused for multiple requests rather than recreated for every exchange.
+
+### HTTP/2
+
+HTTP/2 preserves HTTP semantics while introducing binary framing, field compression, and multiple concurrent exchanges on one connection. When several requests share one HTTP/2 connection, do not draw a separate TCP/TLS setup sequence for every stream.
+
+### HTTP/3
+
+HTTP/3 maps HTTP semantics over QUIC. QUIC provides multiplexed streams and integrates secure connection establishment using TLS 1.3 mechanisms.
+
+The practical debugging rule is:
+
+> Identify the HTTP version and connection state before inferring which setup work belongs to this request.
+
+## Intermediaries and origin processing
+
+A request that leaves the client can still encounter several participants before business logic runs:
+
+- forward proxy;
+- CDN or shared cache;
+- reverse proxy;
+- API gateway;
+- load balancer;
+- service ingress;
+- origin application.
+
+This list is illustrative, not a required topology.
+
+When diagnosing a response, ask **which participant generated it**. Response fields, trace context, server timing, logs, CDN headers, gateway logs, or application correlation IDs can help establish the boundary.
+
+A fast `404` from an edge cache and a `404` generated by application routing have the same HTTP status semantics but very different debugging paths.
+
+## Response processing
+
+Receiving bytes successfully over the network does not mean the application operation succeeded.
+
+Separate three classes of outcome:
+
+1. **network/connection failure** — no usable HTTP response was obtained;
+2. **HTTP response with an error status** — for example `404`, `429`, or `503`;
+3. **application-level failure represented inside a nominally successful HTTP response** — an API can return `200` while its response body reports a domain error, even if that API design is questionable.
+
+Once a response exists, a client may stream or buffer its body, update caches, decode content, apply redirect behavior, or expose the result to application code.
+
+A redirect response is still an HTTP response. Following the redirect creates another request whose cache and connection path must be evaluated for the new target.
+
+## Try it: Request Path Explorer
+
+The explorer below compares predefined request paths. It does not perform live network requests and does not invent representative millisecond timings.
 
 <HttpRequestPathExplorer />
+
+Use it to answer a more useful question than “what is the HTTP request sequence?”:
+
+> Which stages occurred for this request, which stages were skipped, and which stages depend on runtime or deployment state?
+
+## How to debug a slow or surprising request
+
+Use evidence in layers.
+
+### 1. Did a network request occur?
+
+First determine whether a client cache or other local mechanism satisfied the request. If the request never reached the network, DNS, connection establishment, CDN routing, and origin latency are not the cause of this exchange.
+
+### 2. Was there a redirect or revalidation?
+
+A single user action can cause more than one HTTP exchange. Redirects and conditional validation requests add exchanges that can look like duplicated work unless you inspect statuses and request fields.
+
+### 3. Was a connection reused?
+
+Check the negotiated protocol and connection information available in your tooling. If the request reused an HTTP/2 or HTTP/3 connection, connection-establishment cost should not automatically be attributed to every request carried on that connection.
+
+### 4. Which participant returned the response?
+
+Distinguish a client cache, shared cache/CDN, gateway, reverse proxy, and origin application where your deployment provides evidence for those layers.
+
+### 5. Where did time accumulate?
+
+Do not collapse all latency into “the server was slow.” Separate, where your tooling allows:
+
+- waiting for a connection path;
+- connection/security setup;
+- request upload;
+- intermediary/origin processing before response headers;
+- response body transfer;
+- client-side processing after bytes arrive.
+
+The names and precision of timing buckets vary by tool and protocol. Treat them as observations from that tool, not universal HTTP fields.
+
+### 6. What kind of failure occurred?
+
+A DNS failure, TLS/QUIC connection failure, HTTP `503`, and domain validation error are different failure boundaries. They require different logs, owners, and retry decisions.
+
+## Failure boundaries
+
+When a request fails, locate the earliest boundary for which you have evidence.
+
+| Boundary | Example symptom | Next evidence to inspect |
+| --- | --- | --- |
+| Name/address resolution | host cannot be resolved | resolver/network diagnostics |
+| Connection/security setup | connection or certificate/security failure | connection details, TLS/QUIC diagnostics |
+| HTTP intermediary | gateway/CDN/proxy-generated status | intermediary logs and response fields |
+| Origin application | application status/error | application logs, traces, correlation ID |
+| Response body transfer | truncated/aborted stream | network logs, server/client cancellation evidence |
+| Client processing | parse/policy/application failure after response | browser/app logs and Fetch policy context |
+
+Do not infer a later boundary when an earlier one already failed. For example, an HTTP `500` proves an HTTP response existed; it is not a DNS failure.
+
+## Retries and request semantics
+
+Retry decisions belong to the operation's semantics, not just to whether a transport attempt failed.
+
+HTTP defines method semantics, including properties such as safety and idempotency, but an application's real side effects can still depend on how an endpoint is designed. A `POST` can be made safely repeatable with an application idempotency contract; a poorly implemented endpoint can also violate expectations around repeat operations.
+
+Before retrying a state-changing operation, determine:
+
+- whether the operation is safe to repeat;
+- whether the server supports an idempotency key or another deduplication contract;
+- whether the previous attempt could have succeeded even though the client did not receive the response;
+- which failure classes your retry policy is intended to handle.
+
+For a deeper treatment, continue to **Idempotency**, **Retries and Backoff**, and the Reliable Checkout walkthrough.
+
+## Exercise
+
+A browser shows a page navigation followed by an API request. The API request has these observations:
+
+- the browser reports HTTP/2;
+- an existing connection identifier is reused;
+- the request receives `304 Not Modified`;
+- the application service has no normal request-processing log for the resource body;
+- the browser displays the previously stored representation.
+
+Answer:
+
+1. Which facts prove that a network HTTP exchange occurred?
+2. Which connection-setup stages can you avoid attributing to this request?
+3. Why does `304 Not Modified` not mean “the browser received a second full copy of the body”?
+4. What evidence would you need before claiming the request reached the application service rather than being handled by an intermediary validator?
+
+A strong answer distinguishes the HTTP validation exchange from the stored representation that ultimately becomes the response used by the client.
+
+## Agent rule
+
+When debugging or changing code around an HTTP request, do not assume a universal `DNS -> connect -> TLS -> origin` sequence. Determine whether a cache satisfied the request, whether a suitable connection was reused, which HTTP version carried the exchange, which intermediary or origin generated the response, and whether the observed failure is network-level, HTTP-level, or application-level. Treat DNS, transport, and secure-session setup as adjacent conditional stages, not HTTP semantics themselves.
+
+## Related concepts
+
+- **DNS Resolution** — how names become usable network addresses.
+- **TLS and HTTPS** — authentication, confidentiality, and secure-session establishment.
+- **HTTP Caching** — freshness, validation, cache keys, directives, and shared/private caches.
+- **CDN Behavior** — edge routing, shared caching, revalidation, and origin shielding.
+- **Backend Request Lifecycle** — what happens after a request reaches service-side application boundaries.
+- **Idempotency** — how to make repeated operations safe when retries or ambiguous outcomes are possible.
+
+## Sources
+
+Primary references verified on 2026-09-09:
+
+- [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
+- [RFC 9113 — HTTP/2](https://www.rfc-editor.org/rfc/rfc9113.html)
+- [RFC 9114 — HTTP/3](https://www.rfc-editor.org/rfc/rfc9114.html)
+- [WHATWG Fetch Living Standard](https://fetch.spec.whatwg.org/)
