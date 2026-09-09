@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { atlasIllustrationDefinitions } from '../components/mdx/atlas-illustration';
+import { atlasIllustrationMedia } from '../components/mdx/atlas-illustration-runtime';
 
 const lessonPairs = [
   'content/docs/programming/async/avoiding-sequential-async-waterfalls',
@@ -81,10 +81,10 @@ describe('substantive lesson illustrations', () => {
     expect(failures).toEqual([]);
   });
 
-  test('every referenced Atlas illustration resolves to a registered definition', () => {
+  test('every referenced Atlas illustration resolves to a registered medium', () => {
     const failures = lessonPairs.flatMap((basePath) =>
       illustrationIds(readLesson(basePath, 'en')).flatMap((id) =>
-        id in atlasIllustrationDefinitions ? [] : [`${basePath} references unknown illustration ${id}`],
+        id in atlasIllustrationMedia ? [] : [`${basePath} references unknown illustration ${id}`],
       ),
     );
 
@@ -92,7 +92,7 @@ describe('substantive lesson illustrations', () => {
   });
 
   test('static teaching images have accessible shared repository assets', () => {
-    const staticDefinitions = Object.entries(atlasIllustrationDefinitions).filter(
+    const staticDefinitions = Object.entries(atlasIllustrationMedia).filter(
       ([, definition]) => definition.kind === 'static-image',
     );
 
