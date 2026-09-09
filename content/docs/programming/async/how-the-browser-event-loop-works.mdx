@@ -88,6 +88,14 @@ A **microtask** is short checkpoint work kept separate from regular browser task
 
 ## Run-to-completion
 
+> 🖼️ **[Illustration Placeholder: Browser Event Loop Architecture Overview]**  
+> *Mô tả hình minh họa:* Sơ đồ tổng thể kiến trúc Event Loop của trình duyệt gồm 4 khối chính:
+> 1. **Call Stack:** Thực thi mã JavaScript đồng bộ theo cơ chế LIFO (Run-to-completion).
+> 2. **Web APIs:** Các tác vụ chạy ngầm của trình duyệt (Timers, Fetch network, DOM Event listeners).
+> 3. **Microtask Queue:** Hàng đợi ưu tiên cao (`Promise.then`, `queueMicrotask`, `MutationObserver`), được xả sạch tại mỗi checkpoint.
+> 4. **Task Queues (Macrotasks):** Các hàng đợi công việc định kỳ/sự kiện (`setTimeout`, I/O, Click handlers).
+> Kèm mũi tên điều phối của Event Loop Engine quay vòng kiểm tra Call Stack và các hàng đợi.
+
 For ordinary browser application code, **the browser does not start an unrelated event-loop callback in the middle of the JavaScript that is already executing for the current task**.
 
 ```ts
@@ -109,6 +117,9 @@ A **microtask checkpoint** is a point where the browser repeatedly takes and run
 
 **Why it matters here:** Promise reactions commonly run during this checkpoint before the browser moves on to later regular task work. A microtask can also queue another microtask, and the newly queued work can run during the same checkpoint.
 </TermBox>
+
+> 🖼️ **[Illustration Placeholder: Microtask Checkpoint Drain Loop]**  
+> *Mô tả hình minh họa:* Sơ đồ vòng lặp xả cạn Microtask Queue: Khi task chính hoàn tất -> Bước vào Microtask Checkpoint -> Lấy từng microtask ra thực thi -> Nếu microtask đó đẻ thêm microtask mới qua `queueMicrotask()` -> Tiếp tục đẩy vào cuối hàng đợi hiện tại và chạy tiếp trong CÙNG checkpoint cho đến khi queue hoàn toàn rỗng (`empty`) -> Lúc đó trình duyệt mới chuyển sang xem xét Rendering hoặc Task tiếp theo.
 
 A nested microtask shows the “until empty” rule:
 
@@ -274,6 +285,13 @@ A **rendering opportunity** is a point where the browser may decide that renderi
 **Why it matters here:** finishing a task and draining microtasks does not promise an immediate paint. The browser may skip unnecessary rendering, coalesce work, or run additional tasks before a rendering update.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Browser Rendering Pipeline & Frame Lifecycle]**  
+> *Mô tả hình minh họa:* Sơ đồ vòng đời một frame render của trình duyệt (ví dụ ở màn hình 60Hz ~ 16.6ms):
+> 1. Main thread xử lý Task và Microtask checkpoint xong.
+> 2. Rendering Opportunity: Trình duyệt kiểm tra xem có cần update frame hay không (nếu tab background hoặc không có thay đổi DOM/CSS thì bỏ qua).
+> 3. Nếu có: Chạy theo thứ tự: Resize/Scroll events -> `requestAnimationFrame()` callbacks -> Style recalculation -> Layout (Reflow) -> Paint -> Composite -> Gửi sang GPU.
+> 4. Nhấn mạnh điểm quan trọng: rAF chạy TRƯỚC Style & Layout của frame sắp render, chứ không phải chạy sau khi vừa kết thúc mỗi microtask ngẫu nhiên.
+
 The HTML processing model lets the browser determine rendering opportunities. Current HTML processing can queue rendering-update work on a rendering task source when a window has a rendering opportunity, and the specification explicitly allows tasks to run back-to-back with microtask checkpoints but no intermediate rendering update.
 
 `requestAnimationFrame()` participates in rendering-update processing:
@@ -354,6 +372,11 @@ The appropriate fix depends on the workload: reduce the work, choose a better al
 **Why it matters here:** later regular tasks and rendering-related work can be delayed even when each individual microtask is small.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Main Thread Starvation: Long Task vs Microtask Loop]**  
+> *Mô tả hình minh họa:* So sánh trực quan 2 cơ chế làm nghẽn Main Thread (Long Task vs Microtask Starvation):
+> - **Kịch bản A (Long Synchronous Task):** Một hàm tính toán CPU nặng chiếm Call Stack suốt 400ms -> User click chuột hoặc scroll màn hình bị đẩy vào Task Queue nhưng hoàn toàn không được xử lý -> DevTools Performance tab xuất hiện vệt đỏ "Long Task (>50ms)", INP tăng vọt.
+> - **Kịch bản B (Unbounded Microtask Chain):** Mỗi microtask chỉ tốn 0.5ms nhưng liên tục gọi đệ quy `queueMicrotask()` -> Microtask queue không bao giờ cạn (`empty`) -> Trình duyệt bị kẹt cứng trong checkpoint, hoàn toàn không thể thoát ra để nhường chỗ cho Macrotask hoặc Render frame -> Màn hình đơ cứng dù CPU không chạy một vòng lặp `while(true)` đồng bộ nào.
+
 ```ts
 function again() {
   doSmallThing();
@@ -414,6 +437,37 @@ When moving scheduling-sensitive code between runtimes, ask two separate questio
 That separation prevents “it worked in Chrome” from becoming evidence about Node.js ordering, and vice versa.
 
 ## Production considerations
+
+### Production scenario: The "invisible" microtask UI freeze
+
+Một ứng dụng web chat realtime xử lý hàng loạt tin nhắn nhận về qua WebSocket. Khi một lô tin nhắn 500 items ùa về, lập trình viên sử dụng một hàm đệ quy để xử lý từng tin nhắn:
+
+```ts
+function processMessageBatch(messages: Message[]) {
+  if (messages.length === 0) return;
+  const msg = messages.shift()!;
+  renderMessage(msg);
+  // Cố gắng "chia nhỏ" bằng queueMicrotask thay vì xử lý loop đồng bộ:
+  queueMicrotask(() => processMessageBatch(messages));
+}
+```
+
+- **Hậu quả:** Dù không có một vòng lặp `for` dài gây blocking Call Stack, UI vẫn bị "đóng băng" suốt 1.2 giây! User click vào nút "Gửi" hay thanh input đều hoàn toàn bất động. Chỉ số INP (Interaction to Next Paint) báo đỏ nghiêm trọng (>1000ms).
+- **Nguyên nhân cốt lõi:** Lập trình viên nhầm lẫn giữa `queueMicrotask()` và việc nhường luồng (yielding) cho trình duyệt. `queueMicrotask()` **không bao giờ** nhường quyền điều khiển cho Task Queue hay Rendering Pipeline; nó tiếp tục giữ chặt checkpoint cho đến khi queue rỗng 100%.
+- **Cách khắc phục chuẩn:** Nếu muốn nhường luồng cho trình duyệt vẽ lại UI và nhận input click, phải đẩy công việc ra Macrotask hoặc sử dụng scheduler chuẩn:
+  ```ts
+  // Giải pháp hiện đại: scheduler.yield() nếu hỗ trợ, fallback sang setTimeout 0
+  async function processMessageBatch(messages: Message[]) {
+    for (const msg of messages) {
+      renderMessage(msg);
+      if ('scheduler' in window && 'yield' in (window as any).scheduler) {
+        await (window as any).scheduler.yield();
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+  }
+  ```
 
 **Keep main-thread work bounded.** A long browser task can delay user input and rendering. Measure hot paths, reduce unnecessary CPU work, split appropriate work, or move suitable computation to workers.
 
@@ -518,14 +572,14 @@ This output ordering does **not** imply that the browser must paint before `time
 
 > In browser JavaScript, let the JavaScript for the current event-loop task finish, then reason about the microtask checkpoint before later regular task work. Promise reactions and `queueMicrotask()` participate in browser microtask processing. Timers schedule later work and are not precise execution deadlines. Do not assume one universal FIFO task queue, a guaranteed paint between callbacks, or that browser scheduling rules transfer unchanged to Node.js.
 
-When reviewing scheduling-sensitive browser code, ask:
+When reviewing scheduling-sensitive browser code, verify against this checklist:
 
-1. What task is executing now, and can its JavaScript keep the browser busy for too long?
-2. Which callbacks are microtasks, and can the current checkpoint keep producing more microtasks?
-3. Which later operations are regular tasks, and what ordering does their actual API/task source guarantee?
-4. Is the code assuming a paint or animation frame where the browser has not promised one?
-5. Is a timer being used as a correctness deadline instead of best-effort later scheduling?
-6. Is browser-specific scheduling knowledge being applied to Node.js or another runtime without checking that runtime's rules?
+- [ ] **Main thread duration:** Will current task execution stay under 50ms (the threshold for a Long Task in DevTools)?
+- [ ] **Microtask checkpoint bounds:** Do Promise chains or `queueMicrotask()` calls have bounded recursion so the checkpoint can drain to empty?
+- [ ] **Task source ordering assumptions:** Does the code avoid assuming a fixed FIFO order between unrelated task sources (e.g., click handler vs timer)?
+- [ ] **Rendering assumptions:** Does the code avoid assuming an automatic paint between consecutive tasks or microtasks?
+- [ ] **Animation frame timing:** Is visual DOM/style update work scheduled via `requestAnimationFrame()` rather than arbitrary timers?
+- [ ] **Runtime environment boundary:** Are browser-specific assumptions (rAF, DOM task sources) kept out of universal/Node.js logic?
 
 ## Related concepts
 

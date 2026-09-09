@@ -34,17 +34,7 @@ Choose the operating model from workload and ownership requirements. Explicit co
 
 The word “serverless” does not guarantee startup latency, concurrency, scaling speed, execution time, networking, local state, or price. **Verify the selected platform's scaling, startup, concurrency, lifecycle, and billing contract before relying on those properties.**
 
-<TermBox term="Container image">
-A **container image** is a packaged filesystem and configuration that describes what a containerized process should run with: application code, runtime dependencies, executable settings, and related metadata.
-
-**Why it matters here:** the image answers “what runtime artifact are we deploying?” It does not by itself answer who provisions machines, scales capacity, configures networking, or operates the platform.
-</TermBox>
-
-<TermBox term="Capacity provisioning">
-**Capacity provisioning** is the work of making enough compute resources available for a workload—instances, containers, execution slots, CPU/memory, or another platform-specific unit.
-
-**Why it matters here:** serverless products usually take more ownership of provisioning decisions, while container-oriented platforms range from self-managed capacity to highly managed autoscaling services.
-</TermBox>
+A **container image** defines what runtime artifact you deploy (application code, system libraries, and configuration). **Capacity provisioning**—the operational work of making compute instances, execution slots, or CPU/memory resources available—can either be owned directly by your team or delegated to a cloud service.
 
 ## Decision frame
 
@@ -61,21 +51,11 @@ Describe the workload before choosing a compute model:
 
 ## Container-oriented compute
 
-A container image packages an application with runtime dependencies and execution configuration.
+A container image packages an application with runtime dependencies and execution configuration according to Open Container Initiative (OCI) standards.
 
-<TermBox term="OCI">
-**OCI** is the Open Container Initiative, which publishes specifications for container image and runtime formats used by compatible tooling.
+Choose a container-oriented model when explicit control over the process, runtime packages, resource settings, network listeners, worker lifecycle, or companion processes (sidecars) is required. An OCI-compatible image provides a clean packaging boundary, but cloud identity, networking, storage, queues, databases, scaling policy, and deployment automation do not become portable automatically.
 
-**Why it matters here:** an OCI-compatible image can be a useful packaging portability boundary, but cloud identity, networking, storage, queues, databases, scaling policy, and deployment automation do not become portable automatically.
-</TermBox>
-
-Choose a container-oriented model when explicit control over the process, runtime packages, resource settings, network listeners, worker lifecycle, or deployment artifact is required. That does **not** imply self-managing Kubernetes: managed container services can preserve the image/runtime boundary while delegating substantial infrastructure work.
-
-<TermBox term="Sidecar">
-A **sidecar** is a companion process/container deployed alongside the main application workload to provide a supporting capability such as proxying, telemetry, or synchronization.
-
-**Why it matters here:** if the application architecture truly requires companion processes or a particular process topology, verify whether the selected compute product supports that lifecycle instead of inferring it from the words container or serverless.
-</TermBox>
+Choosing containers does **not** imply self-managing Kubernetes: managed container services can preserve the image/runtime boundary while delegating substantial infrastructure work.
 
 ## Serverless compute
 
@@ -91,11 +71,7 @@ AWS Lambda executes functions in managed execution environments and documents it
 
 Treat serverless as an **operational abstraction**. For the actual selected platform, verify what creates capacity, how quickly it grows, how many requests/jobs share an instance, startup and shutdown behavior, timeouts/retries, networking and local state, quotas, scaling limits, and billing units.
 
-<TermBox term="Autoscaling">
-**Autoscaling** is automatic adjustment of available compute capacity in response to demand or another scaling signal.
-
-**Why it matters here:** autoscaling is not necessarily instantaneous or unlimited. Ramp rates, maximum instances, concurrency settings, quotas, and downstream capacity can still cause queueing, throttling, or failures.
-</TermBox>
+Autoscaling and scaling to zero can reduce idle capacity cost, but new capacity is not created instantaneously. When work arrives for a service scaled to zero, the platform must initialize a new execution environment before serving traffic.
 
 <TermBox term="Cold start">
 A **cold start** is startup work incurred when a platform must create or initialize a new execution environment before it can serve the workload.
@@ -103,11 +79,10 @@ A **cold start** is startup work incurred when a platform must create or initial
 **Why it matters here:** startup-sensitive request paths must be validated against the actual service. “Serverless” alone does not tell you how often cold starts occur, how long initialization takes, or which warm/minimum-capacity controls exist.
 </TermBox>
 
-<TermBox term="Scale to zero">
-**Scale to zero** means a platform can reduce active serving capacity to zero when no work is present, then create capacity again when work arrives.
-
-**Why it matters here:** scaling to zero can reduce idle capacity cost, but the next request may need startup/provisioning and the selected service may offer minimum/warm capacity that changes both latency and billing.
-</TermBox>
+> 🖼️ **[Illustration Placeholder: Anatomy of a Cold Start vs Warm Start]**  
+> *Mô tả hình minh họa:* Sơ đồ 2 thanh timeline đối chiếu chi tiết:
+> - **Cold Start (100ms – vài giây):** Cấp phát tài nguyên sandbox -> Tải image/code bundle -> Khởi tạo Language Runtime -> Chạy top-level initialization code (kết nối DB, load config) -> Xử lý Request.
+> - **Warm Start (vài ms):** Tái sử dụng execution environment đã ấm -> Nhận và xử lý Request ngay lập tức.
 
 <TermBox term="Concurrency">
 For managed compute, **concurrency** commonly means how many requests or work items can be active in one execution environment or across the service at the same time.
@@ -194,6 +169,9 @@ Do not infer these properties from the word “serverless.” Validate them agai
 
 ## These choices can overlap
 
+> 🖼️ **[Illustration Placeholder: Packaging Boundary vs Operating Boundary Matrix]**  
+> *Mô tả hình minh họa:* Sơ đồ ma trận 2 trục: Trục ngang là "Packaging Model" (Application Code / Zip vs OCI Container Image) và Trục dọc là "Operating Model" (Self-managed VMs vs Managed Container Cluster vs Serverless Managed Execution Environment). Thể hiện rõ các sản phẩm nằm ở các giao điểm (ví dụ: Cloud Run = Container Packaging + Serverless Operating).
+
 A workload can be both **containerized and serverless**. Cloud Run is a concrete example: the deployment artifact is a container, while Google manages instance lifecycle and autoscaling according to Cloud Run's service contract.
 
 Separate the questions:
@@ -209,7 +187,12 @@ Scaling behavior is a service contract, not a synonym for serverless. A burst ca
 
 ### Ignoring downstream capacity
 
+> **Production scenario:** A retail team migrated an order-processing webhook from a small container pool to serverless functions. During a flash sale, incoming events spiked 40x. The serverless platform scaled smoothly to 1,500 concurrent execution environments—and promptly saturated the 150-connection limit on the primary transactional database. Every execution began timing out while waiting for a database connection, turning an autoscaling win into an immediate cascading outage.
+
 If compute grows from ten concurrent workers to a thousand, the database, queue, connection pool, or third-party API may not. Treat compute concurrency and downstream backpressure as one capacity design.
+
+> 🖼️ **[Illustration Placeholder: Serverless Downstream Avalanche / Connection Pool Exhaustion]**  
+> *Mô tả hình minh họa:* Sơ đồ luồng tải khi có đột biến lưu lượng (traffic burst): 1,500 serverless functions được tạo ra đồng thời -> Mỗi function mở 1 kết nối TCP đến Database -> Vượt quá ngưỡng tối đa (150 connections) của Database -> Database quá tải và trả về Connection Refused / Timeout cho toàn bộ hệ thống.
 
 ### Treating portability as binary
 
@@ -219,7 +202,26 @@ A portable container image does not make cloud IAM, databases, queues, storage, 
 
 A consumption model can reduce idle-capacity cost, but total cost can be dominated by minimum instances, duration, memory/CPU allocation, data transfer, observability, downstream fan-out, or engineering time. Compare actual workload models, not category slogans.
 
+> 🖼️ **[Illustration Placeholder: Total Cost of Ownership (TCO) Crossover Curve]**  
+> *Mô tả hình minh họa:* Đồ thị đường cong chi phí theo thời gian/lưu lượng: Trục hoành là "Request Volume", trục tung là "Monthly Cost ($)". Đường biểu diễn Serverless xuất phát từ 0$ (khi scale to zero) và tăng dốc theo số lượng request; đường biểu diễn Container/VM có chi phí ban đầu cố định (base cost) nhưng đi ngang hoặc tăng rất chậm khi traffic tăng cao. Điểm giao nhau (Crossover Point) là ngưỡng chuyển dịch hiệu quả kinh tế giữa 2 mô hình.
+
 ## Practical heuristic
+
+```mermaid
+graph TD
+  Start["Evaluate workload & team requirements"] --> LongLived{"Requires long-lived TCP, specialized OS binaries, or custom sidecars?"}
+  LongLived -- Yes --> ContainerModel["Container-oriented compute<br/>(Explicit process & runtime control)"]
+  LongLived -- No --> WorkloadShape{"Workload execution shape?"}
+  WorkloadShape -- "Continuous / Sustained load" --> Sizing{"Predictable steady-state traffic?"}
+  Sizing -- Yes --> ProvisionedCapacity["Provisioned container capacity<br/>(Sized for high sustained utilization)"]
+  Sizing -- No --> BurstTraffic{"Bursty / Event-driven / Scale to zero?"}
+  WorkloadShape -- "Bursty / Event-driven" --> BurstTraffic
+  BurstTraffic -- Yes --> StartupCheck{"Can latency budget tolerate cold starts?"}
+  StartupCheck -- "Yes, or warm instances mitigate" --> Downstream{"Can downstream DB & APIs absorb sudden burst concurrency?"}
+  StartupCheck -- "No, strict sub-10ms P99" --> ProvisionedCapacity
+  Downstream -- Yes --> ServerlessService["Serverless compute service<br/>(Managed execution environment & autoscaling)"]
+  Downstream -- "No (connection exhaustion risk)" --> ConcurrencyControl["Constrained concurrency or Container pool<br/>(Explicit backpressure & connection limits)"]
+```
 
 1. **Describe the lifecycle.** Request, event, job, worker, or continuously running service?
 2. **List required runtime capabilities.** Separate requirements from preferences for control.
@@ -228,17 +230,40 @@ A consumption model can reduce idle-capacity cost, but total cost can be dominat
 5. **Verify the selected platform.** Record scaling, startup, concurrency, lifecycle, and billing behavior plus networking, state, quotas, and observability.
 6. **Model total engineering economics.** Include platform operations and developer workflow, not only compute price.
 
-## Questions to ask before choosing
+## Check your mental model
 
-- What are baseline and peak concurrency?
-- Can capacity scale toward zero safely, or must it stay warm?
-- What startup/provisioning delay is acceptable?
-- Does the application need long-lived processes/connections or specialized OS/runtime capabilities?
-- How will backpressure protect dependencies when compute scales faster than they can?
-- What state must survive process/instance replacement?
-- Which platform integrations would make migration expensive?
-- Who owns patching, capacity policy, incident response, and rollback under this model?
-- Which exact billing dimensions dominate at baseline and peak traffic?
+> **Scenario:** A team is building an internal notifications service. Connected client web applications keep an open WebSocket connection to receive real-time push alerts. The expected traffic is a few messages per hour per connection, with 50,000 idle connected clients at peak.
+>
+> The lead engineer suggests: *"Let's use on-demand serverless functions without container infrastructure, because message volume is low and we only pay when messages are actually processed."*
+>
+> **Is this compute model a fit for this workload?**
+
+<details>
+<summary>Show the reasoning</summary>
+
+**Why this recommendation is risky:**
+
+While the *message delivery* is sparse and event-driven, the **connection model** is continuously open and stateful:
+1. **Connection duration:** WebSockets require long-lived persistent TCP connections. On-demand serverless execution environments usually enforce maximum request timeouts (often 15 minutes or less) and bill by active execution time. Keeping 50,000 serverless environments constantly active just to hold idle TCP sockets would be economically prohibitive and technically fraught.
+2. **Process identity & routing:** Pushing an alert to a specific client requires routing the message to the process holding that client's open socket. On-demand functions do not have stable process identities or addressable network endpoints for incoming peer-to-peer pushes unless paired with a specialized managed gateway (such as AWS API Gateway WebSocket API or a pub/sub proxy).
+
+**Better architectures:**
+- Use container-oriented workers sized for high network I/O concurrency (where thousands of idle sockets consume minimal memory/CPU in Node.js or Go).
+- Or decouple the connection layer by using a dedicated managed connection service (e.g., API Gateway WebSockets, Ably, Pusher) that triggers short-lived serverless functions only when an actual event is published.
+</details>
+
+## Decision review checklist
+
+Use this checklist during architecture design reviews before committing to a compute platform:
+
+- [ ] **Lifecycle match:** Does the workload execution shape (request, event, long-running job) map to the platform's supported lifecycle without workarounds?
+- [ ] **Cold start & latency:** Can the P99 latency budget tolerate cold starts, or have warm/minimum instance costs been factored in?
+- [ ] **Downstream backpressure:** Are downstream databases and third-party APIs protected against sudden 10x–100x concurrency spikes?
+- [ ] **Connection & process model:** Does the application require long-lived TCP connections, WebSockets, background threads, or local state?
+- [ ] **Runtime requirements:** Are custom OS packages, specialized binaries, or sidecars required?
+- [ ] **Portability boundary:** Is the container image or application contract portable, and what cloud-specific integrations (IAM, event triggers, networking) would need to be rewritten?
+- [ ] **Operational ownership:** Does the team have the operational capacity to manage container orchestration/patching, or is delegating capacity management essential?
+- [ ] **Total cost modeling:** Has cost been calculated across both idle baseline and peak burst traffic, including minimum instances, networking, and log ingestion?
 
 ## Related concepts
 

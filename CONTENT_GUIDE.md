@@ -392,6 +392,62 @@ For example, explain that a timer is later scheduling before discussing nested-t
 
 This keeps the first model usable without hiding important boundaries.
 
+## Visual Cadence & Pedagogical Engagement
+
+To ensure learners do not experience mental fatigue from walls of plain prose, Atlas lessons enforce high-frequency visual pacing and active-recall checkpoints.
+
+### Target visual frequency
+
+Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) should target **one visual anchor per 1–2 conceptual sections**, with a minimum of **3–4 visual anchors per substantive lesson**.
+
+A visual anchor can be:
+- An **Illustration Placeholder** for conceptual or architectural graphics to be drawn.
+- A static **Mermaid Diagram** (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`).
+- A lightweight interactive lab or explorer component (when interaction uniquely aids learning).
+
+### Standardized Illustration Placeholder template
+
+When visual assets (SVG/PNG) are planned but not yet drawn, authors must provide a clear prompt so human illustrators or automated design tools can render them faithfully:
+
+```markdown
+> 🖼️ **[Illustration Placeholder: Descriptive Title Here]**  
+> *Mô tả hình minh họa:* Chi tiết các khối kiến trúc, luồng dữ liệu theo chiều mũi tên, các kịch bản so sánh đối chiếu (ví dụ: Kịch bản A vs Kịch bản B), các thông số hoặc trạng thái nổi bật cần vẽ để làm sáng tỏ khái niệm kỹ thuật.
+```
+
+Rules for placeholders:
+1. Use blockquote syntax (`>`) with the picture emoji `🖼️` and bold bracketed title.
+2. Provide explicit layout instructions (e.g. "Sơ đồ 3 khối ngang: Client -> CDN -> Origin").
+3. State the core insight the graphic must convey so the illustration is explanatory, not purely decorative.
+
+### Production micro-scenarios
+
+Abstract architecture and language specs can feel detached from daily work unless anchored to real production consequences. Every substantive guide or deep dive should feature at least one realistic micro-scenario illustrating:
+
+1. **Hậu quả (Impact):** The real-world symptom (e.g. 504 gateway timeout, unhandled rejection in background task causing phantom orders, 1.2s UI freeze causing INP failure).
+2. **Nguyên nhân cốt lõi (Root cause):** The exact conceptual misunderstanding (e.g. confusing microtasks with yielding, assuming client-side cache always touches network).
+3. **Cách khắc phục chuẩn (Correct pattern):** The recommended code or architectural solution.
+
+### Active mental-model checks with `<details>`
+
+Exercises, quizzes, and scenario reasoning questions should give the reader an opportunity to test their intuition before seeing the answer:
+
+```markdown
+<details>
+<summary>Show the reasoning</summary>
+
+- Concise bullet points explaining the step-by-step resolution, state transition, or failure diagnosis.
+
+</details>
+```
+
+### Actionable review checklists
+
+At the end of decision guides, walkthroughs, or agent rules, replace open-ended narrative questions with markdown task lists (`- [ ]`). The repository's CSS (`app/globals.css`) provides custom hanging indent styling for checklist items:
+
+```markdown
+- [ ] **Keyword / Criterion:** Concrete check or constraint to evaluate.
+```
+
 ## Code examples
 
 Code should be minimal enough to understand but realistic enough not to teach dangerous habits.

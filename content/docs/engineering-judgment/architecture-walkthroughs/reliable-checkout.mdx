@@ -79,6 +79,9 @@ The application can associate that key with the authenticated actor, logical ope
 
 ## High-level flow
 
+> 🖼️ **[Illustration Placeholder: End-to-end Checkout Sequence & Consistency Boundaries]**  
+> *Mô tả hình minh họa:* Sơ đồ Sequence Diagram thể hiện rõ 5 ranh giới: (1) Client -> API (với Idempotency-Key), (2) API -> DB (Local ACID Transaction bọc Order + Outbox row), (3) API -> Payment Provider (Timeout Ambiguity window), (4) Outbox Publisher -> Message Broker (At-least-once handoff), (5) Broker -> Fulfillment Consumer (Idempotent execution).
+
 ```mermaid
 graph LR
   C[Client] -->|checkout request + idempotency key| API[Checkout API]
@@ -130,6 +133,11 @@ The invariant matters more than the schema: when business state and outbox live 
 Do not keep a database transaction open around a slow external payment call just to make source code look atomic. Waiting on another system extends lock/transaction lifetime and still does not create one atomic transaction across your database and the provider.
 
 ## 2. Treat payment response loss as an ambiguous outcome
+
+> 🖼️ **[Illustration Placeholder: Two Generals Problem & Payment Ambiguity Window]**  
+> *Mô tả hình minh họa:* Sơ đồ minh họa "vùng bất định" khi client gửi request thanh toán: nếu gói tin response bị mất trên đường truyền mạng, client không thể biết server đối tác đã trừ tiền hay chưa nếu không có cơ chế Reconciliation hoặc Idempotent Query.
+
+> **Production scenario:** A customer clicks "Place Order" on an unstable mobile 4G connection. The API charges $120 via Stripe, and Stripe responds with success. But before the HTTP response packet reaches the mobile app, the connection drops and the app displays "Request Timeout". Panicking, the customer taps "Place Order" a second time. Without a stable idempotency key tied to that logical cart, the system creates a second order and charges another $120—triggering an immediate customer support incident and chargeback risk.
 
 ```text
 Checkout API -> Payment provider: payment request
@@ -233,6 +241,11 @@ The architecture becomes easier to reason about when every boundary states its a
 
 ### Database state commits but the process crashes before broker publish
 
+> 🖼️ **[Illustration Placeholder: Dual-Write Problem vs Transactional Outbox Pattern]**  
+> *Mô tả hình minh họa:* Sơ đồ đối chiếu:
+> - **Dual-Write Failure:** App ghi vào DB thành công -> App gọi Message Broker bị crash/lỗi mạng -> State trong DB đã cập nhật nhưng không có event nào được bắn đi (Dữ liệu bị lệch vĩnh viễn).
+> - **Transactional Outbox Solution:** App ghi Order và Outbox Event trong cùng 1 local DB transaction -> Worker đọc Outbox table và publish sang Broker -> Đảm bảo At-least-once delivery ngay cả khi process crash.
+
 **Control:** store the outbox publish intent in the same local database transaction as the business transition, then let a later publisher continue.
 
 ### Publisher sends and crashes before recording progress
@@ -244,6 +257,11 @@ The architecture becomes easier to reason about when every boundary states its a
 If the selected broker/delivery mode supports redelivery, the same message may arrive again. Make the business effect safe under that duplicate using event identity, uniqueness constraints, or idempotent state transitions.
 
 ### Dependency outage creates a retry storm
+
+> 🖼️ **[Illustration Placeholder: Thundering Herd Retry Storm vs Exponential Backoff with Jitter]**  
+> *Mô tả hình minh họa:* Đồ thị 2 đợt sóng traffic:
+> - **Retry Storm:** Khi payment gateway phục hồi sau sự cố 10s, hàng nghìn client gửi retry đồng loạt tại đúng các mốc t = 1s, 2s, 4s tạo thành các đỉnh nhọn xung kích (Traffic Spikes) tiếp tục đánh sập gateway lần nữa.
+> - **Full Jitter:** Các client phân tán thời gian retry ngẫu nhiên trong khoảng `[0, Backoff(n)]`, tạo ra một đường tải phẳng mượt mà cho phép downstream phục hồi an toàn.
 
 <TermBox term="Backoff and jitter">
 **Backoff** increases the delay between retries after repeated failure. **Jitter** adds variation so many clients do not retry at exactly the same moments.
@@ -309,19 +327,48 @@ This architecture can be simplified or expanded depending on constraints:
 
 Do not add components merely because they appear in the reference diagram.
 
+## Check your mental model
+
+> **Scenario:** A developer wants to ensure checkout database records and payment charges never drift apart. They write this implementation:
+>
+> ```ts
+> await db.transaction(async (tx) => {
+>   await tx.orders.create({ id, status: 'PENDING' });
+>   const charge = await paymentGateway.chargeCard({ amount, token }); // external network call
+>   await tx.orders.update({ id, status: 'PAID', chargeId: charge.id });
+> });
+> ```
+>
+> The developer reasons: *"By wrapping the external payment API call inside `db.transaction()`, if the payment fails, the database will cleanly roll back and no inconsistent order will exist."*
+>
+> **What critical vulnerabilities does this design introduce in production?**
+
+<details>
+<summary>Show the reasoning</summary>
+
+**Why this pattern is dangerous in distributed production systems:**
+
+1. **Zero distributed atomicity:** A local database transaction cannot roll back an external payment provider. If `paymentGateway.chargeCard()` takes 8 seconds, successfully charges the customer's credit card, and then the database transaction times out or crashes during the subsequent `update()`, the database transaction rolls back. **The customer's card has been charged, but your database has zero record of the order or payment!**
+2. **Database connection pool exhaustion:** Holding a database transaction and row locks open while waiting for external network I/O (which can easily take 1–5 seconds or hang during provider latency spikes) exhausts database worker connections. Under moderate checkout traffic, this takes down the entire database cluster for all other application services.
+3. **Correct architectural pattern:**
+   - Keep database transactions **strictly local and sub-millisecond**: write the order as `PAYMENT_PENDING` and commit immediately.
+   - Perform the external payment call outside of any DB transaction, passing a unique idempotency key.
+   - When the payment responds (or via webhook/reconciliation), commit a second local transaction to transition the order state to `PAID` and write the outbox event.
+</details>
+
 ## Review checklist
 
-Before approving a checkout design, ask:
+Use this checklist during architecture design reviews before approving a checkout implementation:
 
-1. What identifies one logical checkout and one logical payment attempt?
-2. Which state transitions are atomic in one local database transaction?
-3. What happens after a remote timeout with an unknown outcome?
-4. How is durable publish intent recorded if the process crashes?
-5. Can the selected broker/delivery mode redeliver, and are consumer effects safe under duplicates?
-6. Where do retries stop, back off, or move to manual/dead-letter recovery?
-7. Which identifiers let operators reconstruct one checkout across synchronous and asynchronous boundaries?
-8. Which sensitive values are excluded from logs/messages?
-9. What is the simplest durable architecture that still meets the recovery contract?
+- [ ] **Operation identity:** Are unique idempotency keys required for every logical checkout and payment attempt?
+- [ ] **Local atomicity:** Are business state changes and durable publish intent (outbox rows) committed together in one fast, local database transaction?
+- [ ] **No remote calls inside DB transactions:** Are all external network calls (payment APIs, email, third-party services) executed strictly outside of database transactions?
+- [ ] **Timeout ambiguity handling:** Is there an explicit reconciliation strategy (provider query or webhook) when a payment request times out?
+- [ ] **Duplicate delivery defense:** Are downstream fulfillment and notification consumers idempotent when the broker redelivers events?
+- [ ] **Retry limits and backoff:** Do retry loops enforce explicit bounds, exponential backoff with jitter, and dead-letter queue routing?
+- [ ] **End-to-end correlation:** Does every log, trace, and outbox event carry a stable correlation ID linking the HTTP request to downstream async consumers?
+- [ ] **Data boundary security:** Are cardholder secrets and raw credentials strictly kept out of logs, traces, and internal message payloads?
+- [ ] **Minimal durable shape:** Is the architecture as simple as possible (e.g. database job table vs. multi-cluster message broker) for the actual traffic volume?
 
 ## Related concepts
 

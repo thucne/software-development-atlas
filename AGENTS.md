@@ -73,6 +73,26 @@ Apply the canonical **Atlas Clarity Contract** and **Atlas Teaching Contract** i
 
 Do not solve these editorial requirements by adding a generic prose linter, readability score, banned-pronoun rule, jargon detector, or model-based judge. Automate only narrow facts that can be checked reliably; use source-backed review for editorial judgment.
 
+### Visual pacing and lesson engagement rules
+
+To maintain an engaging, highly scannable, and pedagogy-first learning experience without turning lessons into wall-of-text documentation:
+
+1. **High-frequency visual cadence:** Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) must maintain a steady rhythm of visual breaks. Target **1 visual anchor (illustration or diagram) per 1–2 conceptual sections**, with a minimum of **3–4 visual anchors per substantive lesson**.
+2. **Standardized Illustration Placeholders:** When actual image assets (SVG/PNG) are not yet authored, insert an explicit placeholder blockquote with this exact syntax:
+   ```markdown
+   > 🖼️ **[Illustration Placeholder: <Descriptive Title>]**  
+   > *Mô tả hình minh họa:* <Detailed prompt specifying diagram layout, nodes/lanes, data flow direction, and key insights to draw>
+   ```
+   Always provide a thorough prompt in Vietnamese or English so human designers or subsequent agent tasks can draft the graphic without guessing.
+3. **Mermaid for structural flows:** Use Mermaid diagrams (`mermaid` code block) for decision trees, state machines, sequence diagrams, and boundary topologies whenever static diagrams communicate system flow clearly.
+4. **Real-world production micro-scenarios:** Include concrete production failure stories (e.g., cascading retry storms, phantom client cache 200s, microtask UI freezes, swallowed error state corruption) in every deep dive and decision guide. Always structure them with three parts:
+   - **Hậu quả (Impact):** The observable symptom, latency spike, or data inconsistency.
+   - **Nguyên nhân cốt lõi (Root cause):** The mental model disconnect or flawed assumption.
+   - **Cách khắc phục chuẩn (Correct pattern):** The robust code pattern or architecture fix.
+5. **Interactive mental-model self-checks:** Format exercises and quizzes with `<details><summary>Show the reasoning</summary>...</details>` blocks so learners can pause and test their intuition before revealing the explanation.
+6. **Actionable task-list checklists:** Conclude review sections and agent rules with markdown task lists (`- [ ] **<Keyword>:** ...`) rather than generic numbered questions. The site's CSS provides a hanging-indent layout for checklist items.
+7. **TermBox moderation:** Restrict `<TermBox>` to genuine learning barriers (typically 2–3 per page max). Define terms near their first substantive use and never build an introductory definition wall.
+
 ## Content placement contract
 
 Normal authored MDX must declare:
@@ -187,3 +207,13 @@ Keep changes focused and explain:
 - how it was validated;
 - whether the change affects the zero-cost guarantee or freshness model;
 - for content/knowledge-model changes, which map coverage or learning outcome it improves.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -90,6 +90,16 @@ settled = fulfilled OR rejected
 A Promise can be **pending and already resolved** when it has been resolved to another still-pending Promise or thenable whose eventual outcome it must follow.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Promise State Machine & Resolution vs Settlement]**  
+> *Mô tả hình minh họa:* Sơ đồ máy trạng thái (State Machine) của Promise:
+> 1. **Khởi tạo:** Bắt đầu ở trạng thái `pending`.
+> 2. **Chuyển trạng thái 1 chiều (Settled):**
+>    - Gọi `resolve(primitiveValue)` -> Chuyển vĩnh viễn sang `fulfilled` với giá trị `value`.
+>    - Gọi `reject(reason)` -> Chuyển vĩnh viễn sang `rejected` với lý do lỗi.
+>    - Một khi đã Settled thì không thể đổi trạng thái được nữa (Bất biến / Immutable).
+> 3. **Trường hợp đặc biệt "Promise Adoption" (Resolved nhưng vẫn Pending):**
+>    - Khi gọi `resolve(innerPromise)` -> Promise ngoài lập tức được xem là `resolved` (số phận đã ấn định, không thể reject để đổi ý), NHƯNG bản thân nó vẫn ở trạng thái `pending` cho đến khi `innerPromise` hoàn tất.
+
 The simple cases look unsurprising:
 
 ```js
@@ -254,6 +264,14 @@ P0 --then(handleValue)--> P1 --catch(handleError)--> P2 --finally(cleanup)--> P3
 
 `P0`, `P1`, `P2`, and `P3` are separate Promise objects. Each downstream Promise has its **own** outcome.
 
+> 🖼️ **[Illustration Placeholder: Downstream Promise Generation & Handler Outcomes]**  
+> *Mô tả hình minh họa:* Sơ đồ luồng dữ liệu qua các mắt xích Promise Chain (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
+> - Mỗi mắt xích là một Object Promise riêng biệt độc lập trong heap memory (`p0 !== p1 !== p2`).
+> - Minh họa trực quan 3 kịch bản kết quả của một Handler:
+>   1. **Return Value:** Handler trả về `x` -> downstream Promise lập tức fulfill với `x`.
+>   2. **Throw Error:** Handler ném lỗi `throw err` -> downstream Promise lập tức reject với `err`.
+>   3. **Return Promise (Flattening/Adoption):** Handler trả về một Promise khác `fetchData()` -> downstream Promise sẽ "nhận nuôi" (adopt) và chỉ settle khi `fetchData()` hoàn thành (không bị lồng thành `Promise<Promise<T>>`).
+
 ## Return, throw, adopt
 
 This table is the core Promise-chain reasoning tool.
@@ -343,6 +361,13 @@ That is a concrete resolved-but-not-fulfilled state.
 
 ## Error propagation and recovery
 
+> 🖼️ **[Illustration Placeholder: Promise Error Propagation & Recovery Mechanics]**  
+> *Mô tả hình minh họa:* Mô hình "thác đổ" (waterfall) của lỗi trong Promise chain:
+> - Khi một mắt xích ném lỗi (`throw Error`), lỗi sẽ nhảy cóc qua tất cả các `.then(onFulfilled)` trung gian mà không thực thi chúng.
+> - Điểm chạm `.catch(onRejected)`:
+>   - **Kịch bản Khôi phục (Recovery):** Nếu `.catch()` return fallback data -> downstream Promise phía sau nó lập tức trở lại trạng thái `fulfilled` và các `.then()` tiếp theo lại chạy bình thường!
+>   - **Kịch bản Bắt lỗi không trọn vẹn (Swallowed Error):** `.catch()` chỉ chạy `console.log(err)` mà quên `throw` -> vô tình biến luồng lỗi thành `fulfilled undefined`, gây bug logic nguy hiểm cho các bước phía sau.
+
 When the current outcome does not match a supplied handler, that outcome propagates until a matching handler is reached.
 
 ### `catch()` can recover a chain
@@ -399,6 +424,13 @@ A **Promise combinator** is a static Promise API that combines several input val
 
 **Why it matters here:** each combinator has a different success and failure contract. Choose the contract you need rather than treating them as interchangeable ways to “run things in parallel.”
 </TermBox>
+
+> 🖼️ **[Illustration Placeholder: Promise Combinators Comparison Matrix & Behavior]**  
+> *Mô tả hình minh họa:* Bảng đồ họa so sánh trực quan 4 combinators với 3 Promise con [P1 (hoàn thành sớm, thành công), P2 (hoàn thành muộn, thành công), P3 (hoàn thành giữa chừng, thất bại)]:
+> 1. `Promise.all`: Đòi hỏi TẤT CẢ thành công. P3 fail -> lập tức reject toàn cục (Fail-fast), kết quả của P1/P2 bị bỏ qua.
+> 2. `Promise.allSettled`: Luôn chờ TẤT CẢ P1, P2, P3 hoàn thành -> Trả về mảng 3 records trạng thái `{status: 'fulfilled' | 'rejected'}` (an toàn tuyệt đối cho batch operations).
+> 3. `Promise.race`: Ai cán đích đầu tiên (dù thắng hay thua) sẽ quyết định số phận -> P1 xong trước -> resolve theo P1.
+> 4. `Promise.any`: Tìm người THÀNH CÔNG đầu tiên -> P1 thành công -> resolve theo P1. Chỉ reject khi CẢ BA cùng fail (trả về `AggregateError`).
 
 | Need | API | Key failure behavior |
 | --- | --- | --- |
@@ -499,6 +531,36 @@ The syntax can still create an accidental sequential waterfall when independent 
 
 ## Production mistakes to avoid
 
+### Production scenario: The "swallowed error" phantom confirmation
+
+Một service backend xử lý thanh toán đơn hàng bằng chuỗi Promise:
+
+```ts
+function processOrderPayment(orderId: string) {
+  return chargeCustomer(orderId)
+    .catch((err) => {
+      // DEV chỉ ghi log lỗi charge thẻ nhưng quên rethrow:
+      logger.error('Failed to charge card', { orderId, err });
+    })
+    .then(() => {
+      // Bước này VẪN CHẠY vì .catch() phía trên trả về undefined (fulfilled)!
+      return markOrderAsPaidAndDispatch(orderId);
+    });
+}
+```
+
+- **Hậu quả:** Khi thẻ khách hàng hết hạn mức, `chargeCustomer` bị reject. Tuy nhiên `.catch()` chỉ ghi log rồi kết thúc bình thường (`return undefined`), biến downstream Promise thành **fulfilled**! Hệ thống lập tức gọi `markOrderAsPaidAndDispatch(orderId)`, xuất kho và gửi hàng cho khách dù chưa thu được đồng nào!
+- **Nguyên nhân cốt lõi:** Lập trình viên quên quy tắc cơ bản: hàm `.catch()` không chỉ để "lắng nghe lỗi", nó là một trạm **hồi phục (recovery)**. Nếu không ném lỗi tiếp, luồng phía sau sẽ coi như mọi chuyện đã được xử lý êm đẹp.
+- **Cách khắc phục chuẩn:** Nếu chỉ muốn quan sát lỗi mà không dập tắt thất bại, bắt buộc phải `throw err`:
+  ```ts
+  return chargeCustomer(orderId)
+    .catch((err) => {
+      logger.error('Failed to charge card', { orderId, err });
+      throw err; // Tiếp tục propagate rejection xuống downstream
+    })
+    .then(() => markOrderAsPaidAndDispatch(orderId));
+  ```
+
 ### Wrapping Promise APIs unnecessarily
 
 Avoid constructing another Promise merely to forward an existing Promise API's `resolve` and `reject`. Return or transform the existing Promise unless you need genuinely different lifecycle semantics.
@@ -539,7 +601,7 @@ A rejection is a Promise outcome. What a browser, Node.js process, test runner, 
 
 ## Exercise
 
-Predict P0 through P4:
+Predict the settlement state and values of `p0` through `p4`:
 
 ```js
 let settleInner;
@@ -559,22 +621,31 @@ const p4 = p3.then((value) => value + 1);
 settleInner(10);
 ```
 
-`p0` fulfills with `2`; `p1` fulfills with `6`; `p2` rejects with `Error('boom')`. When the `catch()` handler returns still-pending `inner`, `p3` is pending but resolved/adopting `inner`. After `inner` fulfills with `10`, `p3` fulfills with `10` and `p4` fulfills with `11`.
+<details>
+<summary>Show the reasoning</summary>
+
+- `p0` fulfills with `2`.
+- `p1` fulfills with `6` (`2 * 3`).
+- `p2` rejects with `Error('boom')` due to the synchronous throw inside the handler.
+- When `p2` rejects, the `catch()` handler catches it and returns the still-pending `inner` Promise. At this point, `p3` is **pending but resolved/adopting `inner`**.
+- Once `settleInner(10)` is invoked, `inner` fulfills with `10`. Consequently, `p3` fulfills with `10`.
+- Finally, `p4` receives `10`, adds `1`, and fulfills with `11`.
+
+</details>
 
 ## Agent rule
 
 > **For standard Promise chaining, treat each `then()`, `catch()`, and `finally()` call as producing a separate downstream Promise. Determine that downstream outcome from the relevant handler: returning a value fulfills it, throwing rejects it, and returning a Promise/thenable makes it adopt that outcome. Do not equate resolved with fulfilled, do not assume rejection cancels underlying work, and choose combinators according to the success/failure contract you need.**
 
-When changing Promise-heavy code, explicitly check:
+When changing Promise-heavy code, verify against this checklist:
 
-1. Which Promise does each chain call return?
-2. What does each handler return or throw?
-3. Does a returned Promise/thenable introduce a real dependency?
-4. Is an error intentionally recovered or accidentally swallowed?
-5. Does the combinator match the required failure semantics?
-6. Is cancellation owned by the underlying operation instead of assumed from rejection?
-7. Is concurrency intentionally bounded where resources require it?
-8. Is any callback-ordering assumption actually guaranteed by the relevant runtime?
+- [ ] **Downstream Promise awareness:** Does each `.then()`, `.catch()`, or `.finally()` call explicitly account for returning a new downstream Promise?
+- [ ] **Return vs Throw contract:** Does every handler explicitly return a value/Promise or throw an error, rather than accidentally falling through to `undefined`?
+- [ ] **Error recovery vs swallow:** Is each `.catch()` intentional about either recovering with fallback data or re-throwing to preserve failure signals?
+- [ ] **Cleanup transparency:** Does `.finally()` perform side-effect cleanup without attempting to transform fulfillment values?
+- [ ] **Combinator semantics:** Does the selected combinator (`all`, `allSettled`, `race`, `any`) match the required failure mode (fail-fast vs complete observation)?
+- [ ] **Cancellation decoupling:** Are cancellation needs attached to `AbortSignal` rather than assuming a rejected Promise cancels pending network/disk I/O?
+- [ ] **Concurrency boundaries:** Is mass asynchronous fan-out bounded (e.g. queue/pool) rather than blindly launching unbounded `Promise.all(items.map(...))`?
 
 ## Related lessons
 

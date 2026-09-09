@@ -43,6 +43,13 @@ HTTP/1.1, HTTP/2, and HTTP/3 share HTTP semantics. They differ in how those sema
 
 ## Start with four common request paths
 
+> 🖼️ **[Illustration Placeholder: The 4 Common HTTP Request Paths]**  
+> *Mô tả hình minh họa:* Sơ đồ phân nhánh so sánh trực quan 4 hành trình thực tế của một request:
+> 1. **Path 1 (Browser Local Cache Hit):** Client kiểm tra local storage/cache -> Còn hạn `fresh` -> Trả về data tức thì (0ms network, bỏ qua hoàn toàn DNS, TCP, TLS, Backend).
+> 2. **Path 2 (Connection Reused):** Local cache miss -> Phát hiện kết nối HTTP/2 hoặc HTTP/3 tới domain này đang mở sẵn -> Gửi ngay HTTP stream qua socket đó (Bỏ qua DNS resolution, TCP 3-way handshake và TLS handshake).
+> 3. **Path 3 (Full Cold Setup):** Không có kết nối khả dụng -> Đi trọn vẹn chuỗi thiết lập: DNS Query -> TCP SYN/ACK (1 RTT) -> TLS 1.3 Key Exchange (1 RTT) -> HTTP Request/Response (1 RTT).
+> 4. **Path 4 (CDN Intermediary Edge Hit):** Request rời máy client ra Internet nhưng gặp cụm máy chủ CDN Edge gần nhất -> CDN trả về kết quả đã cache -> Tiết kiệm hàng trăm ms và không làm tốn tài nguyên máy chủ Origin.
+
 Before memorizing protocol layers, ask which of these shapes resembles the request you are debugging.
 
 ### 1. Fresh client-cache hit
@@ -130,6 +137,18 @@ A cached response is **fresh** when caching rules allow it to be reused without 
 **Why it matters here:** a `304` means a network HTTP exchange occurred, while the response representation ultimately used by the client can still come from previously stored data.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: HTTP Caching & Conditional Revalidation Flow]**  
+> *Mô tả hình minh họa:* Sơ đồ cây quyết định (Decision Tree) luồng Cache trên trình duyệt:
+> - Request phát ra -> Kiểm tra Local Cache:
+>   - **Chưa có trong cache (Cache Miss):** -> Gửi Full Network Request ra Internet.
+>   - **Đã có trong cache (Cache Hit):**
+>     - Nếu còn hạn `max-age` (Fresh): Trả về dữ liệu local ngay lập tức -> `200 OK (from disk cache)`.
+>     - Nếu đã hết hạn (Stale):
+>       - Kiểm tra xem phản hồi cũ có chứa `ETag` hoặc `Last-Modified` không?
+>       - Nếu CÓ: Gửi **Conditional Request** lên server kèm `If-None-Match: "xyz"` hoặc `If-Modified-Since`.
+>         - Server đối chiếu thấy tài nguyên không đổi -> Phản hồi `304 Not Modified` (Body rỗng, chỉ vài bytes header) -> Trình duyệt đọc body từ cache local.
+>         - Server thấy tài nguyên đã có bản mới -> Phản hồi `200 OK` kèm Full Body mới -> Trình duyệt cập nhật lại cache.
+
 For the Fetch Standard's default cache mode, Fetch broadly does this on the way to a network fetch:
 
 - a matching fresh stored response can be returned without network validation;
@@ -170,6 +189,12 @@ If no suitable connection exists, setup can include obtaining a usable network a
 
 ## HTTP/1.1, HTTP/2, and HTTP/3
 
+> 🖼️ **[Illustration Placeholder: Connection Architecture: HTTP/1.1 vs HTTP/2 vs HTTP/3]**  
+> *Mô tả hình minh họa:* So sánh trực quan cơ chế truyền tải qua đường ống mạng giữa 3 thế hệ HTTP:
+> 1. **HTTP/1.1 (Head-of-Line Blocking trên kết nối TCP):** Mỗi request phải đợi request trước đó tải xong hoàn toàn mới được gửi tiếp trên cùng 1 kết nối TCP. Muốn tải nhiều tài nguyên cùng lúc, trình duyệt buộc phải mở tới 6 kết nối TCP song song, gây lãng phí tài nguyên máy chủ.
+> 2. **HTTP/2 (Multiplexing trên 1 kết nối TCP duy nhất):** Chia nhỏ các request/response thành các binary frames (Data frame, Header frame) và trộn lẫn (interleaved) trên cùng 1 đường ống kết nối. Không còn nghẽn ở tầng HTTP, nhưng nếu 1 packet TCP bị rớt trên đường truyền thì toàn bộ các stream khác đều phải dừng chờ TCP retransmission (TCP Head-of-Line Blocking).
+> 3. **HTTP/3 (QUIC over UDP):** Sử dụng giao thức QUIC chạy trên nền UDP. Mỗi stream là độc lập tuyệt đối; việc rớt packet ở stream hình ảnh A hoàn toàn không ảnh hưởng tới việc stream API B và C tiếp tục nhận dữ liệu mượt mà.
+
 RFC 9110 defines semantics shared by the major HTTP versions. The versions differ in message carriage and connection behavior.
 
 ### HTTP/1.1
@@ -208,6 +233,15 @@ A browser can therefore prevent, redirect, or satisfy a fetch before application
 
 ## Intermediaries and origin processing
 
+> 🖼️ **[Illustration Placeholder: Multi-Tier Architecture & Request Boundary Ownership]**  
+> *Mô tả hình minh họa:* Sơ đồ các chặng dừng chân từ Client đến Origin Application:
+> `Client (Browser/App)` ➔ `Edge CDN (Cloudflare/Fastly - Edge Caching, DDoS Shield)` ➔ `API Gateway / Reverse Proxy (Nginx/Envoy - TLS Termination, Auth, Rate Limiting)` ➔ `Internal Load Balancer` ➔ `Origin App Service (Node.js/Go/Java)`.
+> - Minh họa hộp thoại phân định nguồn gốc Response thực tế:
+>   - Lỗi `403/429` do Cloudflare WAF chặn tại Edge.
+>   - Lỗi `502 Bad Gateway / 504 Gateway Timeout` do API Gateway không thể kết nối tới Backend.
+>   - Lỗi `500 Internal Server Error` hoặc dữ liệu `200 OK` do chính code Backend Origin xử lý và trả về.
+> - Giúp kỹ sư xác định chính xác cần mở log ở đâu (CDN log vs Gateway log vs App log) thay vì phán đoán mò mẫm.
+
 A request that leaves the client can still encounter several participants before business logic runs:
 
 - forward proxy;
@@ -245,6 +279,21 @@ Use it to answer:
 > Which stages occurred for this request, which stages were skipped, and which stages depend on runtime or deployment state?
 
 ## How to debug a slow or surprising request
+
+### Production scenario: The "phantom 200" and missing server logs
+
+Một nhóm kỹ sư nhận được phản hồi từ khách hàng: sau khi cập nhật thông tin hồ sơ, trang web vẫn hiển thị họ tên cũ. Mở DevTools Network tab, kỹ sư thấy:
+- Status: `200 OK`
+- Response Payload: dữ liệu cũ
+- Thời gian phản hồi: `3ms`
+
+Kỹ sư nghi ngờ server backend bị lỗi cache hoặc code database có vấn đề, và dành hơn 2 tiếng lục tung access log của backend nhưng **tuyệt nhiên không thấy request nào xuất hiện trong log**.
+
+- **Hậu quả:** Tốn nhiều giờ công của cả team frontend và backend vì chẩn đoán nhầm tầng hạ tầng.
+- **Nguyên nhân cốt lõi:** DevTools ghi ở cột Size: `(from disk cache)`! Request hoàn toàn chưa từng rời khỏi máy client. Server trả về header `Cache-Control: public, max-age=3600` từ phản hồi trước, khiến trình duyệt tự phục vụ từ ổ đĩa local.
+- **Cách khắc phục chuẩn:**
+  1. Kiểm tra cột Size/Transferred trong DevTools trước tiên: nếu là `(from disk cache)` hoặc `(from memory cache)`, đây là hành vi local cache.
+  2. Bổ sung `Cache-Control: no-cache` hoặc `private, no-store` cho các endpoint API trả dữ liệu người dùng nhạy cảm để trình duyệt luôn luôn gửi request xác thực.
 
 ### 1. Did a network request occur?
 
@@ -315,9 +364,33 @@ Answer:
 3. Why does `304 Not Modified` not mean “the browser received a second full copy of the body”?
 4. What evidence would you need before claiming the request reached the application service rather than being handled by an intermediary validator?
 
+<details>
+<summary>Show the reasoning</summary>
+
+1. **Proof of network HTTP exchange:**  
+   The `304 Not Modified` status code is only produced when a conditional request (e.g., carrying `If-None-Match` or `If-Modified-Since`) traverses the network and receives a server/intermediary response. If the request was satisfied entirely by the local browser cache without network involvement, DevTools would show `200 OK (from disk cache)`.
+2. **Avoided connection-setup stages:**  
+   Because the browser reports that an existing HTTP/2 connection identifier was reused, this exchange incurred zero latency for DNS resolution, TCP three-way handshake, and TLS session negotiation.
+3. **Why 304 does not transfer the full body:**  
+   A `304 Not Modified` response conveys that the client's cached representation remains fresh. Its response body is empty (zero payload bytes). The browser satisfies rendering by reading the full body from its local cache storage.
+4. **Distinguishing application service from intermediary:**  
+   You would need end-to-end evidence such as an application trace ID or matching timestamped access log from the application service container. If an edge CDN or reverse proxy stored the ETag validation mapping, that intermediary can return `304` directly without forwarding the request to the application origin.
+
+</details>
+
 ## Agent rule
 
-When debugging or changing code around an HTTP request, do not assume a universal `DNS -> connect -> TLS -> origin` sequence. Determine whether a cache satisfied the request, whether a suitable connection was reused, which HTTP version carried the exchange, which intermediary or origin generated the response, and whether the observed failure is network-level, HTTP-level, or application-level. Treat DNS, transport, and secure-session setup as adjacent conditional stages, not HTTP semantics themselves.
+> When debugging or changing code around an HTTP request, do not assume a universal `DNS -> connect -> TLS -> origin` sequence. Determine whether a cache satisfied the request, whether a suitable connection was reused, which HTTP version carried the exchange, which intermediary or origin generated the response, and whether the observed failure is network-level, HTTP-level, or application-level. Treat DNS, transport, and secure-session setup as adjacent conditional stages, not HTTP semantics themselves.
+
+When debugging or changing code around an HTTP request, verify against this checklist:
+
+- [ ] **Client cache verification:** Did the request reach the physical network, or was it answered by `disk cache` / `memory cache`?
+- [ ] **Connection reuse check:** Did this request reuse an existing socket/TLS session or require fresh DNS, TCP, and TLS handshakes?
+- [ ] **Protocol version awareness:** Is the exchange running over HTTP/1.1 (sequential pipeline), HTTP/2 (multiplexed TCP streams), or HTTP/3 (QUIC UDP streams)?
+- [ ] **Intermediary vs Origin boundary:** Does the response status and headers come from an Edge CDN, API Gateway, WAF, or the origin backend?
+- [ ] **Revalidation and freshness:** Are `ETag`, `Last-Modified`, and `Cache-Control` configured so stale entries can be verified with lightweight `304 Not Modified`?
+- [ ] **Failure tier isolation:** Is an observed issue a network/connection disconnect, an HTTP protocol error (e.g., 502/504), or a domain business logic error in a 200 body?
+- [ ] **Safe retry semantics:** Are automated retries restricted strictly to idempotent requests or protected by idempotency keys?
 
 ## Related concepts
 

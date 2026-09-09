@@ -67,6 +67,11 @@ C: 0 ─── 300
 
 Elapsed time is about `max(800, 400, 300) = 800ms`. The waiting periods overlap, saving roughly `700ms` in this simplified model.
 
+> 🖼️ **[Illustration Placeholder: DevTools Network Waterfall vs Parallel Overlap]**  
+> *Mô tả hình minh họa:* So sánh trực quan tab Network trong DevTools giữa 2 luồng:
+> - **Bậc thang nối tiếp (Waterfall):** Request A (800ms) -> Request B (400ms) -> Request C (300ms) xếp thành bậc thang chéo tổng cộng 1500ms.
+> - **Song song (Overlapped):** Request A, B, C cùng xuất phát tại t = 0ms, kết thúc khi request A dài nhất xong (800ms).
+
 <TermBox term="Dependency graph">
 A **dependency graph** describes which operations require results from other operations before they can start. An arrow `A → B` means B needs something produced by A.
 
@@ -216,6 +221,11 @@ The **critical path** is the longest chain of dependent operations that determin
 **Why it matters here:** end-to-end latency is often determined by the slowest required dependency chain, not by the sum of every operation the system performs. Starting independent work earlier can shorten elapsed time without breaking the real chain.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Directed Acyclic Graph (DAG) Scheduling with Critical Path]**  
+> *Mô tả hình minh họa:* Sơ đồ đồ thị DAG thể hiện luồng thực thi:
+> - Nhánh phụ thuộc: `getUser(id)` (500ms) -> `getOrganization(user.orgId)` (400ms) tạo thành Critical Path (900ms).
+> - Các nhánh độc lập: `getFeatureFlags(id)` (300ms) và `getRecommendations(id)` (700ms) được kích hoạt ngay từ t = 0 và hoàn thành trước khi Critical Path kết thúc.
+
 ## `Promise.all()` is a tool, not the rule
 
 `Promise.all(iterable)` returns a promise that fulfills when all of its inputs fulfill. The fulfillment values are returned in the same order as the inputs, regardless of which input settles first.
@@ -244,6 +254,8 @@ Use `Promise.all()` when its aggregation and failure semantics match the work. D
 
 ## Production considerations
 
+> **Production scenario:** An analytics reporting service had to fetch user history for 2,000 active members. A developer replaced a slow sequential loop with `await Promise.all(members.map(fetchHistory))`. In staging with 10 test users, the code ran in 45ms. But in production with 2,000 users, it fired 2,000 simultaneous socket connections, instantly crashed the internal auth microservice with `ECONNRESET`, and caused an outage across all dependent company services.
+
 Concurrency has costs. Removing a waterfall can make one request faster while placing more simultaneous pressure on other resources.
 
 <TermBox term="Fan-out">
@@ -251,6 +263,9 @@ Concurrency has costs. Removing a waterfall can make one request faster while pl
 
 **Why it matters here:** reducing a waterfall by starting everything at once can overwhelm connection pools, sockets, databases, remote APIs, memory, or CPU when the fan-out is large.
 </TermBox>
+
+> 🖼️ **[Illustration Placeholder: Bounded Concurrency Semaphore / Worker Pool]**  
+> *Mô tả hình minh họa:* Sơ đồ cơ chế kiểm soát fan-out: Một mảng 1,000 requests độc lập được điều phối qua một Semaphore/Worker Pool với `concurrency = 5`. Tại mỗi thời điểm chỉ có tối đa 5 kết nối đang mở tới database, các tác vụ còn lại nằm trong hàng đợi chờ slot trống, giữ cho latency ổn định mà không làm sập downstream.
 
 <TermBox term="Backpressure">
 **Backpressure** is a way for a system to limit or slow incoming/concurrent work when a downstream resource cannot safely process more of it yet.
@@ -330,12 +345,13 @@ Notice that this is **not** equivalent to putting all four calls into one `Promi
 
 > When asynchronous operations are independent, start them before awaiting unrelated earlier results. Preserve sequential awaits when later work depends on earlier results or when ordering/backpressure is intentional. Do not introduce unbounded concurrency merely to reduce latency, and do not assume `Promise.all()` rejection cancels already-started work.
 
-When reviewing code, ask these questions before changing scheduling:
+When reviewing code, use this checklist before changing scheduling:
 
-1. Does operation B need A's result, or is the ordering accidental?
-2. Are there side effects or error semantics that make overlap unsafe?
-3. Could the proposed fan-out overwhelm a bounded resource?
-4. Is there independent work that can start while a required dependency chain is running?
+- [ ] **Accidental vs. real dependency:** Does operation B actually need operation A's return value, or is sequential ordering merely accidental?
+- [ ] **Side effects & isolation:** Are there state mutations or database write constraints that make concurrent execution unsafe?
+- [ ] **Fan-out bounds:** Could the number of concurrent operations overwhelm network sockets, connection pools, or downstream API rate limits?
+- [ ] **Overlapping opportunities:** Is there independent work that can start immediately while a required dependency chain is running?
+- [ ] **Cancellation & early exit:** What happens if one operation fails—should in-flight requests be cancelled via `AbortSignal`?
 
 ## Related concepts
 

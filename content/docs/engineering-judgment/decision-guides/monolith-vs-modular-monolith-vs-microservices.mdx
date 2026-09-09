@@ -60,6 +60,9 @@ Write down the forces before choosing an architecture label:
 **Why it matters here:** this is one of the main benefits microservices can buy. If the team still coordinates every change across services, the network boundaries may add cost without delivering the intended autonomy.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Architectural Boundary Comparison]**  
+> *Mô tả hình minh họa:* Sơ đồ trực quan so sánh 3 mô hình kiến trúc: Monolith (tất cả module chung 1 process & 1 DB), Modular Monolith (các module phân tách ranh giới rõ ràng nhưng chung 1 deployment & chia sẻ DB transaction), và Microservices (các service độc lập giao tiếp qua mạng/event với DB riêng biệt).
+
 ## The options
 
 ### Monolith
@@ -186,7 +189,15 @@ Examples of measurable value include shorter release lead time, reduced coordina
 **Why it matters here:** separating a service can reduce some runtime failure scope, but it can also create new dependency failures. A smaller process boundary does not automatically produce a smaller end-to-end incident.
 </TermBox>
 
+> 🖼️ **[Illustration Placeholder: Blast Radius & Failure Cascade Comparison]**  
+> *Mô tả hình minh họa:* Sơ đồ trực quan so sánh 2 kịch bản sự cố:
+> - **Monolith Failure:** Một bug rò rỉ bộ nhớ (Memory Leak) trong module báo cáo (Reports) khiến cả process ứng dụng bị OOM crash -> Toàn bộ luồng Checkout và Auth của khách hàng bị tê liệt.
+> - **Isolated Microservices with Circuit Breaker:** Service Reports gặp sự cố và sập hoàn toàn, nhưng Gateway kích hoạt Circuit Breaker trả về fallback -> Core Checkout & Auth vẫn duy trì 100% SLA.
+
 ## Microservices change the consistency and recovery model
+
+> 🖼️ **[Illustration Placeholder: Local ACID Transaction vs Distributed Saga / Outbox Flow]**  
+> *Mô tả hình minh họa:* Sơ đồ đối chiếu sự khác biệt khi gọi hàm nội bộ (1 lệnh Commit/Rollback nguyên khối duy nhất trong DB) so với khi phân tán qua mạng (Service A ghi nhận thành công -> Service B gặp sự cố timeout -> Cần cơ chế bù trừ Compensating Action / Saga để khôi phục trạng thái nhất quán).
 
 Inside one process, a normal function call completes under one runtime failure boundary. Across a service boundary, the caller can time out without knowing the remote outcome.
 
@@ -208,6 +219,9 @@ Distributed boundaries introduce design work around timeouts, retry budgets, ide
 
 ### Treating microservices as an organizational shortcut
 
+> 🖼️ **[Illustration Placeholder: The "Distributed Monolith" Anti-Pattern]**  
+> *Mô tả hình minh họa:* Sơ đồ kiến trúc "Distributed Monolith": 6 microservices bề ngoài được đóng gói thành các deployable riêng biệt, nhưng bên trong bị trói chặt bởi chuỗi gọi đồng bộ HTTP dây chuyền (Service A gọi B -> B gọi C -> C gọi D), dùng chung 1 cơ sở dữ liệu và yêu cầu release đồng loạt (Lockstep deployment). Hậu quả: Độ trễ cộng dồn, tỷ lệ lỗi nhân lên theo cấp số nhân, mất hoàn toàn tính tự chủ mà chi phí vận hành tăng gấp 5 lần.
+
 A network boundary does not create a coherent business boundary or clear ownership. If the model is tightly coupled, service APIs can preserve that coupling while making changes and failures harder to coordinate.
 
 ### Mistaking repository size for deployment pressure
@@ -216,6 +230,8 @@ A large codebase may need module boundaries, build tooling, ownership, and depen
 
 ### Using independent databases as an ideology
 
+> **Production scenario:** A 15-engineer startup split their core application into 12 microservices before finding product-market fit. During a routine user registration flow, the `auth-service` succeeded in creating a credential, but the downstream `profile-service` timed out due to network jitter. Without a distributed transaction or saga recovery mechanism, the user was left in a zombie state—unable to log in and unable to re-register because the email was already taken. The team spent 30% of their engineering sprint time reconciling data across separate databases.
+
 Service-owned data can improve autonomy when a service truly owns its business capability. But cross-service workflows must then model consistency and recovery explicitly.
 
 ### Extracting before observing the pressure
@@ -223,6 +239,21 @@ Service-owned data can improve autonomy when a service truly owns its business c
 Early service boundaries often encode assumptions rather than durable capabilities. A modular codebase lets you gather evidence about ownership, release cadence, scaling, and failure isolation before committing to a network boundary.
 
 ## Practical heuristic
+
+```mermaid
+graph TD
+  Start["Evaluate architecture pressure & constraints"] --> CoordPain{"Is shared deployment causing measured delivery pain across multiple teams?"}
+  CoordPain -- No --> DomainStability{"Are domain boundaries already clear and stable?"}
+  DomainStability -- No --> Monolith["Monolith<br/>(Fast iteration, single deployment, local transactions)"]
+  DomainStability -- Yes --> ModMonolith["Modular Monolith<br/>(Strict module boundaries, shared deployment, low ops burden)"]
+  CoordPain -- Yes --> IsolatedWorkload{"Do selected workloads need radically different scaling, runtime, or blast radius?"}
+  IsolatedWorkload -- Yes --> OpsCapacity{"Can the organization operate distributed tracing, CI/CD, and partial failure recovery?"}
+  IsolatedWorkload -- No --> BoundaryTest{"Can boundaries be cleanly enforced inside one codebase first?"}
+  BoundaryTest -- No --> ModMonolith
+  BoundaryTest -- Yes --> OpsCapacity
+  OpsCapacity -- Yes --> Microservices["Microservices<br/>(Independent deployment, explicit network contracts, isolated state)"]
+  OpsCapacity -- "No (ops burden exceeds benefit)" --> ModMonolith
+```
 
 Ask these questions in order:
 
@@ -234,16 +265,35 @@ Ask these questions in order:
 
 The extraction threshold is reached when **independent deployment creates measurable value** that a local module boundary cannot provide at lower cost.
 
-## Questions to ask before choosing
+## Check your mental model
 
-- Are the domain boundaries stable enough to defend with interfaces?
-- Is coordinated deployment actually delaying releases or increasing risk?
-- Which transactions would cross a service boundary?
-- What happens when one side succeeds and the other side times out?
-- How will traces/logs correlate one user action across services?
-- Does each service have a durable owning team and incident responsibility?
-- Are independent scaling/availability requirements observed or speculative?
-- Could architecture tests enforce the desired boundary inside one deployment first?
+> **Scenario:** A team of 6 engineers manages an e-commerce platform deployed as a single monolith. Builds take 12 minutes, and deployments happen once every two days. An engineer proposes: *"Let's break the monolith into 8 microservices immediately so our builds run faster and each developer can deploy independently."*
+>
+> **How should an architecture reviewer evaluate this proposal?**
+
+<details>
+<summary>Show the reasoning</summary>
+
+**Why this proposal is premature and likely counterproductive:**
+
+1. **Team size vs. operational overhead:** A 6-engineer team usually lacks the dedicated platform capacity to operate 8 distinct CI/CD pipelines, service discovery, distributed tracing, independent databases, and separate on-call rotations.
+2. **Cheaper solutions to the actual problem:** A 12-minute build and deployment every two days is not severe deployment contention. It can often be improved directly within the monolith (e.g., test parallelization, caching, or modular packaging).
+3. **Distribution tax:** Moving to 8 microservices replaces local in-process calls with network requests, introducing latency, partial failure modes, and distributed data consistency challenges that far outweigh the build-time savings.
+4. **Better path:** Implement a **Modular Monolith** first: enforce clear boundaries between modules (e.g., catalog, cart, checkout) using package boundaries and lint rules while keeping a single deployable. Extract a specific service only when a concrete boundary demonstrates independent scaling or release requirements.
+</details>
+
+## Decision review checklist
+
+Use this checklist during architecture design reviews before committing to deployment boundaries:
+
+- [ ] **Boundary stability:** Are the domain boundaries stable enough to defend with interfaces before extracting them across a network?
+- [ ] **Measured delivery friction:** Is coordinated deployment actually delaying releases or increasing risk for separate owning teams?
+- [ ] **Transaction boundaries:** Which transactions would cross a service boundary, and what is the recovery mechanism if a downstream step fails?
+- [ ] **Partial failure handling:** What happens when an upstream service succeeds and a downstream service times out with an ambiguous result?
+- [ ] **Cross-service telemetry:** How will correlation IDs, distributed traces, and logs trace a single user action across services?
+- [ ] **Incident ownership:** Does each service have a durable owning team with direct on-call and runbook responsibility?
+- [ ] **Empirical scaling requirements:** Are independent scaling/availability requirements observed in production metrics or merely speculative?
+- [ ] **In-code enforcement first:** Have module boundaries and dependency rules been tested and enforced inside a single deployment before splitting?
 
 ## Related concepts
 
