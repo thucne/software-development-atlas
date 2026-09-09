@@ -5,7 +5,7 @@ const lessonPath = appUrl('/docs/programming/async/promises');
 const canonicalLessonUrl =
   'https://thucde.dev/learn/docs/programming/async/promises';
 const ogImageUrl =
-  'https://thucde.dev/learn/og/software-development-atlas.jpg';
+  'https://thucde.dev/learn/og/software-development-atlas';
 
 test('emits canonical and social preview metadata for lessons', async ({ page }) => {
   await page.goto(lessonPath);
@@ -36,14 +36,17 @@ test('emits canonical and social preview metadata for lessons', async ({ page })
   );
 });
 
-test('serves the optimized Open Graph image', async ({ request }) => {
+test('serves the Open Graph image at exactly 1200 by 630', async ({ request }) => {
   const response = await request.get(
-    appUrl('/og/software-development-atlas.jpg'),
+    appUrl('/og/software-development-atlas'),
   );
+  const body = await response.body();
 
   expect(response.ok()).toBeTruthy();
-  expect(response.headers()['content-type']).toContain('image/jpeg');
-  expect((await response.body()).byteLength).toBeGreaterThan(50_000);
+  expect(response.headers()['content-type']).toContain('image/png');
+  expect([...body.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect(body.readUInt32BE(16)).toBe(1200);
+  expect(body.readUInt32BE(20)).toBe(630);
 });
 
 test('publishes canonical lesson URLs in the sitemap', async ({ request }) => {
