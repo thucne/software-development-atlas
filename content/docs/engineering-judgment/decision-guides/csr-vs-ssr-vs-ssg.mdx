@@ -29,135 +29,172 @@ concepts:
 
 ## TL;DR
 
-Do not choose CSR, SSR, or SSG by asking which one is "modern." Ask **when the HTML must be produced, how personalized it is, how fresh it must be, how much JavaScript is required for useful interaction, and where you want to spend operational complexity**.
+Do not choose CSR, SSR, or SSG by asking which one is "modern." Ask **when useful HTML must exist, whether that HTML depends on request-time state, how much staleness the product allows, how much client JavaScript is required, and which work you are prepared to operate at build time, request time, and in the browser**.
 
-A useful default is to choose the cheapest rendering point that still satisfies the product constraints. Static output is powerful when many users can share the same representation. Request-time server rendering is useful when the initial HTML genuinely depends on request-time state. Client rendering is useful when the screen behaves mainly like an application after a lightweight shell is loaded.
+A practical starting rule is:
 
-Modern frameworks can mix these strategies by route, component, or data dependency. The architectural decision is therefore often **per surface**, not one label for the entire product.
+- prefer static generation when the same generated representation can be reused across many requests and its freshness can be maintained by publishing or revalidation;
+- use request-time server rendering when useful initial HTML must include request-time state that cannot safely or acceptably be represented by a shared static response;
+- center client-side rendering when the initial document can be a generic shell and most product value appears after client code and data have loaded.
+
+These are not mutually exclusive product identities. Modern applications commonly mix them by route, component, and data dependency.
 
 ## Decision frame
 
 Before naming a framework, write down the constraints:
 
-- Must anonymous search crawlers receive meaningful content without running application JavaScript?
-- Is the first useful view the same for many users or personalized per request?
-- How quickly can content become stale before that is a product problem?
-- Is the page mainly reading/navigation, or is it a highly interactive application workspace?
-- Can responses be reused through HTTP/CDN caching?
-- What latency budget exists between a request and the first useful HTML?
-- Do you want rendering capacity at build time, request time, or mostly in the browser?
+- What must be present in the initial HTML before application JavaScript runs?
+- Is that initial representation public and shared, or does it depend on the current request/user?
+- How stale may the representation become before the product is wrong or misleading?
+- Is the page mainly reading/navigation, or a long-lived interactive workspace?
+- Which responses can be reused safely through HTTP/CDN caching, and what changes the cache key?
+- What latency budget exists between request arrival and useful HTML?
+- How much client JavaScript is required before the important interactions work?
+- Which failures can the team operate reliably: build/revalidation failures, request-time rendering failures, client data-loading failures, or some combination?
 
-Those answers usually narrow the choice more reliably than a framework feature checklist.
+Those answers narrow the choice more reliably than a framework feature checklist.
 
 ## The options
 
 ### Client-side rendering (CSR)
 
-The server typically sends a relatively small HTML shell plus JavaScript. The browser executes application code, obtains data, and builds or updates the visible UI.
+With CSR, the server usually sends a generic HTML shell plus JavaScript. The browser runs application code, obtains data, and creates or updates the useful UI.
 
-CSR is attractive when the product is interaction-heavy, authentication already gates most content, SEO is secondary, and the browser will remain active for a long session. Its main architectural cost is that **initial usefulness depends more heavily on JavaScript execution and client-side data acquisition**.
+Choose CSR as the center of gravity when the initial HTML does not need request-specific application state and the product already depends on a long-lived client session, rich local state, and repeated API interaction. The cost is explicit: initial usefulness depends more heavily on JavaScript download/execution and client-side data acquisition.
 
 ### Server-side rendering (SSR)
 
-The server produces useful HTML for a request, often using request-time data, and sends it to the browser. Interactive applications commonly execute client JavaScript afterward to attach behavior to that server-rendered HTML; in React terminology, that attachment process is hydration.
+With SSR, the server produces useful HTML for a request and may incorporate request-time data. Interactive applications commonly execute client JavaScript afterward to attach behavior to that server-rendered HTML; in React, that attachment process is hydration.
 
-SSR is attractive when request-time personalization or freshness matters and useful HTML should arrive before the full client application is ready. The trade-off is that rendering becomes part of the request path, so server capacity, cache policy, latency, and failure behavior become more important.
+Choose SSR for a surface when useful initial HTML must include request-time state, or when moving data access into the server request path avoids an unacceptable browser-to-API waterfall. Rendering then becomes part of the request path, so server capacity, cache policy, latency, timeout behavior, and rendering failures become production concerns.
 
 ### Static site generation / prerendering (SSG)
 
-HTML is produced before an individual request, usually during a build or revalidation process, and can then be served as a static artifact.
+With SSG, HTML is produced before an individual request, usually during a build, publish, or revalidation process. The generated artifact can then be served without performing a full page render for every request.
 
-SSG is attractive when many users can share the same content and freshness can be handled through publishing/revalidation rather than request-time rendering. It shifts work away from the request path and makes broad caching easy, but highly personalized or continuously changing pages need another mechanism.
+Choose SSG when many requests can safely receive the same generated representation and the allowed staleness window can be met through publishing or revalidation. This moves page-generation work out of the request path and makes shared caching straightforward. Request-specific or continuously changing regions need another mechanism.
 
 <DecisionMatrix
   caption="CSR vs SSR vs SSG decision matrix"
   options={['CSR', 'SSR', 'SSG']}
   rows={[
     {
-      criterion: 'Per-request personalization',
-      values: ['Natural after client data loads', 'Strong fit', 'Weak fit without a dynamic layer'],
+      criterion: 'Request-specific initial HTML',
+      values: [
+        'Initial shell is usually generic; request-specific data arrives after client code runs',
+        'Can include request-time state in the initial HTML',
+        'Needs a dynamic layer when the initial response must differ per request',
+      ],
     },
     {
-      criterion: 'Very fresh request-time data',
-      values: ['Strong after API fetch', 'Strong fit', 'Requires revalidation or client fetch'],
+      criterion: 'Very fresh data',
+      values: [
+        'Client can fetch current data after startup',
+        'Server can fetch current data on the request path, subject to cache policy',
+        'Requires sufficiently frequent publish/revalidation or a dynamic/client data path',
+      ],
     },
     {
-      criterion: 'Useful initial HTML',
-      values: ['Often limited until JavaScript runs', 'Strong fit', 'Strong fit'],
+      criterion: 'Useful HTML before app JavaScript runs',
+      values: [
+        'Limited to what the shell already contains',
+        'Available when the server render succeeds',
+        'Available from the generated artifact',
+      ],
     },
     {
-      criterion: 'Heavy application interactivity',
-      values: ['Strong fit', 'Strong after client activation', 'Needs client JavaScript for interactive regions'],
+      criterion: 'Long-lived application interactivity',
+      values: [
+        'Client runtime naturally owns the ongoing UI session',
+        'Still requires client activation for interactive regions',
+        'Still requires client JavaScript for interactive regions',
+      ],
     },
     {
-      criterion: 'Shared CDN/cache reuse',
-      values: ['Shell and assets cache well; data varies', 'Depends on response variability and cache policy', 'Excellent when content is shared'],
+      criterion: 'Shared response reuse',
+      values: [
+        'Shell/assets can be shared; personalized API data is separate',
+        'Depends on which request attributes vary the rendered response and cache key',
+        'High when the same generated representation can be reused',
+      ],
     },
     {
-      criterion: 'Request-time server rendering work',
-      values: ['Low for the UI shell', 'Highest of the three', 'Very low after generation'],
+      criterion: 'Page-generation work on each request',
+      values: [
+        'No full page render is required on the server; APIs may still do request-time work',
+        'Present unless a cached rendered response is reused',
+        'Absent for normal delivery after generation; revalidation/publishing does the generation work',
+      ],
     },
     {
       criterion: 'Freshness mechanism',
-      values: ['Client data requests', 'Render on request or cached SSR', 'Build, publish, or revalidate'],
+      values: [
+        'Client data requests and client cache policy',
+        'Request-time data access and/or cached SSR',
+        'Build, publish, or revalidation plus optional dynamic regions',
+      ],
     },
     {
-      criterion: 'Operational complexity',
-      values: ['Client state and API orchestration', 'Rendering capacity plus client behavior', 'Build/revalidation pipeline plus dynamic escape hatches'],
+      criterion: 'Primary operational burden',
+      values: [
+        'Client bundle/data-loading/state failures plus backend APIs',
+        'Latency-sensitive render capacity, data access, caching, and client activation',
+        'Build/revalidation correctness plus any dynamic escape hatches',
+      ],
     },
   ]}
 />
 
-## Strong-fit scenarios
+## When each option fits
 
 ### Prefer CSR when
 
-- the product is an authenticated dashboard or editor where most value appears after interaction begins;
-- the initial HTML does not need to contain user-specific application data;
-- the application already depends on rich client state and frequent API interactions;
-- you can invest in bundle discipline, loading states, error handling, and client performance.
+- the product is an authenticated dashboard, editor, or workspace where most value appears after interaction begins;
+- the initial HTML does not need user-specific application state;
+- rich client state and repeated API interactions are already central to the product;
+- the team can keep JavaScript size, loading states, errors, and client performance within product budgets.
 
 A CSR choice does **not** mean "put all logic in the browser." Authentication, authorization, durable state, and trust boundaries remain backend concerns.
 
 ### Prefer SSR when
 
-- the initial response must contain request-specific or rapidly changing content;
-- useful content should appear before the client application is fully interactive;
-- request-time server access can avoid a slower browser-to-API waterfall;
-- you are prepared to operate rendering as part of the latency-sensitive request path.
+- useful initial HTML must include request-specific or rapidly changing state;
+- delivering that HTML before the client runtime becomes ready matters to the user experience;
+- request-time server data access avoids an otherwise unacceptable client-side data waterfall;
+- the team can operate rendering as part of the latency-sensitive request path.
 
-SSR does not automatically make a page fast. Expensive data fetching, serial server work, poor caching, or a large hydration payload can still create a slow experience.
+SSR does not guarantee a fast page. Slow server data fetching, serial work, poor caching, or a large client activation payload can still dominate latency and interactivity.
 
 ### Prefer SSG when
 
-- content is largely shared across users;
-- publishing or periodic revalidation is an acceptable freshness model;
-- pages benefit from broad edge/CDN reuse;
-- you want request-time behavior to stay simple and inexpensive.
+- many requests can receive the same initial representation;
+- publishing or revalidation can satisfy the freshness contract;
+- broad CDN/cache reuse is safe for that representation;
+- avoiding page-generation work on the normal request path simplifies operations or improves latency consistency.
 
-Documentation, marketing pages, public reference material, and many catalog/detail pages are common candidates, although the exact fit depends on freshness and personalization requirements.
+Documentation, marketing pages, public reference material, and some catalog/detail pages often meet these conditions. The decision still depends on their actual freshness and personalization requirements.
 
-## The hybrid answer is often the correct one
+## Hybrid rendering is normal
 
-The three labels describe **where initial rendering work happens**, not mutually exclusive product identities.
+The labels describe **where particular rendering work happens**, not mutually exclusive application identities.
 
-A product can statically generate public documentation, server-render personalized account pages, and client-render a complex editor. A single route can also start with server/static HTML and then use client-side data fetching for information that must update continuously.
+A product can statically generate public documentation, server-render a request-specific account page, and run a client-rendered editor after navigation. A single route can also start from shared or server-rendered HTML and then use client-side data fetching for regions that update continuously.
 
-The architectural skill is not picking one acronym. It is recognizing which data and UI boundaries deserve which rendering lifecycle.
+The useful design unit is therefore the **surface and its data**, not an architecture acronym for the whole product.
 
 ## Failure modes and hidden costs
 
 ### Treating SEO as the only reason for server/static HTML
 
-Search visibility can matter, but users also benefit from receiving meaningful HTML before a large client runtime becomes ready. Conversely, SSR is not justified merely because a page is public.
+Search visibility can matter, but users may also benefit when useful HTML exists before a large client runtime is ready. Conversely, a public page does not automatically require SSR; shared static HTML may satisfy the same requirement with less request-time work.
 
 ### Ignoring hydration and client activation cost
 
-Server-rendered HTML can still require substantial JavaScript before interactions work. Hydration also assumes that the client and server agree on the initial rendered structure. If they diverge, frameworks may warn or recover imperfectly.
+Server-rendered HTML can still require substantial JavaScript before interactions work. React's `hydrateRoot()` requires the initial client output to match the server-rendered markup; mismatches are bugs, and React does not guarantee that every mismatch will be patched automatically.
 
 ### Assuming static means stale forever
 
-Static generation is a production strategy, not a promise that content never changes. Build hooks, incremental/revalidation mechanisms, and targeted client data fetching can provide controlled freshness. The important question is the **freshness contract**, not whether the word "static" appears in the architecture.
+Static generation is a production strategy, not a promise that content never changes. Publishing, revalidation, and targeted dynamic/client data paths can provide controlled freshness. The important contract is **how stale the user-visible representation may become and what updates it**.
 
 ### Assuming CSR removes server complexity
 
@@ -165,23 +202,23 @@ The browser may render the UI, but APIs still need authentication, authorization
 
 ## Practical heuristic
 
-Start with these questions in order:
+Use these questions in order:
 
-1. **Can many users share the same initial representation?** If yes, consider static generation and caching first.
-2. **Must the initial representation depend on request-time state?** If yes, consider SSR for that surface.
-3. **Is the main value delivered after a long interactive session?** If yes, CSR may be the simplest center of gravity.
-4. **Can the route be split?** Keep stable/shared content static or server-rendered and move only truly interactive or continuously fresh regions to the client.
-5. **What happens when rendering or data fetching fails?** Choose a model whose failure mode you can observe and operate.
+1. **Can the same initial representation be reused across many requests?** If yes, test whether static generation plus caching can satisfy the freshness requirement.
+2. **Must useful initial HTML include request-time state?** If yes, consider SSR for that surface.
+3. **Can the initial document be generic while most value appears during a long client session?** If yes, CSR may be the simplest center of gravity.
+4. **Can the route be split by data lifecycle?** Keep shared/stable regions static or cached and use request-time/client work only where their data requirements demand it.
+5. **What fails when this rendering path fails?** Choose a model whose generation, caching, data access, and client-activation failures the team can detect and recover from.
 
 ## Questions to ask before choosing
 
-- What must be visible before JavaScript executes?
-- Which data is public, shared, personalized, or continuously changing?
+- What must be visible before application JavaScript executes?
+- Which initial data is public/shared, request-specific, or continuously changing?
 - What is the allowed staleness window?
-- Which responses can be cached safely, and what changes the cache key?
-- How large is the client JavaScript required for interactivity?
+- Which responses can be cached safely, and what changes their cache key?
+- How much client JavaScript is required for the important interactions?
 - What work is on the critical request path?
-- Can the team diagnose failures separately in rendering, data access, and client activation?
+- Can the team diagnose rendering, data-access, cache, and client-activation failures separately?
 
 ## Related concepts
 
