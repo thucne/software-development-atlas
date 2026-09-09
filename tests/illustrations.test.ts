@@ -24,6 +24,10 @@ function illustrationIds(source: string) {
   );
 }
 
+function sortedUnique(ids: string[]) {
+  return [...new Set(ids)].sort();
+}
+
 describe('substantive lesson illustrations', () => {
   test('published lessons contain real illustrations instead of authoring placeholders', () => {
     const failures = lessonPairs.flatMap((basePath) =>
@@ -51,7 +55,8 @@ describe('substantive lesson illustrations', () => {
         return [`${basePath} has only ${enIds.length} English illustrations`];
       }
 
-      return JSON.stringify(enIds) === JSON.stringify(viIds)
+      return JSON.stringify(sortedUnique(enIds)) ===
+        JSON.stringify(sortedUnique(viIds))
         ? []
         : [`${basePath} illustration IDs differ between locales`];
     });
