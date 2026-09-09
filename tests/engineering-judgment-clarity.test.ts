@@ -52,7 +52,7 @@ describe('Engineering Judgment clarity migration', () => {
 
     expect(source).not.toContain('delivery may be at least once');
     expect(source).toContain('can deliver the same message more than once');
-    expect(source).toContain('when the selected broker or delivery mode can redeliver');
+    expect(source).toContain('When the selected broker or delivery mode can redeliver');
     expect(source).toContain('Amazon SQS at-least-once delivery');
   });
 });
