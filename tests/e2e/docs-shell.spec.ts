@@ -2,6 +2,14 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { appUrl } from './app-path';
 
+async function fixBrowserClock(page: Parameters<typeof test>[0]['page'], iso: string) {
+  const fixedNow = Date.parse(iso);
+
+  await page.addInitScript((timestamp) => {
+    Date.now = () => timestamp;
+  }, fixedNow);
+}
+
 test('renders the docs shell and Start Here navigation', async ({ page }) => {
   await page.goto(appUrl('/docs'));
 
@@ -15,6 +23,9 @@ test('renders the docs shell and Start Here navigation', async ({ page }) => {
   ).toBeVisible();
   await expect(
     page.locator(`a[href="${appUrl('/docs/start-here/freshness')}"]`).first(),
+  ).toBeVisible();
+  await expect(
+    page.locator(`a[href="${appUrl('/docs/start-here/about')}"]`).first(),
   ).toBeVisible();
 });
 
@@ -79,24 +90,54 @@ test('serves clean Markdown for a docs page', async ({ request }) => {
   expect(await response.text()).toContain('# Content Freshness');
 });
 
-test('exposes the GitHub page action', async ({ page }) => {
+test('shows a visible GitHub edit action for the canonical MDX file', async ({
+  page,
+}) => {
   await page.goto(appUrl('/docs/start-here/freshness'));
 
-  const expectedPrefix =
+  await expect(
+    page.getByRole('link', { name: 'Edit on GitHub' }),
+  ).toHaveAttribute(
+    'href',
     'https://github.com/thucne/software-development-atlas/edit/main/' +
-    'content/docs/';
+      'content/docs/start-here/freshness.mdx',
+  );
+});
 
-  let githubLink = page.locator(`a[href^="${expectedPrefix}"]`);
+test('shows lesson freshness, Atlas verification, and maintainer attribution', async ({
+  page,
+}) => {
+  await fixBrowserClock(page, '2026-09-09T12:00:00.000Z');
+  await page.goto(appUrl('/docs/start-here/freshness'));
 
-  if ((await githubLink.count()) === 0) {
-    const optionButton = page.getByRole('button', {
-      name: /options|more|open/i,
-    }).last();
-    await optionButton.click();
-    githubLink = page.locator(`a[href^="${expectedPrefix}"]`);
-  }
+  const freshness = page.getByLabel('Lesson freshness');
 
-  await expect(githubLink.first()).toBeVisible();
+  await expect(freshness).toContainText('Evergreen');
+  await expect(freshness).toContainText('Verified Aug 19, 2026');
+  await expect(freshness).toContainText('Review target 365 days');
+  await expect(freshness).toContainText('Current');
+  await expect(page.getByText('Atlas latest verification Sep 9, 2026')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Tran Trong Thuc (@thucne)' }),
+  ).toHaveAttribute('href', 'https://github.com/thucne');
+});
+
+test('warns when a lesson is approaching its review target', async ({ page }) => {
+  await fixBrowserClock(page, '2027-08-01T12:00:00.000Z');
+  await page.goto(appUrl('/docs/start-here/freshness'));
+
+  await expect(page.getByLabel('Lesson freshness')).toContainText(
+    'Review due soon',
+  );
+});
+
+test('warns when lesson verification is overdue', async ({ page }) => {
+  await fixBrowserClock(page, '2027-08-20T12:00:00.000Z');
+  await page.goto(appUrl('/docs/start-here/freshness'));
+
+  await expect(page.getByLabel('Lesson freshness')).toContainText(
+    'Verification overdue',
+  );
 });
 
 test('has no automatically detectable serious accessibility violations', async ({
