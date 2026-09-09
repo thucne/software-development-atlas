@@ -10,191 +10,119 @@ async function step(page: Page, count: number) {
   }
 }
 
-test('exposes the browser event loop lesson in docs navigation', async ({
-  page,
-}) => {
+test('exposes the browser event loop lesson in docs navigation', async ({ page }) => {
   await page.goto(appUrl('/docs'));
-
-  await page
-    .getByRole('button', { name: 'Programming', exact: true })
-    .first()
-    .click();
-  await page
-    .getByRole('button', { name: 'Asynchronous Programming', exact: true })
-    .first()
-    .click();
-
+  await page.getByRole('button', { name: 'Programming', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Asynchronous Programming', exact: true }).first().click();
   const lessonLink = page.locator(`a[href="${lessonPath}"]`).first();
   await expect(lessonLink).toBeVisible();
   await lessonLink.click();
-
   await expect(page).toHaveURL(lessonPath);
-  await expect(
-    page.getByRole('heading', {
-      name: 'How the Browser Event Loop Actually Works',
-    }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'How the Browser Event Loop Actually Works' })).toBeVisible();
 });
 
-test('steps through Promise reaction versus timer in guaranteed order', async ({
-  page,
-}) => {
+test('explains difficult event-loop terminology visibly and in Markdown', async ({ page, request }) => {
   await page.goto(lessonPath);
 
-  await expect(
-    page.getByRole('heading', { name: 'Event Loop Lab', exact: true }),
-  ).toBeVisible();
+  for (const term of [
+    'Microtask checkpoint',
+    'Task source',
+    'Rendering opportunity',
+  ]) {
+    await expect(
+      page.getByRole('complementary', { name: `What is ${term}?` }),
+    ).toBeVisible();
+  }
 
+  const response = await request.get(`${lessonPath}.md`);
+  const markdown = await response.text();
+  expect(markdown).toContain('A **microtask checkpoint** is a point where the browser');
+  expect(markdown).toContain('A **task source** is the specification category');
+});
+
+test('steps through Promise reaction versus timer in guaranteed order', async ({ page }) => {
+  await page.goto(lessonPath);
+  await expect(page.getByRole('heading', { name: 'Event Loop Lab', exact: true })).toBeVisible();
   await step(page, 9);
-
   await expect(page.getByTestId('event-loop-status')).toHaveText('Idle');
-  await expect(
-    page.getByTestId('event-loop-output').locator('li'),
-  ).toHaveText(['A', 'B', 'promise', 'timer']);
+  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveText(['A', 'B', 'promise', 'timer']);
 });
 
 test('drains a nested microtask in the same checkpoint', async ({ page }) => {
   await page.goto(lessonPath);
-
   await page.getByLabel('Event loop scenario').selectOption('nested-microtasks');
   await step(page, 6);
-
   await expect(page.getByTestId('event-loop-status')).toHaveText('Idle');
-  await expect(
-    page.getByTestId('event-loop-output').locator('li'),
-  ).toHaveText(['script', 'microtask A', 'microtask B']);
+  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveText(['script', 'microtask A', 'microtask B']);
 });
 
-test('accepts both valid scheduler choices for unrelated task sources', async ({
-  page,
-}) => {
+test('accepts both valid scheduler choices for unrelated task sources', async ({ page }) => {
   await page.goto(lessonPath);
   const scenario = page.getByLabel('Event loop scenario');
-
   await scenario.selectOption('multiple-task-sources');
   await step(page, 3);
 
-  await expect(
-    page.getByRole('button', { name: 'Run timer task', exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', {
-      name: 'Run user-interaction task',
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run timer task', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run user-interaction task', exact: true })).toBeVisible();
 
-  await page
-    .getByRole('button', { name: 'Run timer task', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Run timer task', exact: true }).click();
   await expect(page.getByText(/one valid scheduling choice/i)).toBeVisible();
   await step(page, 2);
   await expect(page.getByTestId('event-loop-status')).toHaveText('Idle');
-  await expect(
-    page.getByTestId('event-loop-output').locator('li'),
-  ).toHaveText(['timer task', 'user-interaction task']);
+  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveText(['timer task', 'user-interaction task']);
 
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await step(page, 3);
-  await page
-    .getByRole('button', {
-      name: 'Run user-interaction task',
-      exact: true,
-    })
-    .click();
+  await page.getByRole('button', { name: 'Run user-interaction task', exact: true }).click();
   await expect(page.getByText(/one valid scheduling choice/i)).toBeVisible();
   await step(page, 2);
   await expect(page.getByTestId('event-loop-status')).toHaveText('Idle');
-  await expect(
-    page.getByTestId('event-loop-output').locator('li'),
-  ).toHaveText(['user-interaction task', 'timer task']);
+  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveText(['user-interaction task', 'timer task']);
 });
 
-test('places animation-frame work inside a rendering opportunity', async ({
-  page,
-}) => {
+test('places animation-frame work inside a rendering opportunity', async ({ page }) => {
   await page.goto(lessonPath);
-
-  await page
-    .getByLabel('Event loop scenario')
-    .selectOption('rendering-opportunity');
-
+  await page.getByLabel('Event loop scenario').selectOption('rendering-opportunity');
   await step(page, 4);
-  await expect(page.getByTestId('event-loop-status')).toHaveText(
-    'Rendering opportunity',
-  );
-
+  await expect(page.getByTestId('event-loop-status')).toHaveText('Rendering opportunity');
   await step(page, 3);
   await expect(page.getByTestId('event-loop-status')).toHaveText('Idle');
-  await expect(page.getByTestId('event-loop-output')).toContainText(
-    'animation frame',
-  );
+  await expect(page.getByTestId('event-loop-output')).toContainText('animation frame');
 });
 
-test('bounds the starvation demonstration instead of freezing the page', async ({
-  page,
-}) => {
+test('bounds the starvation demonstration instead of freezing the page', async ({ page }) => {
   await page.goto(lessonPath);
-
-  await page
-    .getByLabel('Event loop scenario')
-    .selectOption('microtask-starvation');
+  await page.getByLabel('Event loop scenario').selectOption('microtask-starvation');
   await step(page, 8);
-
-  await expect(page.getByTestId('event-loop-status')).toHaveText(
-    'Starvation warning',
-  );
-  await expect(
-    page.getByTestId('event-loop-output').locator('li'),
-  ).toHaveText(['microtask', 'microtask', 'microtask', 'microtask', 'microtask']);
-  await expect(
-    page.getByText(/Later tasks and rendering cannot make progress/),
-  ).toBeVisible();
+  await expect(page.getByTestId('event-loop-status')).toHaveText('Starvation warning');
+  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveText(['microtask', 'microtask', 'microtask', 'microtask', 'microtask']);
+  await expect(page.getByText(/Later tasks and rendering cannot make progress/)).toBeVisible();
 });
 
-test('step and reset controls preserve shared accessibility semantics', async ({
-  page,
-}) => {
+test('step and reset controls preserve shared accessibility semantics', async ({ page }) => {
   await page.goto(lessonPath);
-
-  const labHeading = page.getByRole('heading', {
-    name: 'Event Loop Lab',
-    exact: true,
-  });
+  const labHeading = page.getByRole('heading', { name: 'Event Loop Lab', exact: true });
   const labHeadingId = await labHeading.getAttribute('id');
   expect(labHeadingId).not.toBeNull();
-  await expect(labHeading.locator('xpath=ancestor::section[1]')).toHaveAttribute(
-    'aria-labelledby',
-    labHeadingId!,
-  );
-
+  await expect(labHeading.locator('xpath=ancestor::section[1]')).toHaveAttribute('aria-labelledby', labHeadingId!);
   const sourceRegion = page.getByRole('region', { name: 'Scenario source' });
   await expect(sourceRegion).toHaveAttribute('tabindex', '0');
-
-  const statusLiveRegion = page
-    .getByTestId('event-loop-status')
-    .locator('xpath=ancestor::*[@aria-live="polite"][1]');
+  const statusLiveRegion = page.getByTestId('event-loop-status').locator('xpath=ancestor::*[@aria-live="polite"][1]');
   await expect(statusLiveRegion).toHaveAttribute('aria-live', 'polite');
-
   const stepButton = page.getByRole('button', { name: 'Step', exact: true });
   await stepButton.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByText('Step 1', { exact: true })).toBeVisible();
-
   const resetButton = page.getByRole('button', { name: 'Reset', exact: true });
   await resetButton.focus();
   await page.keyboard.press('Space');
-
   await expect(page.getByText('Step 0', { exact: true })).toBeVisible();
   await expect(page.getByText('No output yet', { exact: true })).toBeVisible();
 });
 
-test('clean Markdown preserves the essential event-loop model', async ({
-  request,
-}) => {
+test('clean Markdown preserves the essential event-loop model', async ({ request }) => {
   const response = await request.get(`${lessonPath}.md`);
   const markdown = await response.text();
-
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
   expect(markdown).toContain('# How the Browser Event Loop Actually Works');
@@ -204,40 +132,24 @@ test('clean Markdown preserves the essential event-loop model', async ({
   expect(markdown).toContain('queueMicrotask()');
   expect(markdown).toContain('Node.js');
   expect(markdown).toContain('accepts either initial source');
-  expect(markdown).toContain(
-    'correct code should rely only on ordering guarantees supplied by the relevant API/specification',
-  );
+  expect(markdown).toContain('correct code should rely only on ordering guarantees supplied by the relevant API/specification');
 });
 
 test('edit action targets the canonical event-loop source', async ({ page }) => {
   await page.goto(lessonPath);
-
-  const expectedHref =
-    'https://github.com/thucne/software-development-atlas/edit/main/' +
+  const expectedHref = 'https://github.com/thucne/software-development-atlas/edit/main/' +
     'content/docs/programming/async/how-the-browser-event-loop-works.mdx';
-
   let githubLink = page.locator(`a[href="${expectedHref}"]`);
-
   if ((await githubLink.count()) === 0) {
-    await page
-      .getByRole('button', { name: /options|more|open/i })
-      .last()
-      .click();
+    await page.getByRole('button', { name: /options|more|open/i }).last().click();
     githubLink = page.locator(`a[href="${expectedHref}"]`);
   }
-
   await expect(githubLink.first()).toBeVisible();
 });
 
-test('has no automatically detectable serious accessibility violations', async ({
-  page,
-}) => {
+test('has no automatically detectable serious accessibility violations', async ({ page }) => {
   await page.goto(lessonPath);
-
   const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations.filter((violation) =>
-    ['serious', 'critical'].includes(violation.impact ?? ''),
-  );
-
+  const serious = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''));
   expect(serious).toEqual([]);
 });

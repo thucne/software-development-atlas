@@ -244,6 +244,48 @@ Decision guides should emphasize constraints and comparison. Architecture walkth
 - Explain why an incorrect example fails.
 - Keep paragraphs and sections focused enough to reference directly.
 
+## Atlas Teaching Contract
+
+Atlas lessons assume the reader is a **working software developer**, but do not assume prior knowledge of the specific topic beyond the page's explicitly declared prerequisites.
+
+The goal is not to remove advanced terminology. The goal is to make each new term useful before the lesson asks the reader to reason with it.
+
+### Teach from concrete behavior to formal depth
+
+For unfamiliar topic-specific material, prefer this progression:
+
+1. show the concrete problem, decision, or observable behavior;
+2. state the useful rule in plain language;
+3. explain difficult terminology visibly and locally;
+4. walk through a small example;
+5. add specification detail, platform boundaries, failure modes, and production nuance.
+
+This is an explanation order, not a requirement to create five headings in every lesson.
+
+### Use `TermBox` for learning barriers
+
+Use `<TermBox>` when a topic-specific term could plausibly block a working developer who knows the declared prerequisites. Good candidates include specification terms such as *microtask checkpoint*, architecture terms such as *transactional outbox*, or platform terms such as *hydration* and *execution environment*.
+
+Place the box near the **first substantive use** of the term—the first point where understanding the term matters to the reasoning. Do not define important vocabulary several sections after it has already become explanatory machinery.
+
+Do not box ordinary working-developer vocabulary merely because it is technical. Functions, objects, arrays, ordinary HTTP requests, databases, APIs, clients, servers, and similar baseline terms normally need no box unless the lesson gives the word a specialized meaning.
+
+A lesson may assume concepts explicitly named by its prerequisites, but it still needs to explain a **new role** that prerequisite knowledge plays in the current topic. For example, an event-loop lesson need not re-teach what a Promise is, but it should explain how a Promise reaction participates in browser microtask processing.
+
+Keep box density low enough that the lesson still flows. If several terms depend on one another, introduce them incrementally instead of creating a wall of definitions at the top of the page.
+
+Canonical example:
+
+```mdx
+<TermBox term="Microtask checkpoint">
+A point where the browser runs queued microtasks until the microtask queue is empty.
+
+**Why it matters here:** Promise reactions commonly run during this checkpoint before later regular task work continues.
+</TermBox>
+```
+
+The full definition belongs in authored MDX so the essential explanation remains useful in raw Markdown and agent retrieval. `TermBox` is presentation support, not a centralized glossary or second concept registry.
+
 ## Atlas Clarity Contract
 
 Atlas content is designed to be read in a full page, reached through search at a specific heading, copied as raw Markdown, or retrieved as context by an agent. A paragraph that is understandable only when the reader remembers a previous visual is therefore not sufficiently referenceable.

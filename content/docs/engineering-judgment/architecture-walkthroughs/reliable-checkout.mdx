@@ -39,16 +39,43 @@ concepts:
 
 Suppose a user clicks **Place order**. The system needs to create one logical order, charge at most once for one logical payment attempt, survive retries and process crashes, trigger fulfillment/notification work, and retain enough evidence for operators to explain what happened later.
 
-The difficult part is that checkout crosses boundaries that do not share one transaction:
+The difficult part is that checkout crosses systems that do not share one transaction:
 
 - the application's database;
 - an external payment provider;
-- a message broker or durable event mechanism;
+- a message broker or other durable event mechanism;
 - asynchronous fulfillment and notification consumers.
 
-A timeout at a remote boundary does not prove whether the remote side performed the operation. An outbox publisher can send an event and crash before recording that send. Some broker/delivery modes can deliver the same message more than once. Users and clients can also retry requests after losing a response.
+This walkthrough uses one robust reference shape. It is not the only correct checkout architecture. Smaller systems can use a recoverable database-backed job table instead of a separate broker; larger systems may need reservation, fraud, tax, ledger, or orchestration boundaries.
 
-This walkthrough shows **one robust reference shape** for those problems. It is not the only correct checkout architecture. A smaller system may use a database-backed job table instead of a separate broker; a marketplace may need additional reservation, fraud, tax, ledger, and orchestration boundaries.
+## First build the happy path
+
+```text
+1. client sends one logical checkout command
+2. API validates identity, authorization, cart, and pricing
+3. application records local checkout/order state
+4. application asks payment provider to perform one logical payment attempt
+5. confirmed payment becomes durable local state
+6. durable publish intent is recorded
+7. asynchronous workers perform fulfillment/notification
+```
+
+The difficult reliability mechanisms make each arrow recoverable when responses are lost, processes crash, or work is delivered more than once.
+
+<TermBox term="Idempotency">
+**Idempotency** means repeating the same logical operation does not create an additional business effect beyond the one intended operation.
+
+**Why it matters here:** clients retry after timeouts, reconnects, or lost responses. A stable checkout idempotency key lets the application recognize “this is the same logical checkout” instead of creating another order merely because the HTTP request was sent again.
+</TermBox>
+
+A possible application contract is:
+
+```text
+POST /checkouts
+Idempotency-Key: 8aeb...f1
+```
+
+The application can associate that key with the authenticated actor, logical operation, and a stable request fingerprint. Reusing one key with materially different checkout parameters should not silently merge two purchases.
 
 ## High-level flow
 
@@ -66,54 +93,43 @@ graph LR
   N --> ND[(Notification state)]
 ```
 
-The important boundaries are more useful than the boxes:
+<TermBox term="Message broker">
+A **message broker** is a system that accepts messages/events from producers and makes them available to one or more receivers according to a delivery contract.
 
-1. **Client → Checkout API:** retries of one logical checkout command need one application-level operation identity.
+**Why it matters here:** it lets checkout finish without waiting for every downstream task, while giving fulfillment and notification work a durable asynchronous handoff when the selected product is configured for that durability.
+</TermBox>
+
+<TermBox term="Consumer">
+A **consumer** is code that receives a message/event and performs the associated downstream work, such as creating fulfillment state or sending a notification.
+
+**Why it matters here:** consumer correctness must match the broker's actual retry/redelivery contract rather than assuming each message is processed exactly once.
+</TermBox>
+
+The important boundaries are:
+
+1. **Client → Checkout API:** retries of one logical checkout need one application operation identity.
 2. **Checkout API → database:** local order state and local publish intent can share one database transaction.
-3. **Checkout API → payment provider:** network outcome can be ambiguous, so retry behavior must follow the selected provider's idempotency/reconciliation contract.
-4. **Database → message broker:** these systems commonly do not share one atomic transaction; a durable transactional outbox can bridge that gap.
-5. **Broker → consumers:** verify the selected delivery contract. If it can redeliver, consumer side effects must remain correct under duplicate delivery.
+3. **Checkout API → payment provider:** a timeout can leave the remote outcome unknown.
+4. **Database → broker:** these systems commonly do not share one atomic transaction.
+5. **Broker → consumers:** redelivery may be possible, so downstream effects need an explicit duplicate strategy.
 
-## 1. Define one logical checkout intent
+## 1. Make local state transitions transactional
 
-The client should not create a fresh logical operation every time it retransmits the same checkout request.
-
-One possible application contract is:
-
-```text
-POST /checkouts
-Idempotency-Key: 8aeb...f1
-```
-
-The application can associate that key with the authenticated actor, a logical operation, and a stable request fingerprint. A retry with the same valid key can then return or resume the existing operation rather than creating a second order.
-
-This is stronger than "disable the button after one click." UI prevention can reduce accidental duplicates but cannot protect against response loss, client reconnects, or another retrying caller.
-
-The application must define its own key contract. In particular, reusing one key with materially different checkout parameters should not silently merge two purchases.
-
-Stripe is one concrete provider example of a more specific idempotency contract: its API accepts an `Idempotency-Key`, saves the result associated with a key, returns that saved result on a retry, and checks that repeated requests use matching parameters. Do not assume every payment provider implements exactly the same persistence window, parameter rules, or supported operations.
-
-## 2. Make local state transitions transactional
-
-Inside one transactional database, keep state that must change atomically in one local transaction.
-
-A simplified transaction might be:
+Inside one transactional database, keep state that must change atomically in one local transaction:
 
 ```text
 BEGIN
   insert/update checkout idempotency record
   create order in PAYMENT_PENDING state
-  write outbox event describing the durable state change
+  write outbox event describing durable publish intent
 COMMIT
 ```
 
-The invariant is more important than the schema: **when the business state and outbox live in the same transactional database, the durable state change and durable publish intent should commit together.**
+The invariant matters more than the schema: when business state and outbox live in the same transactional database, the durable state change and durable publish intent should commit together.
 
-Do not keep a database transaction open around a slow external payment call merely to make the source code look atomic. Waiting on another system extends lock/transaction lifetime and still does not create one atomic transaction across your database and the provider.
+Do not keep a database transaction open around a slow external payment call just to make source code look atomic. Waiting on another system extends lock/transaction lifetime and still does not create one atomic transaction across your database and the provider.
 
-## 3. Treat payment response loss as an ambiguous outcome
-
-Consider:
+## 2. Treat payment response loss as an ambiguous outcome
 
 ```text
 Checkout API -> Payment provider: payment request
@@ -122,22 +138,23 @@ Network: response is lost
 Checkout API: timeout
 ```
 
-From the checkout API's perspective, **timeout does not mean payment failed**. Retrying the remote side effect under a new identity could duplicate it.
+<TermBox term="Ambiguous outcome">
+An **ambiguous outcome** occurs when the caller does not know whether a remote side effect happened. A timeout proves that the caller did not receive a definitive result; it does not prove the remote operation failed.
 
-The application therefore needs a stable identity for one logical payment attempt and must follow the provider's documented retry/reconciliation behavior. With Stripe, for example, retries using the same idempotency key can replay the stored result for that operation. A different provider may expose an operation resource, request token, reconciliation API, or another contract.
+**Why it matters here:** retrying a charge under a fresh identity after an ambiguous timeout can duplicate the payment.
+</TermBox>
 
-A useful application state machine distinguishes at least:
+A useful payment state machine distinguishes at least `PAYMENT_PENDING`, `PAID`, and `PAYMENT_FAILED`, plus any provider/business state such as `PAYMENT_REQUIRES_ACTION` that the flow requires.
 
-- `PAYMENT_PENDING` — no definitive outcome is known yet;
-- `PAID` — success is confirmed;
-- `PAYMENT_FAILED` — a definitive failure is known;
-- possibly `PAYMENT_REQUIRES_ACTION` where the provider/business flow needs later user or asynchronous action.
+<TermBox term="Reconciliation">
+**Reconciliation** is the process of querying or comparing durable records to determine the real outcome after the synchronous request path could not establish it reliably.
 
-When the network outcome is unknown, reconcile or retry according to the selected provider contract instead of deriving success/failure from the timeout itself.
+**Why it matters here:** after an ambiguous payment timeout, the system can use the provider's documented idempotency or operation-lookup contract to discover whether the payment succeeded instead of guessing from the network error.
+</TermBox>
 
-## 4. Keep API idempotency and payment idempotency separate
+The application needs a stable identity for one logical payment attempt and must follow the selected provider's documented retry/reconciliation behavior. Stripe is one concrete provider with an `Idempotency-Key` contract; other providers may expose different operation IDs, persistence windows, or reconciliation APIs.
 
-They address different duplicate boundaries.
+## 3. Keep API idempotency and payment idempotency separate
 
 **Checkout/API idempotency** asks:
 
@@ -147,21 +164,17 @@ They address different duplicate boundaries.
 
 > What does this provider guarantee if the same logical payment attempt is retried after an uncertain network outcome?
 
-The identifiers may be related, but their lifecycle does not need to be identical. One checkout can legitimately contain more than one payment attempt—for example, a new attempt after a definitive decline—while retries of one attempt should keep that attempt's stable identity.
+One checkout can legitimately contain more than one payment attempt—for example a new attempt after a definitive decline—while retries of one attempt should retain that attempt's stable identity.
 
-## 5. Use a transactional outbox for durable publication
+## 4. Use a transactional outbox for durable publication
 
-Suppose the application commits an order as paid, then separately does:
+Suppose the application commits an order as paid and then separately publishes `OrderPaid`. A crash between those actions leaves durable business state without a durable downstream notification. Publishing first creates the opposite problem: consumers can see an event for a state transition that later rolls back.
 
-```text
-publish OrderPaid
-```
+<TermBox term="Transactional outbox">
+A **transactional outbox** stores the business-state change and a durable record of “publish this event” in the same local database transaction. A separate publisher later reads committed outbox rows and sends them to the messaging system.
 
-A process crash between those actions leaves durable order state without a durable downstream notification.
-
-Publishing before the database commit has the opposite problem: consumers may observe an event for a state transition that later rolls back.
-
-A **transactional outbox** stores the business-state change and publish intent in the same local transaction:
+**Why it matters here:** it closes the crash gap between committing local business state and recording the intent to publish, without pretending the application database and external broker share one distributed atomic transaction.
+</TermBox>
 
 ```text
 BEGIN
@@ -170,196 +183,153 @@ BEGIN
 COMMIT
 ```
 
-A publisher later reads committed outbox rows and sends them to the chosen delivery system.
+The outbox does **not** automatically create exactly-once end-to-end effects. A publisher can send an event successfully and crash before recording its own progress, causing the same logical event to be sent again.
 
-The outbox removes the gap between **database commit** and **durable publish intent**; it does not automatically create exactly-once end-to-end effects. AWS's transactional-outbox guidance explicitly notes that the relay/publisher can publish a message more than once, for example when it sends successfully and then fails before recording progress. Stable event identity and idempotent consumers are still necessary where duplicates are possible.
+## 5. Design consumers from the selected delivery contract
 
-## 6. Design consumers from the selected delivery contract
+<TermBox term="At-least-once delivery">
+**At-least-once delivery** means the system aims to deliver a message one or more times, so duplicate delivery is possible.
 
-Do not teach one queue guarantee as if it applied to every broker.
+**Why it matters here:** if a consumer performs a non-idempotent side effect twice, a duplicate message can become a duplicate business action. Delivery guarantees describe message transfer, not automatically exactly-once business effects.
+</TermBox>
 
-**When the selected broker or delivery mode can redeliver**, the consumer must remain correct if the same logical event is received more than once.
+Do not teach one queue guarantee as if it applied to every broker. **When the selected broker or delivery mode can redeliver**, consumer logic must remain correct under that duplicate behavior.
 
-Amazon SQS standard queues are a concrete example: AWS documents **at-least-once delivery** and warns that a message can be delivered more than once because redundant message copies may not all be removed after a receive/delete sequence. Other brokers, queue types, subscriptions, or transaction modes can have different guarantees. Read the contract you actually operate.
+Amazon SQS standard queues are a concrete example: AWS documents **Amazon SQS at-least-once delivery** and explains that redundant stored copies can deliver the same message more than once. Other brokers, queue types, subscriptions, or transaction modes can have different guarantees.
 
 If duplicate delivery is possible, a consumer should be able to answer:
 
 > Have I already applied event `event_id` to this business side effect?
 
-Common controls include:
+Common controls include a processed-event/inbox table with a unique event ID, a business uniqueness constraint, idempotent upsert/state-transition logic, or a downstream provider idempotency contract.
 
-- a processed-event/inbox table with a unique event identifier;
-- a business uniqueness constraint such as one fulfillment record per order;
-- idempotent upsert/state-transition logic;
-- a downstream provider idempotency contract for another external side effect.
+<TermBox term="Acknowledgement / redelivery">
+An **acknowledgement** tells a broker that a delivery has been handled according to that broker's contract. **Redelivery** is another delivery attempt of a message that the broker still considers unfinished or eligible for another attempt.
 
-The general mental model is:
-
-```text
-selected delivery contract
-        +
-explicit duplicate/retry handling where needed
-        +
-idempotent business effect when duplicates are possible
-```
-
-That is more reliable than assuming the broker makes business logic execute exactly once.
+**Why it matters here:** a consumer can perform its business effect and crash before the acknowledgement completes. If the selected delivery mode can redeliver, the same logical message can then arrive again.
+</TermBox>
 
 ## Request and transaction boundaries
-
-A checkout request crosses several different correctness boundaries:
 
 | Boundary | What can be atomic? | What needs explicit recovery? |
 | --- | --- | --- |
 | API idempotency record + local order state | One local database transaction when stored together | Client retry after response loss |
 | Local order + local outbox row | One local database transaction when stored together | Publisher retry/progress |
 | Application + payment provider | Not one local database transaction | Provider-specific idempotency/reconciliation |
-| Outbox publisher + external broker | Depends on selected systems; commonly not the same transaction as the app DB | Possible duplicate publication / retry |
-| Broker + consumer business side effect | Depends on broker/consumer storage integration | Redelivery handling when the selected contract permits duplicates |
+| Outbox publisher + external broker | Commonly not the same transaction as the app DB | Possible duplicate publication / retry |
+| Broker + consumer business side effect | Depends on selected integration | Redelivery handling when the selected contract permits duplicates |
 
-The architecture becomes easier to reason about when each boundary states its actual atomicity and retry contract instead of hiding them inside one long imperative function.
+The architecture becomes easier to reason about when every boundary states its actual atomicity and retry contract instead of hiding them inside one long imperative function.
 
 ## Failure modes
 
 ### Duplicate checkout request
 
-**Symptom:** the client sends the same logical checkout more than once.
-
 **Control:** stable application operation identity, explicit key/fingerprint rules, and a uniqueness constraint where the logical operation is stored.
 
 ### Payment succeeds but the application times out
 
-**Symptom:** the application does not know whether the provider completed the payment operation.
-
-**Control:** do not retry under a fresh payment identity by default. Reuse/reconcile the existing payment attempt according to the provider's documented contract.
+**Control:** do not retry under a fresh payment identity by default. Reuse/reconcile the existing payment attempt according to the provider's contract.
 
 ### Database state commits but the process crashes before broker publish
-
-**Symptom:** durable business state changes, but no downstream event was durably scheduled.
 
 **Control:** store the outbox publish intent in the same local database transaction as the business transition, then let a later publisher continue.
 
 ### Publisher sends and crashes before recording progress
 
-**Symptom:** the same logical event can be sent again.
+**Control:** stable event IDs, idempotent downstream effects where duplicates are possible, bounded retry/backoff, and visibility into aged/stuck outbox rows.
 
-**Control:** stable event IDs, idempotent downstream effects where duplicates are possible, bounded retry/backoff, and operational visibility into aged/stuck outbox rows.
+### Consumer performs work but does not complete acknowledgement
 
-### Consumer performs work but does not complete the broker acknowledgement
-
-**Symptom:** **if the selected broker/delivery mode supports redelivery**, the same message may be delivered again.
-
-**Control:** make the business effect safe under that duplicate using inbox/processed-event identity, uniqueness constraints, or idempotent state transitions.
+If the selected broker/delivery mode supports redelivery, the same message may arrive again. Make the business effect safe under that duplicate using event identity, uniqueness constraints, or idempotent state transitions.
 
 ### Dependency outage creates a retry storm
 
-**Symptom:** checkout, publisher, or consumer retry loops amplify load on a failing provider, database, broker, or downstream API.
+<TermBox term="Backoff and jitter">
+**Backoff** increases the delay between retries after repeated failure. **Jitter** adds variation so many clients do not retry at exactly the same moments.
 
-**Control:** explicit timeouts, bounded retry budgets, backoff/jitter where appropriate, concurrency limits, and a documented dead-letter/manual-recovery path where the selected messaging system supports it.
+**Why it matters here:** immediate synchronized retries can amplify a dependency outage into a retry storm and prevent recovery.
+</TermBox>
+
+Use explicit timeouts, bounded retry budgets, backoff/jitter where appropriate, concurrency limits, and an operational recovery path.
+
+<TermBox term="Dead-letter path">
+A **dead-letter path** is a place or process for messages that cannot be completed successfully after the normal retry policy.
+
+**Why it matters here:** it prevents one repeatedly failing message from retrying forever without visibility and gives operators a defined inspection/recovery workflow when the selected messaging system supports such a mechanism.
+</TermBox>
 
 ## Security and trust boundaries
 
-A reliable checkout that is insecure is still incorrect.
-
-Treat each boundary explicitly:
-
-- authenticate the caller and authorize access to the cart/customer/order being changed;
+- authenticate the caller and authorize the cart/customer/order being changed;
 - never trust client-submitted price totals as authoritative—derive chargeable amounts from trusted server-side pricing state;
-- scope an application idempotency key to the correct actor/operation;
-- keep payment credentials and webhook secrets outside source code and expose them only where required;
+- scope application idempotency keys to the correct actor/operation;
+- keep payment credentials and webhook secrets outside source code;
 - verify provider callbacks/webhooks using that provider's documented authenticity mechanism;
 - minimize sensitive payment/personal data in logs, traces, queues, and outbox payloads;
 - do not treat possession of an internal message as evidence of end-user authorization.
 
-"Internal" components still cross trust boundaries. Each state transition should have an identity and authorization reason that operators can explain.
+“Internal” components still cross trust boundaries.
 
 ## Observability
 
-Checkout observability must survive the synchronous-to-asynchronous transition.
+<TermBox term="Correlation identifier">
+A **correlation identifier** is a stable identifier carried or recorded across related steps so operators can connect logs, traces, messages, retries, and state transitions that belong to one logical operation.
 
-Useful correlation identifiers include:
+**Why it matters here:** a checkout can move from one HTTP request into payment reconciliation, outbox publication, broker delivery, and several consumer attempts. One transient trace is not always enough to explain that whole lifecycle.
+</TermBox>
 
-- request/trace ID;
-- checkout/order ID;
-- application idempotency key or a safe reference/hash;
-- payment attempt/provider operation ID;
-- outbox event ID;
-- broker/message delivery identifier and consumer attempt information when available.
+Useful identifiers include request/trace ID, checkout/order ID, application idempotency key or safe reference/hash, payment attempt/provider operation ID, outbox event ID, and broker delivery identifiers when available.
 
-Propagate trace context through supported HTTP/messaging boundaries where practical, but do not rely on traces alone. Durable business identifiers remain useful because one logical checkout can produce multiple retry/reconciliation traces and incidents can outlive trace retention.
-
-Useful metrics include:
-
-- checkout success/failure/unknown-outcome rate;
-- payment latency and timeout rate;
-- count/age of unpublished outbox rows;
-- publish retry count;
-- broker backlog/oldest-message age where exposed;
-- consumer failure/redelivery/dead-letter counts where those concepts exist in the selected system;
-- time from confirmed payment to fulfillment completion.
+Useful metrics include checkout success/failure/unknown-outcome rate, payment latency/timeouts, count and age of unpublished outbox rows, publish retries, broker backlog/oldest-message age, consumer failure/redelivery/dead-letter counts, and time from confirmed payment to fulfillment completion.
 
 Logs should record state transitions and correlation IDs without leaking credentials, payment data, or unnecessary personal information.
 
 ## Scaling and cost
 
-This reference design adds components: an outbox publisher, broker, and consumers all create operational cost.
+This reference design adds components; an outbox publisher, broker, and consumers all create operational cost. That cost is justified when downstream work must survive process failure, be retried independently, absorb bursts, or be decoupled from checkout latency. A smaller system may meet the same requirements with a transactional database and recoverable jobs table.
 
-That cost is justified when downstream work must survive process failure, be retried independently, absorb bursts, or be decoupled from checkout latency. It can be unnecessary when a smaller system can meet the same durability/recovery requirements with a transactional database plus a recoverable jobs table.
+<TermBox term="Poison message/event">
+A **poison message/event** is a message that repeatedly fails processing because its data or the consumer's handling cannot succeed under normal retry conditions.
 
-Scaling questions include:
+**Why it matters here:** repeated retries of one permanently failing item can waste capacity, hide useful work behind it, or generate noisy incidents. The system needs an explicit quarantine, dead-letter, or manual-recovery strategy where relevant.
+</TermBox>
 
-- Can payment concurrency overwhelm the provider or database connection pool?
-- Can broker fan-out create more downstream work than dependencies can absorb?
-- Can outbox polling or change-data-capture keep up with commit volume?
-- Does ordering matter globally, per customer, per order, or not at all?
-- What happens to poison messages/events under the selected delivery system?
-- Which backlog age makes fulfillment operationally unacceptable?
+Scaling questions include payment concurrency, broker fan-out, outbox publisher throughput, ordering scope, poison-event handling, and the backlog age that becomes operationally unacceptable.
 
 Prefer the simplest durable mechanism that satisfies the actual recovery and throughput requirements.
 
 ## Alternatives
 
-### Synchronous side effects only
+This architecture can be simplified or expanded depending on constraints:
 
-A simple system can perform payment and other required work synchronously while persisting enough state to reconcile uncertain outcomes later. This reduces components but puts more dependencies on the request's latency/availability path.
+- **Database-backed job table:** useful when one transactional database plus recoverable workers provides enough durability without a separate broker.
+- **Workflow/orchestration engine:** useful when a long-running business process has many explicit states, timers, compensations, and operator-visible recovery needs.
+- **Provider/event-driven integration:** useful only when the provider contracts and ownership model fit the required durability, idempotency, and reconciliation semantics.
 
-### Database-backed job table without a separate broker
-
-The application can atomically write local business state plus durable job rows, then have workers claim those rows. This can provide the required durability with fewer systems when fan-out, independent consumer ecosystems, or broker-specific routing/buffering are unnecessary.
-
-### Workflow/saga orchestration
-
-When checkout spans many long-running business states—inventory reservation, fraud review, authorization/capture, shipping, compensation—a workflow engine or explicit saga can make state, timeout, and retry behavior explicit. Use it when the workflow complexity justifies another operational/runtime abstraction.
-
-### Provider event/webhook as payment confirmation
-
-Some payment flows are inherently asynchronous. The application can keep payment pending and use authenticated provider events plus reconciliation to drive final state. The state machine must still define duplicate/out-of-order event handling according to that provider's event contract.
+Do not add components merely because they appear in the reference diagram.
 
 ## Review checklist
 
 Before approving a checkout design, ask:
 
-- What identifies one logical checkout, and what happens on duplicate submission?
-- What identifies one payment attempt across retries?
-- Which provider contract defines payment retry and reconciliation behavior?
-- What state represents an unknown payment outcome?
-- Which local state transitions share one database transaction?
-- Can committed business state lose its durable publish intent?
-- Can the selected publish/delivery path duplicate an event/message, and where?
-- Which consumer effects are idempotent when duplicates are possible?
-- Which retry loops have timeout, limit/backoff, and operational visibility?
-- Which durable identifiers correlate synchronous and asynchronous work?
-- How are prices, identities, provider callbacks, and secrets validated?
-- Could a database-backed job design satisfy the same durability requirements with fewer systems?
+1. What identifies one logical checkout and one logical payment attempt?
+2. Which state transitions are atomic in one local database transaction?
+3. What happens after a remote timeout with an unknown outcome?
+4. How is durable publish intent recorded if the process crashes?
+5. Can the selected broker/delivery mode redeliver, and are consumer effects safe under duplicates?
+6. Where do retries stop, back off, or move to manual/dead-letter recovery?
+7. Which identifiers let operators reconstruct one checkout across synchronous and asynchronous boundaries?
+8. Which sensitive values are excluded from logs/messages?
+9. What is the simplest durable architecture that still meets the recovery contract?
 
 ## Related concepts
 
-This walkthrough connects [Backend Systems](/docs/learning-paths/backend-systems) concepts that are often learned separately: **API Design**, **Idempotency**, **Database Transactions**, **Partial Failure**, **Retries and Backoff**, **Delivery Semantics**, **Message Queues**, the **Transactional Outbox**, and **Logs, Metrics, and Traces**.
+This walkthrough applies **API Design**, **Idempotency**, **Database Transactions**, **Transactional Outbox**, **Partial Failure**, **Retries and Backoff**, **Delivery Semantics**, **Message Queues**, **Background Jobs**, **Logs/Metrics/Traces**, and **Threat Modeling**. Use the [Backend Systems](/docs/learning-paths/backend-systems) path to place these concepts in a broader learning sequence.
 
 ## Sources
 
-- [Idempotent requests — Stripe API Reference](https://docs.stripe.com/api/idempotent_requests)
-- [Transactional outbox pattern — AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
-- [Amazon SQS at-least-once delivery — AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
-- [Transactions — PostgreSQL documentation](https://www.postgresql.org/docs/current/tutorial-transactions.html)
-- [Signals and observability concepts — OpenTelemetry](https://opentelemetry.io/docs/concepts/signals/)
+- [Stripe — Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
+- [AWS Prescriptive Guidance — Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
+- [Amazon SQS — at-least-once delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
+- [AWS Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/)

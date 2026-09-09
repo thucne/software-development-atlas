@@ -4,79 +4,38 @@ import { appUrl } from './app-path';
 
 test('exposes Engineering Judgment in docs navigation', async ({ page }) => {
   await page.goto(appUrl('/docs'));
-
-  await expect(
-    page.getByText('Engineering Judgment', { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText('Engineering Judgment', { exact: true }).first()).toBeVisible();
 });
 
-test('renders a decision guide with an explicit comparison and conditional guidance', async ({
-  page,
-}) => {
-  await page.goto(
-    appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'),
-  );
-
-  await expect(
-    page.getByRole('heading', { name: 'CSR vs SSR vs SSG', level: 1 }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('table', { name: 'CSR vs SSR vs SSG decision matrix' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Practical heuristic' }),
-  ).toBeVisible();
+test('renders a decision guide with an explicit comparison and conditional guidance', async ({ page }) => {
+  await page.goto(appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'));
+  await expect(page.getByRole('heading', { name: 'CSR vs SSR vs SSG', level: 1 })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'CSR vs SSR vs SSG decision matrix' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Practical heuristic' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'What is Hydration?' })).toBeVisible();
 });
 
-test('representative decision guide has no serious or critical accessibility violations', async ({
-  page,
-}) => {
-  await page.goto(
-    appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'),
-  );
-
+test('representative decision guide has no serious or critical accessibility violations', async ({ page }) => {
+  await page.goto(appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'));
   const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations.filter((violation) =>
-    ['serious', 'critical'].includes(violation.impact ?? ''),
-  );
-
+  const serious = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''));
   expect(serious).toEqual([]);
 });
 
-test('renders the reliable checkout walkthrough across failure and observability boundaries', async ({
-  page,
-}) => {
-  await page.goto(
-    appUrl(
-      '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
-    ),
-  );
-
-  await expect(
-    page.getByRole('heading', { name: 'Reliable Checkout Walkthrough', level: 1 }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Failure modes' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Observability' }),
-  ).toBeVisible();
+test('renders the reliable checkout walkthrough across failure and observability boundaries', async ({ page }) => {
+  await page.goto(appUrl('/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout'));
+  await expect(page.getByRole('heading', { name: 'Reliable Checkout Walkthrough', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Failure modes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Observability' })).toBeVisible();
   await expect(page.getByText('transactional outbox', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'What is Transactional outbox?' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'What is Ambiguous outcome?' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'What is At-least-once delivery?' })).toBeVisible();
 });
 
-test('reliable checkout walkthrough has no serious or critical accessibility violations', async ({
-  page,
-}) => {
-  await page.goto(
-    appUrl(
-      '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
-    ),
-  );
-
+test('reliable checkout walkthrough has no serious or critical accessibility violations', async ({ page }) => {
+  await page.goto(appUrl('/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout'));
   const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations.filter((violation) =>
-    ['serious', 'critical'].includes(violation.impact ?? ''),
-  );
-
+  const serious = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''));
   expect(serious).toEqual([]);
 });
