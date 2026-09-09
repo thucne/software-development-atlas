@@ -31,6 +31,37 @@ Before creating a new concept ID:
 
 A concept may exist in the map before a dedicated content page exists. That is intentional: uncovered territory should remain visible.
 
+## Coverage semantics
+
+Atlas coverage is deliberately narrow. A canonical concept is **covered** when at least one substantive authored page references it in validated `concepts` frontmatter. Otherwise it is **uncovered**.
+
+Coverage does not measure:
+
+- learner completion or mastery;
+- content importance;
+- content quality;
+- freshness health;
+- how deeply every page treats the concept.
+
+Do not attach a concept ID merely because a page mentions the term. Incidental placement makes the knowledge graph less truthful and artificially inflates domain and learning-path coverage.
+
+## Learning paths
+
+`content/learning-paths.json` defines curated sequences through the canonical map. A path is an opinionated learning order for a particular outcome, not a second taxonomy.
+
+Path data owns:
+
+- a stable path ID;
+- title, description, audience, and intended target depth;
+- learning outcomes;
+- an ordered list of existing canonical concept IDs.
+
+Path data does **not** own authored page URLs or duplicate lesson mappings. Available content is derived from each page's canonical `concepts` frontmatter.
+
+Important concepts may remain in a path even when the Atlas has no authored content for them yet. Uncovered steps should stay visible; do not remove them merely to improve the displayed coverage ratio.
+
+Path overview/orientation pages normally use `contentType: guide`, `learningDepth: recognize`, and `concepts: []` unless their authored prose itself materially teaches a canonical concept. Embedding a learning-path component does not automatically make that page substantive coverage for every step it displays.
+
 ## Canonical frontmatter
 
 A normal content item follows this shape:
