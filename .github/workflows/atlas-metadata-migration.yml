@@ -1,0 +1,34 @@
+name: Atlas Metadata Migration
+
+on:
+  push:
+    branches:
+      - feat/atlas-knowledge-map
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/atlas-knowledge-map
+
+      - name: Apply placement metadata
+        run: node scripts/migrate-atlas-placement.mjs
+
+      - name: Commit migration if needed
+        run: |
+          if git diff --quiet; then
+            echo "No migration changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/docs/programming/async/*.mdx
+          git commit -m "content: migrate deep dives to Atlas placement metadata"
+          git push origin HEAD:feat/atlas-knowledge-map
