@@ -16,9 +16,10 @@ test('renders the docs shell and Start Here navigation', async ({ page }) => {
   await expect(
     page.locator(`a[href="${appUrl('/docs/start-here/freshness')}"]`).first(),
   ).toBeVisible();
-  await expect(
-    page.locator(`a[href="${appUrl('/docs/start-here/about')}"]`).first(),
-  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'About this Atlas' })).toHaveAttribute(
+    'href',
+    appUrl('/docs/start-here/about'),
+  );
 });
 
 test('finds a lesson through local documentation search', async ({ page }) => {
@@ -35,11 +36,14 @@ test('finds a lesson through local documentation search', async ({ page }) => {
 test('renders page freshness and Atlas maintenance metadata', async ({ page }) => {
   await page.goto(appUrl('/docs/start-here/freshness'));
 
-  await expect(page.getByText('Evergreen', { exact: true })).toBeVisible();
-  await expect(page.getByText('Verified Aug 19, 2026')).toBeVisible();
-  await expect(page.getByText('Review target: 365 days')).toBeVisible();
-  await expect(page.getByText('Personal learning atlas by Tran Trong Thuc')).toBeVisible();
-  await expect(page.getByText('Atlas last updated Sep 9, 2026')).toBeVisible();
+  const freshness = page.getByRole('region', { name: 'Content freshness' });
+  await expect(freshness.getByText('Evergreen', { exact: true })).toBeVisible();
+  await expect(freshness.getByText('Verified Aug 19, 2026')).toBeVisible();
+  await expect(freshness.getByText('Review target: 365 days')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Tran Trong Thuc' }),
+  ).toHaveAttribute('href', 'https://github.com/thucne');
+  await expect(page.getByText(/Atlas last updated Sep 9, 2026/)).toBeVisible();
 });
 
 test('renders an About page for the Atlas maintainer', async ({ page }) => {
@@ -48,7 +52,6 @@ test('renders an About page for the Atlas maintainer', async ({ page }) => {
   await expect(
     page.getByRole('heading', { name: 'About This Atlas' }),
   ).toBeVisible();
-  await expect(page.getByText('Tran Trong Thuc')).toBeVisible();
   await expect(page.getByRole('link', { name: '@thucne' })).toHaveAttribute(
     'href',
     'https://github.com/thucne',
