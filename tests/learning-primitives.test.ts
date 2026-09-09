@@ -105,7 +105,7 @@ describe('learning primitives', () => {
     expect(html).toContain('aria-label="Scenario source"');
     expect(html).toContain('tabindex="0"');
     expect(html).toContain('<pre');
-    expect(html).toContain('<code>const value = 1;</code>');
+    expect(html).toMatch(/<code[^>]*>const value = 1;<\/code>/);
   });
 
   test('LiveStatus uses polite announcements and preserves domain-owned children', () => {
