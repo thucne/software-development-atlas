@@ -111,10 +111,13 @@ test('serves clean Markdown for a docs page', async ({ request }) => {
 test('exposes Edit on GitHub as a visible page action', async ({ page }) => {
   await page.goto(appUrl('/docs/start-here/freshness'));
 
-  await expect(page.getByRole('link', { name: 'Edit on GitHub' })).toHaveAttribute(
+  const githubLink = page.getByRole('link', { name: 'Edit on GitHub' });
+
+  await expect(githubLink).toHaveAttribute(
     'href',
     'https://github.com/thucne/software-development-atlas/edit/main/content/docs/start-here/freshness.mdx',
   );
+  await expect(githubLink.locator('svg')).toBeVisible();
 });
 
 test('has no automatically detectable serious accessibility violations', async ({

@@ -1,3 +1,4 @@
+import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { getFreshnessState } from '@/lib/content/freshness';
@@ -90,12 +91,7 @@ export default async function Page(props: {
       <div className="mt-4 border-b pb-6">
         <div className="flex flex-wrap items-center gap-2">
           <MarkdownCopyButton markdownUrl={markdownUrl} />
-          <a
-            href={githubUrl}
-            className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
-          >
-            Edit on GitHub
-          </a>
+          <EditOnGitHubButton href={githubUrl} />
           <ViewOptionsPopover
             markdownUrl={markdownUrl}
             githubUrl={githubUrl}
