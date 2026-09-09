@@ -46,6 +46,19 @@ describe('learning paths', () => {
     );
   });
 
+  it('rejects page mappings and other unexpected path fields', () => {
+    const invalid = structuredClone(learningPaths) as typeof learningPaths & {
+      paths: Array<
+        (typeof learningPaths.paths)[number] & {
+          pages?: string[];
+        }
+      >;
+    };
+    invalid.paths[0].pages = ['/docs/programming/async/promises'];
+
+    expect(() => learningPathsSchema.parse(invalid)).toThrow();
+  });
+
   it('throws a clear error for an unknown lookup id', () => {
     expect(() => getLearningPath('missing-path')).toThrow(
       /Unknown learning path: missing-path/,
