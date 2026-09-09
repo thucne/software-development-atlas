@@ -1,0 +1,10 @@
+{
+  "title": "Learning Paths",
+  "pages": [
+    "index",
+    "modern-web-systems",
+    "backend-systems",
+    "cloud-architecture-for-software-engineers",
+    "ai-native-software-engineering"
+  ]
+}
