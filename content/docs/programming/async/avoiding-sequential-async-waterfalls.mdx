@@ -4,7 +4,7 @@ description: Reduce latency by overlapping independent asynchronous work without
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-08-20
+lastVerified: 2026-09-09
 reviewAfterDays: 180
 topics:
   - javascript
@@ -31,24 +31,24 @@ concepts:
 
 ## TL;DR
 
-**Start independent asynchronous work as early as possible. Await only where a real dependency requires ordering.**
+**Start independent asynchronous work as early as possible. Await only when later work actually depends on an earlier result or when ordering is intentional.**
 
-An `await` pauses the current async function until the awaited promise settles. That is useful when the next operation needs the result, but it can accidentally serialize work that could have overlapped.
+`await` suspends the continuation of the surrounding async function until the awaited value is ready. It does not block the JavaScript thread. A waterfall appears when code waits before it has started another operation that could have been running independently.
 
-Do not replace every sequence of `await`s with `Promise.all`. First identify the dependency graph. Independent operations may overlap; dependent operations must preserve their real ordering constraints.
+Do not mechanically replace sequential `await`s with `Promise.all()`. First identify the dependency graph: overlap independent operations, preserve real dependencies, and bound concurrency when resource pressure requires it.
 
 ## Mental model
 
-Think in terms of **start times** and **dependencies**, not simply the number of `await` keywords.
+Think in terms of **when each operation can start** and **which results it actually depends on**, not simply the number of `await` keywords.
 
 If A takes 800ms, B takes 400ms, and C takes 300ms:
 
-- sequential elapsed time is approximately `800 + 400 + 300 = 1500ms`;
+- if each operation starts only after the previous one finishes, elapsed time is approximately `800 + 400 + 300 = 1500ms`;
 - if A, B, and C are independent and start together, elapsed time is approximately `max(800, 400, 300) = 800ms`.
 
 The second schedule saves about `700ms` because the waiting periods overlap.
 
-This is **concurrent/overlapped asynchronous work**. It does not mean JavaScript is executing the tasks' CPU work in parallel on the same thread. The operations might involve network I/O, timers, databases, worker threads, other processes, or remote services; the important point here is that the current function does not unnecessarily wait for one independent operation before starting another.
+This is **concurrent, overlapped asynchronous work**. It does not mean JavaScript is executing all of the operations' CPU work in parallel on one thread. The operations may spend most of their time waiting on network I/O, timers, databases, worker threads, other processes, or remote services. The scheduling rule here is simply: do not delay the start of independent work because the current async function is waiting for an unrelated result.
 
 A useful question is:
 
@@ -70,13 +70,13 @@ Suppose all three functions only need `id`. The result of `getUser()` is not nee
 
 Yet the code says:
 
-1. start `getUser()` and wait;
+1. start `getUser()` and wait for its result;
 2. only then start `getFeatureFlags()` and wait;
 3. only then start `getRecommendations()` and wait.
 
-The dependency graph says the operations are independent, but the control flow has imposed a dependency that does not exist.
+The dependency graph says the operations are independent, but the control flow has imposed dependencies that do not exist in the data flow.
 
-Waterfalls commonly appear in request handlers, page loaders, server-rendering code, command-line workflows, build steps, and service-to-service calls. They are especially costly on latency-sensitive paths because every unnecessary wait can extend the critical path seen by the user or caller.
+Waterfalls commonly appear in request handlers, page loaders, server-rendering code, command-line workflows, build steps, and service-to-service calls. They are especially costly on latency-sensitive paths because every unnecessary wait can lengthen the chain of work that must finish before the caller gets a result.
 
 ## A real accidental waterfall
 
@@ -120,7 +120,7 @@ export async function buildHomePage(id: string) {
 
 All three operations are started before the function waits for their combined results.
 
-`Promise.all` is convenient here because the function needs all three values before it can return. But the deeper rule is not “use `Promise.all`.” The deeper rule is **start independent work before an unrelated wait delays it**.
+`Promise.all()` is convenient here because the function needs all three values before it can return. But the deeper rule is not “use `Promise.all()`.” The deeper rule is **start independent work before an unrelated wait delays it**.
 
 Sometimes that means starting one promise early and awaiting it much later:
 
@@ -139,7 +139,7 @@ return { user, organization, flags };
 
 ## Try it: Async Waterfall Lab
 
-The lab below compares the same three task durations on one shared elapsed-time scale.
+The lab below compares the same three operation durations on one shared elapsed-time scale.
 
 With the defaults:
 
@@ -179,15 +179,15 @@ const [flags, recommendations] = await Promise.all([
 
 Here the user → organization path remains sequential, while unrelated work starts immediately.
 
-In larger systems, latency is often determined by the **critical path** through a dependency graph, not by the total amount of work. Improving scheduling means shortening that critical path without violating correctness constraints.
+The **critical path** is the longest chain of dependent operations that determines the earliest possible completion time. In larger systems, end-to-end latency is often determined by this critical path rather than by the sum of every operation performed. Improving scheduling means shortening the critical path without violating correctness constraints.
 
-## `Promise.all` is a tool, not the rule
+## `Promise.all()` is a tool, not the rule
 
-`Promise.all(iterable)` returns a promise that fulfills when all of its inputs fulfill. The fulfillment values are returned in the same order as the inputs, regardless of which operation finishes first.
+`Promise.all(iterable)` returns a promise that fulfills when all of its inputs fulfill. The fulfillment values are returned in the same order as the inputs, regardless of which input settles first.
 
-It rejects when an input promise rejects. This is often described as *fail-fast* behavior because the aggregate promise can reject as soon as one input rejects rather than waiting to produce a successful array of all results.
+The aggregate promise rejects when an input rejects. That aggregate rejection can happen before the other inputs settle, so application code may observe the `Promise.all()` result as rejected while other already-started operations are still running.
 
-There is an important operational detail: **rejection of the `Promise.all` result does not automatically cancel other operations that already started.** Those operations may continue unless their underlying APIs provide cancellation and your code explicitly uses it.
+There is an important operational detail: **rejection of the `Promise.all()` result does not automatically cancel other operations that already started.** Those operations may continue unless their underlying APIs provide cancellation and your code explicitly uses it.
 
 For example:
 
@@ -203,29 +203,29 @@ const [profile] = await Promise.all([
 
 If `getProfile()` rejects, that does not mean an already-started `writeAuditEntry()` is automatically stopped. This matters when concurrent operations have side effects.
 
-If you need to observe every independent outcome—even when some fail—that is a different error-handling requirement. A combinator such as `Promise.allSettled` may be relevant, but changing error semantics should be a deliberate decision rather than a side effect of trying to reduce latency.
+If you need to observe every independent outcome—even when some fail—that is a different error-handling requirement. A combinator such as `Promise.allSettled()` may be relevant, but changing error semantics should be a deliberate decision rather than a side effect of trying to reduce latency.
 
-So use `Promise.all` when its aggregation and failure semantics match the work. Do not treat it as a magic concurrency switch.
+Use `Promise.all()` when its aggregation and failure semantics match the work. Do not treat it as a magic concurrency switch.
 
 ## Production considerations
 
 Concurrency has costs. Removing a waterfall can make one request faster while placing more simultaneous pressure on other resources.
 
-**Bound fan-out when necessary.** Starting three independent calls is different from starting 50,000. Large fan-out may exhaust database connection pools, sockets, file descriptors, memory, CPU, or downstream service capacity. When the set is large, use a concurrency limit, queue, worker pool, batching strategy, or other form of deliberate backpressure.
+**Bound fan-out when necessary.** Starting three independent calls is different from starting 50,000. Large fan-out may exhaust database connection pools, sockets, file descriptors, memory, CPU, or downstream service capacity. When the set is large, use a concurrency limit, queue, worker pool, batching strategy, or another form of deliberate backpressure.
 
-**Respect downstream rate limits.** Overlapping requests changes arrival patterns. A remote API that comfortably handles ten sequential calls may reject or throttle ten simultaneous calls. The fastest local schedule is not automatically the best system-wide schedule.
+**Respect downstream rate limits.** Overlapping requests changes arrival patterns. A remote API that comfortably handles ten sequential calls may reject or throttle ten simultaneous calls. The schedule with the lowest latency for one caller is not automatically the best schedule for the whole system.
 
 **Think about side effects and errors.** Once several operations have started, one failure may occur after others have already changed state. Design idempotency, transactions, compensation, or failure isolation according to the domain rather than assuming promise aggregation provides those guarantees.
 
-**Cancellation is separate.** Some APIs support cancellation—for example through an abort signal—but `Promise.all` itself does not retroactively stop the work represented by its inputs. Cancellation deserves its own lifecycle and ownership design.
+**Cancellation is separate.** Some APIs support cancellation—for example through an abort signal—but `Promise.all()` itself does not retroactively stop the work represented by its inputs. Cancellation deserves its own lifecycle and ownership design.
 
 **Latency is not throughput.** Overlapping waits can reduce the elapsed time of one request without increasing the number of requests the whole system can sustainably process. It can even reduce throughput if increased concurrency saturates a bottleneck.
 
-**Measure the real path.** The simple `sum` versus `max` model is excellent for understanding independent waits, but real systems include queueing, connection setup, caching, contention, retries, scheduling overhead, and partial dependencies. Profile or trace the path before making large architectural changes.
+**Measure the real path.** The simple `sum` versus `max` model is useful for understanding independent waits, but real systems include queueing, connection setup, caching, contention, retries, scheduling overhead, and partial dependencies. Profile or trace the path before making large architectural changes.
 
 ## When sequential execution is correct
 
-Sequential execution is not a code smell by itself. Preserve it when ordering is part of correctness or system control.
+Sequential execution is not a code smell by itself. Preserve it when ordering is part of correctness or deliberate system control.
 
 Examples include:
 
@@ -271,13 +271,13 @@ The important paths are:
 
 The critical path is therefore about `900ms`. A fully sequential implementation would take about `500 + 300 + 700 + 400 = 1900ms`.
 
-Notice that this is **not** equivalent to putting all four calls into one `Promise.all`: the organization request cannot be constructed correctly until the user result exists.
+Notice that this is **not** equivalent to putting all four calls into one `Promise.all()`: the organization request cannot be constructed correctly until the user result exists.
 
 </details>
 
 ## Agent rule
 
-> When asynchronous operations are independent, start them before awaiting unrelated earlier results. Preserve sequential awaits when later work depends on earlier results or when ordering/backpressure is intentional. Do not introduce unbounded concurrency merely to reduce latency, and do not assume `Promise.all` rejection cancels already-started work.
+> When asynchronous operations are independent, start them before awaiting unrelated earlier results. Preserve sequential awaits when later work depends on earlier results or when ordering/backpressure is intentional. Do not introduce unbounded concurrency merely to reduce latency, and do not assume `Promise.all()` rejection cancels already-started work.
 
 When reviewing code, ask these questions before changing scheduling:
 
@@ -288,8 +288,8 @@ When reviewing code, ask these questions before changing scheduling:
 
 ## Related concepts
 
-- Promise aggregation and `Promise.all`
-- Promise settlement and `Promise.allSettled`
+- Promise aggregation and `Promise.all()`
+- Promise settlement and `Promise.allSettled()`
 - cancellation and `AbortSignal`
 - bounded concurrency and backpressure
 - critical paths and dependency graphs
@@ -299,6 +299,9 @@ These graph edges will become direct Atlas lesson links as the related lessons a
 
 ## Sources
 
-- [ECMAScript Language Specification — `Promise.all`](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-promise.all) — normative promise-combinator semantics.
-- [MDN — `Promise.all()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all) — readable reference for fulfillment ordering, rejection behavior, and common concurrent-await patterns.
-- [MDN — Using promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — promise composition guidance, including the fact that other operations can continue after the `Promise.all` result rejects.
+This lesson was last verified on **2026-09-09** and is classified as **evolving** with a 180-day review target.
+
+- [ECMAScript 2026 — `Promise.all`](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.all) — normative Promise aggregation and result-order semantics.
+- [MDN — `await`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await) — developer-facing explanation that `await` suspends the surrounding async function continuation without blocking the main thread.
+- [MDN — `Promise.all()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all) — readable reference for aggregation, fulfillment ordering, and rejection behavior.
+- [MDN — Using promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — Promise composition guidance and concurrency patterns.
