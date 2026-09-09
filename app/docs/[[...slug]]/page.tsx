@@ -2,6 +2,7 @@ import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { getFreshnessState } from '@/lib/content/freshness';
+import { createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
 import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
 import {
@@ -131,8 +132,9 @@ export async function generateMetadata(props: {
   const page = source.getPage(slug);
   if (!page) notFound();
 
-  return {
+  return createPageMetadata({
     title: page.data.title,
     description: page.data.description,
-  };
+    path: page.url,
+  });
 }
