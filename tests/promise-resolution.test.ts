@@ -116,3 +116,48 @@ describe('promise resolution teaching model', () => {
     }
   });
 });
+
+describe('native Promise semantics used by the lesson', () => {
+  it('Promise.resolve preserves identity for a native same-constructor Promise', () => {
+    const inner = new Promise<number>(() => {});
+
+    expect(Promise.resolve(inner)).toBe(inner);
+  });
+
+  it('a separately constructed outer Promise can adopt a pending inner Promise', async () => {
+    let resolveInner!: (value: number) => void;
+    const inner = new Promise<number>((resolve) => {
+      resolveInner = resolve;
+    });
+    const outer = new Promise<number>((resolve) => {
+      resolve(inner);
+    });
+
+    expect(outer).not.toBe(inner);
+
+    let settled = false;
+    void outer.then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveInner(42);
+    await expect(outer).resolves.toBe(42);
+  });
+
+  it('an executor throw after resolve(inner) does not replace the adopted outcome', async () => {
+    let resolveInner!: (value: number) => void;
+    const inner = new Promise<number>((resolve) => {
+      resolveInner = resolve;
+    });
+    const outer = new Promise<number>((resolve) => {
+      resolve(inner);
+      throw new Error('ignored after resolve has already been called');
+    });
+
+    resolveInner(42);
+    await expect(outer).resolves.toBe(42);
+  });
+});

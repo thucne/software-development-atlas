@@ -202,7 +202,10 @@ test('clean Markdown preserves the essential event-loop model', async ({
   expect(markdown).toContain('rendering opportunity');
   expect(markdown).toContain('queueMicrotask()');
   expect(markdown).toContain('Node.js');
-  expect(markdown).toContain('accepts either initial choice');
+  expect(markdown).toContain('accepts either initial source');
+  expect(markdown).toContain(
+    'correct code should rely only on ordering guarantees supplied by the relevant API/specification',
+  );
 });
 
 test('edit action targets the canonical event-loop source', async ({ page }) => {
