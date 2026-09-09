@@ -2,18 +2,33 @@
 
 A living, open-source knowledge system for software engineering — built for humans and coding agents.
 
-Software Development Atlas aims to make deep software-development knowledge easy to learn, easy to reference, easy to verify, and easy to contribute to. The project spans fundamentals through modern AI-native and agentic engineering practices while keeping the core experience free to operate.
+Software Development Atlas aims to make deep software-development knowledge easy to learn, easy to reference, easy to verify, and easy to contribute to. The project spans durable fundamentals through modern AI-native and agentic engineering practices while keeping the core experience free to operate.
 
-> **Status:** foundation phase. The first implementation milestone is a single gold-standard interactive lesson and the documentation shell required to support it.
+> **Status:** foundation phase. The project is establishing the knowledge model, documentation shell, and gold-standard content patterns before scaling coverage.
 
 ## Principles
 
 - **Depth without friction.** Explain concepts rigorously, then make them fast to scan and reference.
-- **Learn by interacting.** Prefer diagrams, runnable examples, comparisons, exercises, and visualizations where they improve understanding.
+- **Map the territory.** Grow by important software-engineering coverage and connections, not raw article count.
+- **Learn by interacting when it helps.** Prefer diagrams, runnable examples, comparisons, exercises, and visualizations where they materially improve understanding.
 - **Human + agent native.** Canonical knowledge should be useful as documentation and as structured context for coding agents.
 - **Freshness is visible.** Evolving and frontier material records when it was last verified and how often it should be reviewed.
 - **Zero-cost core.** Running the public project must not require maintainers to provide a billable API key, payment method, or usage-based cloud service.
 - **Open by default.** Content lives in Git and is reviewed through normal open-source pull requests.
+
+## Knowledge model
+
+`content/atlas-map.json` is the canonical Software Engineering Map. It defines broad domains and stable concept IDs independently of the current sidebar or lesson count.
+
+Authored content declares:
+
+- a `contentType` such as `concept`, `deep-dive`, `decision-guide`, `field-guide`, or `architecture-walkthrough`;
+- a target `learningDepth`: `recognize`, `reason`, or `operate`;
+- canonical `concepts` from the map.
+
+This keeps difficulty, navigation, loose search tags, content format, learning outcome, and durable concept placement as separate concerns. A concept can exist before a dedicated page does, making uncovered territory explicit.
+
+See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard and the [Software Engineering Map](./content/docs/start-here/software-engineering-map.mdx) for the human-readable model.
 
 ## Planned stack
 
@@ -30,16 +45,18 @@ Software Development Atlas aims to make deep software-development knowledge easy
 
 The site must remain portable and must not make a paid hosted service a requirement for core reading, navigation, search, or learning flows.
 
-## Content model
+## Content experience
 
-Lessons are small enough to reference directly but deep enough to teach a production-grade mental model. A typical lesson may include:
+Not every Atlas page has the same shape. A focused concept page can stay concise; a decision guide should emphasize constraints and trade-offs; an architecture walkthrough should connect boundaries and failure modes; a deep dive may use the fuller teaching pattern below.
+
+A deep dive may include:
 
 1. TL;DR
 2. Mental model
 3. Why it matters
 4. Core explanation
 5. Bad vs. better approaches
-6. Interactive or runnable example
+6. Interactive or runnable example when useful
 7. Production considerations
 8. Testing, performance, and security implications when relevant
 9. Exercise or challenge
@@ -48,17 +65,16 @@ Lessons are small enough to reference directly but deep enough to teach a produc
 12. Primary sources
 13. Freshness metadata
 
-See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard.
-
 ## Project roadmap
 
-The project intentionally starts narrow:
+The project intentionally grows through small, reviewable slices:
 
-1. establish the content and contribution standards;
+1. establish content, contribution, and knowledge-map standards;
 2. build the documentation shell;
-3. create one exceptional vertical-slice lesson;
-4. extract reusable interactive learning primitives from real needs;
-5. publish roughly 25 exceptional lessons for the first public milestone.
+3. establish exceptional vertical-slice content;
+4. extract reusable learning primitives from real needs;
+5. grow representative coverage across the Software Engineering Map;
+6. add curated learning paths, decision guides, and architecture walkthroughs as the content base becomes useful enough to support them.
 
 See [docs/roadmap.md](./docs/roadmap.md) for details.
 
@@ -74,7 +90,7 @@ Corrections and reports of outdated material are particularly valuable.
 
 ## AI and cost policy
 
-Software Development Atlas may integrate with AI tools, but its core experience must not depend on a maintainer-funded model API. Preferred integrations are user-owned or local: copy Markdown/context, open a lesson in an external AI tool, export agent instructions, or run compatible models on the user's device when practical.
+Software Development Atlas may integrate with AI tools, but its core experience must not depend on a maintainer-funded model API. Preferred integrations are user-owned or local: copy Markdown/context, open content in an external AI tool, export agent instructions, or run compatible models on the user's device when practical.
 
 ## Development
 
@@ -102,7 +118,7 @@ pnpm test:e2e
 
 ### Content
 
-Canonical lessons live in `content/docs` as Markdown/MDX. Frontmatter is validated during content generation/build. Do not add a runtime database for ordinary lesson content.
+Canonical authored pages live in `content/docs` as Markdown/MDX. The canonical concept map lives in `content/atlas-map.json`. Frontmatter and concept references are validated in CI/build tooling. Do not add a runtime database for ordinary Atlas content.
 
 ### Cost boundary
 
