@@ -60,8 +60,7 @@ Write down the forces before choosing an architecture label:
 **Why it matters here:** this is one of the main benefits microservices can buy. If the team still coordinates every change across services, the network boundaries may add cost without delivering the intended autonomy.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Architectural Boundary Comparison]**  
-> *Illustration description:* Visual comparison of three architectural topologies: Monolith (all modules co-located in 1 process & 1 DB), Modular Monolith (modules enforce strict internal boundaries within 1 deployment & shared DB transaction boundary), and Microservices (autonomous services communicating over network/events with independent databases).
+<AtlasIllustration id="architecture-boundary-comparison" />
 
 ## The options
 
@@ -95,62 +94,13 @@ That deployment independence can matter when teams need separate release schedul
   caption="Monolith vs modular monolith vs microservices decision matrix"
   options={['Monolith', 'Modular monolith', 'Microservices']}
   rows={[
-    {
-      criterion: 'Deployment lifecycle',
-      values: [
-        'One application deployment',
-        'One application deployment; modules still ship together',
-        'Selected service boundaries can deploy independently',
-      ],
-    },
-    {
-      criterion: 'Domain-boundary enforcement',
-      values: [
-        'Depends on internal module/dependency discipline',
-        'Explicit module interfaces and dependency rules inside one deployment',
-        'Internal boundaries plus network/API and deployment contracts',
-      ],
-    },
-    {
-      criterion: 'Cross-boundary transaction model',
-      values: [
-        'Can remain inside one database/transaction boundary when the design permits',
-        'Can remain local across modules that share the transactional store',
-        'Cross-service workflows usually need explicit distributed consistency/recovery design',
-      ],
-    },
-    {
-      criterion: 'Team release autonomy',
-      values: [
-        'Teams coordinate the shared application release',
-        'Code ownership can be separate, but deployment is still coordinated',
-        'A team can release its service independently when ownership and compatibility boundaries are real',
-      ],
-    },
-    {
-      criterion: 'Failure boundaries',
-      values: [
-        'One process/deployment failure can affect the application unit',
-        'Same deployment failure boundary; modules can still isolate logic/data errors internally',
-        'Service failures can be isolated from other processes, while callers must handle partial/ambiguous remote failure',
-      ],
-    },
-    {
-      criterion: 'Scaling unit',
-      values: [
-        'Scale the application deployment',
-        'Scale the application deployment',
-        'Scale selected services separately when the platform and dependencies support it',
-      ],
-    },
-    {
-      criterion: 'Operational work',
-      values: [
-        'One deployable/runtime surface, plus application dependencies',
-        'One deployable plus explicit module-boundary governance',
-        'Operational work grows with deployable count, networks, data boundaries, compatibility, telemetry, and ownership surfaces',
-      ],
-    },
+    { criterion: 'Deployment lifecycle', values: ['One application deployment', 'One application deployment; modules still ship together', 'Selected service boundaries can deploy independently'] },
+    { criterion: 'Domain-boundary enforcement', values: ['Depends on internal module/dependency discipline', 'Explicit module interfaces and dependency rules inside one deployment', 'Internal boundaries plus network/API and deployment contracts'] },
+    { criterion: 'Cross-boundary transaction model', values: ['Can remain inside one database/transaction boundary when the design permits', 'Can remain local across modules that share the transactional store', 'Cross-service workflows usually need explicit distributed consistency/recovery design'] },
+    { criterion: 'Team release autonomy', values: ['Teams coordinate the shared application release', 'Code ownership can be separate, but deployment is still coordinated', 'A team can release its service independently when ownership and compatibility boundaries are real'] },
+    { criterion: 'Failure boundaries', values: ['One process/deployment failure can affect the application unit', 'Same deployment failure boundary; modules can still isolate logic/data errors internally', 'Service failures can be isolated from other processes, while callers must handle partial/ambiguous remote failure'] },
+    { criterion: 'Scaling unit', values: ['Scale the application deployment', 'Scale the application deployment', 'Scale selected services separately when the platform and dependencies support it'] },
+    { criterion: 'Operational work', values: ['One deployable/runtime surface, plus application dependencies', 'One deployable plus explicit module-boundary governance', 'Operational work grows with deployable count, networks, data boundaries, compatibility, telemetry, and ownership surfaces'] },
   ]}
 />
 
@@ -189,15 +139,11 @@ Examples of measurable value include shorter release lead time, reduced coordina
 **Why it matters here:** separating a service can reduce some runtime failure scope, but it can also create new dependency failures. A smaller process boundary does not automatically produce a smaller end-to-end incident.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Blast Radius & Failure Cascade Comparison]**  
-> *Illustration description:* Visual comparison of two incident blast-radius scenarios:
-> - **Monolith Failure:** A memory leak bug in a non-critical Reporting module causes an Out-Of-Memory (OOM) process crash -> freezes the entire application, knocking out customer Auth and Checkout flows.
-> - **Isolated Microservices with Circuit Breaker:** The Reporting service experiences a severe outage, but the API Gateway trips its circuit breaker and serves a fallback -> core Checkout and Auth maintain 100% SLA uptime.
+<AtlasIllustration id="blast-radius-comparison" />
 
 ## Microservices change the consistency and recovery model
 
-> 🖼️ **[Illustration Placeholder: Local ACID Transaction vs Distributed Saga / Outbox Flow]**  
-> *Illustration description:* Comparison contrasting an in-process local call (single atomic ACID DB commit/rollback) against a distributed network call (Service A successfully commits -> Service B experiences network timeout -> requires compensating actions / Saga workflow to restore data consistency).
+<AtlasIllustration id="local-transaction-vs-saga" />
 
 Inside one process, a normal function call completes under one runtime failure boundary. Across a service boundary, the caller can time out without knowing the remote outcome.
 
@@ -219,8 +165,7 @@ Distributed boundaries introduce design work around timeouts, retry budgets, ide
 
 ### Treating microservices as an organizational shortcut
 
-> 🖼️ **[Illustration Placeholder: The "Distributed Monolith" Anti-Pattern]**  
-> *Illustration description:* Diagram of a "Distributed Monolith" anti-pattern: 6 microservices packaged as distinct deployables, but locked in synchronous HTTP daisy chains (Service A calls B -> B calls C -> C calls D), sharing a single database and requiring coordinated lockstep releases. Impact: compounding latency, cascading failure multiplier, loss of deployment autonomy, and 5x higher operational overhead.
+<AtlasIllustration id="distributed-monolith" />
 
 A network boundary does not create a coherent business boundary or clear ownership. If the model is tightly coupled, service APIs can preserve that coupling while making changes and failures harder to coordinate.
 
