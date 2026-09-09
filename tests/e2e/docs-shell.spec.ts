@@ -1,8 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { appUrl } from './app-path';
 
-async function fixBrowserClock(page: Parameters<typeof test>[0]['page'], iso: string) {
+async function fixBrowserClock(page: Page, iso: string) {
   const fixedNow = Date.parse(iso);
 
   await page.addInitScript((timestamp) => {
@@ -73,7 +73,7 @@ test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
     )
     .toBeGreaterThan(widthBefore);
 
-  await figure.getByRole('button', { name: 'Reset zoom' }).click();
+  await figure.getByRole('button', { name: 'Reset zoom' })).click();
 
   await expect
     .poll(() =>
