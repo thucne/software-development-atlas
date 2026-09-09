@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn the approved Atlas visual-system design into a durable authoring contract, asset-ready renderer, objective tests, and the first 12-image migration without changing lesson-facing semantic illustration IDs.
+**Goal:** Implement the approved Atlas visual-system policy, an asset-ready static teaching-image renderer, objective tests, and the approved 12-image migration without changing lesson-facing semantic illustration IDs.
 
-**Architecture:** Keep `<AtlasIllustration id="…" />` as the stable MDX API. Extend `components/mdx/atlas-illustration.tsx` with a `static-image` definition kind that owns one shared asset path plus localized title, caption, and accessible description; keep exact diagrams in their existing programmatic forms. Move the canonical medium-selection rules into `CONTENT_GUIDE.md`, keep `.agents/skills/atlas-lesson-authoring/SKILL.md` operational and concise, and make `AGENTS.md` refer to the canonical rules instead of duplicating a competing policy.
+**Architecture:** Keep `<AtlasIllustration id="…" />` as the stable MDX API. Extend the typed illustration registry with a `static-image` definition that owns one shared asset path plus localized title, caption, and accessible description; render it through `next/image` while exact diagrams keep their existing programmatic renderers. Put canonical medium-selection rules in `CONTENT_GUIDE.md`, keep the authoring skill operational, and make `AGENTS.md` point to those rules instead of duplicating a placeholder-first policy.
 
-**Tech Stack:** Next.js 16, React, TypeScript, Fumadocs/MDX, Tailwind CSS, Vitest, static WebP assets under `public/illustrations/`.
+**Tech Stack:** Next.js 16, React, TypeScript, Fumadocs/MDX, Tailwind CSS, Vitest, Playwright, repository-local WebP assets.
 
 **Spec:** `docs/superpowers/specs/2026-09-09-atlas-visual-demonstration-system-design.md`
 
@@ -14,26 +14,14 @@
 
 - Choose the visual medium from the learning objective, not from visual variety.
 - Substantive lessons target 3–4 meaningful visual anchors, not 3–4 generated images.
-- Keep exact state, ordering, timing, protocol, transaction, and numeric diagrams programmatic when editability/precision is the teaching need.
-- Generated/static teaching illustrations are supplementary; no important technical fact may exist only in image pixels.
-- English and Vietnamese companions reuse one semantic asset by default; localized title, caption, and accessible description stay in code/MDX.
-- Static teaching assets use `public/illustrations/<domain>/<illustration-id>.webp`, normally 1600×900 / 16:9, with a target payload below roughly 300 KB where practical.
+- Keep exact state, ordering, timing, protocol, transaction, and numeric diagrams programmatic when precision/editability is the teaching need.
+- Static teaching illustrations are supplementary; no important technical fact may exist only in image pixels.
+- English and Vietnamese reuse one semantic asset by default; localized title, caption, and accessible description stay in code/MDX.
+- Assets use `public/illustrations/<domain>/<illustration-id>.webp`, normally 1600×900 / 16:9, targeting <300 KB where practical.
 - Generated teaching artwork contains little or no meaningful baked-in text.
 - Keep the existing `<AtlasIllustration id="…" />` MDX API unchanged.
-- Add no runtime image-generation API, hosted model dependency, paid service, or new package.
+- Add no runtime image-generation API, paid service, hosted dependency, or new package.
 - Machine tests enforce objective invariants only; artistic quality remains a review responsibility.
-
----
-
-## File Structure
-
-- `components/mdx/atlas-illustration.tsx` — semantic illustration registry and renderer; add static-image definition support without changing MDX callers.
-- `tests/illustrations.test.ts` — objective visual-cadence, bilingual parity, registry, and static-asset invariants.
-- `CONTENT_GUIDE.md` — canonical human-facing visual-medium, accessibility, localization, art-direction, prompt, and review rules.
-- `.agents/skills/atlas-lesson-authoring/SKILL.md` — concise operational workflow agents follow when choosing and reviewing visual anchors.
-- `AGENTS.md` — remove/replace duplicated placeholder-first visual policy with a short pointer to canonical guidance and repository-level invariants.
-- `public/illustrations/{async,http,cloud,rendering,architecture,checkout}/*.webp` — 12 text-light teaching assets using semantic IDs as filenames.
-- Existing lesson MDX files — no semantic-ID churn; only edit if a surrounding caption/explanation must be strengthened for accessibility after an image review.
 
 ---
 
@@ -41,68 +29,43 @@
 
 **Files:**
 - Modify: `tests/illustrations.test.ts`
-- Read: `components/mdx/atlas-illustration.tsx`
+- Modify later interface: `components/mdx/atlas-illustration.tsx`
 
 **Interfaces:**
-- Consumes: existing `<AtlasIllustration id="…" />`, Mermaid code fences, `DecisionMatrix`, `*Lab`, and `*Explorer` MDX syntax.
-- Produces: tests that define visual-anchor counting and static-image asset requirements for later tasks.
+- Consumes: lesson MDX syntax and exported `atlasIllustrationDefinitions` from Task 2.
+- Produces: visual-anchor cadence, bilingual parity, registry resolution, and static-asset invariants.
 
-- [ ] **Step 1: Replace the illustration-only cadence helper with a visual-anchor helper**
+- [ ] **Step 1: Add meaningful visual-anchor counting**
 
-Add these helpers near `illustrationIds`:
+Add:
 
 ```ts
 function countVisualAnchors(source: string) {
-  const atlasIllustrations = illustrationIds(source).length;
-  const mermaidBlocks = [...source.matchAll(/```mermaid\b/g)].length;
-  const decisionMatrices = [...source.matchAll(/<DecisionMatrix\b/g)].length;
-  const labsAndExplorers = [
-    ...source.matchAll(/<([A-Z][A-Za-z0-9]*(?:Lab|Explorer))\b/g),
-  ].length;
-
-  return atlasIllustrations + mermaidBlocks + decisionMatrices + labsAndExplorers;
+  return (
+    illustrationIds(source).length +
+    [...source.matchAll(/```mermaid\b/g)].length +
+    [...source.matchAll(/<DecisionMatrix\b/g)].length +
+    [...source.matchAll(/<([A-Z][A-Za-z0-9]*(?:Lab|Explorer))\b/g)].length
+  );
 }
 ```
 
-- [ ] **Step 2: Change the bilingual test so parity and cadence are separate assertions**
+Split the current companion test into:
 
-Use the existing sorted-ID comparison for locale parity, but enforce `countVisualAnchors(enSource) >= 3` and `countVisualAnchors(viSource) >= 3` independently. Expected failure before implementation: none for current lessons; this protects the new interpretation without forcing image quotas.
+- English/Vietnamese `AtlasIllustration` ID parity;
+- at least three meaningful visual anchors in each locale.
 
-- [ ] **Step 3: Add registry-resolution and static-image contract tests**
+- [ ] **Step 2: Add a temporary failing renderer-contract test**
 
-Read `components/mdx/atlas-illustration.tsx` as source and assert:
-
-```ts
-const illustrationSource = readFileSync(
-  path.join(process.cwd(), 'components/mdx/atlas-illustration.tsx'),
-  'utf8',
-);
-
-const registeredIds = [...illustrationSource.matchAll(/^\s*'([^']+)':\s*\{/gm)].map(
-  (match) => match[1],
-);
-```
-
-For every ID referenced by English lessons, assert `registeredIds` contains it.
-
-For static definitions, use a narrow source-level contract until definitions are exported as data:
+Before Task 2 implementation, import the module and assert the named export exists:
 
 ```ts
-const staticDefinitions = [
-  ...illustrationSource.matchAll(
-    /'([^']+)':\s*\{\s*kind:\s*'static-image',[\s\S]*?asset:\s*'([^']+\.webp)'[\s\S]*?description:\s*t\('([^']+)',\s*'([^']+)'\)/g,
-  ),
-];
+import { atlasIllustrationDefinitions } from '@/components/mdx/atlas-illustration';
+
+test('illustration definitions are exported for objective validation', () => {
+  expect(atlasIllustrationDefinitions).toBeDefined();
+});
 ```
-
-For each static definition assert:
-
-- asset starts with `/illustrations/`;
-- asset ends in `.webp`;
-- English and Vietnamese descriptions are non-empty;
-- `public${asset}` exists on disk.
-
-- [ ] **Step 4: Run the focused test**
 
 Run:
 
@@ -110,7 +73,42 @@ Run:
 pnpm vitest run tests/illustrations.test.ts
 ```
 
-Expected: PASS before static-image definitions exist, because the new static-definition loop is empty; cadence and bilingual parity must remain green.
+Expected: FAIL because the registry is not exported yet.
+
+- [ ] **Step 3: After Task 2, validate registry and assets through typed data**
+
+Use:
+
+```ts
+for (const basePath of lessonPairs) {
+  for (const id of illustrationIds(readLesson(basePath, 'en'))) {
+    expect(atlasIllustrationDefinitions[id]).toBeDefined();
+  }
+}
+
+const staticDefinitions = Object.entries(atlasIllustrationDefinitions).filter(
+  ([, definition]) => definition.kind === 'static-image',
+);
+
+for (const [id, definition] of staticDefinitions) {
+  if (definition.kind !== 'static-image') continue;
+  expect(definition.asset).toMatch(/^\/illustrations\/.+\.webp$/);
+  expect(definition.description.en.trim()).not.toBe('');
+  expect(definition.description.vi.trim()).not.toBe('');
+  expect(existsSync(path.join(process.cwd(), 'public', definition.asset))).toBe(true);
+  expect(definition.asset).toContain(`/${id}.webp`);
+}
+```
+
+Import `existsSync` from `node:fs` alongside `readFileSync`.
+
+- [ ] **Step 4: Run focused tests**
+
+```bash
+pnpm vitest run tests/illustrations.test.ts
+```
+
+Expected after Task 2: PASS while there are no static definitions; later asset tasks make the static loop substantive.
 
 - [ ] **Step 5: Commit**
 
@@ -128,20 +126,16 @@ git commit -m "test: define Atlas visual system invariants"
 - Test: `tests/illustrations.test.ts`
 
 **Interfaces:**
-- Consumes: `AtlasIllustrationId`, localized `t(en, vi)` helper, existing figure shell.
-- Produces: `StaticImageDefinition` with `kind: 'static-image'`, `asset: string`, and `description: LocalizedText`; `renderDiagram` can render static image definitions while lesson MDX stays unchanged.
+- Produces: exported `atlasIllustrationDefinitions`, `StaticImageDefinition`, and a `static-image` renderer; consumes no new package.
 
-- [ ] **Step 1: Write a failing renderer-contract test**
+- [ ] **Step 1: Add `next/image` and the typed definition**
 
-Temporarily add one test that expects the source to define `type StaticImageDefinition` and include `'static-image'` in `IllustrationDefinition`. Run:
+At the top:
 
-```bash
-pnpm vitest run tests/illustrations.test.ts
+```ts
+import Image from 'next/image';
+import type { ReactNode } from 'react';
 ```
-
-Expected: FAIL because the type does not yet exist.
-
-- [ ] **Step 2: Add the static-image definition type**
 
 Add:
 
@@ -155,21 +149,30 @@ type StaticImageDefinition = {
 };
 ```
 
-Extend:
+Extend `IllustrationDefinition` with `StaticImageDefinition`.
+
+- [ ] **Step 2: Export the actual registry**
+
+Rename:
 
 ```ts
-type IllustrationDefinition =
-  | FlowDefinition
-  | CompareDefinition
-  | TimelineDefinition
-  | MatrixDefinition
-  | ChartDefinition
-  | StaticImageDefinition;
+const definitions: Record<AtlasIllustrationId, IllustrationDefinition>
 ```
 
-- [ ] **Step 3: Add the static image renderer**
+to:
 
-Use the repository-local public asset path with a native semantic image element so no new Next image configuration is required:
+```ts
+export const atlasIllustrationDefinitions: Record<
+  AtlasIllustrationId,
+  IllustrationDefinition
+> = {
+```
+
+Update `AtlasIllustration` to read `atlasIllustrationDefinitions[id]`.
+
+- [ ] **Step 3: Render static assets through `next/image`**
+
+Add:
 
 ```tsx
 function StaticTeachingImage({
@@ -181,34 +184,27 @@ function StaticTeachingImage({
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-fd-border bg-[#111827]">
-      <img
+      <Image
         src={definition.asset}
         alt={localized(definition.description, locale)}
+        width={1600}
+        height={900}
+        sizes="(max-width: 768px) 100vw, 900px"
         className="block h-auto w-full object-contain"
-        loading="lazy"
-        decoding="async"
       />
     </div>
   );
 }
 ```
 
-Add to `renderDiagram`:
+Add `case 'static-image'` to `renderDiagram`.
 
-```ts
-case 'static-image':
-  return <StaticTeachingImage definition={definition} locale={locale} />;
-```
-
-The existing figure title and `figcaption` remain localized HTML outside the pixels.
-
-- [ ] **Step 4: Run focused tests and typecheck**
-
-Run:
+- [ ] **Step 4: Run focused validation**
 
 ```bash
 pnpm vitest run tests/illustrations.test.ts
 pnpm typecheck
+pnpm lint
 ```
 
 Expected: PASS.
@@ -228,20 +224,18 @@ git commit -m "feat: support static Atlas teaching illustrations"
 - Modify: `CONTENT_GUIDE.md`
 - Modify: `.agents/skills/atlas-lesson-authoring/SKILL.md`
 - Modify: `AGENTS.md`
-- Test: `tests/illustrations.test.ts` (no behavior change required)
 
 **Interfaces:**
-- Consumes: approved design spec and existing Teaching/Clarity contracts.
-- Produces: one canonical human policy, one operational agent procedure, and one concise repository pointer with no contradictory placeholder-first rules.
+- Produces: canonical human policy, concise operational agent workflow, and one repository-level pointer without contradictory placeholder-first guidance.
 
-- [ ] **Step 1: Replace `CONTENT_GUIDE.md` visual-cadence section**
+- [ ] **Step 1: Replace the canonical visual-cadence section**
 
-Retain the 3–4 anchor target but explicitly define four media:
+`CONTENT_GUIDE.md` must state:
 
 ```markdown
 ### Choose the visual medium from the learning objective
 
-Visual anchors are not image quotas. For each visual, first name the learner misunderstanding it prevents.
+Visual anchors are not image quotas. For each proposed visual, first name the learner misunderstanding it prevents.
 
 - **Programmatic diagram:** exact state, ordering, timing, values, protocol layering, dependency graphs, transaction boundaries.
 - **Teaching illustration:** bottlenecks, pressure, blast radius, lifecycle intuition, ambiguous outcomes, ownership boundaries, cascading failure.
@@ -251,13 +245,13 @@ Visual anchors are not image quotas. For each visual, first name the learner mis
 Do not replace an exact diagram with generated artwork merely for visual novelty.
 ```
 
-Then add the approved Atlas art-direction summary, asset path contract, text-in-image rule, bilingual reuse rule, accessibility requirements, prompt recipe, and the 10-item visual review checklist from the design spec.
+Also add the approved art-direction summary, `public/illustrations/<domain>/<id>.webp` convention, minimal baked-text rule, shared bilingual asset rule, accessibility contract, stable prompt recipe, and 10-item visual review checklist from the design spec.
 
-Remove the old bilingual placeholder template as the primary workflow. If placeholders are retained for draft-only authoring, label them explicitly as temporary and state that published substantive lessons must not contain them.
+If draft placeholders remain documented, label them draft-only and explicitly ban them from published substantive lessons.
 
-- [ ] **Step 2: Rewrite the first two authoring-skill rules around medium selection**
+- [ ] **Step 2: Rewrite the authoring skill's first two rules**
 
-Change the skill description so it mentions visual-medium selection rather than standardized placeholders. Replace Rules 1–2 with:
+Use:
 
 ```markdown
 ### 1. Meaningful visual cadence (target 3–4 anchors)
@@ -267,11 +261,11 @@ Target one meaningful visual anchor every 1–2 conceptual sections. The target 
 For every proposed visual, write down the teaching purpose, then choose programmatic diagram, static teaching illustration, Mermaid, or interactive lab/explorer using `CONTENT_GUIDE.md`.
 ```
 
-Include the static-asset naming rule, minimal baked text, one asset across locales, accessible description requirement, and the visual review checklist. Update the step-by-step workflow so “Visual Anchor 1/2/3” does not assume placeholders.
+Add asset naming, minimal baked text, shared locale asset, accessible description, and the visual review checklist. Change the lesson-improvement workflow so Visual Anchors 1–3 do not assume placeholders.
 
 - [ ] **Step 3: Deduplicate `AGENTS.md`**
 
-Replace the long “Standardized Illustration Placeholders” subsection with concise repository-level invariants:
+Replace the placeholder-first visual subsection with these repository-level invariants:
 
 ```markdown
 - Follow the canonical visual-medium contract in `CONTENT_GUIDE.md` and the operational workflow in `.agents/skills/atlas-lesson-authoring/SKILL.md`.
@@ -281,29 +275,18 @@ Replace the long “Standardized Illustration Placeholders” subsection with co
 - Published substantive lessons must not contain illustration placeholders.
 ```
 
-Add the visual-system design spec to “Before changing architecture.”
+Add the approved visual-system spec to “Before changing architecture.”
 
-- [ ] **Step 4: Verify there is no contradictory published-authoring policy**
-
-Search:
+- [ ] **Step 4: Verify consistency**
 
 ```bash
-rg -n "Illustration Placeholder|3–4 visual|visual anchor|static teaching|generated image" CONTENT_GUIDE.md AGENTS.md .agents/skills/atlas-lesson-authoring/SKILL.md
-```
-
-Expected: placeholder language, if any, is draft-only; all three documents agree that visual anchors are not image quotas.
-
-- [ ] **Step 5: Run docs-adjacent tests**
-
-Run:
-
-```bash
+rg -n "Illustration Placeholder|visual anchor|image quota|static teaching|generated image" CONTENT_GUIDE.md AGENTS.md .agents/skills/atlas-lesson-authoring/SKILL.md
 pnpm vitest run tests/illustrations.test.ts tests/content-clarity.test.ts tests/authored-content.test.ts
 ```
 
-Expected: PASS.
+Expected: placeholder language is draft-only if present; all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add CONTENT_GUIDE.md AGENTS.md .agents/skills/atlas-lesson-authoring/SKILL.md
@@ -312,7 +295,7 @@ git commit -m "docs: codify Atlas visual medium guidance"
 
 ---
 
-### Task 4: Generate and integrate the four-image pilot
+### Task 4: Integrate the four-image pilot
 
 **Files:**
 - Create: `public/illustrations/async/bounded-concurrency.webp`
@@ -320,44 +303,38 @@ git commit -m "docs: codify Atlas visual medium guidance"
 - Create: `public/illustrations/rendering/hydration-gap.webp`
 - Create: `public/illustrations/checkout/payment-ambiguity-window.webp`
 - Modify: `components/mdx/atlas-illustration.tsx`
-- Test: `tests/illustrations.test.ts`
 
 **Interfaces:**
-- Consumes: `StaticImageDefinition` from Task 2 and the prompt recipe/art direction from the spec.
-- Produces: four static-image definitions using the same semantic IDs already referenced by both locales.
+- Consumes: `static-image` contract from Task 2.
+- Produces: four existing semantic IDs backed by one shared image asset each.
 
-- [ ] **Step 1: Generate `bounded-concurrency`**
+- [ ] **Step 1: Generate the four assets using the approved semantics**
 
-Use the approved prompt recipe with this semantic instruction:
-
-```text
-Teaching goal: a very large backlog of independent jobs is intentionally narrowed through five simultaneously active workers so a finite downstream database/API is protected. Large dense waiting queue on the left; narrow five-lane active-worker gate in the center; visibly finite downstream dependency on the right. Queued work must look waiting rather than active. Do not imply only five jobs exist. Dark charcoal/navy technical-editorial 16:9 scene; emerald/cyan healthy flow; amber pressure; no logos, no people, no paragraph text, no important labels or numbers baked into pixels.
-```
-
-Export to the exact WebP path above, target 1600×900 and <300 KB where practical.
-
-- [ ] **Step 2: Generate the other three pilot assets**
-
-Use these teaching goals:
+Use the spec's Atlas art direction and these teaching goals:
 
 ```text
-serverless-downstream-avalanche: rapidly expanding compute workers converge on a much smaller downstream database connection/capacity boundary; healthy autoscaling becomes dangerous downstream overload.
+bounded-concurrency: a very large waiting backlog narrows through five simultaneously active worker lanes before a finite downstream service; queued work is visibly waiting, not active.
 
-hydration-gap: useful server-rendered HTML is visibly present while interactive controls are not yet activated; client runtime arrives/attaches behavior later. Do not imply the page is blank before hydration.
+serverless-downstream-avalanche: rapidly expanding compute workers converge on a much smaller downstream database connection/capacity boundary; successful autoscaling becomes dangerous downstream overload.
 
-payment-ambiguity-window: payment provider completes a charge, but the success response is lost in transit and the caller sees timeout/uncertainty; the image must communicate “remote side effect may have happened even though caller lacks confirmation.”
+hydration-gap: useful server-rendered HTML is already visible while interactive controls are not yet activated; the client runtime later attaches behavior. Do not imply a blank page before hydration.
+
+payment-ambiguity-window: a payment provider completes a charge, but the success response is lost in transit and the caller sees timeout/uncertainty; remote side effect may have happened without caller confirmation.
 ```
 
-Apply the same art direction and text-light requirements.
+All four: dark charcoal/navy technical-editorial 16:9, restrained emerald/cyan/amber/red semantics, no logos/people, little or no baked text, 1600×900 WebP target.
 
-- [ ] **Step 3: Convert the four definitions to `static-image`**
+- [ ] **Step 2: Convert each registry entry to `static-image`**
 
-Each definition follows this exact shape:
+Use this shape for all four:
 
 ```ts
 'bounded-concurrency': {
   kind: 'static-image',
-  title: t('Bounded concurrency protects downstream capacity', 'Concurrency có giới hạn bảo vệ năng lực downstream'),
+  title: t(
+    'Bounded concurrency protects downstream capacity',
+    'Concurrency có giới hạn bảo vệ năng lực downstream',
+  ),
   caption: t(
     'A large backlog can wait while only a fixed number of jobs actively consume downstream capacity.',
     'Một backlog lớn có thể chờ trong khi chỉ một số lượng job cố định đang chủ động sử dụng năng lực downstream.',
@@ -370,30 +347,20 @@ Each definition follows this exact shape:
 },
 ```
 
-Use equivalent localized metadata for the other three IDs.
+The other three use equivalent concise localized spatial descriptions and their exact asset paths.
 
-- [ ] **Step 4: Run focused tests**
-
-Run:
+- [ ] **Step 3: Validate pilot**
 
 ```bash
 pnpm vitest run tests/illustrations.test.ts
 pnpm typecheck
-```
-
-Expected: PASS; static asset existence checks now cover four definitions.
-
-- [ ] **Step 5: Run representative E2E rendering checks**
-
-Run:
-
-```bash
+pnpm lint
 pnpm playwright test tests/e2e/async-waterfalls.spec.ts tests/e2e/engineering-judgment.spec.ts
 ```
 
-Expected: PASS with no horizontal overflow or missing image failures.
+Expected: PASS; no missing assets or horizontal-overflow regressions.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add public/illustrations components/mdx/atlas-illustration.tsx
@@ -402,7 +369,7 @@ git commit -m "feat: add Atlas teaching illustration pilot"
 
 ---
 
-### Task 5: Migrate the remaining eight teaching illustrations
+### Task 5: Migrate the remaining eight approved teaching illustrations
 
 **Files:**
 - Create: `public/illustrations/async/main-thread-starvation.webp`
@@ -417,50 +384,40 @@ git commit -m "feat: add Atlas teaching illustration pilot"
 - Test: `tests/illustrations.test.ts`
 
 **Interfaces:**
-- Consumes: the validated four-image pilot rendering/art-direction pattern.
-- Produces: all 12 approved semantic IDs as static teaching images while the remaining 19 stay programmatic.
+- Produces: exactly 12 static teaching-image definitions total and 19 retained programmatic definitions.
 
-- [ ] **Step 1: Generate the remaining assets with the approved teaching goals**
-
-Use these semantics exactly:
+- [ ] **Step 1: Generate assets with these verified teaching goals**
 
 ```text
-main-thread-starvation: a self-replenishing stream of microtask work keeps occupying the main-thread progress path while user input, rendering, and later task work wait behind it.
-
-request-boundary-ownership: a request can be satisfied at client cache, intermediary/CDN, gateway/proxy, or origin; visually emphasize that an earlier responder means later boundaries may never participate.
-
-cold-vs-warm-start: cold path must create/initialize an execution environment before handling work; warm path reuses an existing environment. Do not imply universal provider timings.
-
-hybrid-rendering-architecture: one product surface combines shared/static regions, request-time server-rendered regions, and long-lived client-rendered interactive regions; do not present CSR/SSR/SSG as mutually exclusive whole-app identities.
-
-architecture-boundary-comparison: monolith, modular monolith, and microservices differ in deployment/domain boundaries; modular monolith has strong internal compartments but still one deployable; microservices have independently deployed boundaries.
-
-blast-radius-comparison: contrast a broad shared failure boundary with deliberately isolated service failure, while still showing dependencies so isolation is not portrayed as magical end-to-end immunity.
-
-distributed-monolith: several network-separated services remain tightly coupled through dense cross-service dependencies and coordinated change, showing network boundaries without real autonomy.
-
-retry-storm-vs-jitter: synchronized retry waves repeatedly hammer a recovering dependency, while jitter spreads retries across time and reduces peaks. Avoid exact numeric curves inside pixels.
+main-thread-starvation: self-replenishing microtask work occupies the main-thread progress path while user input, rendering, and later task work wait.
+request-boundary-ownership: client cache, intermediary/CDN, gateway/proxy, or origin can answer; an earlier responder means later boundaries may never participate.
+cold-vs-warm-start: cold path creates/initializes an execution environment before handling work; warm path reuses an existing environment; no universal provider timings.
+hybrid-rendering-architecture: one product surface combines static/shared, request-time server-rendered, and long-lived client-rendered regions; CSR/SSR/SSG are not mutually exclusive whole-app identities.
+architecture-boundary-comparison: monolith, modular monolith, and microservices differ in deployment/domain boundaries; modular monolith has internal compartments but one deployable, microservices have independently deployed boundaries.
+blast-radius-comparison: contrast broad shared failure scope with deliberately isolated service failure while still showing dependencies; isolation is not magical end-to-end immunity.
+distributed-monolith: network-separated services remain tightly coupled through dense cross-service dependencies and coordinated change.
+retry-storm-vs-jitter: synchronized retry waves repeatedly hammer a recovering dependency while jitter spreads retries across time and reduces peaks; avoid exact numeric curves inside pixels.
 ```
 
-- [ ] **Step 2: Convert the eight corresponding definitions to `static-image`**
+- [ ] **Step 2: Convert the eight registry definitions**
 
-For every definition provide:
+Every entry must contain:
 
 ```ts
-kind: 'static-image'
-asset: '/illustrations/<domain>/<id>.webp'
-description: t('<concise English spatial description>', '<concise Vietnamese spatial description>')
+kind: 'static-image',
+asset: '/illustrations/<domain>/<id>.webp',
+description: t('<English spatial description>', '<Vietnamese spatial description>'),
 ```
 
-Keep existing localized title/caption when still accurate; revise only when the new image changes the teaching emphasis.
+Keep/revise localized title and caption only as needed for semantic accuracy.
 
-- [ ] **Step 3: Verify the allocation is exactly 12 static / 19 programmatic**
+- [ ] **Step 3: Assert the approved allocation**
 
-Add this assertion to `tests/illustrations.test.ts`:
+Add:
 
 ```ts
 expect(staticDefinitions).toHaveLength(12);
-expect(registeredIds).toHaveLength(31);
+expect(Object.keys(atlasIllustrationDefinitions)).toHaveLength(31);
 ```
 
 Run:
@@ -480,25 +437,23 @@ git commit -m "feat: complete Atlas teaching illustration migration"
 
 ---
 
-### Task 6: Full regression, responsive review, and completion record
+### Task 6: Full regression and completion review
 
 **Files:**
-- Modify only if failures require corrections: `components/mdx/atlas-illustration.tsx`, visual-system docs, or affected lesson MDX.
-- Optional create: `docs/superpowers/plans/2026-09-09-atlas-visual-demonstration-system-self-review.md` only if the repository's existing workflow requires a separate self-review artifact; otherwise record results in the PR body.
+- Modify only where checks reveal a real defect.
 
 **Interfaces:**
-- Consumes: all prior tasks.
-- Produces: passing repository checks and review evidence that the approved visual contract is implemented.
+- Produces: verified implementation evidence and a clean branch ready for PR/review.
 
-- [ ] **Step 1: Run unit/content checks**
+- [ ] **Step 1: Run the full unit/content suite**
 
 ```bash
 pnpm vitest run
 ```
 
-Expected: all tests PASS.
+Expected: PASS.
 
-- [ ] **Step 2: Run type and lint checks**
+- [ ] **Step 2: Run typecheck and lint**
 
 ```bash
 pnpm typecheck
@@ -515,40 +470,20 @@ pnpm playwright test tests/e2e/async-waterfalls.spec.ts tests/e2e/browser-event-
 
 Expected: PASS.
 
-- [ ] **Step 4: Verify asset and policy invariants**
+- [ ] **Step 4: Verify assets and policy**
 
 ```bash
 find public/illustrations -type f -name '*.webp' | sort
-rg -n "Illustration Placeholder|image quota|static teaching|generated/static|visual anchor" CONTENT_GUIDE.md AGENTS.md .agents/skills/atlas-lesson-authoring/SKILL.md
-```
-
-Expected:
-
-- exactly 12 approved WebP assets;
-- no published lesson placeholders;
-- documentation consistently says visual anchors are not image quotas;
-- one semantic asset is reused across locales.
-
-- [ ] **Step 5: Compare branch to `main`**
-
-```bash
+rg -n "Illustration Placeholder|image quota|static teaching|generated image|visual anchor" CONTENT_GUIDE.md AGENTS.md .agents/skills/atlas-lesson-authoring/SKILL.md
 git diff --check main...HEAD
-git status --short
 ```
 
-Expected: no whitespace errors; clean working tree after commits.
+Expected: exactly 12 approved WebP assets; published lessons contain no placeholders; docs agree visual anchors are not image quotas; no whitespace errors.
 
-- [ ] **Step 6: Commit any regression fixes**
+- [ ] **Step 5: Commit only real regression fixes**
 
-If corrections were required, commit them as a focused final fix commit; otherwise do not create an empty commit.
+If validation required corrections, make a focused fix commit. Do not create an empty completion commit.
 
-- [ ] **Step 7: Prepare the PR summary**
+- [ ] **Step 6: Prepare final review summary**
 
-Document:
-
-- canonical policy changes;
-- static renderer contract;
-- 12 migrated illustration IDs / 19 retained exact diagrams;
-- bilingual/accessibility behavior;
-- validation commands and results;
-- confirmation that no paid/runtime service was introduced.
+Record canonical policy changes, renderer contract, 12 static / 19 programmatic allocation, bilingual/accessibility behavior, validation results, and confirmation that no paid/runtime service was introduced.
