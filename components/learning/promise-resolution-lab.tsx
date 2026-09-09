@@ -42,32 +42,30 @@ function PromiseCard({ promise }: { promise: PromiseNode }) {
         <p className="text-sm text-fd-muted-foreground">{promise.label}</p>
       </div>
 
-      <dl className="grid gap-2 text-sm">
-        <div className="flex flex-wrap gap-x-2">
-          <dt className="font-medium">State:</dt>
-          <dd>{STATE_LABELS[promise.state]}</dd>
-        </div>
-        <div className="flex flex-wrap gap-x-2">
-          <dt className="font-medium">Resolution:</dt>
-          <dd>{RESOLUTION_LABELS[promise.resolution]}</dd>
-        </div>
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        <dt className="font-medium">State:</dt>
+        <dd>{STATE_LABELS[promise.state]}</dd>
+
+        <dt className="font-medium">Resolution:</dt>
+        <dd>{RESOLUTION_LABELS[promise.resolution]}</dd>
+
         {promise.value !== undefined ? (
-          <div className="flex flex-wrap gap-x-2">
+          <>
             <dt className="font-medium">Value:</dt>
             <dd className="font-mono">{promise.value}</dd>
-          </div>
+          </>
         ) : null}
         {promise.reason !== undefined ? (
-          <div className="flex flex-wrap gap-x-2">
+          <>
             <dt className="font-medium">Reason:</dt>
             <dd className="font-mono">{promise.reason}</dd>
-          </div>
+          </>
         ) : null}
         {promise.adopts !== undefined ? (
-          <div className="flex flex-wrap gap-x-2">
+          <>
             <dt className="font-medium">Adopts:</dt>
             <dd className="font-mono">{promise.adopts}</dd>
-          </div>
+          </>
         ) : null}
       </dl>
     </article>
