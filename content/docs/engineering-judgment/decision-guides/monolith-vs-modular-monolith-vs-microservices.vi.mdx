@@ -59,8 +59,7 @@ Hãy làm rõ các lực cản kỹ thuật trước khi gán mác một tên g�
 **Ý nghĩa thực tiễn:** Đây là lợi ích lớn nhất mà Microservices mang lại. Nếu các đội ngũ vẫn phải họp bàn phối hợp triển khai từng tính năng cùng một lúc thì ranh giới mạng chỉ làm tăng thêm chi phí mà không đem lại sự tự chủ.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: So sánh Ranh giới Kiến trúc]**  
-> *Mô tả hình minh họa:* So sánh trực quan 3 mô hình kiến trúc: Monolith (tất cả mô-đun chung 1 process & 1 database), Modular Monolith (các mô-đun tuân thủ ranh giới nội bộ nghiêm ngặt trong 1 bản triển khai và dùng chung ranh giới giao dịch DB), và Microservices (các dịch vụ tự chủ giao tiếp qua mạng/sự kiện với database độc lập).
+<AtlasIllustration id="architecture-boundary-comparison" />
 
 ## So sánh chi tiết 3 mô hình
 
@@ -95,64 +94,17 @@ Microservices tách các ranh giới nghiệp vụ thành các dịch vụ tri�
   criterionLabel="Tiêu chí"
   options={['Monolith', 'Modular Monolith', 'Microservices']}
   rows={[
-    {
-      criterion: 'Vòng đời triển khai',
-      values: [
-        'Một bản triển khai duy nhất cho toàn bộ hệ thống',
-        'Một bản triển khai duy nhất; các mô-đun phát hành chung',
-        'Các dịch vụ có thể triển khai và phát hành hoàn toàn độc lập',
-      ],
-    },
-    {
-      criterion: 'Cưỡng chế ranh giới nghiệp vụ',
-      values: [
-        'Phụ thuộc hoàn toàn vào tính kỷ luật của lập trình viên',
-        'Cưỡng chế qua interface mô-đun và công cụ phân tích phụ thuộc nội bộ',
-        'Cưỡng chế qua ranh giới tiến trình, giao thức mạng và hợp đồng API',
-      ],
-    },
-    {
-      criterion: 'Mô hình giao dịch dữ liệu',
-      values: [
-        'Tận dụng giao dịch ACID cục bộ mạnh mẽ trên 1 cơ sở dữ liệu',
-        'Giữ được giao dịch ACID cục bộ giữa các mô-đun dùng chung DB',
-        'Bắt buộc phải áp dụng Saga, Outbox và mô hình Eventual Consistency',
-      ],
-    },
-    {
-      criterion: 'Tính tự chủ phát hành của đội ngũ',
-      values: [
-        'Các đội ngũ phải phối hợp trong đợt phát hành chung',
-        'Quyền sở hữu mã nguồn tách bạch nhưng phát hành vẫn theo đợt chung',
-        'Các đội ngũ tự chủ phát hành dịch vụ của mình bất cứ lúc nào',
-      ],
-    },
-    {
-      criterion: 'Ranh giới cô lập sự cố (Blast Radius)',
-      values: [
-        'Sự cố tràn bộ nhớ (OOM) hoặc nghẽn thread có thể kéo sập toàn bộ app',
-        'Cùng chung ranh giới tiến trình; lỗi logic có thể cô lập theo mô-đun',
-        'Lỗi tiến trình được cô lập; bên gọi phải chủ động xử lý timeout/retry',
-      ],
-    },
-    {
-      criterion: 'Đơn vị co giãn tải (Scaling Unit)',
-      values: [
-        'Nhân bản toàn bộ ứng dụng trên nhiều instance',
-        'Nhân bản toàn bộ ứng dụng trên nhiều instance',
-        'Co giãn độc lập từng dịch vụ có nhu cầu tài nguyên đặc thù',
-      ],
-    },
-    {
-      criterion: 'Gánh nặng vận hành',
-      values: [
-        'Thấp; quản lý một runtime và một cụm cơ sở dữ liệu',
-        'Thấp đến trung bình; cần công cụ rà soát ranh giới mô-đun trong CI',
-        'Rất cao; tăng nhanh theo số lượng service, mạng, telemetry, CI/CD',
-      ],
-    },
+    { criterion: 'Vòng đời triển khai', values: ['Một bản triển khai duy nhất cho toàn bộ hệ thống', 'Một bản triển khai duy nhất; các mô-đun phát hành chung', 'Các dịch vụ có thể triển khai và phát hành hoàn toàn độc lập'] },
+    { criterion: 'Cưỡng chế ranh giới nghiệp vụ', values: ['Phụ thuộc hoàn toàn vào tính kỷ luật của lập trình viên', 'Cưỡng chế qua interface mô-đun và công cụ phân tích phụ thuộc nội bộ', 'Cưỡng chế qua ranh giới tiến trình, giao thức mạng và hợp đồng API'] },
+    { criterion: 'Mô hình giao dịch dữ liệu', values: ['Tận dụng giao dịch ACID cục bộ mạnh mẽ trên 1 cơ sở dữ liệu', 'Giữ được giao dịch ACID cục bộ giữa các mô-đun dùng chung DB', 'Bắt buộc phải áp dụng Saga, Outbox và mô hình Eventual Consistency'] },
+    { criterion: 'Tính tự chủ phát hành của đội ngũ', values: ['Các đội ngũ phải phối hợp trong đợt phát hành chung', 'Quyền sở hữu mã nguồn tách bạch nhưng phát hành vẫn theo đợt chung', 'Các đội ngũ tự chủ phát hành dịch vụ của mình bất cứ lúc nào'] },
+    { criterion: 'Ranh giới cô lập sự cố (Blast Radius)', values: ['Sự cố tràn bộ nhớ (OOM) hoặc nghẽn thread có thể kéo sập toàn bộ app', 'Cùng chung ranh giới tiến trình; lỗi logic có thể cô lập theo mô-đun', 'Lỗi tiến trình được cô lập; bên gọi phải chủ động xử lý timeout/retry'] },
+    { criterion: 'Đơn vị co giãn tải (Scaling Unit)', values: ['Nhân bản toàn bộ ứng dụng trên nhiều instance', 'Nhân bản toàn bộ ứng dụng trên nhiều instance', 'Co giãn độc lập từng dịch vụ có nhu cầu tài nguyên đặc thù'] },
+    { criterion: 'Gánh nặng vận hành', values: ['Thấp; quản lý một runtime và một cụm cơ sở dữ liệu', 'Thấp đến trung bình; cần công cụ rà soát ranh giới mô-đun trong CI', 'Rất cao; tăng nhanh theo số lượng service, mạng, telemetry, CI/CD'] },
   ]}
 />
+
+<AtlasIllustration id="blast-radius-comparison" />
 
 ## Tình huống thực tế trên Production
 
@@ -179,13 +131,11 @@ Vì không thiết kế giao dịch phân tán (Saga) hay cơ chế bù trừ (C
 **Quy trình bù trừ (Compensating workflow)** là chuỗi thao tác được thiết kế có chủ đích để đảo ngược hoặc khắc phục hậu quả của một bước đã commit trước đó khi một mắt xích trong chuỗi phân tán bị đứt gãy.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Giao dịch ACID cục bộ vs Quy trình Saga phân tán]**  
-> *Mô tả hình minh họa:* Đối chiếu giữa một lệnh gọi nội bộ trong 1 tiến trình (commit/rollback nguyên tử trên 1 database) và một luồng phân tán (Service A commit thành công -> Service B bị lỗi timeout mạng -> kích hoạt bước bù trừ để trả lại tính nhất quán).
+<AtlasIllustration id="local-transaction-vs-saga" />
 
 ## Bẫy "Distributed Monolith" cần tránh
 
-> 🖼️ **[Illustration Placeholder: Anti-pattern "Monolith phân tán"]**  
-> *Mô tả hình minh họa:* Mô hình "Monolith phân tán": 6 microservices đóng gói riêng biệt nhưng mắc kẹt trong chuỗi gọi HTTP đồng bộ hình hoa cúc (Service A gọi B -> B gọi C -> C gọi D), dùng chung 1 cơ sở dữ liệu và yêu cầu release đồng loạt. Hậu quả: độ trễ nhân lên gấp bội, lỗi dây chuyền diện rộng, mất hoàn toàn tính tự chủ phát hành và gánh nặng vận hành tăng gấp 5 lần.
+<AtlasIllustration id="distributed-monolith" />
 
 ## Cây quyết định kiến trúc (Decision Tree)
 
