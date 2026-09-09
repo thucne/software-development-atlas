@@ -1,0 +1,126 @@
+---
+title: "Containers vs Serverless: Hướng dẫn ra quyết định kiến trúc"
+description: "Khung tư duy kỹ thuật để lựa chọn giữa mô hình tính toán container và serverless dựa trên quyền kiểm soát tiến trình, độ trễ cold start, mô hình chi phí và backpressure."
+category: engineering-judgment
+level: intermediate
+status: evolving
+lastVerified: 2026-09-09
+reviewAfterDays: 180
+topics:
+  - architecture
+  - engineering-judgment
+  - containers
+  - serverless
+  - cloud-infrastructure
+prerequisites:
+  - cloud-computing-basics
+  - http-request-lifecycle
+related:
+  - monolith-vs-modular-monolith-vs-microservices
+  - csr-vs-ssr-vs-ssg
+technologies:
+  - docker
+  - kubernetes
+  - aws-lambda
+  - google-cloud-run
+contentType: decision-guide
+learningDepth: reason
+concepts:
+  - containers
+  - serverless-compute
+  - cloud-compute
+  - autoscaling
+  - deployment-strategies
+---
+
+## Tóm tắt nhanh (TL;DR)
+
+1. **Ranh giới đóng gói (Packaging) khác với Ranh giới vận hành (Operating):** Một ứng dụng có thể vừa là container vừa là serverless (ví dụ tiêu biểu: Google Cloud Run hoặc AWS Fargate).
+2. **Serverless vượt trội cho lưu lượng biến thiên mạnh hoặc có thể co về 0 (Scale to Zero):** Khi lưu lượng đến không đều đặn hoặc có khoảng thời gian dài không có request, serverless giúp tối ưu chi phí hạ tầng về 0$.
+3. **Container vượt trội cho lưu lượng ổn định, tiến trình chạy nền dài hạn, hoặc yêu cầu kiểm soát sâu hệ điều hành:** Khi cần kết nối TCP trường tồn (WebSockets/gRPC streaming), binary nhị phân tùy biến, hoặc thông lượng CPU liên tục.
+4. **Coi chừng sự cố sập cơ sở dữ liệu khi Serverless mở rộng quy mô (Connection Pool Exhaustion):** Serverless có thể tự động nâng lên 2,000 instance trong vài giây và lập tức làm nghẽn cạn kiệt giới hạn kết nối của Database phía sau.
+
+---
+
+## Hai ranh giới cốt lõi: Đóng gói vs Vận hành
+
+> 🖼️ **[Illustration Placeholder: Ma trận Ranh giới Đóng gói vs Ranh giới Vận hành]**  
+> *Mô tả hình minh họa:* Sơ đồ ma trận 2 trục: Trục ngang là "Mô hình đóng gói" (Zip Code Bundle vs OCI Container Image); Trục dọc là "Mô hình vận hành" (Tự quản lý VM/Cluster vs Môi trường thực thi Serverless do Cloud Provider quản lý). Làm nổi bật giao điểm của các sản phẩm hiện đại (ví dụ: Cloud Run = Đóng gói Container + Vận hành Serverless).
+
+<TermBox term="Cold start">
+**Cold start (Khởi động lạnh)** là khoảng thời gian trễ phát sinh khi nền tảng phải cấp phát sandbox mới, tải image/code bundle và khởi tạo runtime trước khi có thể xử lý request đầu tiên.
+</TermBox>
+
+> 🖼️ **[Illustration Placeholder: Chi tiết vòng đời Cold Start vs Warm Start]**  
+> *Mô tả hình minh họa:* Sơ đồ 2 thanh timeline đối chiếu chi tiết:
+> - **Cold Start (100ms – vài giây):** Cấp phát tài nguyên sandbox -> Tải image/code bundle -> Khởi tạo Language Runtime -> Chạy top-level initialization code (kết nối DB, load config) -> Xử lý Request.
+> - **Warm Start (vài ms):** Tái sử dụng execution environment đã ấm -> Nhận và xử lý Request ngay lập tức.
+
+---
+
+## Ma trận so sánh tiêu chí kỹ thuật
+
+<DecisionMatrix
+  caption="Ma trận so sánh Containers và Serverless"
+  options={['Container truyền thống (K8s/ECS)', 'Serverless (Lambda/Cloud Run)']}
+  rows={[
+    {
+      criterion: 'Khả năng kiểm soát Runtime & OS',
+      values: [
+        'Toàn quyền cấu hình OS kernel flags, sidecars, file system nền',
+        'Bị giới hạn trong sandbox do nhà cung cấp đám mây quy định',
+      ],
+    },
+    {
+      criterion: 'Độ trễ khởi động (Startup Latency)',
+      values: [
+        'Instance luôn sẵn sàng (0ms trễ khởi động)',
+        'Tiềm ẩn Cold Start khi có đột biến lưu lượng mới',
+      ],
+    },
+    {
+      criterion: 'Mô hình thanh toán',
+      values: [
+        'Trả phí theo tài nguyên cấp phát tĩnh (Provisioned Capacity)',
+        'Chỉ trả tiền theo thời gian xử lý thực tế (Pay-per-request)',
+      ],
+    },
+    {
+      criterion: 'Quản lý trạng thái & Kết nối dài hạn',
+      values: [
+        'Hỗ trợ tuyệt vời cho WebSockets, hàng đợi bộ nhớ, nền tảng stateful',
+        'Ưu tiên kiến trúc Stateless; ngắt kết nối khi hết thời gian chờ',
+      ],
+    },
+  ]}
+/>
+
+---
+
+## Sự cố thực tế: Cơn bão kết nối đánh sập Cơ sở dữ liệu
+
+Một công ty thương mại điện tử chuyển đổi webhook xử lý đơn hàng từ cụm container cố định sang các serverless functions để "tiết kiệm chi phí và tự động co giãn":
+
+> 🖼️ **[Illustration Placeholder: Sự cố Serverless gây cạn kiệt Connection Pool]**  
+> *Mô tả hình minh họa:* Sơ đồ luồng tải khi có đột biến lưu lượng (traffic burst): 1,500 serverless functions được tạo ra đồng thời -> Mỗi function mở 1 kết nối TCP đến Database -> Vượt quá ngưỡng tối đa (150 connections) của Database -> Database quá tải và trả về Connection Refused / Timeout cho toàn bộ hệ thống.
+
+- **Hậu quả:** Trong đợt Flash Sale, lưu lượng tăng vọt 40 lần. Nền tảng Serverless co giãn mượt mà lên 1,500 functions đồng thời — và ngay lập tức làm tràn ngưỡng giới hạn 150 kết nối tối đa của PostgreSQL chính. Toàn bộ cơ sở dữ liệu rơi vào tình trạng treo nghẽn, kéo sập cả luồng thanh toán chính của website.
+- **Nguyên nhân cốt lõi:** Đội ngũ kỹ thuật quên rằng: khả năng co giãn của compute không đồng nghĩa với khả năng chịu tải của database hạ tầng. Trong mô hình container, connection pool được duy trì cố định (ví dụ 10 container x 10 connection = 100 connection). Khi chuyển sang serverless, mỗi invocation độc lập mở một kết nối mới trực tiếp.
+- **Cách khắc phục chuẩn:** Bắt buộc phải đặt một tầng proxy quản lý kết nối (như AWS RDS Proxy, PgBouncer) hoặc giới hạn Concurrency tối đa của function để áp dụng áp lực ngược (Backpressure).
+
+---
+
+## Điểm giao thoa chi phí (Cost Crossover Point)
+
+> 🖼️ **[Illustration Placeholder: Đồ thị Điểm giao thoa Chi phí Tổng thể (TCO)]**  
+> *Mô tả hình minh họa:* Đồ thị đường cong chi phí theo thời gian/lưu lượng: Trục hoành là "Lưu lượng Request", trục tung là "Chi phí hàng tháng ($)". Đường biểu diễn Serverless xuất phát từ 0$ (khi scale to zero) và tăng dốc theo số lượng request; đường biểu diễn Container/VM có chi phí ban đầu cố định (base cost) nhưng đi ngang hoặc tăng rất chậm khi traffic tăng cao. Điểm giao nhau (Crossover Point) là ngưỡng chuyển dịch hiệu quả kinh tế giữa 2 mô hình.
+
+---
+
+## Checklist rà soát kiến trúc cho Kỹ sư
+
+- [ ] **Mô hình kết nối:** Ứng dụng có cần kết nối TCP trường tồn (như WebSocket, Socket.IO, gRPC server streaming) không? Nếu có, ưu tiên Container.
+- [ ] **Bảo vệ hệ thống hạ tầng (Backpressure):** Đã thiết lập giới hạn concurrency hoặc connection pooler giữa serverless compute và database chưa?
+- [ ] **Thời gian xử lý tối đa (Timeout):** Tác vụ có nguy cơ chạy vượt quá giới hạn timeout tối đa của serverless (thường là 15 phút) không?
+- [ ] **Độ nhạy cảm với Cold Start:** Các endpoint API then chốt có chịu được độ trễ phát sinh vài trăm mili-giây khi scale từ 0 lên không?
+- [ ] **Khả năng quan sát (Observability):** Đã thiết lập hệ thống trace phân tán (Distributed Tracing) để theo dõi các function có vòng đời ngắn chưa?

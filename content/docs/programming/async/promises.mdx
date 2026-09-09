@@ -91,14 +91,14 @@ A Promise can be **pending and already resolved** when it has been resolved to a
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Promise State Machine & Resolution vs Settlement]**  
-> *Mô tả hình minh họa:* Sơ đồ máy trạng thái (State Machine) của Promise:
-> 1. **Khởi tạo:** Bắt đầu ở trạng thái `pending`.
-> 2. **Chuyển trạng thái 1 chiều (Settled):**
->    - Gọi `resolve(primitiveValue)` -> Chuyển vĩnh viễn sang `fulfilled` với giá trị `value`.
->    - Gọi `reject(reason)` -> Chuyển vĩnh viễn sang `rejected` với lý do lỗi.
->    - Một khi đã Settled thì không thể đổi trạng thái được nữa (Bất biến / Immutable).
-> 3. **Trường hợp đặc biệt "Promise Adoption" (Resolved nhưng vẫn Pending):**
->    - Khi gọi `resolve(innerPromise)` -> Promise ngoài lập tức được xem là `resolved` (số phận đã ấn định, không thể reject để đổi ý), NHƯNG bản thân nó vẫn ở trạng thái `pending` cho đến khi `innerPromise` hoàn tất.
+> *Illustration description:* State machine diagram of a JavaScript Promise:
+> 1. **Initial state:** Starts in the `pending` state.
+> 2. **Irreversible one-way transition (Settled):**
+>    - Calling `resolve(primitiveValue)` -> Permanently transitions to `fulfilled` with value `value`.
+>    - Calling `reject(reason)` -> Permanently transitions to `rejected` with failure `reason`.
+>    - Once Settled, state transitions are permanently locked (Immutable).
+> 3. **Special case: "Promise Adoption" (Resolved but still Pending):**
+>    - Calling `resolve(innerPromise)` -> Outer promise is immediately marked as `resolved` (its fate is sealed, cannot be rejected), BUT its state remains `pending` until `innerPromise` settles.
 
 The simple cases look unsurprising:
 
@@ -265,12 +265,12 @@ P0 --then(handleValue)--> P1 --catch(handleError)--> P2 --finally(cleanup)--> P3
 `P0`, `P1`, `P2`, and `P3` are separate Promise objects. Each downstream Promise has its **own** outcome.
 
 > 🖼️ **[Illustration Placeholder: Downstream Promise Generation & Handler Outcomes]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng dữ liệu qua các mắt xích Promise Chain (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
-> - Mỗi mắt xích là một Object Promise riêng biệt độc lập trong heap memory (`p0 !== p1 !== p2`).
-> - Minh họa trực quan 3 kịch bản kết quả của một Handler:
->   1. **Return Value:** Handler trả về `x` -> downstream Promise lập tức fulfill với `x`.
->   2. **Throw Error:** Handler ném lỗi `throw err` -> downstream Promise lập tức reject với `err`.
->   3. **Return Promise (Flattening/Adoption):** Handler trả về một Promise khác `fetchData()` -> downstream Promise sẽ "nhận nuôi" (adopt) và chỉ settle khi `fetchData()` hoàn thành (không bị lồng thành `Promise<Promise<T>>`).
+> *Illustration description:* Data flow diagram through chained Promise nodes (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
+> - Each link in the chain is an independent Promise object allocated on the heap (`p0 !== p1 !== p2`).
+> - Visualizing the 3 outcome pathways of any handler:
+>   1. **Return Value:** Handler returns `x` -> downstream Promise immediately fulfills with `x`.
+>   2. **Throw Error:** Handler executes `throw err` -> downstream Promise immediately rejects with `err`.
+>   3. **Return Promise (Adoption / Flattening):** Handler returns another Promise `fetchData()` -> downstream Promise adopts its fate and only settles when `fetchData()` settles (no nested `Promise<Promise<T>>`).
 
 ## Return, throw, adopt
 
@@ -362,11 +362,11 @@ That is a concrete resolved-but-not-fulfilled state.
 ## Error propagation and recovery
 
 > 🖼️ **[Illustration Placeholder: Promise Error Propagation & Recovery Mechanics]**  
-> *Mô tả hình minh họa:* Mô hình "thác đổ" (waterfall) của lỗi trong Promise chain:
-> - Khi một mắt xích ném lỗi (`throw Error`), lỗi sẽ nhảy cóc qua tất cả các `.then(onFulfilled)` trung gian mà không thực thi chúng.
-> - Điểm chạm `.catch(onRejected)`:
->   - **Kịch bản Khôi phục (Recovery):** Nếu `.catch()` return fallback data -> downstream Promise phía sau nó lập tức trở lại trạng thái `fulfilled` và các `.then()` tiếp theo lại chạy bình thường!
->   - **Kịch bản Bắt lỗi không trọn vẹn (Swallowed Error):** `.catch()` chỉ chạy `console.log(err)` mà quên `throw` -> vô tình biến luồng lỗi thành `fulfilled undefined`, gây bug logic nguy hiểm cho các bước phía sau.
+> *Illustration description:* Waterfall diagram of error propagation down a Promise chain:
+> - When a handler throws an error (`throw Error`), the rejection bypasses all intermediate `.then(onFulfilled)` handlers without invoking them.
+> - At the `.catch(onRejected)` interception point:
+>   - **Recovery pathway:** If `.catch()` returns fallback data -> downstream Promise immediately returns to `fulfilled` state, and subsequent `.then()` handlers resume normal execution.
+>   - **Swallowed Error hazard:** If `.catch()` only executes `console.log(err)` without rethrowing -> implicitly fulfills with `undefined`, allowing downstream success handlers to execute with invalid state.
 
 When the current outcome does not match a supplied handler, that outcome propagates until a matching handler is reached.
 
@@ -426,11 +426,11 @@ A **Promise combinator** is a static Promise API that combines several input val
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Promise Combinators Comparison Matrix & Behavior]**  
-> *Mô tả hình minh họa:* Bảng đồ họa so sánh trực quan 4 combinators với 3 Promise con [P1 (hoàn thành sớm, thành công), P2 (hoàn thành muộn, thành công), P3 (hoàn thành giữa chừng, thất bại)]:
-> 1. `Promise.all`: Đòi hỏi TẤT CẢ thành công. P3 fail -> lập tức reject toàn cục (Fail-fast), kết quả của P1/P2 bị bỏ qua.
-> 2. `Promise.allSettled`: Luôn chờ TẤT CẢ P1, P2, P3 hoàn thành -> Trả về mảng 3 records trạng thái `{status: 'fulfilled' | 'rejected'}` (an toàn tuyệt đối cho batch operations).
-> 3. `Promise.race`: Ai cán đích đầu tiên (dù thắng hay thua) sẽ quyết định số phận -> P1 xong trước -> resolve theo P1.
-> 4. `Promise.any`: Tìm người THÀNH CÔNG đầu tiên -> P1 thành công -> resolve theo P1. Chỉ reject khi CẢ BA cùng fail (trả về `AggregateError`).
+> *Illustration description:* Visual comparison table of the four Promise combinators operating on three sub-promises [P1 (fast, fulfills), P2 (slow, fulfills), P3 (medium, rejects)]:
+> 1. `Promise.all`: Requires ALL to fulfill. P3 fails -> immediately rejects globally (Fail-fast); outcomes of P1/P2 are disregarded.
+> 2. `Promise.allSettled`: Waits for ALL sub-promises (P1, P2, P3) to complete -> returns an array of 3 `{status: 'fulfilled' | 'rejected'}` result objects (safe for batch processing).
+> 3. `Promise.race`: First to cross the finish line (whether fulfilled or rejected) dictates the outcome -> P1 settles first -> resolves with P1.
+> 4. `Promise.any`: Searches for the FIRST fulfillment -> P1 succeeds -> resolves with P1. Rejects only if ALL three fail (rejecting with `AggregateError`).
 
 | Need | API | Key failure behavior |
 | --- | --- | --- |
@@ -533,30 +533,30 @@ The syntax can still create an accidental sequential waterfall when independent 
 
 ### Production scenario: The "swallowed error" phantom confirmation
 
-Một service backend xử lý thanh toán đơn hàng bằng chuỗi Promise:
+A backend payment service coordinates order settlement using a Promise chain:
 
 ```ts
 function processOrderPayment(orderId: string) {
   return chargeCustomer(orderId)
     .catch((err) => {
-      // DEV chỉ ghi log lỗi charge thẻ nhưng quên rethrow:
+      // Developer logs the error but forgets to rethrow:
       logger.error('Failed to charge card', { orderId, err });
     })
     .then(() => {
-      // Bước này VẪN CHẠY vì .catch() phía trên trả về undefined (fulfilled)!
+      // This step STILL RUNS because the .catch() above returned undefined (fulfilled)!
       return markOrderAsPaidAndDispatch(orderId);
     });
 }
 ```
 
-- **Hậu quả:** Khi thẻ khách hàng hết hạn mức, `chargeCustomer` bị reject. Tuy nhiên `.catch()` chỉ ghi log rồi kết thúc bình thường (`return undefined`), biến downstream Promise thành **fulfilled**! Hệ thống lập tức gọi `markOrderAsPaidAndDispatch(orderId)`, xuất kho và gửi hàng cho khách dù chưa thu được đồng nào!
-- **Nguyên nhân cốt lõi:** Lập trình viên quên quy tắc cơ bản: hàm `.catch()` không chỉ để "lắng nghe lỗi", nó là một trạm **hồi phục (recovery)**. Nếu không ném lỗi tiếp, luồng phía sau sẽ coi như mọi chuyện đã được xử lý êm đẹp.
-- **Cách khắc phục chuẩn:** Nếu chỉ muốn quan sát lỗi mà không dập tắt thất bại, bắt buộc phải `throw err`:
+- **Impact:** When a customer's card is declined or has insufficient funds, `chargeCustomer` rejects. However, `.catch()` merely logs the error and returns cleanly (`return undefined`), transforming the downstream Promise into a **fulfilled** state! The system promptly calls `markOrderAsPaidAndDispatch(orderId)`, dispatching goods to the customer without collecting payment!
+- **Root cause:** The developer treated `.catch()` as a passive error listener rather than a **recovery handler**. Unless an error is explicitly rethrown, downstream consumers treat the branch as successfully handled and recovered.
+- **Correct pattern:** When logging or observing a failure without recovering, always rethrow the error:
   ```ts
   return chargeCustomer(orderId)
     .catch((err) => {
       logger.error('Failed to charge card', { orderId, err });
-      throw err; // Tiếp tục propagate rejection xuống downstream
+      throw err; // Propagate the rejection downstream
     })
     .then(() => markOrderAsPaidAndDispatch(orderId));
   ```

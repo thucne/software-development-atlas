@@ -7,6 +7,7 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: 'Software Development Atlas',
     },
+    i18n: true,
     links: [
       {
         type: 'icon',

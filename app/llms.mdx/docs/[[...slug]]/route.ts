@@ -20,5 +20,7 @@ export async function GET(
 }
 
 export function generateStaticParams() {
-  return source.generateParams();
+  return source.getPages('en').map((page) => ({
+    slug: page.slugs,
+  }));
 }

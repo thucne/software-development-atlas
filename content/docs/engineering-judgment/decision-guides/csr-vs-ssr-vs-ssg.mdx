@@ -71,7 +71,7 @@ Before naming a framework, write down the constraints:
 Those answers narrow the choice more reliably than a framework feature checklist.
 
 > 🖼️ **[Illustration Placeholder: Timeline comparison of CSR vs SSR vs SSG]**  
-> *Mô tả hình minh họa:* Sơ đồ 3 dòng timeline so sánh thời điểm: Browser nhận HTML (rỗng vs đầy đủ), Tải JS bundle, Hydration hoàn tất, và thời điểm User tương tác được (First Contentful Paint vs Time to Interactive / INP).
+> *Illustration description:* Three-lane timeline comparison diagram showing milestones: Browser receives HTML (empty shell vs full DOM), JavaScript bundle download/parse, Hydration completes, and User interaction capability (First Contentful Paint vs Time to Interactive / INP).
 
 ## The options
 
@@ -92,10 +92,10 @@ With SSR, the server produces useful HTML for a request and may incorporate requ
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Hydration Process & The "Uncanny Valley" Gap]**  
-> *Mô tả hình minh họa:* Sơ đồ 3 giai đoạn của trình duyệt khi load trang SSR:
-> 1. Nhận Server-rendered HTML: Giao diện hiển thị đầy đủ ngay lập tức, user thấy nội dung nhưng DOM chưa gắn event listener.
-> 2. Giai đoạn "Uncanny Valley": User nhấp chuột vào button/menu nhưng không phản hồi do JavaScript bundle vẫn đang tải/parse.
-> 3. Hydration hoàn tất: Framework gắn event listeners vào các node DOM tĩnh, trang đạt trạng thái tương tác hoàn toàn (Time to Interactive).
+> *Illustration description:* Three-phase browser diagram for SSR page loads:
+> 1. Receive Server-rendered HTML: Visual interface renders immediately; user sees content but DOM nodes lack active event listeners.
+> 2. The "Uncanny Valley": User clicks buttons or opens menus, but the UI remains unresponsive while the JavaScript bundle downloads, parses, and executes.
+> 3. Hydration Complete: Framework attaches event listeners to static DOM nodes; the page reaches full interactive capability (Time to Interactive).
 
 Choose SSR when useful initial HTML must include request-time state, or when moving data access into the server request path avoids an unacceptable browser-to-API waterfall. Rendering then becomes part of the request path, so capacity, cache policy, latency, timeout behavior, and rendering failures become production concerns.
 
@@ -110,10 +110,10 @@ In static-generation systems, **revalidation** is a process that refreshes or re
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Incremental Static Revalidation (ISR) Life Cycle]**  
-> *Mô tả hình minh họa:* Sơ đồ chu trình Revalidation tại Edge CDN:
-> - Request 1 (Trong hạn fresh): Trả về ngay lập tức từ Edge cache (0ms server compute).
-> - Request 2 (Quá hạn stale window): Vẫn trả về nội dung cũ ngay tức thì cho user (Stale-while-revalidate), đồng thời ngầm kích hoạt Server sinh bản render mới (Background revalidation).
-> - Request 3 (Sau khi sinh xong): CDN cập nhật bản mới và trả về cho toàn bộ người dùng tiếp theo.
+> *Illustration description:* Revalidation cycle at an Edge CDN:
+> - Request 1 (Fresh cache hit): Served instantly from Edge cache (0ms origin compute).
+> - Request 2 (Stale window reached): Immediately serves stale content to user (stale-while-revalidate), while asynchronously triggering origin server generation (background revalidation).
+> - Request 3 (After generation completes): Edge cache updates with the regenerated page and serves it to all subsequent requests.
 
 Choose SSG when many requests can safely receive the same generated representation and the allowed staleness window can be met through publishing or revalidation. Request-specific or continuously changing regions need another mechanism.
 
@@ -232,7 +232,7 @@ Documentation, marketing pages, public reference material, and some catalog/deta
 ## Hybrid rendering is normal
 
 > 🖼️ **[Illustration Placeholder: Hybrid Page Architecture & Island / Streaming Flow]**  
-> *Mô tả hình minh họa:* Sơ đồ phân rã một trang thương mại điện tử thực tế thành các tầng rendering: Header/Footer tĩnh (SSG qua CDN), Product Detail render từ server (SSR), và Giỏ hàng / Đề xuất cá nhân hóa tải bất đồng bộ phía client (CSR).
+> *Illustration description:* Architectural decomposition of a modern e-commerce page across rendering tiers: static global header/footer (SSG via CDN), core product details server-rendered (SSR), and dynamic shopping cart / personalized recommendations fetched asynchronously on the client (CSR).
 
 The labels describe **where particular rendering work happens**, not mutually exclusive application identities.
 

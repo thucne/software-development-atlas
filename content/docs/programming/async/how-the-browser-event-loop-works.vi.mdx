@@ -1,0 +1,241 @@
+---
+title: "Cơ chế hoạt động của Event Loop trong Trình duyệt"
+description: "Hiểu sâu sắc về Task queues, Microtasks, Checkpoints, Rendering pipeline, starvation và sự khác biệt căn bản so với Node.js."
+category: programming
+level: intermediate
+status: evolving
+lastVerified: 2026-09-09
+reviewAfterDays: 180
+topics:
+  - javascript
+  - browsers
+  - event-loop
+  - performance
+  - microtasks
+  - rendering
+prerequisites:
+  - javascript-execution-context
+  - callbacks
+related:
+  - promises
+  - avoiding-sequential-async-waterfalls
+  - web-workers
+technologies:
+  - javascript
+  - web-apis
+contentType: deep-dive
+learningDepth: reason
+concepts:
+  - browser-event-loop
+  - async-scheduling
+---
+
+## Tóm tắt nhanh (TL;DR)
+
+1. **Trình duyệt không có một hàng đợi FIFO đơn lẻ.** Event Loop của trình duyệt phối hợp nhiều **Task Queues (hàng đợi tác vụ)** riêng biệt được cấp nguồn từ các nguồn khác nhau (timers, user input, network, v.v.).
+2. **Microtasks luôn được ưu tiên vét sạch.** Tại mỗi **Microtask Checkpoint** (ngay sau khi một task hoàn thành hoặc call stack rỗng), trình duyệt sẽ chạy toàn bộ microtask queue cho đến khi trống rỗng 100%, bao gồm cả các microtask mới được sinh ra bên trong checkpoint.
+3. **Vẽ giao diện (Rendering) không diễn ra sau mỗi task.** Trình duyệt chỉ cập nhật giao diện tại các **Rendering Opportunity** (thường là 60Hz hoặc 120Hz), và `requestAnimationFrame()` chạy ngay TRƯỚC các bước tính toán Style và Layout của frame sắp vẽ.
+4. **Tránh nghẽn Main Thread bằng Microtask Starvation:** Vòng lặp đệ quy `queueMicrotask()` sẽ làm "đóng băng" giao diện trình duyệt hoàn toàn dù không có vòng lặp `while(true)` đồng bộ nào.
+5. **Event Loop của Trình duyệt khác hoàn toàn Node.js:** Trình duyệt tuân theo đặc tả WHATWG HTML (có chu trình render và task sources), trong khi Node.js vận hành dựa trên kiến trúc libuv với các phases riêng biệt (timers, poll, check/setImmediate).
+
+---
+
+## Ba vùng làm việc: Call Stack, Task Queues và Microtask Queue
+
+> 🖼️ **[Illustration Placeholder: Cấu trúc bộ 3 Event Loop Trình duyệt]**  
+> *Mô tả hình minh họa:* Sơ đồ trực quan thể hiện 3 vùng làm việc chính của JavaScript Runtime trên Main Thread trình duyệt:
+> 1. **Call Stack:** Ngăn xếp thực thi mã đồng bộ (Single-threaded).
+> 2. **Microtask Queue (VIP lane):** Hàng đợi ưu tiên cao cho Promise Jobs (`.then()`, `.catch()`), `queueMicrotask()`, và MutationObserver callbacks.
+> 3. **Task Queues (Macrotask Lanes):** Nhiều hàng đợi song song phân loại theo nguồn: Timer source (`setTimeout`), User interaction source (`click`, `keypress`), Network I/O source (`fetch` response).
+> 4. Mũi tên điều phối của Event Loop chỉ rõ: Main thread chỉ nhặt 1 Task từ Task Queue, thực thi xong -> Vét sạch Microtask Queue -> Đánh giá Rendering Opportunity -> Lặp lại.
+
+<TermBox term="Task source">
+Một **Task source (nguồn tác vụ)** theo đặc tả HTML là một nguồn phát sinh các tác vụ cụ thể, ví dụ như DOM manipulation, user interaction, networking, hoặc timers. Trình duyệt có quyền lựa chọn hàng đợi tác vụ nào để xử lý tiếp theo nhằm tối ưu hóa độ phản hồi của giao diện.
+</TermBox>
+
+---
+
+## Chu trình làm việc của Microtask Checkpoint
+
+<TermBox term="Microtask checkpoint">
+Một **Microtask checkpoint** là thời điểm trình duyệt tạm dừng mọi công việc khác để xử lý dứt điểm toàn bộ microtask đang chờ. Nếu một microtask lại tạo ra microtask mới, microtask mới đó cũng sẽ được xử lý ngay trong cùng checkpoint này.
+</TermBox>
+
+> 🖼️ **[Illustration Placeholder: Cơ chế xả Microtask Checkpoint]**  
+> *Mô tả hình minh họa:* Sơ đồ luồng trạng thái của một Microtask Checkpoint:
+> - Bắt đầu Checkpoint: Kiểm tra `microtaskQueue.length > 0`.
+> - Lấy microtask đầu tiên ra khỏi hàng đợi và thực thi.
+> - Nếu microtask đó lại gọi `queueMicrotask()`: Đẩy tác vụ mới vào CUỐI hàng đợi hiện tại.
+> - Tiếp tục lặp cho đến khi hàng đợi rỗng hoàn toàn (`empty`).
+> - Cảnh báo trực quan: Nếu tác vụ mới liên tục được sinh ra nhanh hơn tốc độ xử lý, checkpoint sẽ rơi vào vòng lặp vô tận (Starvation) và không bao giờ thoát ra để nhường chỗ cho Render hoặc Task khác.
+
+```js
+console.log('Script bắt đầu');
+
+setTimeout(() => {
+  console.log('Timer callback');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('Promise microtask 1');
+}).then(() => {
+  console.log('Promise microtask 2 (lồng nhau)');
+});
+
+console.log('Script kết thúc');
+```
+
+**Thứ tự in ra màn hình:**
+```text
+Script bắt đầu
+Script kết thúc
+Promise microtask 1
+Promise microtask 2 (lồng nhau)
+Timer callback
+```
+
+---
+
+## Đường ống kết xuất giao diện (Rendering Pipeline)
+
+Một sai lầm rất phổ biến là nghĩ rằng trình duyệt sẽ vẽ lại màn hình ngay sau mỗi tác vụ hay microtask. Thực tế, việc vẽ lại hoàn toàn độc lập và được điều phối bởi chu kỳ quét của màn hình (Refresh Rate).
+
+> 🖼️ **[Illustration Placeholder: Chu trình một Frame Render của Trình duyệt]**  
+> *Mô tả hình minh họa:* Sơ đồ vòng đời một frame render của trình duyệt (ví dụ ở màn hình 60Hz ~ 16.6ms):
+> 1. Main thread xử lý Task và Microtask checkpoint xong.
+> 2. Rendering Opportunity: Trình duyệt kiểm tra xem có cần update frame hay không (nếu tab background hoặc không có thay đổi DOM/CSS thì bỏ qua).
+> 3. Nếu có: Chạy theo thứ tự: Resize/Scroll events -> `requestAnimationFrame()` callbacks -> Style recalculation -> Layout (Reflow) -> Paint -> Composite -> Gửi sang GPU.
+> 4. Nhấn mạnh điểm quan trọng: rAF chạy TRƯỚC Style & Layout của frame sắp render, chứ không phải chạy sau khi vừa kết thúc mỗi microtask ngẫu nhiên.
+
+<TermBox term="Rendering opportunity">
+**Rendering opportunity (Cơ hội kết xuất)** là thời điểm trình duyệt quyết định có cần gửi một frame mới đến màn hình hay không. Nếu không có thay đổi hình ảnh hoặc tab đang chạy nền, trình duyệt sẽ bỏ qua bước này để tiết kiệm năng lượng.
+</TermBox>
+
+---
+
+## Phòng thí nghiệm Event Loop (Interactive Lab)
+
+Trải nghiệm trực quan cách Event Loop điều phối giữa Call Stack, Microtasks, Timers và Rendering Pipeline:
+
+<EventLoopLab />
+
+---
+
+## Hiện tượng Starvation và Đóng băng Main Thread
+
+> 🖼️ **[Illustration Placeholder: Đóng băng Main Thread: Long Task vs Microtask Loop]**  
+> *Mô tả hình minh họa:* So sánh trực quan 2 cơ chế làm nghẽn Main Thread:
+> - **Kịch bản A (Long Synchronous Task):** Một hàm tính toán CPU nặng chiếm Call Stack suốt 400ms -> User click chuột hoặc scroll màn hình bị đẩy vào Task Queue nhưng hoàn toàn không được xử lý -> DevTools Performance tab xuất hiện vệt đỏ "Long Task (>50ms)", INP tăng vọt.
+> - **Kịch bản B (Unbounded Microtask Chain):** Mỗi microtask chỉ tốn 0.5ms nhưng liên tục gọi đệ quy `queueMicrotask()` -> Microtask queue không bao giờ cạn (`empty`) -> Trình duyệt bị kẹt cứng trong checkpoint, hoàn toàn không thể thoát ra để nhường chỗ cho Macrotask hoặc Render frame -> Màn hình đơ cứng dù CPU không chạy một vòng lặp `while(true)` đồng bộ nào.
+
+---
+
+## Sự cố thực tế: Đóng băng giao diện "vô hình" do Microtask
+
+Một ứng dụng web chat realtime xử lý hàng loạt tin nhắn nhận về qua WebSocket. Khi một lô tin nhắn 500 items ùa về, lập trình viên sử dụng một hàm đệ quy để xử lý từng tin nhắn:
+
+```ts
+function processMessageBatch(messages: Message[]) {
+  if (messages.length === 0) return;
+  const msg = messages.shift()!;
+  renderMessage(msg);
+  // Cố gắng "chia nhỏ" bằng queueMicrotask thay vì xử lý loop đồng bộ:
+  queueMicrotask(() => processMessageBatch(messages));
+}
+```
+
+- **Hậu quả:** Dù không có một vòng lặp `for` dài gây blocking Call Stack, UI vẫn bị "đóng băng" suốt 1.2 giây! User click vào nút "Gửi" hay thanh input đều hoàn toàn bất động. Chỉ số INP (Interaction to Next Paint) báo đỏ nghiêm trọng (>1000ms).
+- **Nguyên nhân cốt lõi:** Lập trình viên nhầm lẫn giữa `queueMicrotask()` và việc nhường luồng (yielding) cho trình duyệt. `queueMicrotask()` **không bao giờ** nhường quyền điều khiển cho Task Queue hay Rendering Pipeline; nó tiếp tục giữ chặt checkpoint cho đến khi queue rỗng 100%.
+- **Cách khắc phục chuẩn:** Nếu muốn nhường luồng cho trình duyệt vẽ lại UI và nhận input click, phải đẩy công việc ra Macrotask hoặc sử dụng scheduler chuẩn:
+  ```ts
+  // Giải pháp hiện đại: scheduler.yield() nếu hỗ trợ, fallback sang setTimeout 0
+  async function processMessageBatch(messages: Message[]) {
+    for (const msg of messages) {
+      renderMessage(msg);
+      if ('scheduler' in window && 'yield' in (window as any).scheduler) {
+        await (window as any).scheduler.yield();
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+  }
+  ```
+
+---
+
+## So sánh Event Loop giữa Trình duyệt và Node.js
+
+| Đặc tính | Trình duyệt (Browser) | Node.js |
+| :--- | :--- | :--- |
+| **Đặc tả quy chuẩn** | WHATWG HTML Standard | Node.js Runtime Architecture (dựa trên libuv) |
+| **Giao diện & Hiển thị** | Có Rendering Pipeline và `requestAnimationFrame()` | Không có rendering pipeline |
+| **API hoãn tác vụ cấp hệ thống** | `scheduler.yield()`, `requestIdleCallback()` | `setImmediate()`, `process.nextTick()` |
+| **Quy tắc ưu tiên** | Ưu tiên tính phản hồi của người dùng và khung hình | Ưu tiên thông lượng I/O và tính toán server |
+
+---
+
+## Bài tập kiểm tra tư duy
+
+Hãy dự đoán thứ tự in ra console của đoạn mã sau:
+
+```ts
+console.log('A');
+
+setTimeout(() => {
+  console.log('timer');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('promise');
+
+  queueMicrotask(() => {
+    console.log('nested microtask');
+  });
+});
+
+queueMicrotask(() => {
+  console.log('queued microtask');
+});
+
+console.log('B');
+```
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+**Thứ tự in ra:**
+```text
+A
+B
+promise
+queued microtask
+nested microtask
+timer
+```
+
+**Giải thích:**
+1. Đồng bộ chạy trước: `A`, rồi `B`.
+2. Microtask Checkpoint bắt đầu:
+   - Microtask đầu tiên: in `promise`, đồng thời đẩy `nested microtask` vào cuối hàng đợi microtask.
+   - Microtask tiếp theo đã xếp hàng sẵn từ trước: in `queued microtask`.
+   - Microtask mới sinh: in `nested microtask`.
+3. Chỉ sau khi Microtask Queue cạn kiệt hoàn toàn, Event Loop mới chuyển sang nhặt task từ Timer Queue: in `timer`.
+
+</details>
+
+---
+
+## Checklist rà soát mã nguồn cho Kỹ sư
+
+- [ ] **Thời lượng tác vụ (Task Duration):** Mọi tác vụ trên Main Thread có hoàn thành dưới ngưỡng 50ms (ngưỡng Long Task trong DevTools) không?
+- [ ] **Giới hạn Microtask:** Các lời gọi `queueMicrotask()` hoặc chuỗi Promise đệ quy có điểm dừng rõ ràng để thoát khỏi checkpoint không?
+- [ ] **Không phỏng đoán thứ tự Task Source:** Tránh dựa vào giả định rằng timer sẽ luôn chạy trước hay sau một sự kiện người dùng không liên quan.
+- [ ] **Lên lịch hoạt ảnh chuẩn:** Các thao tác cập nhật DOM liên tục hoặc animation đã được đưa vào `requestAnimationFrame()` chưa?
+- [ ] **Phân tách ranh giới môi trường:** Đảm bảo không mang các API đặc thù của Node (`process.nextTick`, `setImmediate`) sang code chạy trên trình duyệt.
+
+---
+
+## Tài liệu quy chuẩn
+
+- [WHATWG HTML Standard — Event Loops](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops) — Đặc tả quy chuẩn thế giới về Event Loop, hàng đợi tác vụ và microtask checkpoint trên trình duyệt.
+- [W3C Prioritized Task Scheduling API](https://wicg.github.io/scheduling-apis/) — Đặc tả chuẩn về `scheduler.yield()` và `scheduler.postTask()`.

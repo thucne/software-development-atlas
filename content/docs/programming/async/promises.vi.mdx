@@ -1,0 +1,269 @@
+---
+title: "Promises: Giải quyết trạng thái, Nối chuỗi và Xử lý lỗi"
+description: "Xây dựng mô hình tư duy chuẩn xác về trạng thái Promise, resolution, chaining, khôi phục lỗi, adoption, combinators và các API hiện đại."
+category: programming
+level: intermediate
+status: evolving
+lastVerified: 2026-09-09
+reviewAfterDays: 180
+topics:
+  - javascript
+  - typescript
+  - promises
+  - async
+  - errors
+  - concurrency
+prerequisites:
+  - javascript-functions
+  - callbacks
+related:
+  - avoiding-sequential-async-waterfalls
+  - how-the-browser-event-loop-works
+  - async-await
+  - cancellation
+  - bounded-concurrency
+technologies:
+  - javascript
+  - typescript
+contentType: deep-dive
+learningDepth: reason
+concepts:
+  - promises
+---
+
+## Tóm tắt nhanh (TL;DR)
+
+1. **Một Promise mô hình hóa một kết quả trong tương lai, không phải một tác vụ đang chạy.** Promise là một giá trị đại diện (placeholder) cho kết quả của một phép tính không đồng bộ.
+2. **`resolved` không đồng nghĩa với `fulfilled`.** Một Promise đã "resolved" có thể vẫn đang ở trạng thái `pending` nếu nó đang "nhận nuôi" (adopt) số phận của một Promise con chưa hoàn tất.
+3. **Mỗi mắt xích `.then()`, `.catch()`, `.finally()` đều sinh ra một Promise hoàn toàn mới.** Chúng không hề thay đổi Promise ban đầu.
+4. **Hàm `.catch()` mặc định là một trạm khôi phục (recovery).** Nếu bạn không chủ động `throw` lỗi trong `.catch()`, Promise downstream tiếp theo sẽ chuyển thành **fulfilled** với giá trị `undefined`, dễ tạo ra lỗi nghiệp vụ nghiêm trọng.
+5. **Chọn đúng combinator theo mục đích:** `Promise.all()` cho điều kiện tất cả thành công (fail-fast), `Promise.allSettled()` khi cần ghi nhận toàn bộ kết quả, `Promise.any()` lấy thành công đầu tiên, và `Promise.race()` lấy phản hồi sớm nhất bất kể thành bại.
+
+---
+
+## Ba trạng thái của Promise
+
+Theo đặc tả ECMAScript, một Promise luôn nằm ở một trong ba trạng thái duy nhất:
+
+1. **`pending`**: Trạng thái ban đầu, kết quả chưa được định đoạt.
+2. **`fulfilled`**: Tác vụ hoàn thành thành công, mang theo một giá trị (`value`).
+3. **`rejected`**: Tác vụ thất bại, mang theo một lý do từ chối (`reason`).
+
+<TermBox term="Settled">
+Một Promise được gọi là **settled** khi nó đã chuyển sang trạng thái `fulfilled` hoặc `rejected`. Quá trình chuyển sang settled là **bất biến và một chiều** — một khi đã settled, Promise không thể đổi trạng thái hay đổi giá trị lần thứ hai.
+</TermBox>
+
+> 🖼️ **[Illustration Placeholder: Sơ đồ máy trạng thái Promise & Resolution vs Settlement]**  
+> *Mô tả hình minh họa:* Sơ đồ máy trạng thái (State Machine) của Promise:
+> 1. **Khởi tạo:** Bắt đầu ở trạng thái `pending`.
+> 2. **Chuyển trạng thái 1 chiều (Settled):**
+>    - Gọi `resolve(primitiveValue)` -> Chuyển vĩnh viễn sang `fulfilled` với giá trị `value`.
+>    - Gọi `reject(reason)` -> Chuyển vĩnh viễn sang `rejected` với lý do lỗi.
+>    - Một khi đã Settled thì không thể đổi trạng thái được nữa (Bất biến / Immutable).
+> 3. **Trường hợp đặc biệt "Promise Adoption" (Resolved nhưng vẫn Pending):**
+>    - Khi gọi `resolve(innerPromise)` -> Promise ngoài lập tức được xem là `resolved` (số phận đã ấn định, không thể reject để đổi ý), NHƯNG bản thân nó vẫn ở trạng thái `pending` cho đến khi `innerPromise` hoàn tất.
+
+```js
+const p1 = new Promise((resolve) => {
+  resolve(42);
+  resolve(100); // Lệnh này hoàn toàn bị bỏ qua, p1 vĩnh viễn là 42
+});
+```
+
+---
+
+## "Resolved" khác với "Fulfilled" như thế nào?
+
+Đây là điểm gây nhầm lẫn phổ biến nhất ngay cả với các lập trình viên nhiều năm kinh nghiệm:
+
+<TermBox term="Promise Adoption">
+**Promise Adoption (Nhận nuôi)** xảy ra khi bạn giải quyết một Promise bằng một Promise khác. Lúc này, Promise bên ngoài bị khóa chặt số phận theo Promise bên trong, nhưng bản thân nó vẫn ở trạng thái `pending` cho tới khi Promise bên trong chuyển sang settled.
+</TermBox>
+
+```js
+const inner = new Promise((resolve) => {
+  setTimeout(() => resolve('Xong!'), 1000);
+});
+
+const outer = new Promise((resolve) => {
+  resolve(inner); // outer đã resolved, nhưng vẫn pending trong 1 giây!
+});
+
+console.log(outer); // Promise { <pending> }
+```
+
+---
+
+## Cơ chế nối chuỗi (Chaining) và tạo Promise Downstream
+
+Khi gọi `.then()`, `.catch()`, hay `.finally()`, JavaScript không biến đổi Promise hiện tại mà luôn cấp phát một đối tượng Promise mới trong bộ nhớ heap:
+
+```text
+P0 --then(fn1)--> P1 --catch(fn2)--> P2
+```
+
+> 🖼️ **[Illustration Placeholder: Luồng dữ liệu qua chuỗi Promise Chain]**  
+> *Mô tả hình minh họa:* Sơ đồ luồng dữ liệu qua các mắt xích Promise Chain (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
+> - Mỗi mắt xích là một Object Promise riêng biệt độc lập trong heap memory (`p0 !== p1 !== p2`).
+> - Minh họa trực quan 3 kịch bản kết quả của một Handler:
+>   1. **Return Value:** Handler trả về `x` -> downstream Promise lập tức fulfill với `x`.
+>   2. **Throw Error:** Handler ném lỗi `throw err` -> downstream Promise lập tức reject với `err`.
+>   3. **Return Promise (Flattening/Adoption):** Handler trả về một Promise khác `fetchData()` -> downstream Promise sẽ "nhận nuôi" (adopt) và chỉ settle khi `fetchData()` hoàn thành (không bị lồng thành `Promise<Promise<T>>`).
+
+### Bảng đối chiếu kết quả của Handler
+
+| Hành động trong Handler | Trạng thái Downstream Promise | Giá trị Downstream |
+| :--- | :--- | :--- |
+| Trả về một giá trị thông thường (`return 42`) | **`fulfilled`** | `42` |
+| Ném ra một lỗi (`throw new Error()`) | **`rejected`** | Đối tượng `Error` |
+| Trả về một Promise khác (`return fetch()`) | **Nhận nuôi (Adopt)** | Phụ thuộc vào kết quả của `fetch()` |
+| Không trả về gì (`undefined`) | **`fulfilled`** | `undefined` |
+
+---
+
+## Phòng thí nghiệm Promise (Interactive Lab)
+
+Sử dụng môi trường mô phỏng dưới đây để từng bước quan sát cách các Promise được khởi tạo, resolve, và lan truyền kết quả:
+
+<PromiseResolutionLab />
+
+---
+
+## Lan truyền lỗi và Khôi phục (Recovery)
+
+Lỗi trong chuỗi Promise hoạt động như một thác nước: nếu mắt xích hiện tại không có handler xử lý lỗi (`onRejected`), lỗi sẽ nhảy cóc qua tất cả các `.then()` trung gian cho đến khi gặp `.catch()` đầu tiên.
+
+> 🖼️ **[Illustration Placeholder: Thác nước lan truyền lỗi & Cơ chế Recovery]**  
+> *Mô tả hình minh họa:* Mô hình "thác đổ" (waterfall) của lỗi trong Promise chain:
+> - Khi một mắt xích ném lỗi (`throw Error`), lỗi sẽ nhảy cóc qua tất cả các `.then(onFulfilled)` trung gian mà không thực thi chúng.
+> - Điểm chạm `.catch(onRejected)`:
+>   - **Kịch bản Khôi phục (Recovery):** Nếu `.catch()` return fallback data -> downstream Promise phía sau nó lập tức trở lại trạng thái `fulfilled` và các `.then()` tiếp theo lại chạy bình thường!
+>   - **Kịch bản Bắt lỗi không trọn vẹn (Swallowed Error):** `.catch()` chỉ chạy `console.log(err)` mà quên `throw` -> vô tình biến luồng lỗi thành `fulfilled undefined`, gây bug logic nguy hiểm cho các bước phía sau.
+
+```js
+fetchUser(id)
+  .then((user) => fetchSettings(user))
+  .then((settings) => applyTheme(settings))
+  .catch((err) => {
+    // Khôi phục bằng giá trị mặc định:
+    return defaultSettings;
+  })
+  .then((settings) => {
+    // Bước này VẪN ĐƯỢC CHẠY nếu .catch() phía trên trả về defaultSettings!
+    console.log('Áp dụng cài đặt:', settings);
+  });
+```
+
+---
+
+## Bốn Combinators chuẩn theo mục đích thiết kế
+
+<TermBox term="Promise Combinator">
+Một **Promise Combinator** là một phương thức tĩnh nhận vào một mảng/tập hợp các Promise và trả về một Promise duy nhất tổng hợp kết quả của chúng.
+</TermBox>
+
+> 🖼️ **[Illustration Placeholder: Bảng ma trận so sánh 4 Promise Combinators]**  
+> *Mô tả hình minh họa:* Bảng đồ họa so sánh trực quan 4 combinators với 3 Promise con [P1 (hoàn thành sớm, thành công), P2 (hoàn thành muộn, thành công), P3 (hoàn thành giữa chừng, thất bại)]:
+> 1. `Promise.all`: Đòi hỏi TẤT CẢ thành công. P3 fail -> lập tức reject toàn cục (Fail-fast), kết quả của P1/P2 bị bỏ qua.
+> 2. `Promise.allSettled`: Luôn chờ TẤT CẢ P1, P2, P3 hoàn thành -> Trả về mảng 3 records trạng thái `{status: 'fulfilled' | 'rejected'}` (an toàn tuyệt đối cho batch operations).
+> 3. `Promise.race`: Ai cán đích đầu tiên (dù thắng hay thua) sẽ quyết định số phận -> P1 xong trước -> resolve theo P1.
+> 4. `Promise.any`: Tìm người THÀNH CÔNG đầu tiên -> P1 thành công -> resolve theo P1. Chỉ reject khi CẢ BA cùng fail (trả về `AggregateError`).
+
+| API | Nhu cầu sử dụng | Hành vi khi có lỗi (Failure) |
+| :--- | :--- | :--- |
+| `Promise.all()` | Cần tất cả input cùng thành công | **Fail-fast:** Reject ngay khi bất kỳ input nào reject |
+| `Promise.allSettled()` | Cần kết quả của mọi input (dù thành công hay thất bại) | Luôn fulfill với mảng `{ status, value / reason }` |
+| `Promise.any()` | Chỉ cần ít nhất một input thành công đầu tiên | Chỉ reject khi **tất cả** input đều thất bại (`AggregateError`) |
+| `Promise.race()` | Cần phản hồi sớm nhất (thành công hoặc thất bại) | Settle ngay theo kết quả của Promise về đích đầu tiên |
+
+---
+
+## Sự cố thực tế cần tránh
+
+### Kịch bản thực tế: "Lỗi bị nuốt trọn" (Swallowed Error) dẫn đến giao hàng miễn phí
+
+Một hệ thống thương mại điện tử xử lý thanh toán đơn hàng bằng chuỗi Promise như sau:
+
+```ts
+function processOrderPayment(orderId: string) {
+  return chargeCustomer(orderId)
+    .catch((err) => {
+      // DEV chỉ ghi log lỗi trừ thẻ nhưng quên rethrow:
+      logger.error('Failed to charge card', { orderId, err });
+    })
+    .then(() => {
+      // Bước này VẪN CHẠY vì .catch() phía trên ngầm trả về undefined (fulfilled)!
+      return markOrderAsPaidAndDispatch(orderId);
+    });
+}
+```
+
+- **Hậu quả:** Khi thẻ khách hàng không đủ số dư, `chargeCustomer` bị reject. Tuy nhiên `.catch()` chỉ ghi log rồi kết thúc hàm mà không ném lỗi tiếp (`return undefined`). Điều này biến downstream Promise thành **fulfilled**! Hệ thống lập tức gọi `markOrderAsPaidAndDispatch(orderId)`, xuất kho và gửi hàng cho khách dù chưa thu được đồng nào!
+- **Nguyên nhân cốt lõi:** Lập trình viên quên quy tắc cơ bản: `.catch()` là một trạm **khôi phục (recovery)**. Nếu không ném lỗi tiếp, downstream sẽ mặc định hiểu là sự cố đã được khắc phục hoàn toàn.
+- **Cách khắc phục chuẩn:** Luôn rethrow lỗi nếu bạn chỉ muốn ghi log hoặc quan sát sự cố:
+  ```ts
+  return chargeCustomer(orderId)
+    .catch((err) => {
+      logger.error('Failed to charge card', { orderId, err });
+      throw err; // Tiếp tục đẩy lỗi xuống downstream để chặn đơn hàng
+    })
+    .then(() => markOrderAsPaidAndDispatch(orderId));
+  ```
+
+---
+
+## Bài tập kiểm tra tư duy
+
+Hãy dự đoán thứ tự in ra màn hình của đoạn mã sau trước khi mở đáp án:
+
+```js
+console.log('1');
+
+Promise.resolve().then(() => {
+  console.log('2');
+  return Promise.resolve('3');
+}).then((val) => {
+  console.log(val);
+});
+
+Promise.resolve().then(() => {
+  console.log('4');
+});
+
+console.log('5');
+```
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+**Thứ tự in ra:** `1 -> 5 -> 2 -> 4 -> 3`
+
+**Giải thích từng bước:**
+1. Mã đồng bộ chạy trước: In `1`, sau đó in `5`.
+2. Hai microtask đầu tiên được xếp vào hàng đợi:
+   - Microtask A (in `2`).
+   - Microtask B (in `4`).
+3. Chạy Microtask A: in `2`. Hàm này trả về một `Promise.resolve('3')`. Theo cơ chế Promise Adoption, engine cần thêm các microtask nội bộ để làm phẳng (flatten) Promise này.
+4. Chạy Microtask B: in `4`.
+5. Sau khi Promise con được giải quyết xong, callback downstream tiếp theo mới được đẩy vào microtask queue và in ra `3`.
+
+</details>
+
+---
+
+## Checklist rà soát mã nguồn cho Kỹ sư
+
+Trước khi đưa mã nguồn sử dụng Promise vào production, hãy đối chiếu với checklist sau:
+
+- [ ] **Xử lý lỗi trọn vẹn:** Mọi nhánh `.catch()` đã chủ động `throw` lại lỗi nếu không có dữ liệu khôi phục hợp lệ chưa?
+- [ ] **Tránh lồng nhau vô nghĩa (Promise Hell):** Đã phẳng hóa chuỗi bằng cách `return` Promise thay vì viết lồng `.then()` bên trong `.then()` chưa?
+- [ ] **Lựa chọn combinator chính xác:** Đã sử dụng `Promise.allSettled()` cho các tác vụ hàng loạt (batch operations) độc lập chưa?
+- [ ] **Quản lý tài nguyên với `finally()`:** Các tác vụ dọn dẹp (tắt loading spinner, đóng kết nối DB) đã được đặt trong `.finally()` để luôn được thực thi chưa?
+- [ ] **Không bọc lại Promise thừa thãi:** Tránh viết `new Promise((res, rej) => existingPromise.then(res, rej))`.
+
+---
+
+## Tài liệu quy chuẩn
+
+- [ECMAScript Language Specification (ECMA-262) — Promise Objects](https://tc39.es/ecma262/#sec-promise-objects) — Đặc tả quy chuẩn ngôn ngữ về vòng đời, trạng thái và thuật toán Promise Resolution.
+- [MDN Web Docs — Using Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — Hướng dẫn thực hành chuẩn mực từ Mozilla Developer Network.

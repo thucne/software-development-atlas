@@ -31,6 +31,15 @@ Before creating a new concept ID:
 
 A concept may exist in the map before a dedicated content page exists. That is intentional: uncovered territory should remain visible.
 
+### Bilingual and localization contract
+
+Atlas supports bilingual documentation with Fumadocs native internationalization:
+
+- **English is default:** `content/docs/**/<slug>.mdx` files are rendered at `/docs/<slug>`. English lessons must be written in **100% technical English**. No Vietnamese placeholder text, section headers, or commentary may appear in English files.
+- **Vietnamese companion files:** `content/docs/**/<slug>.vi.mdx` files are rendered at `/vi/docs/<slug>`. Vietnamese companion lessons must be written in **100% natural, idiomatic Vietnamese**.
+- **Canonical concept mapping:** Companion `.vi.mdx` files must declare the identical `concepts: [...]` array as their English sibling.
+- **Coverage accounting:** Coverage calculations use the canonical English content tree (`source.getPages('en')`). Translated companion files provide localized accessibility without skewing coverage metrics or duplicating concept nodes.
+
 ## Coverage semantics
 
 Atlas coverage is deliberately narrow. A canonical concept is **covered** when at least one substantive authored page references it in validated `concepts` frontmatter. Otherwise it is **uncovered**.
@@ -407,25 +416,39 @@ A visual anchor can be:
 
 ### Standardized Illustration Placeholder template
 
-When visual assets (SVG/PNG) are planned but not yet drawn, authors must provide a clear prompt so human illustrators or automated design tools can render them faithfully:
+When visual assets (SVG/PNG) are planned but not yet drawn, authors must provide a clear prompt matching the file's language so human illustrators or automated design tools can render them faithfully:
 
-```markdown
-> 🖼️ **[Illustration Placeholder: Descriptive Title Here]**  
-> *Mô tả hình minh họa:* Chi tiết các khối kiến trúc, luồng dữ liệu theo chiều mũi tên, các kịch bản so sánh đối chiếu (ví dụ: Kịch bản A vs Kịch bản B), các thông số hoặc trạng thái nổi bật cần vẽ để làm sáng tỏ khái niệm kỹ thuật.
-```
+- **For English lessons (`*.mdx`):**
+  ```markdown
+  > 🖼️ **[Illustration Placeholder: Descriptive Title Here]**  
+  > *Illustration prompt:* Detailed architectural blocks, data flow arrow directions, comparison views (e.g., Scenario A vs Scenario B), and key technical insights to highlight.
+  ```
+
+- **For Vietnamese companion lessons (`*.vi.mdx`):**
+  ```markdown
+  > 🖼️ **[Illustration Placeholder: Tiêu đề mô tả]**  
+  > *Mô tả hình minh họa:* Chi tiết các khối kiến trúc, luồng dữ liệu theo chiều mũi tên, các kịch bản so sánh đối chiếu (ví dụ: Kịch bản A vs Kịch bản B), các thông số hoặc trạng thái nổi bật cần vẽ để làm sáng tỏ khái niệm kỹ thuật.
+  ```
 
 Rules for placeholders:
 1. Use blockquote syntax (`>`) with the picture emoji `🖼️` and bold bracketed title.
-2. Provide explicit layout instructions (e.g. "Sơ đồ 3 khối ngang: Client -> CDN -> Origin").
+2. Provide explicit layout instructions (e.g. "Three-column horizontal diagram: Client -> CDN -> Origin").
 3. State the core insight the graphic must convey so the illustration is explanatory, not purely decorative.
+4. **Never mix languages:** English lessons must use English prompts (`*Illustration prompt:*`), and Vietnamese lessons must use Vietnamese prompts (`*Mô tả hình minh họa:*`).
 
 ### Production micro-scenarios
 
-Abstract architecture and language specs can feel detached from daily work unless anchored to real production consequences. Every substantive guide or deep dive should feature at least one realistic micro-scenario illustrating:
+Abstract architecture and language specs can feel detached from daily work unless anchored to real production consequences. Every substantive guide or deep dive should feature at least one realistic micro-scenario structured with three parts matching the file's language:
 
-1. **Hậu quả (Impact):** The real-world symptom (e.g. 504 gateway timeout, unhandled rejection in background task causing phantom orders, 1.2s UI freeze causing INP failure).
-2. **Nguyên nhân cốt lõi (Root cause):** The exact conceptual misunderstanding (e.g. confusing microtasks with yielding, assuming client-side cache always touches network).
-3. **Cách khắc phục chuẩn (Correct pattern):** The recommended code or architectural solution.
+- **For English (`*.mdx`):**
+  1. **Impact:** The real-world symptom (e.g. 504 gateway timeout, unhandled rejection in background task causing phantom orders, 1.2s UI freeze causing INP failure).
+  2. **Root cause:** The exact conceptual misunderstanding (e.g. confusing microtasks with yielding, assuming client-side cache always touches network).
+  3. **Correct pattern:** The recommended code or architectural solution.
+
+- **For Vietnamese (`*.vi.mdx`):**
+  1. **Hậu quả:** Triệu chứng thực tế trên production (ví dụ: lỗi 504 gateway timeout, unhandled rejection trong task nền tạo đơn hàng ma, đóng băng UI 1.2s khiến chỉ số INP báo đỏ).
+  2. **Nguyên nhân cốt lõi:** Lỗ hổng trong mô hình tư duy (ví dụ: nhầm lẫn microtask với yielding, lầm tưởng client cache luôn gọi network).
+  3. **Cách khắc phục chuẩn:** Đoạn code chuẩn hoặc giải pháp kiến trúc khắc phục triệt để.
 
 ### Active mental-model checks with `<details>`
 
@@ -439,6 +462,7 @@ Exercises, quizzes, and scenario reasoning questions should give the reader an o
 
 </details>
 ```
+(Use `<summary>Xem giải thích chi tiết</summary>` in Vietnamese companion files.)
 
 ### Actionable review checklists
 

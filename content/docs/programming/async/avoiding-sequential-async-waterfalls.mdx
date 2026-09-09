@@ -68,9 +68,9 @@ C: 0 ─── 300
 Elapsed time is about `max(800, 400, 300) = 800ms`. The waiting periods overlap, saving roughly `700ms` in this simplified model.
 
 > 🖼️ **[Illustration Placeholder: DevTools Network Waterfall vs Parallel Overlap]**  
-> *Mô tả hình minh họa:* So sánh trực quan tab Network trong DevTools giữa 2 luồng:
-> - **Bậc thang nối tiếp (Waterfall):** Request A (800ms) -> Request B (400ms) -> Request C (300ms) xếp thành bậc thang chéo tổng cộng 1500ms.
-> - **Song song (Overlapped):** Request A, B, C cùng xuất phát tại t = 0ms, kết thúc khi request A dài nhất xong (800ms).
+> *Illustration description:* Visual comparison in the DevTools Network panel between two execution timelines:
+> - **Sequential Waterfall:** Request A (800ms) -> Request B (400ms) -> Request C (300ms) form a stair-step cascade totaling 1500ms.
+> - **Concurrent Overlap:** Requests A, B, and C launch simultaneously at t = 0ms, settling when the longest request (A, 800ms) completes.
 
 <TermBox term="Dependency graph">
 A **dependency graph** describes which operations require results from other operations before they can start. An arrow `A → B` means B needs something produced by A.
@@ -222,9 +222,9 @@ The **critical path** is the longest chain of dependent operations that determin
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Directed Acyclic Graph (DAG) Scheduling with Critical Path]**  
-> *Mô tả hình minh họa:* Sơ đồ đồ thị DAG thể hiện luồng thực thi:
-> - Nhánh phụ thuộc: `getUser(id)` (500ms) -> `getOrganization(user.orgId)` (400ms) tạo thành Critical Path (900ms).
-> - Các nhánh độc lập: `getFeatureFlags(id)` (300ms) và `getRecommendations(id)` (700ms) được kích hoạt ngay từ t = 0 và hoàn thành trước khi Critical Path kết thúc.
+> *Illustration description:* DAG flow diagram showing execution branches:
+> - Dependent path: `getUser(id)` (500ms) -> `getOrganization(user.orgId)` (400ms) forms the Critical Path (900ms).
+> - Independent paths: `getFeatureFlags(id)` (300ms) and `getRecommendations(id)` (700ms) launch concurrently at t = 0ms and finish well before the Critical Path concludes.
 
 ## `Promise.all()` is a tool, not the rule
 
@@ -265,7 +265,7 @@ Concurrency has costs. Removing a waterfall can make one request faster while pl
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Bounded Concurrency Semaphore / Worker Pool]**  
-> *Mô tả hình minh họa:* Sơ đồ cơ chế kiểm soát fan-out: Một mảng 1,000 requests độc lập được điều phối qua một Semaphore/Worker Pool với `concurrency = 5`. Tại mỗi thời điểm chỉ có tối đa 5 kết nối đang mở tới database, các tác vụ còn lại nằm trong hàng đợi chờ slot trống, giữ cho latency ổn định mà không làm sập downstream.
+> *Illustration description:* Fan-out control mechanism diagram: An array of 1,000 independent requests dispatched through a Semaphore / Worker Pool with `concurrency = 5`. At any given moment, a maximum of 5 concurrent connections hit the database; remaining items wait in queue for available slots, keeping latency predictable without overwhelming downstream services.
 
 <TermBox term="Backpressure">
 **Backpressure** is a way for a system to limit or slow incoming/concurrent work when a downstream resource cannot safely process more of it yet.

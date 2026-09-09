@@ -69,7 +69,8 @@ Apply the canonical **Atlas Clarity Contract** and **Atlas Teaching Contract** i
 7. specification/API guarantees, implementation freedom, and engineering heuristics are not presented as though they were the same kind of claim;
 8. topic-specific terminology that could block a working software developer is explained locally in plain language;
 9. use a visible `TermBox` near the first substantive use when a difficult term would otherwise create a learning barrier;
-10. do not overuse terminology boxes for ordinary working-developer vocabulary or create a wall of definitions before the concrete model.
+10. do not overuse terminology boxes for ordinary working-developer vocabulary or create a wall of definitions before the concrete model;
+11. **Strict language purity:** never mix languages within a single file. English lessons (`*.mdx`) must be 100% English (including placeholder prompts, headings, and micro-scenarios). Localized companion lessons (`*.vi.mdx`) must be 100% Vietnamese.
 
 Do not solve these editorial requirements by adding a generic prose linter, readability score, banned-pronoun rule, jargon detector, or model-based judge. Automate only narrow facts that can be checked reliably; use source-backed review for editorial judgment.
 
@@ -78,18 +79,29 @@ Do not solve these editorial requirements by adding a generic prose linter, read
 To maintain an engaging, highly scannable, and pedagogy-first learning experience without turning lessons into wall-of-text documentation:
 
 1. **High-frequency visual cadence:** Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) must maintain a steady rhythm of visual breaks. Target **1 visual anchor (illustration or diagram) per 1–2 conceptual sections**, with a minimum of **3–4 visual anchors per substantive lesson**.
-2. **Standardized Illustration Placeholders:** When actual image assets (SVG/PNG) are not yet authored, insert an explicit placeholder blockquote with this exact syntax:
-   ```markdown
-   > 🖼️ **[Illustration Placeholder: <Descriptive Title>]**  
-   > *Mô tả hình minh họa:* <Detailed prompt specifying diagram layout, nodes/lanes, data flow direction, and key insights to draw>
-   ```
-   Always provide a thorough prompt in Vietnamese or English so human designers or subsequent agent tasks can draft the graphic without guessing.
+2. **Standardized Illustration Placeholders:** When actual image assets (SVG/PNG) are not yet authored, insert an explicit placeholder blockquote using the language matching the file:
+   - For English lessons (`*.mdx`):
+     ```markdown
+     > 🖼️ **[Illustration Placeholder: <Descriptive Title>]**  
+     > *Illustration prompt:* <Detailed prompt specifying diagram layout, nodes/lanes, data flow direction, and key technical insights to draw>
+     ```
+   - For Vietnamese companion lessons (`*.vi.mdx`):
+     ```markdown
+     > 🖼️ **[Illustration Placeholder: <Tiêu đề mô tả>]**  
+     > *Mô tả hình minh họa:* <Chi tiết bố cục khung hình, các khối thành phần, luồng dữ liệu và insight kỹ thuật then chốt>
+     ```
+   Always provide a thorough prompt matching the document language so human designers or subsequent agent tasks can draft the graphic without guessing.
 3. **Mermaid for structural flows:** Use Mermaid diagrams (`mermaid` code block) for decision trees, state machines, sequence diagrams, and boundary topologies whenever static diagrams communicate system flow clearly.
-4. **Real-world production micro-scenarios:** Include concrete production failure stories (e.g., cascading retry storms, phantom client cache 200s, microtask UI freezes, swallowed error state corruption) in every deep dive and decision guide. Always structure them with three parts:
-   - **Hậu quả (Impact):** The observable symptom, latency spike, or data inconsistency.
-   - **Nguyên nhân cốt lõi (Root cause):** The mental model disconnect or flawed assumption.
-   - **Cách khắc phục chuẩn (Correct pattern):** The robust code pattern or architecture fix.
-5. **Interactive mental-model self-checks:** Format exercises and quizzes with `<details><summary>Show the reasoning</summary>...</details>` blocks so learners can pause and test their intuition before revealing the explanation.
+4. **Real-world production micro-scenarios:** Include concrete production failure stories (e.g., cascading retry storms, phantom client cache 200s, microtask UI freezes, swallowed error state corruption) in every deep dive and decision guide. Structure them with three explicit parts matching the document language:
+   - For English (`*.mdx`):
+     - **Impact:** The observable symptom, latency spike, or data inconsistency.
+     - **Root cause:** The mental model disconnect or flawed assumption.
+     - **Correct pattern:** The robust code pattern or architecture fix.
+   - For Vietnamese (`*.vi.mdx`):
+     - **Hậu quả:** Triệu chứng thực tế trên production, độ trễ hoặc lỗi sai dữ liệu.
+     - **Nguyên nhân cốt lõi:** Lỗ hổng trong mô hình tư duy hoặc giả định sai lầm.
+     - **Cách khắc phục chuẩn:** Mẫu code chuẩn hoặc giải pháp kiến trúc khắc phục triệt để.
+5. **Interactive mental-model self-checks:** Format exercises and quizzes with `<details><summary>Show the reasoning</summary>...</details>` (or `<details><summary>Xem giải thích chi tiết</summary>...</details>` in Vietnamese) so learners can pause and test their intuition before revealing the explanation.
 6. **Actionable task-list checklists:** Conclude review sections and agent rules with markdown task lists (`- [ ] **<Keyword>:** ...`) rather than generic numbered questions. The site's CSS provides a hanging-indent layout for checklist items.
 7. **TermBox moderation:** Restrict `<TermBox>` to genuine learning barriers (typically 2–3 per page max). Define terms near their first substantive use and never build an introductory definition wall.
 
@@ -106,6 +118,15 @@ Normal authored MDX must declare:
 Start-here/meta guides may use `concepts: []` when they do not teach a software-engineering concept. Substantive engineering content should map only to concepts it genuinely teaches; do not inflate coverage with incidental mentions.
 
 Not every concept requires an interactive deep dive. Prefer a focused `concept` page when that communicates the mental model adequately. Use a `decision-guide` when the learner need is choosing among alternatives, and an `architecture-walkthrough` when the learning value is in cross-component boundaries and flow.
+
+### Bilingual / Multilingual content contract
+
+1. **File naming convention:**
+   - English (default locale): `path/to/slug.mdx` (e.g. `promises.mdx`, served at `/docs/...`).
+   - Vietnamese companion: `path/to/slug.vi.mdx` (e.g. `promises.vi.mdx`, served at `/vi/docs/...`).
+2. **Concept synchronization:** Localized companion files (`*.vi.mdx`) must declare the exact same canonical `concepts` list as the primary English file.
+3. **No coverage double-counting:** Coverage metrics and map placement derive from the canonical English set (`source.getPages('en')`). Translations provide bilingual accessibility without duplicating knowledge nodes or inflating coverage statistics.
+4. **Strict single-language purity:** No mixed languages in any file. English lessons must not contain Vietnamese placeholder prompts or section headers; Vietnamese lessons must not leave unadapted English prose.
 
 ## Engineering judgment content
 

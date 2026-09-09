@@ -44,11 +44,11 @@ HTTP/1.1, HTTP/2, and HTTP/3 share HTTP semantics. They differ in how those sema
 ## Start with four common request paths
 
 > 🖼️ **[Illustration Placeholder: The 4 Common HTTP Request Paths]**  
-> *Mô tả hình minh họa:* Sơ đồ phân nhánh so sánh trực quan 4 hành trình thực tế của một request:
-> 1. **Path 1 (Browser Local Cache Hit):** Client kiểm tra local storage/cache -> Còn hạn `fresh` -> Trả về data tức thì (0ms network, bỏ qua hoàn toàn DNS, TCP, TLS, Backend).
-> 2. **Path 2 (Connection Reused):** Local cache miss -> Phát hiện kết nối HTTP/2 hoặc HTTP/3 tới domain này đang mở sẵn -> Gửi ngay HTTP stream qua socket đó (Bỏ qua DNS resolution, TCP 3-way handshake và TLS handshake).
-> 3. **Path 3 (Full Cold Setup):** Không có kết nối khả dụng -> Đi trọn vẹn chuỗi thiết lập: DNS Query -> TCP SYN/ACK (1 RTT) -> TLS 1.3 Key Exchange (1 RTT) -> HTTP Request/Response (1 RTT).
-> 4. **Path 4 (CDN Intermediary Edge Hit):** Request rời máy client ra Internet nhưng gặp cụm máy chủ CDN Edge gần nhất -> CDN trả về kết quả đã cache -> Tiết kiệm hàng trăm ms và không làm tốn tài nguyên máy chủ Origin.
+> *Illustration description:* Branching diagram comparing 4 real-world request journeys:
+> 1. **Path 1 (Browser Local Cache Hit):** Client checks local storage/cache -> Response is `fresh` -> Returns data immediately (0ms network latency; skips DNS, TCP, TLS, and backend entirely).
+> 2. **Path 2 (Connection Reused):** Local cache miss -> Client finds an open HTTP/2 or HTTP/3 connection to the target origin -> Dispatches HTTP stream over the existing socket (skips DNS resolution, TCP 3-way handshake, and TLS negotiation).
+> 3. **Path 3 (Full Cold Setup):** No suitable connection exists -> Executes full setup chain: DNS Query -> TCP SYN/ACK (1 RTT) -> TLS 1.3 Key Exchange (1 RTT) -> HTTP Request/Response (1 RTT).
+> 4. **Path 4 (CDN Intermediary Edge Hit):** Request leaves client across the network but hits nearest CDN edge POP -> CDN serves cached response -> Saves hundreds of milliseconds and prevents origin compute load.
 
 Before memorizing protocol layers, ask which of these shapes resembles the request you are debugging.
 
@@ -138,16 +138,16 @@ A cached response is **fresh** when caching rules allow it to be reused without 
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: HTTP Caching & Conditional Revalidation Flow]**  
-> *Mô tả hình minh họa:* Sơ đồ cây quyết định (Decision Tree) luồng Cache trên trình duyệt:
-> - Request phát ra -> Kiểm tra Local Cache:
->   - **Chưa có trong cache (Cache Miss):** -> Gửi Full Network Request ra Internet.
->   - **Đã có trong cache (Cache Hit):**
->     - Nếu còn hạn `max-age` (Fresh): Trả về dữ liệu local ngay lập tức -> `200 OK (from disk cache)`.
->     - Nếu đã hết hạn (Stale):
->       - Kiểm tra xem phản hồi cũ có chứa `ETag` hoặc `Last-Modified` không?
->       - Nếu CÓ: Gửi **Conditional Request** lên server kèm `If-None-Match: "xyz"` hoặc `If-Modified-Since`.
->         - Server đối chiếu thấy tài nguyên không đổi -> Phản hồi `304 Not Modified` (Body rỗng, chỉ vài bytes header) -> Trình duyệt đọc body từ cache local.
->         - Server thấy tài nguyên đã có bản mới -> Phản hồi `200 OK` kèm Full Body mới -> Trình duyệt cập nhật lại cache.
+> *Illustration description:* Browser cache decision tree:
+> - Request initiated -> Check Local Cache:
+>   - **Cache Miss:** -> Dispatches full network request to the internet.
+>   - **Cache Hit:**
+>     - If still within `max-age` (Fresh): Serves stored response immediately -> `200 OK (from disk cache)`.
+>     - If expired (Stale):
+>       - Checks whether stored response has validator tokens (`ETag` or `Last-Modified`)?
+>       - If YES: Dispatches **Conditional Request** with `If-None-Match: "xyz"` or `If-Modified-Since`.
+>         - Server determines representation is unchanged -> Responds with `304 Not Modified` (empty body, headers only) -> Browser reads body from local cache.
+>         - Server determines representation changed -> Responds with `200 OK` + full replacement body -> Browser updates cache.
 
 For the Fetch Standard's default cache mode, Fetch broadly does this on the way to a network fetch:
 
@@ -190,10 +190,10 @@ If no suitable connection exists, setup can include obtaining a usable network a
 ## HTTP/1.1, HTTP/2, and HTTP/3
 
 > 🖼️ **[Illustration Placeholder: Connection Architecture: HTTP/1.1 vs HTTP/2 vs HTTP/3]**  
-> *Mô tả hình minh họa:* So sánh trực quan cơ chế truyền tải qua đường ống mạng giữa 3 thế hệ HTTP:
-> 1. **HTTP/1.1 (Head-of-Line Blocking trên kết nối TCP):** Mỗi request phải đợi request trước đó tải xong hoàn toàn mới được gửi tiếp trên cùng 1 kết nối TCP. Muốn tải nhiều tài nguyên cùng lúc, trình duyệt buộc phải mở tới 6 kết nối TCP song song, gây lãng phí tài nguyên máy chủ.
-> 2. **HTTP/2 (Multiplexing trên 1 kết nối TCP duy nhất):** Chia nhỏ các request/response thành các binary frames (Data frame, Header frame) và trộn lẫn (interleaved) trên cùng 1 đường ống kết nối. Không còn nghẽn ở tầng HTTP, nhưng nếu 1 packet TCP bị rớt trên đường truyền thì toàn bộ các stream khác đều phải dừng chờ TCP retransmission (TCP Head-of-Line Blocking).
-> 3. **HTTP/3 (QUIC over UDP):** Sử dụng giao thức QUIC chạy trên nền UDP. Mỗi stream là độc lập tuyệt đối; việc rớt packet ở stream hình ảnh A hoàn toàn không ảnh hưởng tới việc stream API B và C tiếp tục nhận dữ liệu mượt mà.
+> *Illustration description:* Visual comparison of network transport mechanisms across three HTTP generations:
+> 1. **HTTP/1.1 (Head-of-Line Blocking over TCP):** Each request must wait for the preceding response to fully transfer on a single TCP connection. To download concurrent resources, browsers open up to 6 parallel TCP connections, consuming server socket resources.
+> 2. **HTTP/2 (Multiplexing over a Single TCP Connection):** Splits requests/responses into interleaved binary frames (Data and Header frames) across logical streams over one TCP pipe. Eliminates application-layer HoL blocking, but a single lost TCP packet stalls all multiplexed streams awaiting TCP retransmission (TCP HoL Blocking).
+> 3. **HTTP/3 (QUIC over UDP):** Employs QUIC transport over UDP. Streams are completely independent at the transport layer; dropping a packet in image stream A does not delay delivery of data on API streams B and C.
 
 RFC 9110 defines semantics shared by the major HTTP versions. The versions differ in message carriage and connection behavior.
 
@@ -204,7 +204,7 @@ HTTP/1.1 expresses HTTP messages using its message syntax over a connection. Con
 ### HTTP/2
 
 <TermBox term="Multiplexing">
-**Multiplexing** allows multiple independent exchanges to make progress over one connection using separate logical streams instead of requiring one connection per exchange.
+Multiplexing allows multiple independent exchanges to make progress over one connection using separate logical streams instead of requiring one connection per exchange.
 
 **Why it matters here:** multiple HTTP/2 requests can share one connection, so a connection setup cost should not be attributed separately to every stream carried over it.
 </TermBox>
@@ -214,7 +214,7 @@ HTTP/2 preserves HTTP semantics while introducing binary framing, field compress
 ### HTTP/3
 
 <TermBox term="QUIC">
-**QUIC** is a secure transport protocol built over UDP that provides features such as multiplexed streams and integrates TLS into connection establishment. HTTP/3 maps HTTP semantics over QUIC.
+QUIC is a secure transport protocol built over UDP that provides features such as multiplexed streams and integrates TLS into connection establishment. HTTP/3 maps HTTP semantics over QUIC.
 
 **Why it matters here:** HTTP/3 does not use the same TCP-then-TLS layering commonly drawn for HTTPS over HTTP/1.1 or HTTP/2.
 </TermBox>
@@ -234,13 +234,13 @@ A browser can therefore prevent, redirect, or satisfy a fetch before application
 ## Intermediaries and origin processing
 
 > 🖼️ **[Illustration Placeholder: Multi-Tier Architecture & Request Boundary Ownership]**  
-> *Mô tả hình minh họa:* Sơ đồ các chặng dừng chân từ Client đến Origin Application:
-> `Client (Browser/App)` ➔ `Edge CDN (Cloudflare/Fastly - Edge Caching, DDoS Shield)` ➔ `API Gateway / Reverse Proxy (Nginx/Envoy - TLS Termination, Auth, Rate Limiting)` ➔ `Internal Load Balancer` ➔ `Origin App Service (Node.js/Go/Java)`.
-> - Minh họa hộp thoại phân định nguồn gốc Response thực tế:
->   - Lỗi `403/429` do Cloudflare WAF chặn tại Edge.
->   - Lỗi `502 Bad Gateway / 504 Gateway Timeout` do API Gateway không thể kết nối tới Backend.
->   - Lỗi `500 Internal Server Error` hoặc dữ liệu `200 OK` do chính code Backend Origin xử lý và trả về.
-> - Giúp kỹ sư xác định chính xác cần mở log ở đâu (CDN log vs Gateway log vs App log) thay vì phán đoán mò mẫm.
+> *Illustration description:* Multi-hop path from client to origin application:
+> `Client (Browser/App)` ➔ `Edge CDN (e.g. Cloudflare/Fastly - Edge Caching, DDoS Protection)` ➔ `API Gateway / Reverse Proxy (e.g. Nginx/Envoy - TLS Termination, Auth, Rate Limiting)` ➔ `Internal Load Balancer` ➔ `Origin Application Service (Node.js/Go/Java)`.
+> - Visual callout isolating response boundary origins:
+>   - Errors `403/429` generated by CDN edge WAF.
+>   - Errors `502 Bad Gateway / 504 Gateway Timeout` generated by the API Gateway unable to reach backends.
+>   - Errors `500 Internal Server Error` or application `200 OK` produced by origin application code.
+> - Directs developers to inspect the correct logs (CDN logs vs Gateway logs vs Application traces) rather than guessing.
 
 A request that leaves the client can still encounter several participants before business logic runs:
 
@@ -282,18 +282,18 @@ Use it to answer:
 
 ### Production scenario: The "phantom 200" and missing server logs
 
-Một nhóm kỹ sư nhận được phản hồi từ khách hàng: sau khi cập nhật thông tin hồ sơ, trang web vẫn hiển thị họ tên cũ. Mở DevTools Network tab, kỹ sư thấy:
+An engineering team receives customer bug reports: after updating user profile details, the web page continues displaying stale information. In DevTools Network panel, the engineer observes:
 - Status: `200 OK`
-- Response Payload: dữ liệu cũ
-- Thời gian phản hồi: `3ms`
+- Response Payload: Stale user profile data
+- Timing: `3ms`
 
-Kỹ sư nghi ngờ server backend bị lỗi cache hoặc code database có vấn đề, và dành hơn 2 tiếng lục tung access log của backend nhưng **tuyệt nhiên không thấy request nào xuất hiện trong log**.
+The engineer suspects backend caching or database bugs, spending over two hours searching application access logs, only to discover **zero incoming requests recorded for that user**.
 
-- **Hậu quả:** Tốn nhiều giờ công của cả team frontend và backend vì chẩn đoán nhầm tầng hạ tầng.
-- **Nguyên nhân cốt lõi:** DevTools ghi ở cột Size: `(from disk cache)`! Request hoàn toàn chưa từng rời khỏi máy client. Server trả về header `Cache-Control: public, max-age=3600` từ phản hồi trước, khiến trình duyệt tự phục vụ từ ổ đĩa local.
-- **Cách khắc phục chuẩn:**
-  1. Kiểm tra cột Size/Transferred trong DevTools trước tiên: nếu là `(from disk cache)` hoặc `(from memory cache)`, đây là hành vi local cache.
-  2. Bổ sung `Cache-Control: no-cache` hoặc `private, no-store` cho các endpoint API trả dữ liệu người dùng nhạy cảm để trình duyệt luôn luôn gửi request xác thực.
+- **Impact:** Significant engineering time wasted across frontend and backend teams due to misdiagnosing the failure boundary.
+- **Root cause:** The engineer missed the DevTools Size column: it read `(from disk cache)`! The request never left the local machine. A preceding response included `Cache-Control: public, max-age=3600`, instructing the browser to fulfill subsequent fetches entirely from local storage.
+- **Correct pattern:**
+  1. Inspect the Size/Transferred column first: `(from disk cache)` or `(from memory cache)` confirms client-side cache fulfillment.
+  2. Emit `Cache-Control: no-cache` or `private, no-store` on sensitive, user-specific API endpoints to ensure the browser performs a network exchange.
 
 ### 1. Did a network request occur?
 

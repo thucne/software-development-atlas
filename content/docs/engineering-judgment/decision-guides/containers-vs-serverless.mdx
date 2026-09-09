@@ -80,9 +80,9 @@ A **cold start** is startup work incurred when a platform must create or initial
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Anatomy of a Cold Start vs Warm Start]**  
-> *Mô tả hình minh họa:* Sơ đồ 2 thanh timeline đối chiếu chi tiết:
-> - **Cold Start (100ms – vài giây):** Cấp phát tài nguyên sandbox -> Tải image/code bundle -> Khởi tạo Language Runtime -> Chạy top-level initialization code (kết nối DB, load config) -> Xử lý Request.
-> - **Warm Start (vài ms):** Tái sử dụng execution environment đã ấm -> Nhận và xử lý Request ngay lập tức.
+> *Illustration description:* Detailed timeline comparison diagram:
+> - **Cold Start (100ms – multiple seconds):** Sandbox resource allocation -> Pull image/code bundle -> Initialize language runtime -> Execute top-level initialization code (DB connection, config load) -> Process request.
+> - **Warm Start (a few ms):** Reuse existing warm execution environment -> Receive and process request immediately.
 
 <TermBox term="Concurrency">
 For managed compute, **concurrency** commonly means how many requests or work items can be active in one execution environment or across the service at the same time.
@@ -170,7 +170,7 @@ Do not infer these properties from the word “serverless.” Validate them agai
 ## These choices can overlap
 
 > 🖼️ **[Illustration Placeholder: Packaging Boundary vs Operating Boundary Matrix]**  
-> *Mô tả hình minh họa:* Sơ đồ ma trận 2 trục: Trục ngang là "Packaging Model" (Application Code / Zip vs OCI Container Image) và Trục dọc là "Operating Model" (Self-managed VMs vs Managed Container Cluster vs Serverless Managed Execution Environment). Thể hiện rõ các sản phẩm nằm ở các giao điểm (ví dụ: Cloud Run = Container Packaging + Serverless Operating).
+> *Illustration description:* Two-axis matrix: Horizontal axis represents "Packaging Model" (Application Code / Zip vs OCI Container Image); Vertical axis represents "Operating Model" (Self-managed VMs vs Managed Container Cluster vs Serverless Managed Execution Environment). Highlights where products intersect (e.g., Cloud Run = Container Packaging + Serverless Operating).
 
 A workload can be both **containerized and serverless**. Cloud Run is a concrete example: the deployment artifact is a container, while Google manages instance lifecycle and autoscaling according to Cloud Run's service contract.
 
@@ -192,7 +192,7 @@ Scaling behavior is a service contract, not a synonym for serverless. A burst ca
 If compute grows from ten concurrent workers to a thousand, the database, queue, connection pool, or third-party API may not. Treat compute concurrency and downstream backpressure as one capacity design.
 
 > 🖼️ **[Illustration Placeholder: Serverless Downstream Avalanche / Connection Pool Exhaustion]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng tải khi có đột biến lưu lượng (traffic burst): 1,500 serverless functions được tạo ra đồng thời -> Mỗi function mở 1 kết nối TCP đến Database -> Vượt quá ngưỡng tối đa (150 connections) của Database -> Database quá tải và trả về Connection Refused / Timeout cho toàn bộ hệ thống.
+> *Illustration description:* Traffic surge diagram: 1,500 serverless functions spin up concurrently -> each function establishes 1 TCP connection to the database -> exceeds the database connection limit (150 connections) -> database starves and emits Connection Refused / Timeout errors across the entire fleet.
 
 ### Treating portability as binary
 
@@ -203,7 +203,7 @@ A portable container image does not make cloud IAM, databases, queues, storage, 
 A consumption model can reduce idle-capacity cost, but total cost can be dominated by minimum instances, duration, memory/CPU allocation, data transfer, observability, downstream fan-out, or engineering time. Compare actual workload models, not category slogans.
 
 > 🖼️ **[Illustration Placeholder: Total Cost of Ownership (TCO) Crossover Curve]**  
-> *Mô tả hình minh họa:* Đồ thị đường cong chi phí theo thời gian/lưu lượng: Trục hoành là "Request Volume", trục tung là "Monthly Cost ($)". Đường biểu diễn Serverless xuất phát từ 0$ (khi scale to zero) và tăng dốc theo số lượng request; đường biểu diễn Container/VM có chi phí ban đầu cố định (base cost) nhưng đi ngang hoặc tăng rất chậm khi traffic tăng cao. Điểm giao nhau (Crossover Point) là ngưỡng chuyển dịch hiệu quả kinh tế giữa 2 mô hình.
+> *Illustration description:* Cost curve chart over traffic volume: X-axis represents "Request Volume", Y-axis represents "Monthly Cost ($)". Serverless curve starts at $0 (scale to zero) and slopes steeply upward with request count; Container/VM curve has a higher initial baseline cost but flattens out under sustained high traffic. The intersection (Crossover Point) marks the economic transition point between models.
 
 ## Practical heuristic
 

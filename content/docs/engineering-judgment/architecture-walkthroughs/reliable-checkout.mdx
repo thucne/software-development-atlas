@@ -80,7 +80,7 @@ The application can associate that key with the authenticated actor, logical ope
 ## High-level flow
 
 > 🖼️ **[Illustration Placeholder: End-to-end Checkout Sequence & Consistency Boundaries]**  
-> *Mô tả hình minh họa:* Sơ đồ Sequence Diagram thể hiện rõ 5 ranh giới: (1) Client -> API (với Idempotency-Key), (2) API -> DB (Local ACID Transaction bọc Order + Outbox row), (3) API -> Payment Provider (Timeout Ambiguity window), (4) Outbox Publisher -> Message Broker (At-least-once handoff), (5) Broker -> Fulfillment Consumer (Idempotent execution).
+> *Illustration description:* Sequence diagram explicitly delineating the 5 operational boundaries: (1) Client -> API (with Idempotency-Key), (2) API -> DB (Local ACID Transaction wrapping Order + Outbox row), (3) API -> Payment Provider (Timeout Ambiguity window), (4) Outbox Publisher -> Message Broker (At-least-once handoff), (5) Broker -> Fulfillment Consumer (Idempotent execution).
 
 ```mermaid
 graph LR
@@ -99,7 +99,7 @@ graph LR
 <TermBox term="Message broker">
 A **message broker** is a system that accepts messages/events from producers and makes them available to one or more receivers according to a delivery contract.
 
-**Why it matters here:** it lets checkout finish without waiting for every downstream task, while giving fulfillment and notification work a durable asynchronous handoff when the selected product is configured for that durability.
+**Why it matters here:** publishing work to a broker decouples checkout from fulfillment latency and availability, but requires you to design for asynchronous delivery semantics instead of one synchronous call.
 </TermBox>
 
 <TermBox term="Consumer">
@@ -135,7 +135,7 @@ Do not keep a database transaction open around a slow external payment call just
 ## 2. Treat payment response loss as an ambiguous outcome
 
 > 🖼️ **[Illustration Placeholder: Two Generals Problem & Payment Ambiguity Window]**  
-> *Mô tả hình minh họa:* Sơ đồ minh họa "vùng bất định" khi client gửi request thanh toán: nếu gói tin response bị mất trên đường truyền mạng, client không thể biết server đối tác đã trừ tiền hay chưa nếu không có cơ chế Reconciliation hoặc Idempotent Query.
+> *Illustration description:* Ambiguity window diagram when a client issues a payment request: if the response packet is lost in transit, the client cannot distinguish whether the third-party provider debited the funds or aborted without a reconciliation protocol or idempotent query.
 
 > **Production scenario:** A customer clicks "Place Order" on an unstable mobile 4G connection. The API charges $120 via Stripe, and Stripe responds with success. But before the HTTP response packet reaches the mobile app, the connection drops and the app displays "Request Timeout". Panicking, the customer taps "Place Order" a second time. Without a stable idempotency key tied to that logical cart, the system creates a second order and charges another $120—triggering an immediate customer support incident and chargeback risk.
 
@@ -242,9 +242,9 @@ The architecture becomes easier to reason about when every boundary states its a
 ### Database state commits but the process crashes before broker publish
 
 > 🖼️ **[Illustration Placeholder: Dual-Write Problem vs Transactional Outbox Pattern]**  
-> *Mô tả hình minh họa:* Sơ đồ đối chiếu:
-> - **Dual-Write Failure:** App ghi vào DB thành công -> App gọi Message Broker bị crash/lỗi mạng -> State trong DB đã cập nhật nhưng không có event nào được bắn đi (Dữ liệu bị lệch vĩnh viễn).
-> - **Transactional Outbox Solution:** App ghi Order và Outbox Event trong cùng 1 local DB transaction -> Worker đọc Outbox table và publish sang Broker -> Đảm bảo At-least-once delivery ngay cả khi process crash.
+> *Illustration description:* Architectural comparison:
+> - **Dual-Write Failure:** App writes to database successfully -> App calls Message Broker but crashes or hits network drop -> State in DB is committed but no downstream event is published (silent persistent inconsistency).
+> - **Transactional Outbox Solution:** App writes Order and Outbox Event within the same local ACID database transaction -> Background worker polls/streams the Outbox table and publishes to Broker -> Guarantees at-least-once delivery even across process crashes.
 
 **Control:** store the outbox publish intent in the same local database transaction as the business transition, then let a later publisher continue.
 
@@ -259,9 +259,9 @@ If the selected broker/delivery mode supports redelivery, the same message may a
 ### Dependency outage creates a retry storm
 
 > 🖼️ **[Illustration Placeholder: Thundering Herd Retry Storm vs Exponential Backoff with Jitter]**  
-> *Mô tả hình minh họa:* Đồ thị 2 đợt sóng traffic:
-> - **Retry Storm:** Khi payment gateway phục hồi sau sự cố 10s, hàng nghìn client gửi retry đồng loạt tại đúng các mốc t = 1s, 2s, 4s tạo thành các đỉnh nhọn xung kích (Traffic Spikes) tiếp tục đánh sập gateway lần nữa.
-> - **Full Jitter:** Các client phân tán thời gian retry ngẫu nhiên trong khoảng `[0, Backoff(n)]`, tạo ra một đường tải phẳng mượt mà cho phép downstream phục hồi an toàn.
+> *Illustration description:* Two-wave traffic graph:
+> - **Retry Storm:** When a downstream payment gateway recovers from a 10s outage, thousands of clients retry synchronously at fixed intervals (t = 1s, 2s, 4s), producing sharp synchronized traffic spikes that immediately crash the gateway again.
+> - **Full Jitter:** Clients distribute retry attempts randomly across `[0, Backoff(n)]`, producing a smoothed, flat request curve that allows downstream dependencies to recover safely.
 
 <TermBox term="Backoff and jitter">
 **Backoff** increases the delay between retries after repeated failure. **Jitter** adds variation so many clients do not retry at exactly the same moments.

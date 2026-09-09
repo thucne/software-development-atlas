@@ -27,35 +27,62 @@ Long walls of plain prose cause cognitive fatigue. Substantive lessons must inte
   - **Interactive Labs / Explorers** (only when interaction uniquely aids mental model formation).
 
 ### 2. Standardized Illustration Placeholders
-When image assets (SVG/PNG) are not yet rendered, insert a standardized blockquote placeholder:
+When image assets (SVG/PNG) are not yet rendered, insert a standardized blockquote placeholder matching the file's language:
 
-```markdown
-> 🖼️ **[Illustration Placeholder: Descriptive Title]**  
-> *Mô tả hình minh họa:* Mô tả chi tiết bố cục hình vẽ (ví dụ: chia làm 3 cột / 2 luồng song song), các thành phần chính (Client, Cache, Network, Server), hướng mũi tên luồng dữ liệu, và insight kỹ thuật then chốt mà hình vẽ cần truyền tải cho người đọc.
-```
+- **For English lessons (`*.mdx`):**
+  ```markdown
+  > 🖼️ **[Illustration Placeholder: Descriptive Title]**  
+  > *Illustration prompt:* Detailed prompt specifying diagram layout (e.g., 3 columns / 2 parallel swimlanes), main components (Client, Cache, Network, Server), data flow arrow direction, and key technical insights to draw.
+  ```
 
-- **Rule:** Never leave a vague placeholder like `[TODO: Add image]`. Always specify the visual layout and key technical insight so a human illustrator or AI image tool can draft it immediately.
+- **For Vietnamese companion lessons (`*.vi.mdx`):**
+  ```markdown
+  > 🖼️ **[Illustration Placeholder: Tiêu đề mô tả]**  
+  > *Mô tả hình minh họa:* Mô tả chi tiết bố cục hình vẽ (ví dụ: chia làm 3 cột / 2 luồng song song), các thành phần chính (Client, Cache, Network, Server), hướng mũi tên luồng dữ liệu, và insight kỹ thuật then chốt mà hình vẽ cần truyền tải cho người đọc.
+  ```
+
+- **Rule:** Never leave a vague placeholder like `[TODO: Add image]`. Always specify the visual layout and key technical insight so a human illustrator or AI image tool can draft it immediately. Never mix languages (use English prompt in English files, Vietnamese prompt in `.vi.mdx`).
 
 ### 3. Real-World Production Micro-Scenarios
-Bridge abstract language specs or architecture theories with real-world engineering stakes. Every substantive lesson must include at least one production failure scenario structured with three explicit anchors:
+Bridge abstract language specs or architecture theories with real-world engineering stakes. Every substantive lesson must include at least one production failure scenario structured with three explicit anchors in the matching language:
 
-```markdown
-### Production scenario: The "Invisible" UI Freeze
+- **For English lessons (`*.mdx`):**
+  ```markdown
+  ### Production scenario: The "Invisible" UI Freeze
 
-Một hệ thống chat realtime xử lý batch tin nhắn WebSocket qua đệ quy `queueMicrotask`:
+  A realtime chat application batches incoming WebSocket messages via recursive `queueMicrotask`:
 
-```ts
-function processBatch(items: Item[]) {
-  if (items.length === 0) return;
-  renderItem(items.shift()!);
-  queueMicrotask(() => processBatch(items));
-}
-```
+  ```ts
+  function processBatch(items: Item[]) {
+    if (items.length === 0) return;
+    renderItem(items.shift()!);
+    queueMicrotask(() => processBatch(items));
+  }
+  ```
 
-- **Hậu quả (Impact):** Màn hình đơ cứng suốt 1.2s, user bấm nút không phản hồi, chỉ số INP báo đỏ (>1000ms).
-- **Nguyên nhân cốt lõi (Root cause):** `queueMicrotask` không bao giờ nhường luồng (yield) cho Rendering Pipeline; nó xả sạch checkpoint cho đến khi queue rỗng.
-- **Cách khắc phục chuẩn (Correct pattern):** Sử dụng `scheduler.yield()` hoặc `setTimeout(resolve, 0)` để nhường quyền vẽ frame và nhận click event cho trình duyệt.
-```
+  - **Impact:** The UI freezes for 1.2s, user clicks trigger no response, and the INP metric spikes red (>1000ms).
+  - **Root cause:** `queueMicrotask` never yields control to the browser's Rendering Pipeline; it completely exhausts microtasks before allowing paint or input handling.
+  - **Correct pattern:** Use `scheduler.yield()` or chunk with `setTimeout(..., 0)` to allow the browser to paint frames and process user input.
+  ```
+
+- **For Vietnamese companion lessons (`*.vi.mdx`):**
+  ```markdown
+  ### Tình huống thực tế: Hiện tượng UI "đóng băng vô hình"
+
+  Một hệ thống chat realtime xử lý batch tin nhắn WebSocket qua đệ quy `queueMicrotask`:
+
+  ```ts
+  function processBatch(items: Item[]) {
+    if (items.length === 0) return;
+    renderItem(items.shift()!);
+    queueMicrotask(() => processBatch(items));
+  }
+  ```
+
+  - **Hậu quả:** Màn hình đơ cứng suốt 1.2s, user bấm nút không phản hồi, chỉ số INP báo đỏ (>1000ms).
+  - **Nguyên nhân cốt lõi:** `queueMicrotask` không bao giờ nhường luồng (yield) cho Rendering Pipeline; nó xả sạch checkpoint cho đến khi queue rỗng.
+  - **Cách khắc phục chuẩn:** Sử dụng `scheduler.yield()` hoặc `setTimeout(resolve, 0)` để nhường quyền vẽ frame và nhận click event cho trình duyệt.
+  ```
 
 ### 4. Interactive Mental-Model Self-Checks (`<details>`)
 Allow the learner to think, predict, and test their understanding before being handed the answer. Wrap reasoning and answers in HTML `<details>`:

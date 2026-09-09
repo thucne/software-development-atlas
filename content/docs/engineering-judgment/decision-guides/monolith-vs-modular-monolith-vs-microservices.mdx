@@ -61,7 +61,7 @@ Write down the forces before choosing an architecture label:
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Architectural Boundary Comparison]**  
-> *Mô tả hình minh họa:* Sơ đồ trực quan so sánh 3 mô hình kiến trúc: Monolith (tất cả module chung 1 process & 1 DB), Modular Monolith (các module phân tách ranh giới rõ ràng nhưng chung 1 deployment & chia sẻ DB transaction), và Microservices (các service độc lập giao tiếp qua mạng/event với DB riêng biệt).
+> *Illustration description:* Visual comparison of three architectural topologies: Monolith (all modules co-located in 1 process & 1 DB), Modular Monolith (modules enforce strict internal boundaries within 1 deployment & shared DB transaction boundary), and Microservices (autonomous services communicating over network/events with independent databases).
 
 ## The options
 
@@ -190,14 +190,14 @@ Examples of measurable value include shorter release lead time, reduced coordina
 </TermBox>
 
 > 🖼️ **[Illustration Placeholder: Blast Radius & Failure Cascade Comparison]**  
-> *Mô tả hình minh họa:* Sơ đồ trực quan so sánh 2 kịch bản sự cố:
-> - **Monolith Failure:** Một bug rò rỉ bộ nhớ (Memory Leak) trong module báo cáo (Reports) khiến cả process ứng dụng bị OOM crash -> Toàn bộ luồng Checkout và Auth của khách hàng bị tê liệt.
-> - **Isolated Microservices with Circuit Breaker:** Service Reports gặp sự cố và sập hoàn toàn, nhưng Gateway kích hoạt Circuit Breaker trả về fallback -> Core Checkout & Auth vẫn duy trì 100% SLA.
+> *Illustration description:* Visual comparison of two incident blast-radius scenarios:
+> - **Monolith Failure:** A memory leak bug in a non-critical Reporting module causes an Out-Of-Memory (OOM) process crash -> freezes the entire application, knocking out customer Auth and Checkout flows.
+> - **Isolated Microservices with Circuit Breaker:** The Reporting service experiences a severe outage, but the API Gateway trips its circuit breaker and serves a fallback -> core Checkout and Auth maintain 100% SLA uptime.
 
 ## Microservices change the consistency and recovery model
 
 > 🖼️ **[Illustration Placeholder: Local ACID Transaction vs Distributed Saga / Outbox Flow]**  
-> *Mô tả hình minh họa:* Sơ đồ đối chiếu sự khác biệt khi gọi hàm nội bộ (1 lệnh Commit/Rollback nguyên khối duy nhất trong DB) so với khi phân tán qua mạng (Service A ghi nhận thành công -> Service B gặp sự cố timeout -> Cần cơ chế bù trừ Compensating Action / Saga để khôi phục trạng thái nhất quán).
+> *Illustration description:* Comparison contrasting an in-process local call (single atomic ACID DB commit/rollback) against a distributed network call (Service A successfully commits -> Service B experiences network timeout -> requires compensating actions / Saga workflow to restore data consistency).
 
 Inside one process, a normal function call completes under one runtime failure boundary. Across a service boundary, the caller can time out without knowing the remote outcome.
 
@@ -220,7 +220,7 @@ Distributed boundaries introduce design work around timeouts, retry budgets, ide
 ### Treating microservices as an organizational shortcut
 
 > 🖼️ **[Illustration Placeholder: The "Distributed Monolith" Anti-Pattern]**  
-> *Mô tả hình minh họa:* Sơ đồ kiến trúc "Distributed Monolith": 6 microservices bề ngoài được đóng gói thành các deployable riêng biệt, nhưng bên trong bị trói chặt bởi chuỗi gọi đồng bộ HTTP dây chuyền (Service A gọi B -> B gọi C -> C gọi D), dùng chung 1 cơ sở dữ liệu và yêu cầu release đồng loạt (Lockstep deployment). Hậu quả: Độ trễ cộng dồn, tỷ lệ lỗi nhân lên theo cấp số nhân, mất hoàn toàn tính tự chủ mà chi phí vận hành tăng gấp 5 lần.
+> *Illustration description:* Diagram of a "Distributed Monolith" anti-pattern: 6 microservices packaged as distinct deployables, but locked in synchronous HTTP daisy chains (Service A calls B -> B calls C -> C calls D), sharing a single database and requiring coordinated lockstep releases. Impact: compounding latency, cascading failure multiplier, loss of deployment autonomy, and 5x higher operational overhead.
 
 A network boundary does not create a coherent business boundary or clear ownership. If the model is tightly coupled, service APIs can preserve that coupling while making changes and failures harder to coordinate.
 
