@@ -1,5 +1,6 @@
-import { getMDXComponents } from '@/components/mdx';
 import { TermBox, type TermBoxProps } from '@/components/mdx/term-box';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   createElement,
   type ComponentType,
@@ -39,6 +40,12 @@ describe('TermBox', () => {
   });
 
   it('is registered as a global MDX component', () => {
-    expect(getMDXComponents().TermBox).toBe(TermBox);
+    const source = readFileSync(
+      path.join(process.cwd(), 'components/mdx.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("import { TermBox } from '@/components/mdx/term-box';");
+    expect(source).toMatch(/\n\s*TermBox,\n/);
   });
 });
