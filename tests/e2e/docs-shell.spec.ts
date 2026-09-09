@@ -16,6 +16,9 @@ test('renders the docs shell and Start Here navigation', async ({ page }) => {
   await expect(
     page.locator(`a[href="${appUrl('/docs/start-here/freshness')}"]`).first(),
   ).toBeVisible();
+  await expect(
+    page.locator(`a[href="${appUrl('/docs/start-here/about')}"]`).first(),
+  ).toBeVisible();
 });
 
 test('finds a lesson through local documentation search', async ({ page }) => {
@@ -27,6 +30,29 @@ test('finds a lesson through local documentation search', async ({ page }) => {
   await expect(
     page.getByText('Content Freshness', { exact: true }),
   ).toBeVisible();
+});
+
+test('renders page freshness and Atlas maintenance metadata', async ({ page }) => {
+  await page.goto(appUrl('/docs/start-here/freshness'));
+
+  await expect(page.getByText('Evergreen', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verified Aug 19, 2026')).toBeVisible();
+  await expect(page.getByText('Review target: 365 days')).toBeVisible();
+  await expect(page.getByText('Personal learning atlas by Tran Trong Thuc')).toBeVisible();
+  await expect(page.getByText('Atlas last updated Sep 9, 2026')).toBeVisible();
+});
+
+test('renders an About page for the Atlas maintainer', async ({ page }) => {
+  await page.goto(appUrl('/docs/start-here/about'));
+
+  await expect(
+    page.getByRole('heading', { name: 'About This Atlas' }),
+  ).toBeVisible();
+  await expect(page.getByText('Tran Trong Thuc')).toBeVisible();
+  await expect(page.getByRole('link', { name: '@thucne' })).toHaveAttribute(
+    'href',
+    'https://github.com/thucne',
+  );
 });
 
 test('renders a Mermaid diagram on the usage guide', async ({ page }) => {
@@ -79,24 +105,13 @@ test('serves clean Markdown for a docs page', async ({ request }) => {
   expect(await response.text()).toContain('# Content Freshness');
 });
 
-test('exposes the GitHub page action', async ({ page }) => {
+test('exposes Edit on GitHub as a visible page action', async ({ page }) => {
   await page.goto(appUrl('/docs/start-here/freshness'));
 
-  const expectedPrefix =
-    'https://github.com/thucne/software-development-atlas/edit/main/' +
-    'content/docs/';
-
-  let githubLink = page.locator(`a[href^="${expectedPrefix}"]`);
-
-  if ((await githubLink.count()) === 0) {
-    const optionButton = page.getByRole('button', {
-      name: /options|more|open/i,
-    }).last();
-    await optionButton.click();
-    githubLink = page.locator(`a[href^="${expectedPrefix}"]`);
-  }
-
-  await expect(githubLink.first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Edit on GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/thucne/software-development-atlas/edit/main/content/docs/start-here/freshness.mdx',
+  );
 });
 
 test('has no automatically detectable serious accessibility violations', async ({
