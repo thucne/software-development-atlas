@@ -20,9 +20,13 @@ describe('DecisionMatrix', () => {
     );
 
     expect(html).toContain('<table');
-    expect(html).toContain('<caption>Rendering model trade-offs</caption>');
-    expect(html).toContain('scope="col">CSR');
-    expect(html).toContain('scope="row">Personalization');
+    expect(html).toMatch(
+      /<caption[^>]*>Rendering model trade-offs<\/caption>/,
+    );
+    expect(html).toMatch(/<th[^>]*scope="col"[^>]*>CSR<\/th>/);
+    expect(html).toMatch(
+      /<th[^>]*scope="row"[^>]*>Personalization<\/th>/,
+    );
     expect(html.indexOf('Personalization')).toBeLessThan(html.indexOf('CDN fit'));
     expect(html.indexOf('CSR')).toBeLessThan(html.indexOf('SSR'));
   });
