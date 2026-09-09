@@ -8,7 +8,9 @@ test('renders Atlas coverage with domain-level gaps', async ({ page }) => {
   await expect(
     page.getByRole('heading', { name: 'Atlas Coverage', level: 1 }),
   ).toBeVisible();
-  await expect(page.getByText('Web Platform', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Web Platform', level: 3 }),
+  ).toBeVisible();
   await expect(page.getByText(/concepts covered/).first()).toBeVisible();
   await expect(page.getByText('Uncovered', { exact: true }).first()).toBeVisible();
 });
