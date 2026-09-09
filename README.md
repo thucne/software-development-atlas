@@ -114,7 +114,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000`; the root route redirects to `/docs`.
+Open `http://localhost:3000/learn`; the app mounts under `basePath` `/learn` and redirects to `/learn/docs`.
 
 ### Quality checks
 

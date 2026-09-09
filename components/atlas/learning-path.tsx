@@ -1,5 +1,6 @@
 import type { PathCoverage } from '@/lib/content/coverage';
 import type { LearningPathDefinition } from '@/lib/content/learning-paths';
+import Link from 'next/link';
 
 export type LearningPathSummary = Pick<
   LearningPathDefinition,
@@ -71,7 +72,7 @@ export function LearningPathView({
                     <ul className="mb-0 mt-1 pl-5">
                       {step.content.map((content) => (
                         <li key={content.url}>
-                          <a href={content.url}>{content.title}</a>
+                          <Link href={content.url}>{content.title}</Link>
                         </li>
                       ))}
                     </ul>

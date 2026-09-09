@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { appUrl } from './app-path';
 
-const lessonPath = '/docs/programming/async/how-the-browser-event-loop-works';
+const lessonPath = appUrl('/docs/programming/async/how-the-browser-event-loop-works');
 
 async function step(page: Page, count: number) {
   for (let index = 0; index < count; index += 1) {
@@ -12,7 +13,7 @@ async function step(page: Page, count: number) {
 test('exposes the browser event loop lesson in docs navigation', async ({
   page,
 }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   await page
     .getByRole('button', { name: 'Programming', exact: true })

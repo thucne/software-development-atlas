@@ -1,22 +1,25 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { appUrl } from './app-path';
 
 test('renders the docs shell and Start Here navigation', async ({ page }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   await expect(
     page.getByRole('heading', { name: 'Software Development Atlas' }),
   ).toBeVisible();
   await expect(
-    page.locator('a[href="/docs/start-here/how-to-use-the-atlas"]').first(),
+    page
+      .locator(`a[href="${appUrl('/docs/start-here/how-to-use-the-atlas')}"]`)
+      .first(),
   ).toBeVisible();
   await expect(
-    page.locator('a[href="/docs/start-here/freshness"]').first(),
+    page.locator(`a[href="${appUrl('/docs/start-here/freshness')}"]`).first(),
   ).toBeVisible();
 });
 
 test('finds a lesson through local documentation search', async ({ page }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   const searchTrigger = page.getByRole('button', { name: /search/i }).first();
   await searchTrigger.click();
@@ -27,7 +30,7 @@ test('finds a lesson through local documentation search', async ({ page }) => {
 });
 
 test('renders a Mermaid diagram on the usage guide', async ({ page }) => {
-  await page.goto('/docs/start-here/how-to-use-the-atlas');
+  await page.goto(appUrl('/docs/start-here/how-to-use-the-atlas'));
 
   await expect(
     page.getByRole('figure', { name: 'Mermaid diagram' }),
@@ -37,7 +40,7 @@ test('renders a Mermaid diagram on the usage guide', async ({ page }) => {
 test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
   page,
 }) => {
-  await page.goto('/docs/start-here/software-engineering-map');
+  await page.goto(appUrl('/docs/start-here/software-engineering-map'));
 
   const figure = page.getByRole('figure', { name: 'Mermaid diagram' });
   const svg = figure.locator('svg');
@@ -69,7 +72,7 @@ test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
 });
 
 test('serves clean Markdown for a docs page', async ({ request }) => {
-  const response = await request.get('/docs/start-here/freshness.md');
+  const response = await request.get(appUrl('/docs/start-here/freshness.md'));
 
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
@@ -77,7 +80,7 @@ test('serves clean Markdown for a docs page', async ({ request }) => {
 });
 
 test('exposes the GitHub page action', async ({ page }) => {
-  await page.goto('/docs/start-here/freshness');
+  await page.goto(appUrl('/docs/start-here/freshness'));
 
   const expectedPrefix =
     'https://github.com/thucne/software-development-atlas/edit/main/' +
@@ -99,7 +102,7 @@ test('exposes the GitHub page action', async ({ page }) => {
 test('has no automatically detectable serious accessibility violations', async ({
   page,
 }) => {
-  await page.goto('/docs/start-here/how-to-use-the-atlas');
+  await page.goto(appUrl('/docs/start-here/how-to-use-the-atlas'));
 
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((violation) =>

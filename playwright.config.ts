@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? 'pnpm start' : 'pnpm dev',
-    url: 'http://127.0.0.1:3000/docs',
+    url: 'http://127.0.0.1:3000/learn/docs',
     reuseExistingServer: !process.env.CI,
   },
 });

@@ -1,8 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { appUrl } from './app-path';
 
 test('exposes Engineering Judgment in docs navigation', async ({ page }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   await expect(
     page.getByText('Engineering Judgment', { exact: true }).first(),
@@ -13,7 +14,7 @@ test('renders a decision guide with an explicit comparison and conditional guida
   page,
 }) => {
   await page.goto(
-    '/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg',
+    appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'),
   );
 
   await expect(
@@ -31,7 +32,7 @@ test('representative decision guide has no serious or critical accessibility vio
   page,
 }) => {
   await page.goto(
-    '/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg',
+    appUrl('/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg'),
   );
 
   const results = await new AxeBuilder({ page }).analyze();
@@ -46,7 +47,9 @@ test('renders the reliable checkout walkthrough across failure and observability
   page,
 }) => {
   await page.goto(
-    '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+    appUrl(
+      '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+    ),
   );
 
   await expect(
@@ -65,7 +68,9 @@ test('reliable checkout walkthrough has no serious or critical accessibility vio
   page,
 }) => {
   await page.goto(
-    '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+    appUrl(
+      '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+    ),
   );
 
   const results = await new AxeBuilder({ page }).analyze();

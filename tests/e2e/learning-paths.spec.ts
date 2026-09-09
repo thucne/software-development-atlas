@@ -1,8 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { appUrl } from './app-path';
 
 test('renders Atlas coverage with domain-level gaps', async ({ page }) => {
-  await page.goto('/docs/start-here/coverage');
+  await page.goto(appUrl('/docs/start-here/coverage'));
 
   await expect(
     page.getByRole('heading', { name: 'Atlas Coverage', level: 1 }),
@@ -15,7 +16,7 @@ test('renders Atlas coverage with domain-level gaps', async ({ page }) => {
 test('renders an ordered backend learning path with honest uncovered steps', async ({
   page,
 }) => {
-  await page.goto('/docs/learning-paths/backend-systems');
+  await page.goto(appUrl('/docs/learning-paths/backend-systems'));
 
   await expect(
     page.getByRole('heading', { name: 'Backend Systems', level: 1 }),
@@ -26,7 +27,7 @@ test('renders an ordered backend learning path with honest uncovered steps', asy
 });
 
 test('exposes Learning Paths in documentation navigation', async ({ page }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   await expect(
     page.getByText('Learning Paths', { exact: true }).first(),
@@ -36,7 +37,7 @@ test('exposes Learning Paths in documentation navigation', async ({ page }) => {
 test('learning path page has no serious or critical accessibility violations', async ({
   page,
 }) => {
-  await page.goto('/docs/learning-paths/backend-systems');
+  await page.goto(appUrl('/docs/learning-paths/backend-systems'));
 
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((violation) =>
