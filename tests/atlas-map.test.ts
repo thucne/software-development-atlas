@@ -52,4 +52,22 @@ describe('canonical Atlas map', () => {
       }
     }
   });
+
+  it('rejects duplicate domain ids at parse time', () => {
+    const duplicate = structuredClone(atlasMap);
+    duplicate.domains[1].id = duplicate.domains[0].id;
+
+    expect(() => atlasMapSchema.parse(duplicate)).toThrow(
+      /Duplicate Atlas domain id/,
+    );
+  });
+
+  it('rejects globally duplicate concept ids at parse time', () => {
+    const duplicate = structuredClone(atlasMap);
+    duplicate.domains[1].concepts[0].id = duplicate.domains[0].concepts[0].id;
+
+    expect(() => atlasMapSchema.parse(duplicate)).toThrow(
+      /Duplicate Atlas concept id/,
+    );
+  });
 });
