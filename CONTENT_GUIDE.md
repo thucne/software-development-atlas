@@ -62,6 +62,25 @@ Important concepts may remain in a path even when the Atlas has no authored cont
 
 Path overview/orientation pages normally use `contentType: guide`, `learningDepth: recognize`, and `concepts: []` unless their authored prose itself materially teaches a canonical concept. Embedding a learning-path component does not automatically make that page substantive coverage for every step it displays.
 
+## Engineering judgment content
+
+Engineering Judgment is a presentation section, not a second knowledge registry. Decision guides and architecture walkthroughs remain canonical MDX content and use the same Atlas placement metadata as every other substantive page.
+
+A `decision-guide` should begin with a decision under explicit constraints, not with a framework or product tour. A strong guide:
+
+- names the alternatives being compared;
+- states the forces that materially change the choice;
+- compares trade-offs in authored order;
+- explains failure modes and operational consequences;
+- gives conditional heuristics rather than a universal winner;
+- separates durable concepts from version-specific implementation details.
+
+Use `DecisionMatrix` when a semantic table makes a repeated comparison easier to scan. The matrix is a static presentation primitive, not a scoring engine and not a second source of truth. The prose must still explain why each criterion matters and where the comparison stops applying.
+
+An `architecture-walkthrough` should trace one realistic vertical slice across boundaries. It should make the happy path understandable, then spend substantial attention on partial failure, recovery, security, observability, scaling/cost, and credible alternatives. A walkthrough is a reasoning aid, not a claim that every system should adopt the illustrated topology.
+
+For judgment content, attach only the canonical concepts the page genuinely teaches or applies. Cross-domain pages may cover several concepts, but mentioning a subsystem is not sufficient reason to claim its concept ID.
+
 ## Canonical frontmatter
 
 A normal content item follows this shape:
