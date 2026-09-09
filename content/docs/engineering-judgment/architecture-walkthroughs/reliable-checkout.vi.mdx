@@ -77,8 +77,7 @@ Idempotency-Key: 8aeb...f1
 
 ## Sơ đồ kiến trúc tổng thể
 
-> 🖼️ **[Illustration Placeholder: Trình tự Thanh toán & 5 Ranh giới Nhất quán]**  
-> *Mô tả hình minh họa:* Sơ đồ Sequence phân định rõ 5 ranh giới vận hành: (1) Client -> API (với Idempotency-Key), (2) API -> Database (Giao dịch ACID cục bộ gom Order + Outbox row), (3) API -> Cổng thanh toán (Vùng mơ hồ khi timeout mạng), (4) Outbox Publisher -> Message Broker (Giao phát ít nhất 1 lần - At-least-once), (5) Broker -> Fulfillment Worker (Xử lý bất biến chống trùng lặp).
+<AtlasIllustration id="checkout-consistency-boundaries" />
 
 ```mermaid
 graph LR
@@ -127,12 +126,11 @@ COMMIT;
 
 ## 2. Khoảng mơ hồ khi mất phản hồi thanh toán
 
-> 🖼️ **[Illustration Placeholder: Bài toán Hai vị tướng & Vùng mơ hồ của Thanh toán]**  
-> *Mô tả hình minh họa:* Sơ đồ vùng mơ hồ (Ambiguity Window) khi client gửi request thanh toán: nếu gói tin response bị rơi trên đường về, hệ thống không thể biết cổng thanh toán đã trừ tiền thành công hay chưa nếu không có giao thức đối soát (Reconciliation) hoặc truy vấn bất biến.
+<AtlasIllustration id="payment-ambiguity-window" />
 
 ### Tình huống thực tế: Khách hàng bị trừ tiền 2 lần trên mạng 4G chập chờn
 
-Một khách hàng bấm "Đặt hàng" khi đang đi trên tàu xe với sóng 4G không ổn định. Hệ thống gọi sang cổng thanh toán Stripe và trừ thành công $120. Tuy nhiên, trước khi gói tin HTTP 200 từ Stripe kịp bay về đến máy chủ của bạn, đường truyền mạng bị ngắt quãng. Mã nguồn máy chủ bắt được lỗi `Connection Timeout`. 
+Một khách hàng bấm "Đặt hàng" khi đang đi trên tàu xe với sóng 4G không ổn định. Hệ thống gọi sang cổng thanh toán Stripe và trừ thành công $120. Tuy nhiên, trước khi gói tin HTTP 200 từ Stripe kịp bay về đến máy chủ của bạn, đường truyền mạng bị ngắt quãng. Mã nguồn máy chủ bắt được lỗi `Connection Timeout`.
 
 Khách hàng thấy màn hình báo lỗi, hoảng hốt nhấn nút "Đặt hàng" thêm lần nữa. Vì hệ thống không liên kết một Idempotency Key duy nhất cho giỏ hàng đó, máy chủ tạo một đơn hàng mới và gửi lệnh trừ tiếp $120 sang Stripe! Khách hàng bị trừ tổng cộng $240, dẫn đến khiếu nại gay gắt và nguy cơ bị phạt chargeback.
 
@@ -160,10 +158,7 @@ Một đơn hàng logic có thể chứa nhiều lượt thanh toán khác nhau 
 
 ## 4. Mô hình Transactional Outbox
 
-> 🖼️ **[Illustration Placeholder: Bài toán Ghi kép (Dual-Write) vs Mô hình Transactional Outbox]**  
-> *Mô tả hình minh họa:* So sánh kiến trúc:  
-> - **Lỗi Ghi kép (Dual-Write Failure):** Ứng dụng ghi vào Database thành công -> Ứng dụng gọi Message Broker nhưng bị sập nguồn hoặc rớt mạng -> Dữ liệu trong DB đã commit nhưng không có event nào được bắn ra ngoài (mất dữ liệu ngầm không thể cứu vãn).  
-> - **Giải pháp Transactional Outbox:** Ứng dụng ghi Đơn hàng và Sự kiện Outbox trong cùng 1 transaction ACID cục bộ -> Một tiến trình Worker chạy ngầm đọc bảng Outbox và bắn sang Message Broker -> Đảm bảo thông điệp luôn được chuyển phát thành công kể cả khi server sập.
+<AtlasIllustration id="dual-write-vs-outbox" />
 
 <TermBox term="Transactional outbox">
 **Transactional outbox** là mẫu thiết kế lưu trữ sự thay đổi dữ liệu nghiệp vụ và bản ghi "cần gửi sự kiện này" trong **cùng một giao dịch cơ sở dữ liệu cục bộ**. Một tiến trình Publisher riêng biệt sau đó sẽ đọc các dòng Outbox đã commit và đẩy chúng sang hệ thống message broker.
@@ -192,10 +187,7 @@ Các dịch vụ hàng đợi phổ biến (Amazon SQS Standard, RabbitMQ, Kafka
 - Duy trì một bảng `processed_events` trong database với khóa chính là `event_id`.
 - Khi nhận thông điệp, kiểm tra xem `event_id` này đã từng được xử lý thành công hay chưa. Nếu đã xử lý rồi, lập tức bỏ qua (acknowledge và return) mà không thực hiện xuất kho hay gửi email lần thứ hai.
 
-> 🖼️ **[Illustration Placeholder: Cơn bão Retry Thundering Herd vs Exponential Backoff kèm Jitter]**  
-> *Mô tả hình minh họa:* Đồ thị lưu lượng mạng:  
-> - **Cơn bão Retry (Retry Storm):** Khi một cổng thanh toán phục hồi sau 10 giây sự cố, hàng ngàn client gửi retry đồng loạt theo chu kỳ cố định (t = 1s, 2s, 4s), tạo nên các đỉnh lưu lượng nhọn hoắt đè sập dịch vụ vừa sống lại.  
-> - **Full Jitter:** Client phân tán thời gian retry ngẫu nhiên trên khoảng `[0, Backoff(n)]`, làm phẳng đường cong request và giúp hệ thống hồi phục an toàn.
+<AtlasIllustration id="retry-storm-vs-jitter" />
 
 <TermBox term="Backoff and jitter">
 **Backoff** là cơ chế tăng dần khoảng thời gian chờ giữa các lần retry liên tiếp. **Jitter** là việc cộng thêm một khoảng dao động ngẫu nhiên vào thời gian chờ để ngăn chặn hàng ngàn client cùng retry tại một thời điểm chính xác.
