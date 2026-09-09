@@ -48,7 +48,7 @@ describe('Atlas SEO', () => {
     });
   });
 
-  it('derives sitemap entries from canonical lesson URLs and verification dates', () => {
+  it('lists canonical content URLs in the sitemap without the redirecting app root', () => {
     expect(
       createSitemapEntries([
         {
@@ -57,12 +57,6 @@ describe('Atlas SEO', () => {
         },
       ]),
     ).toEqual([
-      {
-        url: 'https://thucde.dev/learn',
-        lastModified: new Date('2026-09-09T00:00:00.000Z'),
-        changeFrequency: 'weekly',
-        priority: 1,
-      },
       {
         url: 'https://thucde.dev/learn/docs/programming/async/promises',
         lastModified: new Date('2026-09-09T00:00:00.000Z'),
