@@ -33,7 +33,7 @@ describe('Atlas SEO', () => {
       description: 'Reason about Promise states and chaining.',
       images: [
         {
-          url: 'https://thucde.dev/learn/og/software-development-atlas.jpg',
+          url: 'https://thucde.dev/learn/og/software-development-atlas',
           width: 1200,
           height: 630,
           alt: 'Software Development Atlas — a personal learning atlas for modern software engineering',
@@ -44,22 +44,20 @@ describe('Atlas SEO', () => {
       card: 'summary_large_image',
       title: 'Promises: Resolution, Chaining, and Failure',
       description: 'Reason about Promise states and chaining.',
-      images: ['https://thucde.dev/learn/og/software-development-atlas.jpg'],
+      images: ['https://thucde.dev/learn/og/software-development-atlas'],
     });
   });
 
-  it('lists canonical content URLs in the sitemap without the redirecting app root', () => {
+  it('lists canonical content URLs without claiming verification dates are edit dates', () => {
     expect(
       createSitemapEntries([
         {
           url: '/docs/programming/async/promises',
-          lastVerified: '2026-09-09',
         },
       ]),
     ).toEqual([
       {
         url: 'https://thucde.dev/learn/docs/programming/async/promises',
-        lastModified: new Date('2026-09-09T00:00:00.000Z'),
         changeFrequency: 'monthly',
         priority: 0.8,
       },
