@@ -8,15 +8,14 @@ const decisionGuideFiles = [
   'containers-vs-serverless.mdx',
 ];
 
-function readDecisionGuide(fileName: string): string {
+function readJudgmentContent(...segments: string[]): string {
   return readFileSync(
     path.join(
       process.cwd(),
       'content',
       'docs',
       'engineering-judgment',
-      'decision-guides',
-      fileName,
+      ...segments,
     ),
     'utf8',
   );
@@ -35,12 +34,34 @@ function extractFrontmatter(source: string): string {
 describe('engineering judgment content', () => {
   it('publishes three representative decision guides with canonical metadata', () => {
     for (const fileName of decisionGuideFiles) {
-      const frontmatter = extractFrontmatter(readDecisionGuide(fileName));
+      const frontmatter = extractFrontmatter(
+        readJudgmentContent('decision-guides', fileName),
+      );
 
       expect(frontmatter).toMatch(/^contentType:\s+decision-guide$/m);
       expect(frontmatter).toMatch(/^learningDepth:\s+reason$/m);
       expect(frontmatter).toMatch(/^concepts:\s*$/m);
       expect(frontmatter).toMatch(/^\s{2}-\s+[a-z0-9-]+$/m);
+    }
+  });
+
+  it('publishes the reliable checkout architecture walkthrough', () => {
+    const frontmatter = extractFrontmatter(
+      readJudgmentContent('architecture-walkthroughs', 'reliable-checkout.mdx'),
+    );
+
+    expect(frontmatter).toMatch(/^contentType:\s+architecture-walkthrough$/m);
+    expect(frontmatter).toMatch(/^learningDepth:\s+reason$/m);
+
+    for (const conceptId of [
+      'api-design',
+      'idempotency',
+      'database-transactions',
+      'transactional-outbox',
+      'partial-failure',
+      'logs-metrics-traces',
+    ]) {
+      expect(frontmatter).toContain(`  - ${conceptId}`);
     }
   });
 });
