@@ -144,9 +144,9 @@ test('bounds the starvation demonstration instead of freezing the page', async (
   await expect(page.getByTestId('event-loop-status')).toHaveText(
     'Starvation warning',
   );
-  await expect(page.getByTestId('event-loop-output').locator('li')).toHaveCount(
-    6,
-  );
+  await expect(
+    page.getByTestId('event-loop-output').locator('li'),
+  ).toHaveText(['microtask', 'microtask', 'microtask', 'microtask', 'microtask']);
   await expect(
     page.getByText(/Later tasks and rendering cannot make progress/),
   ).toBeVisible();

@@ -416,13 +416,10 @@ function stepDeterministicScenario(state: EventLoopState) {
 }
 
 function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
-  const currentCount = state.output.filter((line) =>
-    line.startsWith('microtask'),
-  ).length;
+  const currentCount = state.output.filter((line) => line === 'microtask').length;
 
   if (state.stepIndex === 0) {
     return advance(state, {
-      output: appendOutput(state, 'script'),
       microtasks: [
         {
           id: 'microtask-1',
@@ -454,7 +451,7 @@ function stepMicrotaskStarvation(state: EventLoopState): EventLoopState {
     return advance(state, {
       current: state.microtasks[0] ?? null,
       microtasks: [nextItem],
-      output: appendOutput(state, `microtask ${nextCount}`),
+      output: appendOutput(state, 'microtask'),
       status: 'microtask-checkpoint',
       explanation:
         'This microtask queues another microtask before the checkpoint can become empty.',

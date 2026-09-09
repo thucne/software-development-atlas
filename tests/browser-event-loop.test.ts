@@ -70,12 +70,16 @@ describe('browser event-loop simulator', () => {
     expect(state.complete).toBe(true);
   });
 
-  it('bounds recursive microtask production with an explicit warning', () => {
+  it('matches the bounded starvation output to the code shown to learners', () => {
     const state = runDeterministicScenario('microtask-starvation');
 
-    expect(
-      state.output.filter((line) => line.startsWith('microtask')),
-    ).toHaveLength(5);
+    expect(state.output).toEqual([
+      'microtask',
+      'microtask',
+      'microtask',
+      'microtask',
+      'microtask',
+    ]);
     expect(state.explanation).toContain('Later tasks and rendering');
     expect(state.complete).toBe(true);
   });
