@@ -244,6 +244,112 @@ Decision guides should emphasize constraints and comparison. Architecture walkth
 - Explain why an incorrect example fails.
 - Keep paragraphs and sections focused enough to reference directly.
 
+## Atlas Clarity Contract
+
+Atlas content is designed to be read in a full page, reached through search at a specific heading, copied as raw Markdown, or retrieved as context by an agent. A paragraph that is understandable only when the reader remembers a previous visual is therefore not sufficiently referenceable.
+
+The rules below are editorial requirements. They are not a mandate to build a prose linter, ban ordinary pronouns, or make every sentence simplistic.
+
+### Local completeness
+
+A section should remain understandable when a reader lands on it directly. Use a pronoun or shorthand only when its referent is locally obvious.
+
+Weak:
+
+> Do not carry this diagram into Node.js.
+
+The reader may not know which diagram was meant if the section was retrieved alone.
+
+Prefer:
+
+> Do not treat the browser scheduling model on this page as a Node.js event-loop model.
+
+The goal is not to ban words such as “this,” “that,” “above,” or “here.” The goal is to make the referenced noun unambiguous without requiring hidden page context.
+
+### Define before depending
+
+Introduce the plain-language idea before making formal terminology carry explanatory weight.
+
+A strong progression is:
+
+1. show observable behavior or the concrete engineering problem;
+2. state the useful rule in ordinary language;
+3. walk through a small example;
+4. name the formal term or abstraction;
+5. add specification details, platform boundaries, and edge cases.
+
+Formal vocabulary matters. Terms such as *task source*, *MVCC*, *linearizability*, or *host hook* should be defined when they become useful rather than dropped into the TL;DR before the reader can use them.
+
+### Scope guarantees and recommendations
+
+Make clear what kind of statement the reader is seeing:
+
+- **Language / specification / API guarantee:** behavior defined by the relevant language, protocol, standard, or documented API contract.
+- **Runtime / implementation / provider freedom:** behavior the specification or product intentionally leaves variable.
+- **Engineering recommendation or heuristic:** guidance that depends on workload, constraints, costs, or team capabilities.
+
+Name the scope in the sentence when confusion is plausible. “Browsers may choose among runnable task queues where HTML leaves the choice implementation-defined” is more reliable than “the scheduler can choose.” “For latency-sensitive independent I/O, start the operations before awaiting them” is more reliable than “parallel is faster.”
+
+Do not turn an observed implementation behavior into a platform guarantee, or a useful heuristic into a universal rule.
+
+### Conditions over vague ranking words
+
+Words such as *better*, *cheap*, *fast*, *simple*, *strong fit*, *usually*, or *scalable* can hide the dimension that actually changes the decision.
+
+Weak:
+
+> SSR is a strong fit.
+
+Prefer:
+
+> SSR is useful when the initial HTML must incorporate request-time state and rendering can remain on the latency-sensitive request path.
+
+Weak:
+
+> Choose the cheapest option.
+
+Prefer the dimension that matters: request-time compute cost, client JavaScript, infrastructure ownership, operational effort, latency, or another explicit constraint.
+
+Concise adjectives are fine when the comparison dimension is already explicit in the same sentence, table row, or decision frame.
+
+### One main claim per sentence
+
+Avoid sentences that simultaneously define a term, introduce an exception, compare another runtime, and give a recommendation. Split independent claims so each one can be checked and understood on its own.
+
+A caveat can follow immediately after a rule without being packed into the same sentence.
+
+### Examples are factual claims
+
+Treat code, diagrams, timelines, output traces, and decision matrices as technical claims, not decoration.
+
+When practical:
+
+- execute examples;
+- protect important semantics with tests;
+- trace non-executable examples against primary or first-party sources;
+- verify that comments and expected output match the real runtime/API behavior;
+- state when an example intentionally simplifies production error handling or platform detail.
+
+A plausible-looking example that teaches the wrong object identity or ordering is a correctness bug even when the prose around it sounds reasonable.
+
+### TL;DR discipline
+
+A TL;DR should normally answer three questions:
+
+1. What concept, problem, or decision is this page about?
+2. What practical rule should the reader retain?
+3. What important mistake should the reader avoid?
+
+Do not front-load specification vocabulary, provider trivia, or edge cases that the reader does not need in order to apply the central rule correctly. Put rigorous detail in the body, after the usable mental model has been established.
+
+### Put caveats beside the claim they qualify
+
+Do not collect every possible exception in the opening paragraph. Teach the simplest model that is correct for the stated scope, then put the limitation next to the statement or example it constrains.
+
+For example, explain that a timer is later scheduling before discussing nested-timer minimum delays; explain the common Promise chain rule before discussing thenable assimilation; explain a rendering strategy before listing framework-specific cache behavior.
+
+This keeps the first model usable without hiding important boundaries.
+
 ## Code examples
 
 Code should be minimal enough to understand but realistic enough not to teach dangerous habits.
