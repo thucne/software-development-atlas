@@ -70,40 +70,32 @@ Apply the canonical **Atlas Clarity Contract** and **Atlas Teaching Contract** i
 8. topic-specific terminology that could block a working software developer is explained locally in plain language;
 9. use a visible `TermBox` near the first substantive use when a difficult term would otherwise create a learning barrier;
 10. do not overuse terminology boxes for ordinary working-developer vocabulary or create a wall of definitions before the concrete model;
-11. **Strict language purity:** never mix languages within a single file. English lessons (`*.mdx`) must be 100% English (including placeholder prompts, headings, and micro-scenarios). Localized companion lessons (`*.vi.mdx`) must be 100% Vietnamese.
+11. **Strict language purity:** never mix languages within a single file. English lessons (`*.mdx`) must be 100% English. Localized companion lessons (`*.vi.mdx`) must be 100% Vietnamese.
 
 Do not solve these editorial requirements by adding a generic prose linter, readability score, banned-pronoun rule, jargon detector, or model-based judge. Automate only narrow facts that can be checked reliably; use source-backed review for editorial judgment.
 
 ### Visual pacing and lesson engagement rules
 
-To maintain an engaging, highly scannable, and pedagogy-first learning experience without turning lessons into wall-of-text documentation:
+Follow the canonical visual-medium contract in `CONTENT_GUIDE.md` and the operational workflow in `.agents/skills/atlas-lesson-authoring/SKILL.md`.
 
-1. **High-frequency visual cadence:** Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) must maintain a steady rhythm of visual breaks. Target **1 visual anchor (illustration or diagram) per 1–2 conceptual sections**, with a minimum of **3–4 visual anchors per substantive lesson**.
-2. **Standardized Illustration Placeholders:** When actual image assets (SVG/PNG) are not yet authored, insert an explicit placeholder blockquote using the language matching the file:
-   - For English lessons (`*.mdx`):
-     ```markdown
-     > 🖼️ **[Illustration Placeholder: <Descriptive Title>]**  
-     > *Illustration prompt:* <Detailed prompt specifying diagram layout, nodes/lanes, data flow direction, and key technical insights to draw>
-     ```
-   - For Vietnamese companion lessons (`*.vi.mdx`):
-     ```markdown
-     > 🖼️ **[Illustration Placeholder: <Tiêu đề mô tả>]**  
-     > *Mô tả hình minh họa:* <Chi tiết bố cục khung hình, các khối thành phần, luồng dữ liệu và insight kỹ thuật then chốt>
-     ```
-   Always provide a thorough prompt matching the document language so human designers or subsequent agent tasks can draft the graphic without guessing.
-3. **Mermaid for structural flows:** Use Mermaid diagrams (`mermaid` code block) for decision trees, state machines, sequence diagrams, and boundary topologies whenever static diagrams communicate system flow clearly.
-4. **Real-world production micro-scenarios:** Include concrete production failure stories (e.g., cascading retry storms, phantom client cache 200s, microtask UI freezes, swallowed error state corruption) in every deep dive and decision guide. Structure them with three explicit parts matching the document language:
-   - For English (`*.mdx`):
-     - **Impact:** The observable symptom, latency spike, or data inconsistency.
-     - **Root cause:** The mental model disconnect or flawed assumption.
-     - **Correct pattern:** The robust code pattern or architecture fix.
-   - For Vietnamese (`*.vi.mdx`):
-     - **Hậu quả:** Triệu chứng thực tế trên production, độ trễ hoặc lỗi sai dữ liệu.
-     - **Nguyên nhân cốt lõi:** Lỗ hổng trong mô hình tư duy hoặc giả định sai lầm.
-     - **Cách khắc phục chuẩn:** Mẫu code chuẩn hoặc giải pháp kiến trúc khắc phục triệt để.
-5. **Interactive mental-model self-checks:** Format exercises and quizzes with `<details><summary>Show the reasoning</summary>...</details>` (or `<details><summary>Xem giải thích chi tiết</summary>...</details>` in Vietnamese) so learners can pause and test their intuition before revealing the explanation.
-6. **Actionable task-list checklists:** Conclude review sections and agent rules with markdown task lists (`- [ ] **<Keyword>:** ...`) rather than generic numbered questions. The site's CSS provides a hanging-indent layout for checklist items.
-7. **TermBox moderation:** Restrict `<TermBox>` to genuine learning barriers (typically 2–3 per page max). Define terms near their first substantive use and never build an introductory definition wall.
+Repository-level invariants:
+
+1. **Meaningful cadence, not an image quota:** substantive lessons should normally target 3–4 meaningful visual anchors, but those anchors may be programmatic diagrams, static teaching illustrations, Mermaid, decision matrices, or interactive labs/explorers.
+2. **Choose the medium by teaching need:** keep exact state/order/timing/protocol/transaction diagrams programmatic; use static teaching artwork when spatial intuition about pressure, failure, lifecycle, ambiguity, ownership, or blast radius is the primary goal.
+3. **Text remains canonical:** important technical facts, exact labels, numbers, and guarantees must remain available in authored text or semantic UI. Static artwork is supplementary.
+4. **Bilingual asset reuse:** English and Vietnamese should reuse one semantic static asset by default; localized title, caption, and accessible description remain outside image pixels.
+5. **Published content has no placeholders:** temporary illustration placeholders are draft-only and must be replaced before a substantive lesson is published.
+6. **Stable semantic IDs:** lesson MDX should use `<AtlasIllustration id="..." />`; the visual layer decides whether an ID renders programmatically or from a repository asset.
+7. **Objective tests, human taste:** tests should verify registry/asset/accessibility/cadence invariants; do not add OCR or aesthetic scoring as CI gates.
+
+Use the 10-item visual review checklist in `CONTENT_GUIDE.md` whenever a visual anchor is new or materially revised.
+
+### Production and active-learning rules
+
+1. **Real-world production micro-scenarios:** Include concrete production failure stories in every deep dive and decision guide. Structure them with Impact / Root cause / Correct pattern in English, or Hậu quả / Nguyên nhân cốt lõi / Cách khắc phục chuẩn in Vietnamese.
+2. **Interactive mental-model self-checks:** Format exercises and quizzes with `<details><summary>Show the reasoning</summary>...</details>` (or `<details><summary>Xem giải thích chi tiết</summary>...</details>` in Vietnamese) so learners can reason before revealing the answer.
+3. **Actionable task-list checklists:** Conclude review sections and agent rules with markdown task lists (`- [ ] **<Keyword>:** ...`) rather than generic numbered questions.
+4. **TermBox moderation:** Restrict `<TermBox>` to genuine learning barriers (typically 2–3 per page). Define terms near their first substantive use and never build an introductory definition wall.
 
 ## Content placement contract
 
@@ -181,6 +173,8 @@ For Engineering Judgment content and its reusable primitive, read `docs/superpow
 For content reliability and clarity changes, read `docs/superpowers/specs/2026-09-09-content-reliability-clarity-design.md`.
 
 For Atlas-wide teaching clarity and terminology support, read `docs/superpowers/specs/2026-09-09-teaching-clarity-system-design.md`.
+
+For the Atlas visual-medium, static teaching-illustration, localization, accessibility, and rollout contract, read `docs/superpowers/specs/2026-09-09-atlas-visual-demonstration-system-design.md`.
 
 Significant architectural changes should begin with an issue/design discussion rather than an implementation-first pull request.
 

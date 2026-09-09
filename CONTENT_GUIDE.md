@@ -403,38 +403,104 @@ This keeps the first model usable without hiding important boundaries.
 
 ## Visual Cadence & Pedagogical Engagement
 
-To ensure learners do not experience mental fatigue from walls of plain prose, Atlas lessons enforce high-frequency visual pacing and active-recall checkpoints.
+Visuals are teaching tools, not decoration. Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) should usually target **3–4 meaningful visual anchors**, with a visual break roughly every **1–2 conceptual sections** when that improves comprehension.
 
-### Target visual frequency
+**Visual anchors are not image quotas.** A strong lesson may contain one static teaching illustration, one exact programmatic diagram, one Mermaid graph, and one interactive lab. Another may contain only exact diagrams. Do not add generated artwork merely to satisfy cadence.
 
-Substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`) should target **one visual anchor per 1–2 conceptual sections**, with a minimum of **3–4 visual anchors per substantive lesson**.
+### Choose the visual medium from the learning objective
 
-A visual anchor can be:
-- An **Illustration Placeholder** for conceptual or architectural graphics to be drawn.
-- A static **Mermaid Diagram** (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`).
-- A lightweight interactive lab or explorer component (when interaction uniquely aids learning).
+Before creating a visual, state the learner misunderstanding it should prevent, then choose the medium whose strengths match that teaching need.
 
-### Standardized Illustration Placeholder template
+- **Programmatic diagram:** prefer when correctness depends on exact state, ordering, timing, values, protocol layering, dependency graphs, transaction boundaries, editable labels, or numeric relationships.
+- **Static teaching illustration:** prefer when the main goal is spatial or operational intuition: bottlenecks, resource pressure, fan-out/backpressure, blast radius, lifecycle/cold starts, overloaded dependencies, ambiguous distributed outcomes, ownership boundaries, retry storms, or cascading failure.
+- **Mermaid:** prefer textual/diffable decision trees, sequence diagrams, state graphs, and structural flows that benefit from straightforward source edits.
+- **Interactive lab/explorer:** use only when changing inputs, stepping through behavior, making predictions, or exploring multiple scenarios materially improves the mental model.
 
-When visual assets (SVG/PNG) are planned but not yet drawn, authors must provide a clear prompt matching the file's language so human illustrators or automated design tools can render them faithfully:
+Do not replace an exact diagram with generated artwork merely for visual novelty.
 
-- **For English lessons (`*.mdx`):**
-  ```markdown
-  > 🖼️ **[Illustration Placeholder: Descriptive Title Here]**  
-  > *Illustration prompt:* Detailed architectural blocks, data flow arrow directions, comparison views (e.g., Scenario A vs Scenario B), and key technical insights to highlight.
-  ```
+### Static teaching illustration contract
 
-- **For Vietnamese companion lessons (`*.vi.mdx`):**
-  ```markdown
-  > 🖼️ **[Illustration Placeholder: Tiêu đề mô tả]**  
-  > *Mô tả hình minh họa:* Chi tiết các khối kiến trúc, luồng dữ liệu theo chiều mũi tên, các kịch bản so sánh đối chiếu (ví dụ: Kịch bản A vs Kịch bản B), các thông số hoặc trạng thái nổi bật cần vẽ để làm sáng tỏ khái niệm kỹ thuật.
-  ```
+The existing semantic authoring boundary remains stable:
 
-Rules for placeholders:
-1. Use blockquote syntax (`>`) with the picture emoji `🖼️` and bold bracketed title.
-2. Provide explicit layout instructions (e.g. "Three-column horizontal diagram: Client -> CDN -> Origin").
-3. State the core insight the graphic must convey so the illustration is explanatory, not purely decorative.
-4. **Never mix languages:** English lessons must use English prompts (`*Illustration prompt:*`), and Vietnamese lessons must use Vietnamese prompts (`*Mô tả hình minh họa:*`).
+```mdx
+<AtlasIllustration id="bounded-concurrency" />
+```
+
+Lesson MDX should not need to know whether that semantic ID is rendered by a programmatic diagram or a static teaching asset.
+
+For static teaching illustrations:
+
+1. store the shared asset at `public/illustrations/<domain>/<illustration-id>.webp`;
+2. use the semantic illustration ID as the filename;
+3. reuse the same asset across English and Vietnamese by default;
+4. keep localized title, caption, and accessible description in HTML/component metadata;
+5. keep exact labels, numbers, state names, and protocol guarantees outside image pixels when they matter to reasoning;
+6. use little or no meaningful baked-in prose;
+7. keep the surrounding lesson technically understandable without the image;
+8. do not use color as the only carrier of meaning;
+9. ensure the visual is understandable at normal article width without accidental horizontal scrolling;
+10. update or revert the image if later technical corrections make its implication misleading.
+
+The default first-generation canvas is 16:9 landscape, normally **1600×900**, delivered as compressed WebP with a target payload below roughly **300 KB** where practical.
+
+Published substantive lessons must not contain illustration-placeholder blocks. A temporary draft placeholder may be used while work is in progress, but it must be explicit, language-pure, and replaced before publication.
+
+### Atlas teaching-illustration art direction
+
+Generated/static teaching illustrations should look recognizably like one Atlas family:
+
+- dark-native charcoal, graphite, and deep-navy canvas;
+- restrained semantic accents;
+- emerald/cyan for healthy or allowed flow;
+- amber for pressure, delay, uncertainty, or constrained capacity;
+- red only for failure or dangerous overload;
+- simplified infrastructure/runtime objects;
+- subtle depth or isometric perspective only when it clarifies relationships;
+- strong negative space and a clear reading direction, usually left-to-right;
+- minimal ornament;
+- no stock-photo aesthetic or product logos;
+- no decorative people unless human behavior is essential to the concept.
+
+### Stable generation prompt recipe
+
+A teaching-illustration generation brief should specify:
+
+1. the exact learner misconception or mental model;
+2. the primary spatial relationship;
+3. required objects or system boundaries;
+4. flow direction;
+5. which conditions are healthy, constrained, ambiguous, or failed;
+6. the Atlas technical-editorial art direction;
+7. minimal/no baked text;
+8. 16:9 landscape composition;
+9. sufficient negative space for responsive framing;
+10. semantic implications the image must avoid.
+
+Example:
+
+```text
+Create a Software Development Atlas teaching illustration for bounded concurrency.
+Teaching goal: make it immediately clear that a large queue of independent jobs is intentionally narrowed through five active workers to protect a finite downstream database/API.
+Composition: left-to-right 16:9 technical editorial scene. Large dense waiting queue on the left, narrow five-lane worker gate in the center, finite downstream service on the right. Queued work must look waiting rather than active. Healthy flow uses restrained emerald/cyan; pressure uses amber. Dark charcoal/navy self-contained canvas, subtle depth, minimal ornament, no people, no logos, no paragraph text, no important labels or numbers baked into pixels.
+Do not imply that only five jobs exist; the limit applies to active work while the larger backlog waits.
+```
+
+Prompts must come from verified lesson semantics, not from aesthetics alone.
+
+### Visual review checklist
+
+Review every new or materially revised visual anchor:
+
+- [ ] **Teaching purpose:** What misunderstanding does this visual prevent?
+- [ ] **Medium:** Is programmatic diagram, static teaching illustration, Mermaid, or interaction the best medium?
+- [ ] **Accuracy:** Does the visual imply anything stronger than verified prose supports?
+- [ ] **Redundancy:** Is another nearby visual already teaching the same relationship?
+- [ ] **Localization:** Can English and Vietnamese reuse the same semantic asset?
+- [ ] **Embedded text:** Can required labels and numbers remain outside image pixels?
+- [ ] **Accessibility:** Is the teaching point available without interpreting pixels alone?
+- [ ] **Responsive behavior:** Is the visual understandable at normal article width without accidental overflow?
+- [ ] **Durability:** Will minor terminology or numeric corrections avoid unnecessary image regeneration?
+- [ ] **Consistency:** Does the visual follow the Atlas art direction rather than introducing a new style?
 
 ### Production micro-scenarios
 
@@ -462,7 +528,8 @@ Exercises, quizzes, and scenario reasoning questions should give the reader an o
 
 </details>
 ```
-(Use `<summary>Xem giải thích chi tiết</summary>` in Vietnamese companion files.)
+
+Use `<summary>Xem giải thích chi tiết</summary>` in Vietnamese companion files.
 
 ### Actionable review checklists
 
