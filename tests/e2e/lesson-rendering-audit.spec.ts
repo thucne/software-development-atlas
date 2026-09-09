@@ -1,6 +1,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import { appUrl } from './app-path';
 
 const docsRoot = path.join(process.cwd(), 'content', 'docs');
 
@@ -21,13 +22,13 @@ function routeForFile(filePath: string): string {
     .replaceAll(path.sep, '/')
     .replace(/\.mdx$/, '');
   const normalized = relative === 'index' ? '' : relative.replace(/\/index$/, '');
-  return normalized ? `/docs/${normalized}` : '/docs';
+  return appUrl(normalized ? `/docs/${normalized}` : '/docs');
 }
 
 const authoredRoutes = collectMdxFiles(docsRoot).map(routeForFile).sort();
 
 test('lab source code is rendered as one undecorated block', async ({ page }) => {
-  await page.goto('/docs/programming/async/promises');
+  await page.goto(appUrl('/docs/programming/async/promises'));
 
   const code = page
     .getByRole('region', { name: 'Promise scenario source' })
@@ -64,7 +65,7 @@ test('lab source code is rendered as one undecorated block', async ({ page }) =>
 });
 
 test('promise state values share one aligned value column', async ({ page }) => {
-  await page.goto('/docs/programming/async/promises');
+  await page.goto(appUrl('/docs/programming/async/promises'));
 
   for (let index = 0; index < 4; index += 1) {
     await page.getByRole('button', { name: 'Step', exact: true }).click();

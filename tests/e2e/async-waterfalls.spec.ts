@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { appUrl } from './app-path';
 
-const lessonPath =
-  '/docs/programming/async/avoiding-sequential-async-waterfalls';
+const lessonPath = appUrl(
+  '/docs/programming/async/avoiding-sequential-async-waterfalls',
+);
 
 test('exposes the async waterfalls lesson in docs navigation', async ({ page }) => {
-  await page.goto('/docs');
+  await page.goto(appUrl('/docs'));
 
   await page
     .getByRole('button', { name: 'Programming', exact: true })

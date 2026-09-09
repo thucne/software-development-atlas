@@ -1,4 +1,5 @@
 import { getMDXComponents } from '@/components/mdx';
+import { withBasePath } from '@/lib/base-path';
 import { source } from '@/lib/source';
 import {
   DocsBody,
@@ -19,7 +20,8 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDX = page.data.body;
-  const markdownUrl = `${page.url}.md`;
+  // Fumadocs page-action helpers do not reliably apply Next.js `basePath`.
+  const markdownUrl = withBasePath(`${page.url}.md`);
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;

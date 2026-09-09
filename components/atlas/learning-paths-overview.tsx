@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export type LearningPathOverviewItem = {
   id: string;
   title: string;
@@ -17,7 +19,7 @@ export function LearningPathsOverviewView({
       {paths.map((path) => (
         <article key={path.id} className="rounded-lg border p-4">
           <h3 className="mt-0 text-lg font-semibold">
-            <a href={`/docs/learning-paths/${path.id}`}>{path.title}</a>
+            <Link href={`/docs/learning-paths/${path.id}`}>{path.title}</Link>
           </h3>
           <p>{path.description}</p>
           <p className="text-sm text-fd-muted-foreground">{path.audience}</p>
