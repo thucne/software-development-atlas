@@ -1,3 +1,8 @@
+import {
+  AtlasCoverage,
+  LearningPath,
+  LearningPathsOverview,
+} from '@/components/atlas/server';
 import { AsyncWaterfallLab } from '@/components/learning/async-waterfall-lab';
 import { EventLoopLab } from '@/components/learning/event-loop-lab';
 import { PromiseResolutionLab } from '@/components/learning/promise-resolution-lab';
@@ -18,6 +23,9 @@ export function getMDXComponents(components?: MDXComponents) {
         </CodeBlock>
       );
     },
+    AtlasCoverage,
+    LearningPath,
+    LearningPathsOverview,
     AsyncWaterfallLab,
     EventLoopLab,
     PromiseResolutionLab,
