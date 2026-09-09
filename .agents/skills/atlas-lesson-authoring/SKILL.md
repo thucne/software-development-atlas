@@ -1,149 +1,196 @@
 ---
 name: atlas-lesson-authoring
-description: Use when authoring, revising, or reviewing Software Development Atlas lessons, deep-dives, decision guides, or architecture walkthroughs. Enforces high visual pacing, standardized illustration placeholders, production micro-scenarios, interactive mental model self-checks, actionable task checklists, and TermBox moderation.
+description: Use when authoring, revising, or reviewing Software Development Atlas lessons, deep-dives, decision guides, or architecture walkthroughs. Enforces deliberate visual-medium selection, meaningful visual pacing, production micro-scenarios, active mental-model checks, actionable review checklists, and TermBox moderation.
 ---
 
 # Atlas Lesson Authoring & Pedagogical Quality Standard
 
-This skill defines the complete authoring workflow and pedagogical contract for creating or improving lessons in the **Software Development Atlas** (`software-development-atlas`).
+This skill defines the operational workflow for creating or improving lessons in the **Software Development Atlas** (`software-development-atlas`). The canonical human-facing policy lives in `CONTENT_GUIDE.md`; this skill turns that policy into concrete authoring steps.
 
 ## When to Activate This Skill
 
 Activate this skill whenever you are:
-- Writing a new lesson (e.g., `contentType: deep-dive | decision-guide | architecture-walkthrough | concept`).
-- Revising, refactoring, or polishing existing lessons.
-- Reviewing PRs or evaluating lesson quality for engagement, readability, visual cadence, or technical rigor.
+
+- writing a new lesson (`concept`, `deep-dive`, `decision-guide`, `field-guide`, or `architecture-walkthrough`);
+- revising or materially polishing an existing lesson;
+- reviewing a PR for lesson engagement, readability, visual cadence, accessibility, localization, or technical rigor.
 
 ---
 
 ## The 6 Core Pedagogical Rules
 
-### 1. High-Frequency Visual Cadence (Min. 3–4 Visual Anchors)
-Long walls of plain prose cause cognitive fatigue. Substantive lessons must interleave visual elements every **1–2 conceptual sections**.
-- Target **at least 3 to 4 visual anchors** per deep dive, decision guide, or architecture walkthrough.
-- Visual anchors can be:
-  - **Illustration Placeholders** (detailed visual prompts for graphics to be drawn).
-  - **Mermaid Diagrams** (decision trees, state diagrams, sequence charts).
-  - **Interactive Labs / Explorers** (only when interaction uniquely aids mental model formation).
+### 1. Meaningful visual cadence (target 3–4 anchors)
 
-### 2. Standardized Illustration Placeholders
-When image assets (SVG/PNG) are not yet rendered, insert a standardized blockquote placeholder matching the file's language:
+Long walls of prose create cognitive fatigue, but **visual anchors are not image quotas**.
 
-- **For English lessons (`*.mdx`):**
-  ```markdown
-  > 🖼️ **[Illustration Placeholder: Descriptive Title]**  
-  > *Illustration prompt:* Detailed prompt specifying diagram layout (e.g., 3 columns / 2 parallel swimlanes), main components (Client, Cache, Network, Server), data flow arrow direction, and key technical insights to draw.
-  ```
+For substantive lessons (`deep-dive`, `decision-guide`, `architecture-walkthrough`):
 
-- **For Vietnamese companion lessons (`*.vi.mdx`):**
-  ```markdown
-  > 🖼️ **[Illustration Placeholder: Tiêu đề mô tả]**  
-  > *Mô tả hình minh họa:* Mô tả chi tiết bố cục hình vẽ (ví dụ: chia làm 3 cột / 2 luồng song song), các thành phần chính (Client, Cache, Network, Server), hướng mũi tên luồng dữ liệu, và insight kỹ thuật then chốt mà hình vẽ cần truyền tải cho người đọc.
-  ```
+- target roughly **3–4 meaningful visual anchors**;
+- aim for a visual break every **1–2 conceptual sections** where it improves comprehension;
+- count programmatic illustrations, Mermaid, decision matrices, and interactive labs/explorers when they genuinely teach something;
+- do not add generated/static artwork merely to hit a count.
 
-- **Rule:** Never leave a vague placeholder like `[TODO: Add image]`. Always specify the visual layout and key technical insight so a human illustrator or AI image tool can draft it immediately. Never mix languages (use English prompt in English files, Vietnamese prompt in `.vi.mdx`).
+Before proposing a visual, write down the learner misunderstanding it should prevent.
 
-### 3. Real-World Production Micro-Scenarios
-Bridge abstract language specs or architecture theories with real-world engineering stakes. Every substantive lesson must include at least one production failure scenario structured with three explicit anchors in the matching language:
+### 2. Choose the visual medium deliberately
 
-- **For English lessons (`*.mdx`):**
-  ```markdown
-  ### Production scenario: The "Invisible" UI Freeze
+Choose the medium from the learning objective, not from visual novelty.
 
-  A realtime chat application batches incoming WebSocket messages via recursive `queueMicrotask`:
+- **Programmatic diagram:** use when correctness depends on exact state, ordering, timing, values, protocol layering, dependency shape, transaction boundaries, or editable labels.
+- **Static teaching illustration:** use when the primary goal is spatial/operational intuition such as bottlenecks, resource pressure, fan-out, blast radius, cold-start lifecycle, ambiguous outcomes, retry storms, ownership boundaries, or cascading failure.
+- **Mermaid:** use for textual, diffable decision trees, sequence diagrams, state graphs, and structural flows that benefit from easy source editing.
+- **Interactive lab/explorer:** use only when changing inputs, stepping through behavior, making a prediction, or comparing scenarios materially improves the mental model.
 
-  ```ts
-  function processBatch(items: Item[]) {
-    if (items.length === 0) return;
-    renderItem(items.shift()!);
-    queueMicrotask(() => processBatch(items));
-  }
-  ```
+Do not replace an exact diagram with generated artwork merely because the generated image looks richer.
 
-  - **Impact:** The UI freezes for 1.2s, user clicks trigger no response, and the INP metric spikes red (>1000ms).
-  - **Root cause:** `queueMicrotask` never yields control to the browser's Rendering Pipeline; it completely exhausts microtasks before allowing paint or input handling.
-  - **Correct pattern:** Use `scheduler.yield()` or chunk with `setTimeout(..., 0)` to allow the browser to paint frames and process user input.
-  ```
+#### Static teaching illustration contract
 
-- **For Vietnamese companion lessons (`*.vi.mdx`):**
-  ```markdown
-  ### Tình huống thực tế: Hiện tượng UI "đóng băng vô hình"
+When a static teaching illustration is the right medium:
 
-  Một hệ thống chat realtime xử lý batch tin nhắn WebSocket qua đệ quy `queueMicrotask`:
+1. Keep the lesson-facing API semantic: `<AtlasIllustration id="semantic-id" />`.
+2. Store the asset at `public/illustrations/<domain>/<semantic-id>.webp`.
+3. Reuse one semantic asset for English and Vietnamese by default.
+4. Keep title, caption, accessible description, exact labels, and important numbers in HTML/MDX where practical.
+5. Put little or no meaningful prose inside image pixels.
+6. Treat the asset as supplementary: the lesson must remain technically understandable without seeing it.
+7. Default to a 16:9 landscape teaching canvas (normally 1600×900) and keep the image readable at normal article width.
+8. Target a compressed WebP below roughly 300 KB where practical without visible teaching-quality loss.
 
-  ```ts
-  function processBatch(items: Item[]) {
-    if (items.length === 0) return;
-    renderItem(items.shift()!);
-    queueMicrotask(() => processBatch(items));
-  }
-  ```
+#### Atlas art direction
 
-  - **Hậu quả:** Màn hình đơ cứng suốt 1.2s, user bấm nút không phản hồi, chỉ số INP báo đỏ (>1000ms).
-  - **Nguyên nhân cốt lõi:** `queueMicrotask` không bao giờ nhường luồng (yield) cho Rendering Pipeline; nó xả sạch checkpoint cho đến khi queue rỗng.
-  - **Cách khắc phục chuẩn:** Sử dụng `scheduler.yield()` hoặc `setTimeout(resolve, 0)` để nhường quyền vẽ frame và nhận click event cho trình duyệt.
-  ```
+Static teaching illustrations should feel like one family:
 
-### 4. Interactive Mental-Model Self-Checks (`<details>`)
-Allow the learner to think, predict, and test their understanding before being handed the answer. Wrap reasoning and answers in HTML `<details>`:
+- dark-native charcoal / graphite / deep-navy canvas;
+- restrained semantic accents;
+- emerald/cyan for healthy or allowed flow;
+- amber for pressure, delay, uncertainty, or constrained capacity;
+- red only for failure or dangerous overload;
+- simplified infrastructure/runtime objects;
+- subtle depth or isometric perspective only when it clarifies relationships;
+- strong negative space and clear reading direction;
+- minimal ornament, no stock-photo look, no logos;
+- no decorative humans unless human behavior is part of the concept.
+
+#### Generation prompt recipe
+
+A generation brief must specify:
+
+1. the learner misconception or mental model to teach;
+2. the primary spatial relationship;
+3. required objects or system boundaries;
+4. flow direction;
+5. healthy, constrained, ambiguous, and failed conditions;
+6. Atlas technical-editorial art direction;
+7. minimal/no baked text;
+8. 16:9 landscape composition;
+9. enough negative space for responsive framing;
+10. any semantic implication the image must avoid.
+
+Example:
+
+```text
+Create a Software Development Atlas teaching illustration for bounded concurrency.
+Teaching goal: make it immediately clear that a large queue of independent jobs is intentionally narrowed through five active workers to protect a finite downstream database/API.
+Composition: left-to-right 16:9 technical-editorial scene. Large dense waiting queue on the left, narrow five-lane worker gate in the center, finite downstream service on the right. Queued work must look waiting rather than active. Healthy flow uses restrained emerald/cyan; pressure uses amber. Dark charcoal/navy self-contained canvas, subtle depth, minimal ornament, no people, no logos, no paragraph text, no important labels or numbers baked into pixels.
+Do not imply that only five jobs exist; the limit applies to active work while the larger backlog waits.
+```
+
+Prompts come from verified lesson semantics, not from aesthetics alone.
+
+### 3. Real-world production micro-scenarios
+
+Bridge abstract language specifications and architecture theory to engineering stakes. Every substantive lesson should include at least one credible production scenario with explicit anchors in the file's language.
+
+For English:
+
+- **Impact:** observable symptom, latency spike, outage, or data inconsistency;
+- **Root cause:** exact mental-model error or flawed assumption;
+- **Correct pattern:** robust code/architecture correction.
+
+For Vietnamese:
+
+- **Hậu quả:** triệu chứng production, độ trễ, outage hoặc sai lệch dữ liệu;
+- **Nguyên nhân cốt lõi:** mô hình tư duy hoặc giả định sai;
+- **Cách khắc phục chuẩn:** mẫu code hoặc giải pháp kiến trúc bền vững.
+
+Do not fabricate fake precision. If a scenario is illustrative rather than sourced from a real incident, present it as a realistic scenario rather than claiming historical fact.
+
+### 4. Interactive mental-model self-checks (`<details>`)
+
+Give the learner an opportunity to predict or reason before revealing the answer.
 
 ```markdown
 ## Exercise
 
-Predict the settlement order of P0 through P4:
-
-```ts
-// code snippet here
-```
+Predict the outcome before opening the explanation.
 
 <details>
 <summary>Show the reasoning</summary>
 
-- `p0` fulfills with `2`.
-- `p1` fulfills with `6`.
-- `p2` rejects with `Error('boom')`.
-- Downstream `p3` adopts the inner promise and remains pending until inner settles.
+- Explain the relevant state transition or dependency step-by-step.
 
 </details>
 ```
 
-### 5. Actionable Task-List Checklists (`- [ ]`)
-Replace passive rhetorical questions with actionable task lists. The site's CSS (`app/globals.css`) formats `ul.contains-task-list` with clean hanging indents and custom checkbox positioning:
+Use `<summary>Xem giải thích chi tiết</summary>` in Vietnamese companion files.
+
+### 5. Actionable task-list checklists (`- [ ]`)
+
+Turn review advice into concrete checks rather than passive rhetorical questions.
 
 ```markdown
-When reviewing scheduling-sensitive browser code, verify against this checklist:
-
-- [ ] **Main thread duration:** Will current task execution stay under 50ms (DevTools Long Task threshold)?
-- [ ] **Microtask checkpoint bounds:** Do Promise chains or `queueMicrotask()` calls have bounded recursion so the checkpoint can drain?
-- [ ] **Task source ordering assumptions:** Does the code avoid assuming a fixed FIFO order between unrelated task sources?
+- [ ] **Dependency:** Does operation B genuinely require data from operation A?
+- [ ] **Capacity:** Can the downstream system absorb the proposed concurrency?
+- [ ] **Failure:** What happens when the remote outcome is ambiguous?
 ```
 
-### 6. TermBox Moderation (2–3 Max per Lesson)
-`<TermBox>` is designed to break down difficult learning barriers (e.g. *Microtask checkpoint*, *Transactional outbox*, *Hydration*).
-- **Limit:** 2 to 3 TermBoxes per page.
-- **Placement:** Place near the **first substantive use** where the term is actively needed for reasoning.
-- **Anti-pattern:** Never create a "dictionary wall" of 6–8 TermBoxes stacked consecutively at the top of a page.
-- **Scope:** Do not box ordinary developer words (e.g. function, array, HTTP request, API).
+The repository CSS provides the checklist presentation; keep the authored items meaningful without relying on styling.
+
+### 6. TermBox moderation (typically 2–3 per lesson)
+
+`<TermBox>` is for genuine learning barriers, not every technical noun.
+
+- place it near the **first substantive use** where the term is needed for reasoning;
+- prefer roughly **2–3** high-value boxes on a page rather than a dictionary wall;
+- do not box ordinary working-developer vocabulary such as function, array, API, database, or HTTP request unless the lesson gives the term a specialized meaning;
+- keep the definition in authored MDX so raw Markdown/agent retrieval remains useful.
+
+---
+
+## Visual Review Checklist
+
+For every new or materially revised visual anchor, verify:
+
+- [ ] **Teaching purpose:** What misunderstanding does this visual prevent?
+- [ ] **Medium:** Is programmatic diagram, static teaching illustration, Mermaid, or interaction the best medium?
+- [ ] **Accuracy:** Does the visual imply anything stronger than verified prose supports?
+- [ ] **Redundancy:** Is another nearby visual already teaching the same relationship?
+- [ ] **Localization:** Can English and Vietnamese reuse the same semantic asset?
+- [ ] **Embedded text:** Can required labels and numbers remain outside image pixels?
+- [ ] **Accessibility:** Is the teaching point available without interpreting pixels alone?
+- [ ] **Responsive behavior:** Is it understandable at normal article width without accidental overflow?
+- [ ] **Durability:** Can minor terminology or numeric changes avoid unnecessary asset regeneration?
+- [ ] **Consistency:** Does the visual follow the Atlas art direction rather than introducing an unrelated style?
 
 ---
 
 ## Step-by-Step Lesson Improvement Workflow
 
-1. **Verify Map Concept:** Check `content/atlas-map.json` for canonical concept IDs. Never invent ad-hoc IDs.
-2. **Review Frontmatter:** Ensure `contentType`, `learningDepth`, and `concepts` are valid.
-3. **Pace the Content:**
-   - Section 1: TL;DR + Mental Model (Lead with practical rule & concrete behavior).
-   - Section 2: Visual Anchor 1 (Illustration Placeholder or Mermaid diagram).
-   - Section 3: Core Explanation + TermBox (first substantive use).
-   - Section 4: Visual Anchor 2 (Detailed comparison or flow placeholder).
-   - Section 5: Production Micro-Scenario (Impact, Root Cause, Fix).
-   - Section 6: Visual Anchor 3 (Edge cases or multi-tier boundary placeholder).
-   - Section 7: Exercise / Quiz (wrapped in `<details>`).
-   - Section 8: Agent Rule & Actionable Checklist (`- [ ] **Keyword:** ...`).
-4. **Run Machine Checks:**
-   ```bash
-   npx vitest run
-   npx pnpm typecheck
-   npx pnpm lint
-   ```
-   Never submit changes without 100% passing tests.
+1. **Verify map concepts:** Check `content/atlas-map.json`; never invent ad-hoc concept IDs.
+2. **Review frontmatter:** Confirm `contentType`, `learningDepth`, `concepts`, freshness metadata, prerequisites, and related concepts.
+3. **Identify learning barriers:** List the concrete behaviors, terms, decisions, or failure modes likely to confuse a working developer.
+4. **Plan visual anchors:** For each proposed anchor, state its teaching purpose and choose its medium deliberately.
+5. **Pace the content:** A common substantive flow is:
+   - TL;DR + concrete mental model;
+   - Visual Anchor 1 — simplest useful behavior or comparison;
+   - Core explanation + first high-value `TermBox`;
+   - Visual Anchor 2 — deeper dependency, boundary, or lifecycle relationship;
+   - Production micro-scenario — Impact / Root cause / Correct pattern;
+   - Visual Anchor 3 — edge case, system pressure, or architectural consequence;
+   - Exercise / quiz in `<details>`;
+   - Agent rule or review checklist.
+6. **Check bilingual parity:** English and Vietnamese companions use the same semantic illustration concepts; generated/static pixels are shared by default.
+7. **Run visual review:** Apply the 10-item checklist above.
+8. **Run machine checks:** At minimum run the relevant illustration/content tests plus typecheck and lint; run E2E when a visual renderer or responsive layout changes.
+
+Published substantive lessons must not contain illustration-placeholder blocks. If a draft uses a temporary placeholder, its prompt must be explicit and language-pure, and the placeholder must be replaced before publication.
