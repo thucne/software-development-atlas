@@ -9,6 +9,17 @@ const deepDives = [
   'content/docs/programming/async/promises.mdx',
 ] as const;
 
+const substantivePages = [
+  'content/docs/programming/async/avoiding-sequential-async-waterfalls.mdx',
+  'content/docs/programming/async/how-the-browser-event-loop-works.mdx',
+  'content/docs/programming/async/promises.mdx',
+  'content/docs/web-platform/http-request-lifecycle.mdx',
+  'content/docs/engineering-judgment/decision-guides/csr-vs-ssr-vs-ssg.mdx',
+  'content/docs/engineering-judgment/decision-guides/monolith-vs-modular-monolith-vs-microservices.mdx',
+  'content/docs/engineering-judgment/decision-guides/containers-vs-serverless.mdx',
+  'content/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout.mdx',
+] as const;
+
 function read(relativePath: string) {
   return readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
@@ -46,5 +57,36 @@ describe('Atlas content reliability migration', () => {
     expect(guide).toContain('### Define before depending');
     expect(guide).toContain('### Scope guarantees and recommendations');
     expect(guide).toContain('### Examples are factual claims');
+  });
+});
+
+describe('Atlas teaching clarity migration', () => {
+  it('adds visible terminology support to every substantive teaching page', () => {
+    for (const relativePath of substantivePages) {
+      expect(read(relativePath), relativePath).toContain('<TermBox term=');
+    }
+  });
+
+  it('documents the working-developer teaching baseline', () => {
+    const guide = read('CONTENT_GUIDE.md');
+
+    expect(guide).toContain('## Atlas Teaching Contract');
+    expect(guide).toContain('working software developer');
+    expect(guide).toContain('TermBox');
+    expect(guide).toContain('first substantive use');
+  });
+
+  it('protects representative difficult-term explanations', () => {
+    const eventLoop = read(
+      'content/docs/programming/async/how-the-browser-event-loop-works.mdx',
+    );
+    const checkout = read(
+      'content/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout.mdx',
+    );
+
+    expect(eventLoop).toContain('<TermBox term="Microtask checkpoint">');
+    expect(eventLoop).toContain('<TermBox term="Task source">');
+    expect(eventLoop).toContain('<TermBox term="Rendering opportunity">');
+    expect(checkout).toContain('<TermBox term="Transactional outbox">');
   });
 });
