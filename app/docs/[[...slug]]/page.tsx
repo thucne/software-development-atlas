@@ -37,6 +37,7 @@ export default async function Page(props: {
   );
   // Fumadocs page-action helpers do not reliably apply Next.js `basePath`.
   const markdownUrl = withBasePath(`${page.url}.md`);
+  const aboutUrl = withBasePath('/docs/start-here/about');
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
@@ -107,6 +108,10 @@ export default async function Page(props: {
             className="underline underline-offset-2"
           >
             {atlasMaintainer.name}
+          </a>{' '}
+          ·{' '}
+          <a href={aboutUrl} className="underline underline-offset-2">
+            About this Atlas
           </a>{' '}
           · Atlas last updated {formatDate(atlasLastUpdated)}
         </p>
