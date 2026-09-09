@@ -34,6 +34,40 @@ test('renders a Mermaid diagram on the usage guide', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
+  page,
+}) => {
+  await page.goto('/docs/start-here/software-engineering-map');
+
+  const figure = page.getByRole('figure', { name: 'Mermaid diagram' });
+  const svg = figure.locator('svg');
+
+  await expect(svg).toBeVisible();
+  await expect(figure.getByRole('button', { name: 'Zoom in' })).toBeVisible();
+  await expect(figure.getByRole('button', { name: 'Zoom out' })).toBeVisible();
+  await expect(figure.getByRole('button', { name: 'Reset zoom' })).toBeVisible();
+
+  const widthBefore = await svg.evaluate((element) =>
+    element.getBoundingClientRect().width,
+  );
+
+  await figure.getByRole('button', { name: 'Zoom in' }).click();
+
+  await expect
+    .poll(() =>
+      svg.evaluate((element) => element.getBoundingClientRect().width),
+    )
+    .toBeGreaterThan(widthBefore);
+
+  await figure.getByRole('button', { name: 'Reset zoom' }).click();
+
+  await expect
+    .poll(() =>
+      svg.evaluate((element) => element.getBoundingClientRect().width),
+    )
+    .toBeCloseTo(widthBefore, 0);
+});
+
 test('serves clean Markdown for a docs page', async ({ request }) => {
   const response = await request.get('/docs/start-here/freshness.md');
 
