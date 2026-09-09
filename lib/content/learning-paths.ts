@@ -16,6 +16,7 @@ const learningPathSchema = z
     outcomes: z.array(z.string().min(1)).min(1),
     concepts: z.array(z.string().min(1)).min(2),
   })
+  .strict()
   .superRefine((path, context) => {
     const seen = new Set<string>();
 
@@ -44,6 +45,7 @@ export const learningPathsSchema = z
     version: z.literal(1),
     paths: z.array(learningPathSchema).min(1),
   })
+  .strict()
   .superRefine((data, context) => {
     const seen = new Set<string>();
 
