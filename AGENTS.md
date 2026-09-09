@@ -87,10 +87,11 @@ When authoring an `architecture-walkthrough`:
 
 1. state the scenario and important assumptions;
 2. trace boundaries and data flow end-to-end;
-3. make transaction/consistency boundaries explicit where relevant;
-4. examine duplicate requests, timeouts, retries, redelivery, and partial failure where relevant;
-5. cover security, observability, scaling/cost, and credible alternatives;
-6. describe the topology as a reference shape, not a mandatory architecture.
+3. use the repo's existing Mermaid support for static system flow before inventing a new diagram component;
+4. make transaction/consistency boundaries explicit where relevant;
+5. examine duplicate requests, timeouts, retries, redelivery, and partial failure where relevant;
+6. cover security, observability, scaling/cost, and credible alternatives;
+7. describe the topology as a reference shape, not a mandatory architecture.
 
 Do not create a judgment JSON registry, scoring model, recommendation engine, or duplicated concept/page mapping unless a later approved design explicitly requires it.
 
