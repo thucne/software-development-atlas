@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a0f18"/><stop offset=".55" stop-color="#101a28"/><stop offset="1" stop-color="#090e16"/></linearGradient>
+  <radialGradient id="halo"><stop stop-color="#1d3348" stop-opacity=".55"/><stop offset="1" stop-color="#0a0f18" stop-opacity="0"/></radialGradient>
+  <linearGradient id="green" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#163631"/><stop offset="1" stop-color="#10221f"/></linearGradient>
+  <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#7890aa" stroke-opacity=".08"/></pattern>
+  <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#41dcc8"/></marker>
+  <marker id="aa" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#f59e0b"/></marker>
+  <g id="job"><rect width="40" height="28" rx="7" fill="#223246" stroke="#60a5fa" stroke-width="2"/><path d="M9 10h22M9 18h16" stroke="#9fb0c4" stroke-width="2" stroke-linecap="round"/></g>
+  <g id="hot"><rect width="40" height="28" rx="7" fill="#223246" stroke="#f59e0b" stroke-width="2"/><path d="M9 10h22M9 18h16" stroke="#9fb0c4" stroke-width="2" stroke-linecap="round"/></g>
+  <g id="worker" filter="url(#glow)"><rect width="88" height="260" rx="22" fill="url(#green)" stroke="#37cd91" stroke-width="4"/><rect x="12" y="12" width="64" height="10" rx="5" fill="#37cd91" opacity=".8"/><use href="#job" x="24" y="105"/></g>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/><rect width="1600" height="900" fill="url(#halo)"/><rect width="1600" height="900" fill="url(#grid)"/>
+<g opacity=".95">
+  <use href="#hot" x="70" y="250"/><use href="#job" x="118" y="250"/><use href="#job" x="166" y="250"/><use href="#job" x="214" y="250"/><use href="#job" x="262" y="250"/><use href="#job" x="310" y="250"/><use href="#job" x="358" y="250"/><use href="#hot" x="406" y="250"/><use href="#job" x="454" y="250"/><use href="#job" x="502" y="250"/><use href="#job" x="550" y="250"/><use href="#job" x="598" y="250"/>
+  <use href="#job" x="86" y="306"/><use href="#job" x="134" y="306"/><use href="#job" x="182" y="306"/><use href="#hot" x="230" y="306"/><use href="#job" x="278" y="306"/><use href="#job" x="326" y="306"/><use href="#job" x="374" y="306"/><use href="#job" x="422" y="306"/><use href="#hot" x="470" y="306"/><use href="#job" x="518" y="306"/><use href="#job" x="566" y="306"/><use href="#job" x="614" y="306"/>
+  <use href="#job" x="102" y="362"/><use href="#hot" x="150" y="362"/><use href="#job" x="198" y="362"/><use href="#job" x="246" y="362"/><use href="#job" x="294" y="362"/><use href="#job" x="342" y="362"/><use href="#hot" x="390" y="362"/><use href="#job" x="438" y="362"/><use href="#job" x="486" y="362"/><use href="#job" x="534" y="362"/><use href="#job" x="582" y="362"/><use href="#job" x="630" y="362"/>
+  <use href="#job" x="118" y="418"/><use href="#job" x="166" y="418"/><use href="#job" x="214" y="418"/><use href="#job" x="262" y="418"/><use href="#hot" x="310" y="418"/><use href="#job" x="358" y="418"/><use href="#job" x="406" y="418"/><use href="#job" x="454" y="418"/><use href="#job" x="502" y="418"/><use href="#hot" x="550" y="418"/><use href="#job" x="598" y="418"/><use href="#job" x="646" y="418"/>
+  <use href="#job" x="134" y="474"/><use href="#job" x="182" y="474"/><use href="#hot" x="230" y="474"/><use href="#job" x="278" y="474"/><use href="#job" x="326" y="474"/><use href="#job" x="374" y="474"/><use href="#job" x="422" y="474"/><use href="#job" x="470" y="474"/><use href="#hot" x="518" y="474"/><use href="#job" x="566" y="474"/><use href="#job" x="614" y="474"/><use href="#job" x="662" y="474"/>
+  <use href="#job" x="150" y="530"/><use href="#hot" x="198" y="530"/><use href="#job" x="246" y="530"/><use href="#job" x="294" y="530"/><use href="#job" x="342" y="530"/><use href="#job" x="390" y="530"/><use href="#job" x="438" y="530"/><use href="#hot" x="486" y="530"/><use href="#job" x="534" y="530"/><use href="#job" x="582" y="530"/><use href="#job" x="630" y="530"/><use href="#job" x="678" y="530"/>
+</g>
+<path d="M650 455h75" stroke="#f59e0b" stroke-width="12" stroke-linecap="round" marker-end="url(#aa)"/>
+<use href="#worker" x="735" y="325"/><use href="#worker" x="853" y="325"/><use href="#worker" x="971" y="325"/><use href="#worker" x="1089" y="325"/><use href="#worker" x="1207" y="325"/>
+<g filter="url(#glow)"><rect x="1355" y="397" width="150" height="116" fill="#18283a" stroke="#41dcc8" stroke-width="4"/><ellipse cx="1430" cy="397" rx="75" ry="26" fill="#203247" stroke="#41dcc8" stroke-width="4"/><ellipse cx="1430" cy="513" rx="75" ry="26" fill="#111d2b" stroke="#41dcc8" stroke-width="4"/></g>
+<path d="M1295 455h42" stroke="#41dcc8" stroke-width="8" stroke-linecap="round" marker-end="url(#a)"/>
+</svg>
