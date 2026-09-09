@@ -1,0 +1,206 @@
+---
+title: Monolith vs Modular Monolith vs Microservices
+description: Choose deployment and domain boundaries by team ownership, transaction needs, failure isolation, scaling pressure, and operational capacity rather than architecture prestige.
+category: engineering-judgment
+level: intermediate
+status: evergreen
+lastVerified: 2026-09-09
+reviewAfterDays: 365
+topics:
+  - architecture
+  - monolith
+  - microservices
+  - modularity
+prerequisites:
+  - coupling-and-cohesion
+  - domain-boundaries
+related:
+  - backend-systems
+technologies: []
+contentType: decision-guide
+learningDepth: reason
+concepts:
+  - monolith-architecture
+  - modular-monolith
+  - microservices
+  - domain-boundaries
+  - coupling-and-cohesion
+  - partial-failure
+---
+
+## TL;DR
+
+A monolith, modular monolith, and microservices architecture are not three maturity levels. They are different ways to place **code, data, deployment, and ownership boundaries**.
+
+Start with the least distributed option that satisfies the real constraints. A well-structured modular monolith often gives teams strong domain boundaries without paying the network, deployment, observability, and consistency costs of distributed services. Move a boundary into an independently deployed service when the independence itself creates enough value to justify those costs.
+
+The question is not "Can this be a service?" Almost anything can. The question is **what problem becomes materially easier when this boundary becomes a network and deployment boundary?**
+
+## Decision frame
+
+Write down the forces before choosing an architecture label:
+
+- How many teams need to change and release the system independently?
+- Which business capabilities have genuinely different change rates or ownership?
+- Which operations need one ACID transaction across multiple pieces of state?
+- Are there workloads with materially different scaling or isolation requirements?
+- Can the organization operate many independently failing deployments, data stores, dashboards, alerts, and on-call surfaces?
+- Is the current pain caused by deployment coupling, or simply by poor internal modularity?
+- How expensive is cross-boundary debugging for this team?
+
+A service boundary is valuable only when the independence it creates matters more than the coordination cost it introduces.
+
+## The options
+
+### Monolith
+
+A monolith is deployed as one application unit. It may be internally clean or internally tangled; "monolith" describes the deployment shape, not the code quality.
+
+The main advantage is local simplicity: function calls are local, transactions can often stay inside one database boundary, deployment coordination is centralized, and end-to-end debugging has fewer network hops.
+
+The main risk is that a monolith can become difficult to change if internal boundaries are weak. Teams may then confuse **bad modularity** with **a problem that requires microservices**.
+
+### Modular monolith
+
+A modular monolith keeps one deployment unit while enforcing meaningful internal domain boundaries. Modules expose explicit interfaces, own their internal implementation, and reduce accidental coupling even though they run in one process or application deployment.
+
+This is often a strong middle ground: you can improve ownership and architecture without immediately turning every boundary into distributed communication. It also creates a useful test of domain boundaries. If a boundary cannot be kept clean inside one repository/process, moving it across a network rarely fixes the underlying design problem.
+
+### Microservices
+
+A microservices architecture moves selected boundaries into independently deployable services, usually with explicit APIs/events and service-owned state.
+
+The benefits can be substantial when independent deployment, team ownership, workload isolation, or technology/runtime differences are real constraints. The cost is equally real: local calls become remote calls, failures become partial, data consistency often crosses transaction boundaries, observability must correlate work across services, and deployment/version compatibility becomes part of everyday engineering.
+
+<DecisionMatrix
+  caption="Monolith vs modular monolith vs microservices decision matrix"
+  options={['Monolith', 'Modular monolith', 'Microservices']}
+  rows={[
+    {
+      criterion: 'Deployment independence',
+      values: ['Low', 'Low; modules ship together', 'High by service boundary'],
+    },
+    {
+      criterion: 'Internal domain boundaries',
+      values: ['Optional and often informal', 'Explicit and enforceable', 'Explicit plus network/deployment boundary'],
+    },
+    {
+      criterion: 'Cross-domain transaction simplicity',
+      values: ['Usually strongest', 'Usually strong inside one deployment/data boundary', 'Often requires distributed workflow design'],
+    },
+    {
+      criterion: 'Team release autonomy',
+      values: ['Shared release train', 'Shared deployment with clearer code ownership', 'Strong when services map cleanly to teams'],
+    },
+    {
+      criterion: 'Failure isolation',
+      values: ['Process/deployment failure can affect the whole app', 'Similar deployment failure surface', 'Can isolate failures, but creates partial-failure modes'],
+    },
+    {
+      criterion: 'Independent scaling',
+      values: ['Scale the deployment unit', 'Scale the deployment unit', 'Scale selected services independently'],
+    },
+    {
+      criterion: 'Operational complexity',
+      values: ['Lowest', 'Low to medium', 'Highest: many deployables, networks, telemetry, data boundaries'],
+    },
+    {
+      criterion: 'End-to-end debugging',
+      values: ['Usually simplest', 'Usually simple with module boundaries', 'Requires cross-service traces/log correlation'],
+    },
+  ]}
+/>
+
+## Strong-fit scenarios
+
+### Prefer a monolith when
+
+- one team or a small number of closely coordinated teams own the product;
+- the domain is still changing quickly and stable service boundaries are not yet obvious;
+- deployment independence is not a bottleneck;
+- the system benefits from simple local transactions and debugging;
+- operational capacity is more valuable elsewhere than in service infrastructure.
+
+A monolith is not permission to create a ball of mud. Explicit modules, tests, dependency rules, and ownership boundaries still matter.
+
+### Prefer a modular monolith when
+
+- the application is large enough that domain boundaries and code ownership matter;
+- teams need stronger isolation from each other's internals but can still coordinate one deployment;
+- you want to reduce coupling before deciding whether independent deployment is necessary;
+- cross-module transactions are still common and valuable;
+- you want architecture boundaries that can later be extracted selectively if evidence justifies it.
+
+For many business systems, this is an excellent long-lived architecture rather than a temporary stage.
+
+### Prefer microservices when
+
+- independent deployment is a concrete business/organizational requirement, not a hypothetical future benefit;
+- service boundaries align with durable business capabilities and team ownership;
+- some workloads need materially different scaling, availability, isolation, or release cadence;
+- the organization can operate service discovery/routing, observability, CI/CD, secrets, compatibility, incident response, and asynchronous consistency across many deployables;
+- the value of independence is high enough to justify distributed-systems complexity.
+
+## Microservices change the failure model
+
+Inside one process, a function call either returns or throws under one runtime failure domain. Across a service boundary, a caller can time out without knowing whether the remote operation failed, succeeded, or is still executing.
+
+That ambiguity pulls in concepts such as:
+
+- timeouts and retry budgets;
+- idempotency;
+- partial failure;
+- delivery semantics;
+- distributed tracing;
+- eventual consistency and compensating workflows.
+
+This is why "split it into services" is not a neutral refactor. It changes correctness and operations.
+
+## Common traps
+
+### Treating microservices as an organizational shortcut
+
+A network boundary does not create a coherent domain boundary. If teams disagree about ownership or the model is tightly coupled, service APIs can simply make that coupling slower and harder to change.
+
+### Mistaking repository size for deployment-boundary pressure
+
+A large codebase may need better module boundaries, build tooling, ownership, and dependency rules without needing many services.
+
+### Using independent databases as an ideology
+
+Service-owned data can improve autonomy, but cross-service workflows must then explicitly handle consistency. Splitting data without a business reason can turn simple transactions into complex distributed protocols.
+
+### Extracting services before observing the pressure
+
+Boundaries chosen too early often reflect today's assumptions rather than durable business capabilities. Extraction is easier when the monolith is already modular and evidence shows which boundaries need independent lifecycle or scaling.
+
+## Practical heuristic
+
+Ask these questions in order:
+
+1. **Can the problem be solved by better module boundaries inside one deployment?** Do that first when possible.
+2. **Which boundary needs independent deployment or ownership, specifically?** Name the concrete pain.
+3. **What correctness model changes when calls and data cross a network?** Identify timeout, retry, transaction, and consistency consequences.
+4. **Who operates the new service at 02:00?** Include alerts, dashboards, runbooks, dependencies, and rollback behavior in the cost.
+5. **Can you measure that the independence is worth it?** Faster releases, isolated scaling, reduced blast radius, or clearer ownership should be observable outcomes.
+
+## Questions to ask before choosing
+
+- Are the domain boundaries stable enough to defend with interfaces?
+- Is coordinated deployment actually slowing teams down?
+- Which transactions would cross service boundaries?
+- What happens when one side succeeds and the other side times out?
+- How will traces/logs correlate one user request across services?
+- Does each service have a clear owning team and on-call responsibility?
+- Are independent scaling and availability requirements real or speculative?
+- Could architecture tests enforce the desired boundaries inside a modular monolith first?
+
+## Related concepts
+
+This decision is primarily about **Modularity**, **Domain Boundaries**, **Coupling and Cohesion**, and the point at which **Partial Failure** becomes worth accepting. The [Backend Systems](/docs/learning-paths/backend-systems) path provides the reliability/data concepts that become essential once boundaries are distributed.
+
+## Sources
+
+- [Microservices — Martin Fowler and James Lewis](https://martinfowler.com/articles/microservices.html)
+- [MonolithFirst — Martin Fowler](https://martinfowler.com/bliki/MonolithFirst.html)
+- [Microservices architecture style — Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/microservices/)
