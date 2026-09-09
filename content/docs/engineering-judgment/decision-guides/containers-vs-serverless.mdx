@@ -79,10 +79,7 @@ A **cold start** is startup work incurred when a platform must create or initial
 **Why it matters here:** startup-sensitive request paths must be validated against the actual service. “Serverless” alone does not tell you how often cold starts occur, how long initialization takes, or which warm/minimum-capacity controls exist.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Anatomy of a Cold Start vs Warm Start]**  
-> *Illustration description:* Detailed timeline comparison diagram:
-> - **Cold Start (100ms – multiple seconds):** Sandbox resource allocation -> Pull image/code bundle -> Initialize language runtime -> Execute top-level initialization code (DB connection, config load) -> Process request.
-> - **Warm Start (a few ms):** Reuse existing warm execution environment -> Receive and process request immediately.
+<AtlasIllustration id="cold-vs-warm-start" />
 
 <TermBox term="Concurrency">
 For managed compute, **concurrency** commonly means how many requests or work items can be active in one execution environment or across the service at the same time.
@@ -169,8 +166,7 @@ Do not infer these properties from the word “serverless.” Validate them agai
 
 ## These choices can overlap
 
-> 🖼️ **[Illustration Placeholder: Packaging Boundary vs Operating Boundary Matrix]**  
-> *Illustration description:* Two-axis matrix: Horizontal axis represents "Packaging Model" (Application Code / Zip vs OCI Container Image); Vertical axis represents "Operating Model" (Self-managed VMs vs Managed Container Cluster vs Serverless Managed Execution Environment). Highlights where products intersect (e.g., Cloud Run = Container Packaging + Serverless Operating).
+<AtlasIllustration id="packaging-vs-operating-boundary" />
 
 A workload can be both **containerized and serverless**. Cloud Run is a concrete example: the deployment artifact is a container, while Google manages instance lifecycle and autoscaling according to Cloud Run's service contract.
 
@@ -191,8 +187,7 @@ Scaling behavior is a service contract, not a synonym for serverless. A burst ca
 
 If compute grows from ten concurrent workers to a thousand, the database, queue, connection pool, or third-party API may not. Treat compute concurrency and downstream backpressure as one capacity design.
 
-> 🖼️ **[Illustration Placeholder: Serverless Downstream Avalanche / Connection Pool Exhaustion]**  
-> *Illustration description:* Traffic surge diagram: 1,500 serverless functions spin up concurrently -> each function establishes 1 TCP connection to the database -> exceeds the database connection limit (150 connections) -> database starves and emits Connection Refused / Timeout errors across the entire fleet.
+<AtlasIllustration id="serverless-downstream-avalanche" />
 
 ### Treating portability as binary
 
@@ -202,8 +197,7 @@ A portable container image does not make cloud IAM, databases, queues, storage, 
 
 A consumption model can reduce idle-capacity cost, but total cost can be dominated by minimum instances, duration, memory/CPU allocation, data transfer, observability, downstream fan-out, or engineering time. Compare actual workload models, not category slogans.
 
-> 🖼️ **[Illustration Placeholder: Total Cost of Ownership (TCO) Crossover Curve]**  
-> *Illustration description:* Cost curve chart over traffic volume: X-axis represents "Request Volume", Y-axis represents "Monthly Cost ($)". Serverless curve starts at $0 (scale to zero) and slopes steeply upward with request count; Container/VM curve has a higher initial baseline cost but flattens out under sustained high traffic. The intersection (Crossover Point) marks the economic transition point between models.
+<AtlasIllustration id="tco-crossover" />
 
 ## Practical heuristic
 
