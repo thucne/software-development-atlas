@@ -4,12 +4,13 @@ A living, open-source knowledge system for software engineering — built for hu
 
 Software Development Atlas aims to make deep software-development knowledge easy to learn, easy to reference, easy to verify, and easy to contribute to. The project spans durable fundamentals through modern AI-native and agentic engineering practices while keeping the core experience free to operate.
 
-> **Status:** foundation phase. The project is establishing the knowledge model, documentation shell, and gold-standard content patterns before scaling coverage.
+> **Status:** foundation phase. The project is establishing the knowledge model, representative coverage, curated learning paths, and gold-standard content patterns before scaling further.
 
 ## Principles
 
 - **Depth without friction.** Explain concepts rigorously, then make them fast to scan and reference.
 - **Map the territory.** Grow by important software-engineering coverage and connections, not raw article count.
+- **Keep gaps honest.** Uncovered concepts and learning-path steps remain visible instead of being hidden to improve metrics.
 - **Learn by interacting when it helps.** Prefer diagrams, runnable examples, comparisons, exercises, and visualizations where they materially improve understanding.
 - **Human + agent native.** Canonical knowledge should be useful as documentation and as structured context for coding agents.
 - **Freshness is visible.** Evolving and frontier material records when it was last verified and how often it should be reviewed.
@@ -18,7 +19,7 @@ Software Development Atlas aims to make deep software-development knowledge easy
 
 ## Knowledge model
 
-`content/atlas-map.json` is the canonical Software Engineering Map. It defines broad domains and stable concept IDs independently of the current sidebar or lesson count.
+`content/atlas-map.json` is the canonical Software Engineering Map. It defines broad domains and stable concept IDs independently of the current sidebar or content count.
 
 Authored content declares:
 
@@ -28,7 +29,9 @@ Authored content declares:
 
 This keeps difficulty, navigation, loose search tags, content format, learning outcome, and durable concept placement as separate concerns. A concept can exist before a dedicated page does, making uncovered territory explicit.
 
-See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard and the [Software Engineering Map](./content/docs/start-here/software-engineering-map.mdx) for the human-readable model.
+`content/learning-paths.json` defines curated concept sequences for particular learning outcomes. It stores path order and intent, not authored page URLs. Coverage and available-content links are derived from canonical MDX concept placement, so the Atlas can show both supported and currently uncovered steps without maintaining a second lesson registry.
+
+See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard, the [Software Engineering Map](./content/docs/start-here/software-engineering-map.mdx) for the human-readable model, [Atlas Coverage](./content/docs/start-here/coverage.mdx) for current authored support, and [Learning Paths](./content/docs/learning-paths/index.mdx) for curated traversals.
 
 ## Planned stack
 
@@ -47,7 +50,7 @@ The site must remain portable and must not make a paid hosted service a requirem
 
 ## Content experience
 
-Not every Atlas page has the same shape. A focused concept page can stay concise; a decision guide should emphasize constraints and trade-offs; an architecture walkthrough should connect boundaries and failure modes; a deep dive may use the fuller teaching pattern below.
+Not every Atlas page has the same shape. A focused concept page can stay concise; a decision guide should emphasize constraints and trade-offs; an architecture walkthrough should connect boundaries and failure modes; a deep dive may use a fuller teaching pattern. Learning-path pages are orientation layers: they order canonical concepts and surface derived content without pretending the path page itself teaches every step.
 
 A deep dive may include:
 
@@ -74,7 +77,8 @@ The project intentionally grows through small, reviewable slices:
 3. establish exceptional vertical-slice content;
 4. extract reusable learning primitives from real needs;
 5. grow representative coverage across the Software Engineering Map;
-6. add curated learning paths, decision guides, and architecture walkthroughs as the content base becomes useful enough to support them.
+6. add curated learning paths and derived coverage views;
+7. make decision guides and architecture walkthroughs first-class content for engineering judgment.
 
 See [docs/roadmap.md](./docs/roadmap.md) for details.
 
@@ -118,7 +122,7 @@ pnpm test:e2e
 
 ### Content
 
-Canonical authored pages live in `content/docs` as Markdown/MDX. The canonical concept map lives in `content/atlas-map.json`. Frontmatter and concept references are validated in CI/build tooling. Do not add a runtime database for ordinary Atlas content.
+Canonical authored pages live in `content/docs` as Markdown/MDX. The canonical concept map lives in `content/atlas-map.json`; curated learning-path order lives in `content/learning-paths.json`. Frontmatter, concept references, path references, and coverage behavior are validated in CI/build tooling. Do not add a runtime database for ordinary Atlas content.
 
 ### Cost boundary
 

@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "paths": [
+    {
+      "id": "modern-web-systems",
+      "title": "Modern Web Systems",
+      "description": "Build a systems-level mental model of how browsers, protocols, rendering, frontend architecture, and backend boundaries fit together.",
+      "audience": "Software engineers who want to reason across the full web request and rendering path rather than learn one framework in isolation.",
+      "targetDepth": "reason",
+      "outcomes": [
+        "Trace a request from DNS and TLS through the browser and application boundary.",
+        "Compare major rendering and frontend data-loading approaches by constraints and trade-offs.",
+        "Recognize where caching, browser security, and backend API design influence web behavior."
+      ],
+      "concepts": [
+        "dns-resolution",
+        "http-request-lifecycle",
+        "tls-and-https",
+        "browser-runtime",
+        "browser-event-loop",
+        "browser-rendering-pipeline",
+        "same-origin-and-cors",
+        "http-caching",
+        "cdn-behavior",
+        "csr-ssr-ssg",
+        "hydration",
+        "frontend-data-fetching",
+        "component-boundaries",
+        "frontend-bundle-performance",
+        "backend-request-lifecycle",
+        "api-design"
+      ]
+    },
+    {
+      "id": "backend-systems",
+      "title": "Backend Systems",
+      "description": "Learn the runtime, data, reliability, and distributed-systems concepts that shape production backend services.",
+      "audience": "Software engineers who want to design and review backend systems beyond framework-specific controller and ORM mechanics.",
+      "targetDepth": "reason",
+      "outcomes": [
+        "Trace a backend request through validation, domain work, persistence, asynchronous side effects, and failure handling.",
+        "Reason about database and concurrency choices using correctness and operability constraints.",
+        "Design retryable and asynchronous workflows with explicit idempotency and delivery semantics."
+      ],
+      "concepts": [
+        "backend-request-lifecycle",
+        "api-design",
+        "authentication-and-authorization",
+        "backend-concurrency",
+        "background-jobs",
+        "application-caching",
+        "message-queues",
+        "rate-limiting",
+        "idempotency",
+        "service-resilience",
+        "relational-data-model",
+        "database-indexes",
+        "query-plans",
+        "database-transactions",
+        "transaction-isolation",
+        "partial-failure",
+        "timeouts",
+        "retries-and-backoff",
+        "delivery-semantics",
+        "transactional-outbox"
+      ]
+    },
+    {
+      "id": "cloud-architecture-for-software-engineers",
+      "title": "Cloud Architecture for Software Engineers",
+      "description": "Connect application architecture to cloud networking, compute, identity, storage, delivery, observability, and operations.",
+      "audience": "Application engineers who need cloud architecture judgment without turning the path into provider-specific certification study.",
+      "targetDepth": "reason",
+      "outcomes": [
+        "Map provider products back to durable networking, compute, storage, and identity concepts.",
+        "Explain how deployment, scaling, observability, and incident response change production architecture.",
+        "Review a cloud design for trust boundaries, least privilege, failure isolation, and operational cost."
+      ],
+      "concepts": [
+        "cloud-networking",
+        "cloud-compute",
+        "containers",
+        "serverless-compute",
+        "load-balancing",
+        "cloud-storage-models",
+        "cloud-iam",
+        "secrets-management",
+        "infrastructure-as-code",
+        "autoscaling",
+        "kubernetes-fundamentals",
+        "logs-metrics-traces",
+        "deployment-strategies",
+        "incident-response",
+        "threat-modeling",
+        "least-privilege"
+      ]
+    },
+    {
+      "id": "ai-native-software-engineering",
+      "title": "AI-Native Software Engineering",
+      "description": "Design repositories, workflows, and verification systems so humans and coding agents can change software safely together.",
+      "audience": "Software engineers using coding agents for substantial implementation who want stronger context, constraints, review, and verification loops.",
+      "targetDepth": "operate",
+      "outcomes": [
+        "Structure repository context so agents can discover architecture and constraints without oversized instruction files.",
+        "Turn important engineering rules into machine-checkable feedback rather than prompt-only guidance.",
+        "Design task, review, and eval loops that preserve human engineering judgment while increasing implementation leverage."
+      ],
+      "concepts": [
+        "coding-agents",
+        "agent-instructions",
+        "context-engineering",
+        "agent-friendly-repositories",
+        "specs-and-plans",
+        "agent-task-decomposition",
+        "agent-tool-permissions",
+        "verification-loops",
+        "machine-checkable-guardrails",
+        "test-strategy",
+        "static-analysis",
+        "continuous-integration",
+        "agent-review",
+        "agent-evals"
+      ]
+    }
+  ]
+}
