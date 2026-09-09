@@ -1,29 +1,36 @@
 # Contributing to Software Development Atlas
 
-Thank you for helping build Software Development Atlas. Contributions can be new lessons, corrections, better examples, interactive visualizations, accessibility improvements, tooling, or reports that content has become outdated.
+Thank you for helping build Software Development Atlas. Contributions can be new content, corrections, better examples, interactive visualizations, accessibility improvements, tooling, or reports that material has become outdated.
 
 ## Before you contribute
 
-Please read [CONTENT_GUIDE.md](./CONTENT_GUIDE.md). It defines the content contract, freshness model, source expectations, and lesson structure.
+Please read [CONTENT_GUIDE.md](./CONTENT_GUIDE.md). It defines the content contract, canonical Atlas placement, freshness model, source expectations, content types, and learning-depth model.
+
+For new engineering content, also inspect [`content/atlas-map.json`](./content/atlas-map.json). Reuse canonical concept IDs whenever possible instead of inventing page-local labels.
 
 For substantial site or architecture changes, open an issue first so the direction can be agreed before implementation. Small corrections can go directly to a pull request.
 
 ## Contribution types
 
-### New lesson
+### New Atlas content
 
-A strong lesson should:
+A strong proposal should:
 
-- teach one coherent concept or closely related set of concepts;
+- identify the learner need and desired outcome;
+- identify the Atlas domain/concept coverage it improves;
+- choose the smallest suitable content type;
+- state the intended learning depth (`recognize`, `reason`, or `operate`);
 - state prerequisites and related topics;
 - distinguish fundamentals from technology-specific behavior;
-- include concrete examples;
-- explain trade-offs and failure modes, not only the happy path;
+- include concrete examples where they improve understanding;
+- explain trade-offs and failure modes when the content type calls for them;
 - prefer primary sources for claims about evolving technologies;
-- declare its freshness category and verification date;
+- declare freshness category and verification date;
 - avoid unnecessary interactivity when static explanation is clearer.
 
-Use the **New lesson** issue form when proposing a larger topic.
+Use the **New Atlas content** issue form when proposing a larger topic.
+
+A concept does not need to become a deep interactive lesson to be valuable. A focused concept page, decision guide, field guide, or architecture walkthrough may be the better unit.
 
 ### Correction
 
@@ -31,17 +38,31 @@ Corrections should identify the claim being changed and, when factual, provide a
 
 ### Outdated content
 
-Use the **Outdated content** issue form when a lesson was once correct but is no longer current. Include the relevant technology/version and a primary source when possible.
+Use the **Outdated content** issue form when material was once correct but is no longer current. Include the relevant technology/version and a primary source when possible.
 
 ### Site or tooling change
 
 Keep the project's zero-cost guarantee intact. A required dependency that introduces a billable API, payment method, usage-based service, paid search, hosted vector database, paid CMS, or paid database is out of scope for the core product.
 
+## Canonical concept IDs
+
+`content/atlas-map.json` is the source of truth for stable domain and concept IDs.
+
+Before adding a new ID:
+
+1. search the existing map for an equivalent concept;
+2. choose the best durable domain home;
+3. use lowercase kebab-case;
+4. describe the concept at a technology-independent level when possible;
+5. add the map entry and validation coverage in the same focused change.
+
+Do not create a new concept merely because a page mentions a technology. Content should map only to concepts it materially teaches or applies.
+
 ## AI-assisted contributions
 
 AI tools are welcome as assistants, not as authorities.
 
-Contributors remain responsible for every submitted claim, example, citation, and code path. Do not submit large volumes of unreviewed model-generated lessons. Verify evolving technical claims against primary sources and run examples or tests where practical.
+Contributors remain responsible for every submitted claim, example, citation, concept placement, and code path. Do not submit large volumes of unreviewed model-generated content. Verify evolving technical claims against primary sources and run examples or tests where practical.
 
 ## Sources
 
@@ -61,21 +82,24 @@ Keep pull requests focused. A reviewer should be able to understand what changed
 
 A content pull request should normally include:
 
-- the lesson or correction;
-- any interactive component required specifically by that lesson;
-- metadata updates;
+- the content or correction;
+- correct `contentType`, `learningDepth`, and canonical `concepts` metadata;
+- any interactive component required specifically by that content;
+- map changes only when a genuinely new canonical concept is needed;
 - tests or validation updates when behavior changes.
 
 ### Pull request checklist
 
 - [ ] I followed `CONTENT_GUIDE.md` where applicable.
+- [ ] I checked the canonical Atlas map before choosing concept IDs.
+- [ ] The content type and target learning depth match the learner outcome.
 - [ ] I verified factual claims, especially evolving/frontier claims.
 - [ ] I preferred primary sources where available.
-- [ ] Examples are minimal, correct, and production caveats are called out.
+- [ ] Examples are minimal, correct, and production caveats are called out when relevant.
 - [ ] The change does not require a maintainer-funded paid service.
 - [ ] I considered keyboard and screen-reader accessibility for UI changes.
 - [ ] I kept the pull request focused.
 
 ## Review philosophy
 
-Review should optimize for correctness, clarity, durability, accessibility, and usefulness. Disagreement about wording or technique should be resolved by evidence and the needs of learners rather than personal style.
+Review should optimize for correctness, clarity, durability, accessibility, useful coverage, and engineering judgment. Disagreement about wording or technique should be resolved by evidence and learner needs rather than personal style.

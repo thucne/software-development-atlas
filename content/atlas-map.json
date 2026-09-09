@@ -1,0 +1,221 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "computing-foundations",
+      "title": "Computing Foundations",
+      "question": "How do programs use processors, memory, operating-system resources, and I/O?",
+      "concepts": [
+        { "id": "processes", "title": "Processes", "targetDepth": "reason" },
+        { "id": "threads", "title": "Threads", "targetDepth": "reason" },
+        { "id": "stack-and-heap", "title": "Stack and Heap", "targetDepth": "reason" },
+        { "id": "virtual-memory", "title": "Virtual Memory", "targetDepth": "reason" },
+        { "id": "system-calls", "title": "System Calls", "targetDepth": "reason" },
+        { "id": "filesystems", "title": "Filesystems", "targetDepth": "reason" },
+        { "id": "io-models", "title": "I/O Models", "targetDepth": "reason" },
+        { "id": "cpu-caches", "title": "CPU Caches", "targetDepth": "recognize" }
+      ]
+    },
+    {
+      "id": "programming-runtimes",
+      "title": "Programming & Runtimes",
+      "question": "How do language and runtime choices shape memory, execution, concurrency, and deployment?",
+      "concepts": [
+        { "id": "compiled-vs-interpreted-execution", "title": "Compiled vs Interpreted Execution", "targetDepth": "reason" },
+        { "id": "garbage-collection", "title": "Garbage Collection", "targetDepth": "reason" },
+        { "id": "ownership-and-borrowing", "title": "Ownership and Borrowing", "targetDepth": "reason" },
+        { "id": "runtime-schedulers", "title": "Runtime Schedulers", "targetDepth": "reason" },
+        { "id": "async-scheduling", "title": "Asynchronous Scheduling", "targetDepth": "reason" },
+        { "id": "promises", "title": "Promises", "targetDepth": "reason" },
+        { "id": "structured-concurrency", "title": "Structured Concurrency", "targetDepth": "reason" },
+        { "id": "type-systems", "title": "Type Systems", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "web-platform",
+      "title": "Web Platform",
+      "question": "How do browsers, protocols, and web security boundaries work together?",
+      "concepts": [
+        { "id": "dns-resolution", "title": "DNS Resolution", "targetDepth": "reason" },
+        { "id": "http-request-lifecycle", "title": "HTTP Request Lifecycle", "targetDepth": "operate" },
+        { "id": "tls-and-https", "title": "TLS and HTTPS", "targetDepth": "reason" },
+        { "id": "browser-runtime", "title": "Browser Runtime", "targetDepth": "reason" },
+        { "id": "browser-event-loop", "title": "Browser Event Loop", "targetDepth": "reason" },
+        { "id": "browser-rendering-pipeline", "title": "Browser Rendering Pipeline", "targetDepth": "reason" },
+        { "id": "cookies-and-sessions", "title": "Cookies and Sessions", "targetDepth": "reason" },
+        { "id": "same-origin-and-cors", "title": "Same-Origin Policy and CORS", "targetDepth": "reason" },
+        { "id": "http-caching", "title": "HTTP Caching", "targetDepth": "reason" },
+        { "id": "cdn-behavior", "title": "CDN Behavior", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "frontend-engineering",
+      "title": "Frontend Engineering",
+      "question": "How should interactive web applications render, manage state, load data, and stay maintainable?",
+      "concepts": [
+        { "id": "csr-ssr-ssg", "title": "CSR, SSR, and SSG", "targetDepth": "reason" },
+        { "id": "hydration", "title": "Hydration", "targetDepth": "reason" },
+        { "id": "server-and-client-components", "title": "Server and Client Components", "targetDepth": "reason" },
+        { "id": "frontend-state-models", "title": "Frontend State Models", "targetDepth": "reason" },
+        { "id": "frontend-data-fetching", "title": "Frontend Data Fetching", "targetDepth": "reason" },
+        { "id": "component-boundaries", "title": "Component Boundaries", "targetDepth": "reason" },
+        { "id": "frontend-bundle-performance", "title": "Frontend Bundle Performance", "targetDepth": "reason" },
+        { "id": "web-accessibility", "title": "Web Accessibility", "targetDepth": "operate" }
+      ]
+    },
+    {
+      "id": "backend-engineering",
+      "title": "Backend Engineering",
+      "question": "How do services process requests, coordinate work, protect boundaries, and remain resilient?",
+      "concepts": [
+        { "id": "backend-request-lifecycle", "title": "Backend Request Lifecycle", "targetDepth": "operate" },
+        { "id": "api-design", "title": "API Design", "targetDepth": "operate" },
+        { "id": "authentication-and-authorization", "title": "Authentication and Authorization", "targetDepth": "operate" },
+        { "id": "backend-concurrency", "title": "Backend Concurrency", "targetDepth": "reason" },
+        { "id": "background-jobs", "title": "Background Jobs", "targetDepth": "reason" },
+        { "id": "application-caching", "title": "Application Caching", "targetDepth": "reason" },
+        { "id": "message-queues", "title": "Message Queues", "targetDepth": "reason" },
+        { "id": "rate-limiting", "title": "Rate Limiting", "targetDepth": "reason" },
+        { "id": "idempotency", "title": "Idempotency", "targetDepth": "operate" },
+        { "id": "service-resilience", "title": "Service Resilience", "targetDepth": "operate" },
+        { "id": "async-dependency-scheduling", "title": "Async Dependency Scheduling", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "data-systems",
+      "title": "Data Systems",
+      "question": "How is durable state modeled, queried, indexed, replicated, and kept correct?",
+      "concepts": [
+        { "id": "relational-data-model", "title": "Relational Data Model", "targetDepth": "reason" },
+        { "id": "sql-querying", "title": "SQL Querying", "targetDepth": "operate" },
+        { "id": "database-indexes", "title": "Database Indexes", "targetDepth": "operate" },
+        { "id": "query-plans", "title": "Query Plans", "targetDepth": "operate" },
+        { "id": "database-transactions", "title": "Database Transactions", "targetDepth": "operate" },
+        { "id": "transaction-isolation", "title": "Transaction Isolation", "targetDepth": "reason" },
+        { "id": "mvcc", "title": "MVCC", "targetDepth": "reason" },
+        { "id": "database-replication", "title": "Database Replication", "targetDepth": "reason" },
+        { "id": "data-partitioning", "title": "Partitioning and Sharding", "targetDepth": "reason" },
+        { "id": "in-memory-data-stores", "title": "In-Memory Data Stores", "targetDepth": "reason" },
+        { "id": "search-indexes", "title": "Search Indexes", "targetDepth": "reason" },
+        { "id": "object-storage", "title": "Object Storage", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "software-architecture",
+      "title": "Software Architecture",
+      "question": "How should responsibilities, dependencies, and deployment boundaries be shaped as systems evolve?",
+      "concepts": [
+        { "id": "coupling-and-cohesion", "title": "Coupling and Cohesion", "targetDepth": "operate" },
+        { "id": "modularity", "title": "Modularity", "targetDepth": "operate" },
+        { "id": "layered-architecture", "title": "Layered Architecture", "targetDepth": "reason" },
+        { "id": "hexagonal-architecture", "title": "Hexagonal Architecture", "targetDepth": "reason" },
+        { "id": "clean-architecture", "title": "Clean Architecture", "targetDepth": "reason" },
+        { "id": "monolith-architecture", "title": "Monolith Architecture", "targetDepth": "reason" },
+        { "id": "modular-monolith", "title": "Modular Monolith", "targetDepth": "operate" },
+        { "id": "microservices", "title": "Microservices", "targetDepth": "reason" },
+        { "id": "event-driven-architecture", "title": "Event-Driven Architecture", "targetDepth": "reason" },
+        { "id": "domain-boundaries", "title": "Domain Boundaries", "targetDepth": "operate" },
+        { "id": "architecture-decision-records", "title": "Architecture Decision Records", "targetDepth": "operate" }
+      ]
+    },
+    {
+      "id": "distributed-systems",
+      "title": "Distributed Systems",
+      "question": "What changes when components communicate over unreliable networks and fail independently?",
+      "concepts": [
+        { "id": "partial-failure", "title": "Partial Failure", "targetDepth": "reason" },
+        { "id": "timeouts", "title": "Timeouts", "targetDepth": "operate" },
+        { "id": "retries-and-backoff", "title": "Retries and Backoff", "targetDepth": "operate" },
+        { "id": "delivery-semantics", "title": "Delivery Semantics", "targetDepth": "reason" },
+        { "id": "distributed-consistency", "title": "Distributed Consistency", "targetDepth": "reason" },
+        { "id": "distributed-replication", "title": "Distributed Replication", "targetDepth": "reason" },
+        { "id": "consensus", "title": "Consensus", "targetDepth": "recognize" },
+        { "id": "distributed-locks", "title": "Distributed Locks", "targetDepth": "reason" },
+        { "id": "transactional-outbox", "title": "Transactional Outbox", "targetDepth": "operate" },
+        { "id": "sagas", "title": "Sagas", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "cloud-infrastructure",
+      "title": "Cloud & Infrastructure",
+      "question": "How are network, compute, storage, identity, and scaling composed into reliable cloud systems?",
+      "concepts": [
+        { "id": "cloud-networking", "title": "Cloud Networking", "targetDepth": "operate" },
+        { "id": "cloud-compute", "title": "Cloud Compute", "targetDepth": "reason" },
+        { "id": "containers", "title": "Containers", "targetDepth": "operate" },
+        { "id": "serverless-compute", "title": "Serverless Compute", "targetDepth": "reason" },
+        { "id": "load-balancing", "title": "Load Balancing", "targetDepth": "operate" },
+        { "id": "cloud-storage-models", "title": "Cloud Storage Models", "targetDepth": "reason" },
+        { "id": "cloud-iam", "title": "Cloud IAM", "targetDepth": "operate" },
+        { "id": "secrets-management", "title": "Secrets Management", "targetDepth": "operate" },
+        { "id": "kubernetes-fundamentals", "title": "Kubernetes Fundamentals", "targetDepth": "reason" },
+        { "id": "infrastructure-as-code", "title": "Infrastructure as Code", "targetDepth": "operate" },
+        { "id": "autoscaling", "title": "Autoscaling", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "testing-quality",
+      "title": "Testing & Quality",
+      "question": "How do we build evidence that software is correct, maintainable, and safe to change?",
+      "concepts": [
+        { "id": "test-strategy", "title": "Test Strategy", "targetDepth": "operate" },
+        { "id": "unit-testing", "title": "Unit Testing", "targetDepth": "operate" },
+        { "id": "integration-testing", "title": "Integration Testing", "targetDepth": "operate" },
+        { "id": "end-to-end-testing", "title": "End-to-End Testing", "targetDepth": "reason" },
+        { "id": "contract-testing", "title": "Contract Testing", "targetDepth": "reason" },
+        { "id": "property-based-testing", "title": "Property-Based Testing", "targetDepth": "reason" },
+        { "id": "static-analysis", "title": "Static Analysis", "targetDepth": "operate" },
+        { "id": "test-doubles", "title": "Test Doubles", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "delivery-operations",
+      "title": "Delivery & Operations",
+      "question": "How does software move safely from source control to production and remain understandable there?",
+      "concepts": [
+        { "id": "continuous-integration", "title": "Continuous Integration", "targetDepth": "operate" },
+        { "id": "continuous-delivery", "title": "Continuous Delivery", "targetDepth": "operate" },
+        { "id": "deployment-strategies", "title": "Deployment Strategies", "targetDepth": "reason" },
+        { "id": "logs-metrics-traces", "title": "Logs, Metrics, and Traces", "targetDepth": "operate" },
+        { "id": "sli-slo", "title": "SLIs and SLOs", "targetDepth": "reason" },
+        { "id": "incident-response", "title": "Incident Response", "targetDepth": "operate" },
+        { "id": "production-debugging", "title": "Production Debugging", "targetDepth": "operate" },
+        { "id": "capacity-planning", "title": "Capacity Planning", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "question": "How do systems define trust boundaries, reduce attack surface, and protect identities, data, and dependencies?",
+      "concepts": [
+        { "id": "threat-modeling", "title": "Threat Modeling", "targetDepth": "reason" },
+        { "id": "least-privilege", "title": "Least Privilege", "targetDepth": "operate" },
+        { "id": "oauth-and-oidc", "title": "OAuth and OIDC", "targetDepth": "reason" },
+        { "id": "password-storage", "title": "Password Storage", "targetDepth": "operate" },
+        { "id": "web-application-security", "title": "Web Application Security", "targetDepth": "operate" },
+        { "id": "injection-attacks", "title": "Injection Attacks", "targetDepth": "operate" },
+        { "id": "ssrf", "title": "Server-Side Request Forgery", "targetDepth": "reason" },
+        { "id": "software-supply-chain", "title": "Software Supply Chain", "targetDepth": "reason" },
+        { "id": "encryption-boundaries", "title": "Encryption Boundaries", "targetDepth": "reason" }
+      ]
+    },
+    {
+      "id": "ai-native-engineering",
+      "title": "AI-Native Engineering",
+      "question": "How should repositories, workflows, and verification systems be designed for humans and coding agents working together?",
+      "concepts": [
+        { "id": "coding-agents", "title": "Coding Agents", "targetDepth": "reason" },
+        { "id": "agent-instructions", "title": "Agent Instructions", "targetDepth": "operate" },
+        { "id": "context-engineering", "title": "Context Engineering", "targetDepth": "operate" },
+        { "id": "agent-friendly-repositories", "title": "Agent-Friendly Repositories", "targetDepth": "operate" },
+        { "id": "specs-and-plans", "title": "Specs and Plans", "targetDepth": "operate" },
+        { "id": "agent-task-decomposition", "title": "Agent Task Decomposition", "targetDepth": "operate" },
+        { "id": "agent-tool-permissions", "title": "Agent Tool Permissions", "targetDepth": "reason" },
+        { "id": "verification-loops", "title": "Verification Loops", "targetDepth": "operate" },
+        { "id": "machine-checkable-guardrails", "title": "Machine-Checkable Guardrails", "targetDepth": "operate" },
+        { "id": "agent-review", "title": "Agent Review", "targetDepth": "operate" },
+        { "id": "agent-evals", "title": "Agent Evals", "targetDepth": "reason" }
+      ]
+    }
+  ]
+}

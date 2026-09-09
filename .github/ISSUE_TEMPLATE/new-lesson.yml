@@ -1,16 +1,16 @@
-name: New lesson
-description: Propose a new Software Development Atlas lesson.
-title: "lesson: "
+name: New Atlas content
+description: Propose a new Software Development Atlas content item.
+title: "content: "
 labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for proposing a lesson. Strong proposals explain the learner need, prerequisites, and why the topic belongs in the Atlas.
+        Thanks for proposing Atlas content. Strong proposals explain the learner need, canonical map placement, intended learning depth, and why this is the right content type.
   - type: input
     id: topic
     attributes:
-      label: Lesson topic
+      label: Content topic
       placeholder: e.g. Database transaction isolation
     validations:
       required: true
@@ -18,6 +18,37 @@ body:
     id: outcome
     attributes:
       label: What should a learner understand or be able to do afterward?
+    validations:
+      required: true
+  - type: textarea
+    id: atlas-placement
+    attributes:
+      label: Atlas domain / concept placement
+      description: Name the existing domain/concept IDs this should cover, or explain why a new canonical concept may be needed.
+      placeholder: e.g. data-systems / transaction-isolation
+    validations:
+      required: true
+  - type: dropdown
+    id: content-type
+    attributes:
+      label: Proposed content type
+      options:
+        - concept
+        - deep-dive
+        - decision-guide
+        - field-guide
+        - architecture-walkthrough
+        - guide
+    validations:
+      required: true
+  - type: dropdown
+    id: learning-depth
+    attributes:
+      label: Target learning depth
+      options:
+        - recognize
+        - reason
+        - operate
     validations:
       required: true
   - type: textarea

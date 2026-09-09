@@ -11,13 +11,19 @@ topics:
   - learning
 prerequisites: []
 related:
+  - software-engineering-map
   - freshness
 technologies: []
+contentType: guide
+learningDepth: recognize
+concepts: []
 ---
 
 ## Learn or look something up
 
 Use the sidebar when you want to explore a domain and search when you already know the concept, symptom, API, or technique you need.
+
+Use the [Software Engineering Map](./software-engineering-map) when you want to understand where a concept belongs in the larger engineering landscape and which areas are not covered yet.
 
 ## Follow prerequisite links deliberately
 
@@ -35,7 +41,9 @@ Every lesson is stored in GitHub. Use the page action to propose edits when an e
 
 ```mermaid
 graph LR
-  A[Canonical MDX] --> B[Human documentation]
-  A --> C[Search index]
-  A --> D[Clean Markdown]
+  A[Canonical Atlas Map] --> B[Domains and concepts]
+  B --> C[Canonical MDX content]
+  C --> D[Human documentation]
+  C --> E[Search index]
+  C --> F[Clean Markdown]
 ```
