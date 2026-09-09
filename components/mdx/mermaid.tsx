@@ -123,7 +123,7 @@ export function Mermaid({ chart }: { chart: string }) {
       >
         <div style={{ width: `${zoomPercent}%` }}>
           <div
-            className="[&_svg]:block [&_svg]:h-auto [&_svg]:w-full [&_svg]:max-w-none"
+            className="[&_svg]:!block [&_svg]:!h-auto [&_svg]:!w-full [&_svg]:!max-w-none"
             dangerouslySetInnerHTML={{ __html: rendered.svg }}
           />
         </div>
