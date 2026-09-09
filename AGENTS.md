@@ -58,7 +58,7 @@ For factual changes:
 
 ### Content clarity checklist
 
-Apply the canonical **Atlas Clarity Contract** in `CONTENT_GUIDE.md` to new or materially revised prose. Before committing content, check that:
+Apply the canonical **Atlas Clarity Contract** and **Atlas Teaching Contract** in `CONTENT_GUIDE.md` to new or materially revised prose. Before committing content, check that:
 
 1. formal terms are defined before the explanation depends on them;
 2. references such as “this,” “that,” “above,” or “here” still make sense when the section is retrieved by itself;
@@ -66,9 +66,12 @@ Apply the canonical **Atlas Clarity Contract** in `CONTENT_GUIDE.md` to new or m
 4. words such as “better,” “cheap,” “fast,” “strong fit,” or “usually” identify the comparison dimension or conditions that make them true;
 5. code examples, output traces, diagrams, and decision matrices are treated as factual claims and executed/tested where practical;
 6. TL;DRs lead with the practical model and central mistake to avoid rather than nonessential specification or provider trivia;
-7. specification/API guarantees, implementation freedom, and engineering heuristics are not presented as though they were the same kind of claim.
+7. specification/API guarantees, implementation freedom, and engineering heuristics are not presented as though they were the same kind of claim;
+8. topic-specific terminology that could block a working software developer is explained locally in plain language;
+9. use a visible `TermBox` near the first substantive use when a difficult term would otherwise create a learning barrier;
+10. do not overuse terminology boxes for ordinary working-developer vocabulary or create a wall of definitions before the concrete model.
 
-Do not solve these editorial requirements by adding a generic prose linter, readability score, banned-pronoun rule, or model-based judge. Automate only narrow facts that can be checked reliably; use source-backed review for editorial judgment.
+Do not solve these editorial requirements by adding a generic prose linter, readability score, banned-pronoun rule, jargon detector, or model-based judge. Automate only narrow facts that can be checked reliably; use source-backed review for editorial judgment.
 
 ## Content placement contract
 
@@ -135,6 +138,8 @@ For learning paths and coverage, read `docs/superpowers/specs/2026-09-09-learnin
 For Engineering Judgment content and its reusable primitive, read `docs/superpowers/specs/2026-09-09-engineering-judgment-design.md`.
 
 For content reliability and clarity changes, read `docs/superpowers/specs/2026-09-09-content-reliability-clarity-design.md`.
+
+For Atlas-wide teaching clarity and terminology support, read `docs/superpowers/specs/2026-09-09-teaching-clarity-system-design.md`.
 
 Significant architectural changes should begin with an issue/design discussion rather than an implementation-first pull request.
 

@@ -35,26 +35,57 @@ concepts:
 
 `await` suspends the continuation of the surrounding async function until the awaited value is ready. It does not block the JavaScript thread. A waterfall appears when code waits before it has started another operation that could have been running independently.
 
-Do not mechanically replace sequential `await`s with `Promise.all()`. First identify the dependency graph: overlap independent operations, preserve real dependencies, and bound concurrency when resource pressure requires it.
+Do not mechanically replace sequential `await`s with `Promise.all()`. First identify which operations actually depend on earlier results, overlap independent operations, and bound concurrency when resource pressure requires it.
+
+<TermBox term="Async waterfall">
+An **async waterfall** happens when asynchronous operations that could overlap are started one after another because the code waits too early.
+
+**Why it matters here:** unnecessary waiting increases elapsed time without adding correctness. Sequential code is only required when a later operation really needs an earlier result or when ordering is intentional.
+</TermBox>
 
 ## Mental model
 
-Think in terms of **when each operation can start** and **which results it actually depends on**, not simply the number of `await` keywords.
+Start with a concrete schedule. Suppose three independent operations take 800ms, 400ms, and 300ms.
 
-If A takes 800ms, B takes 400ms, and C takes 300ms:
+If each starts only after the previous one finishes:
 
-- if each operation starts only after the previous one finishes, elapsed time is approximately `800 + 400 + 300 = 1500ms`;
-- if A, B, and C are independent and start together, elapsed time is approximately `max(800, 400, 300) = 800ms`.
+```text
+A: 0 ───────────── 800
+B:                 800 ───── 1200
+C:                            1200 ─── 1500
+```
 
-The second schedule saves about `700ms` because the waiting periods overlap.
+Elapsed time is about `800 + 400 + 300 = 1500ms`.
 
-This is **concurrent, overlapped asynchronous work**. It does not mean JavaScript is executing all of the operations' CPU work in parallel on one thread. The operations may spend most of their time waiting on network I/O, timers, databases, worker threads, other processes, or remote services. The scheduling rule here is simply: do not delay the start of independent work because the current async function is waiting for an unrelated result.
+If all three can start immediately:
+
+```text
+A: 0 ───────────── 800
+B: 0 ───── 400
+C: 0 ─── 300
+```
+
+Elapsed time is about `max(800, 400, 300) = 800ms`. The waiting periods overlap, saving roughly `700ms` in this simplified model.
+
+<TermBox term="Dependency graph">
+A **dependency graph** describes which operations require results from other operations before they can start. An arrow `A → B` means B needs something produced by A.
+
+**Why it matters here:** source-code order can accidentally create waits that the real data dependencies do not require. Optimize the dependency graph, not the number of `await` keywords.
+</TermBox>
 
 A useful question is:
 
 > What information must exist before this operation can start?
 
-If the answer is “nothing produced by the earlier operation,” you may have an opportunity to start it earlier.
+If the answer is “nothing produced by an earlier operation,” the operation may be able to start sooner.
+
+<TermBox term="Concurrency vs parallelism">
+**Concurrency** means multiple operations are in progress during overlapping time. **Parallelism** means work is literally executing at the same instant on multiple execution resources.
+
+**Why it matters here:** independent network, database, timer, or remote-service waits can overlap even when your JavaScript does not execute CPU instructions in parallel on one thread.
+</TermBox>
+
+This lesson is about concurrent, overlapped asynchronous work. The rule is simply: do not delay the start of independent work because the current async function is waiting for an unrelated result.
 
 ## Why waterfalls happen
 
@@ -179,7 +210,11 @@ const [flags, recommendations] = await Promise.all([
 
 Here the user → organization path remains sequential, while unrelated work starts immediately.
 
-The **critical path** is the longest chain of dependent operations that determines the earliest possible completion time. In larger systems, end-to-end latency is often determined by this critical path rather than by the sum of every operation performed. Improving scheduling means shortening the critical path without violating correctness constraints.
+<TermBox term="Critical path">
+The **critical path** is the longest chain of dependent operations that determines the earliest possible completion time.
+
+**Why it matters here:** end-to-end latency is often determined by the slowest required dependency chain, not by the sum of every operation the system performs. Starting independent work earlier can shorten elapsed time without breaking the real chain.
+</TermBox>
 
 ## `Promise.all()` is a tool, not the rule
 
@@ -211,6 +246,18 @@ Use `Promise.all()` when its aggregation and failure semantics match the work. D
 
 Concurrency has costs. Removing a waterfall can make one request faster while placing more simultaneous pressure on other resources.
 
+<TermBox term="Fan-out">
+**Fan-out** is the number of downstream operations one piece of work starts or activates. A request that starts 100 independent service calls has much larger fan-out than one that starts three.
+
+**Why it matters here:** reducing a waterfall by starting everything at once can overwhelm connection pools, sockets, databases, remote APIs, memory, or CPU when the fan-out is large.
+</TermBox>
+
+<TermBox term="Backpressure">
+**Backpressure** is a way for a system to limit or slow incoming/concurrent work when a downstream resource cannot safely process more of it yet.
+
+**Why it matters here:** sometimes deliberate waiting or bounded concurrency is correct. The fastest schedule for one request is not useful if it destabilizes the whole system.
+</TermBox>
+
 **Bound fan-out when necessary.** Starting three independent calls is different from starting 50,000. Large fan-out may exhaust database connection pools, sockets, file descriptors, memory, CPU, or downstream service capacity. When the set is large, use a concurrency limit, queue, worker pool, batching strategy, or another form of deliberate backpressure.
 
 **Respect downstream rate limits.** Overlapping requests changes arrival patterns. A remote API that comfortably handles ten sequential calls may reject or throttle ten simultaneous calls. The schedule with the lowest latency for one caller is not automatically the best schedule for the whole system.
@@ -219,7 +266,11 @@ Concurrency has costs. Removing a waterfall can make one request faster while pl
 
 **Cancellation is separate.** Some APIs support cancellation—for example through an abort signal—but `Promise.all()` itself does not retroactively stop the work represented by its inputs. Cancellation deserves its own lifecycle and ownership design.
 
-**Latency is not throughput.** Overlapping waits can reduce the elapsed time of one request without increasing the number of requests the whole system can sustainably process. It can even reduce throughput if increased concurrency saturates a bottleneck.
+<TermBox term="Latency vs throughput">
+**Latency** is how long one operation or request takes to complete. **Throughput** is how much work the system can complete per unit of time at a sustainable load.
+
+**Why it matters here:** overlapping waits can reduce one request's latency while increasing simultaneous pressure enough to reduce sustainable throughput.
+</TermBox>
 
 **Measure the real path.** The simple `sum` versus `max` model is useful for understanding independent waits, but real systems include queueing, connection setup, caching, contention, retries, scheduling overhead, and partial dependencies. Profile or trace the path before making large architectural changes.
 

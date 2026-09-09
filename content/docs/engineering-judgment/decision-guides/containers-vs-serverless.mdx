@@ -28,11 +28,23 @@ concepts:
 
 ## TL;DR
 
-"Containers vs serverless" combines two different decisions. **A container image defines an application/runtime packaging boundary. Serverless describes an operating model in which a managed platform owns more of capacity provisioning and execution-environment lifecycle.** Some managed serverless products run container images directly, so the choices can overlap.
+“Containers vs serverless” combines two different questions. **A container image defines an application/runtime packaging boundary. Serverless describes an operating model in which a managed platform owns more of capacity provisioning and execution-environment lifecycle.** The choices can overlap: some serverless products run container images directly.
 
-Choose the operating model from the workload and ownership requirements, not the label. Explicit container capacity is useful when you need process/runtime control or deliberately managed capacity. A serverless service is useful when the workload fits that service's execution contract and delegating capacity/host lifecycle removes work the team does not need to own.
+Choose the operating model from workload and ownership requirements. Explicit container capacity is useful when you need process/runtime control or deliberately managed capacity. A serverless service is useful when the workload fits that service's execution contract and delegating capacity/host lifecycle removes work the team does not need to own.
 
-The word "serverless" is not a guarantee about startup latency, concurrency, scaling speed, maximum execution time, networking, local state, or price. **Verify the selected platform's scaling, startup, concurrency, lifecycle, and billing contract before relying on any of those properties.**
+The word “serverless” does not guarantee startup latency, concurrency, scaling speed, execution time, networking, local state, or price. **Verify the selected platform's scaling, startup, concurrency, lifecycle, and billing contract before relying on those properties.**
+
+<TermBox term="Container image">
+A **container image** is a packaged filesystem and configuration that describes what a containerized process should run with: application code, runtime dependencies, executable settings, and related metadata.
+
+**Why it matters here:** the image answers “what runtime artifact are we deploying?” It does not by itself answer who provisions machines, scales capacity, configures networking, or operates the platform.
+</TermBox>
+
+<TermBox term="Capacity provisioning">
+**Capacity provisioning** is the work of making enough compute resources available for a workload—instances, containers, execution slots, CPU/memory, or another platform-specific unit.
+
+**Why it matters here:** serverless products usually take more ownership of provisioning decisions, while container-oriented platforms range from self-managed capacity to highly managed autoscaling services.
+</TermBox>
 
 ## Decision frame
 
@@ -45,31 +57,63 @@ Describe the workload before choosing a compute model:
 - Must capacity remain warm, or may the service scale toward zero?
 - What local state, if any, must survive process/instance replacement?
 - Is portability of the runtime image an actual operational requirement?
-- Which costs must be modeled: provisioned capacity, request/execution consumption, data transfer, minimum instances, engineering operations time, or all of them?
+- Which costs matter: provisioned capacity, request/execution consumption, data transfer, minimum instances, engineering operations time, or all of them?
 
-## The options
+## Container-oriented compute
 
-### Container-oriented compute
+A container image packages an application with runtime dependencies and execution configuration.
 
-A container image packages an application with runtime dependencies and execution configuration. An OCI-compatible image gives you a relatively portable process/runtime artifact across compatible runtimes. The surrounding network, storage, identity, scaling, scheduling, and observability remain properties of the selected platform.
+<TermBox term="OCI">
+**OCI** is the Open Container Initiative, which publishes specifications for container image and runtime formats used by compatible tooling.
+
+**Why it matters here:** an OCI-compatible image can be a useful packaging portability boundary, but cloud identity, networking, storage, queues, databases, scaling policy, and deployment automation do not become portable automatically.
+</TermBox>
 
 Choose a container-oriented model when explicit control over the process, runtime packages, resource settings, network listeners, worker lifecycle, or deployment artifact is required. That does **not** imply self-managing Kubernetes: managed container services can preserve the image/runtime boundary while delegating substantial infrastructure work.
 
-### Serverless compute
+<TermBox term="Sidecar">
+A **sidecar** is a companion process/container deployed alongside the main application workload to provide a supporting capability such as proxying, telemetry, or synchronization.
+
+**Why it matters here:** if the application architecture truly requires companion processes or a particular process topology, verify whether the selected compute product supports that lifecycle instead of inferring it from the words container or serverless.
+</TermBox>
+
+## Serverless compute
 
 Serverless compute delegates capacity provisioning and more of the execution-environment lifecycle to a managed service. The exact contract is product-specific.
 
-AWS Lambda, for example, executes functions in managed execution environments and documents its own concurrency and scaling behavior. Cloud Run runs container workloads but has its own instance autoscaling, configurable concurrency, minimum-instance, startup, and billing behavior. These services share an operational theme; they do not share one universal runtime contract.
+<TermBox term="Execution environment">
+An **execution environment** is the provider-managed runtime instance/context in which application code executes. Depending on the product, one environment may handle one or many requests over its lifetime and can be created or replaced by the platform.
 
-Treat serverless as an **operational abstraction**. For the actual selected platform, verify:
+**Why it matters here:** local memory, filesystem contents, process identity, startup work, and concurrent requests may all be tied to an environment whose lifecycle the application does not control.
+</TermBox>
 
-- what creates a new instance/execution environment and how quickly capacity can grow;
-- how many requests/jobs can share one instance and how concurrency is configured;
-- startup/cold-start behavior and whether warm/minimum capacity is available;
-- timeout, shutdown, restart, retry, and instance-replacement behavior;
-- networking and local-filesystem/state guarantees;
-- quotas and scaling limits;
-- billing units, idle/minimum-capacity charges, and data-transfer costs.
+AWS Lambda executes functions in managed execution environments and documents its own concurrency/scaling behavior. Cloud Run runs container workloads but has its own autoscaling, configurable concurrency, minimum-instance, startup, and billing behavior. These products share an operational theme; they do not share one universal runtime contract.
+
+Treat serverless as an **operational abstraction**. For the actual selected platform, verify what creates capacity, how quickly it grows, how many requests/jobs share an instance, startup and shutdown behavior, timeouts/retries, networking and local state, quotas, scaling limits, and billing units.
+
+<TermBox term="Autoscaling">
+**Autoscaling** is automatic adjustment of available compute capacity in response to demand or another scaling signal.
+
+**Why it matters here:** autoscaling is not necessarily instantaneous or unlimited. Ramp rates, maximum instances, concurrency settings, quotas, and downstream capacity can still cause queueing, throttling, or failures.
+</TermBox>
+
+<TermBox term="Cold start">
+A **cold start** is startup work incurred when a platform must create or initialize a new execution environment before it can serve the workload.
+
+**Why it matters here:** startup-sensitive request paths must be validated against the actual service. “Serverless” alone does not tell you how often cold starts occur, how long initialization takes, or which warm/minimum-capacity controls exist.
+</TermBox>
+
+<TermBox term="Scale to zero">
+**Scale to zero** means a platform can reduce active serving capacity to zero when no work is present, then create capacity again when work arrives.
+
+**Why it matters here:** scaling to zero can reduce idle capacity cost, but the next request may need startup/provisioning and the selected service may offer minimum/warm capacity that changes both latency and billing.
+</TermBox>
+
+<TermBox term="Concurrency">
+For managed compute, **concurrency** commonly means how many requests or work items can be active in one execution environment or across the service at the same time.
+
+**Why it matters here:** a service that scales to many concurrent workers can overload a database or downstream API much faster than the application expects. Provider concurrency settings and downstream backpressure are one capacity design.
+</TermBox>
 
 <DecisionMatrix
   caption="Containers vs serverless decision matrix"
@@ -111,13 +155,6 @@ Treat serverless as an **operational abstraction**. For the actual selected plat
       ],
     },
     {
-      criterion: 'Local development parity',
-      values: [
-        'The image/process can usually run locally; managed dependencies may still differ',
-        'Local execution may not reproduce managed triggers, scaling, IAM, networking, or lifecycle behavior',
-      ],
-    },
-    {
       criterion: 'Infrastructure operations ownership',
       values: [
         'Ranges from substantial on self-managed orchestration to much lower on managed container platforms',
@@ -144,35 +181,31 @@ Treat serverless as an **operational abstraction**. For the actual selected plat
 - the container image is a portability boundary you actually expect to reuse;
 - the organization already has a managed or internal container platform that meets reliability requirements.
 
-The choice is about the runtime and ownership boundary, not about operating a particular orchestrator yourself.
-
 ### Prefer a serverless service when
 
 - work maps cleanly to the service's supported request, event, job, or worker lifecycle;
 - delegating host/capacity management removes meaningful operational work;
-- the selected service's scaling limits and startup behavior satisfy the workload's latency and burst requirements;
+- the selected service's scaling limits and startup behavior satisfy latency and burst requirements;
 - its concurrency, timeout, networking, state, and shutdown rules fit the application;
-- its billing model is acceptable for both baseline and peak traffic;
+- its billing model is acceptable for baseline and peak traffic;
 - downstream systems can absorb the concurrency the service may generate.
 
-Do not infer these properties from the word "serverless." Validate them against the selected platform and configuration.
+Do not infer these properties from the word “serverless.” Validate them against the selected platform and configuration.
 
 ## These choices can overlap
 
-A workload can be both **containerized and serverless**.
+A workload can be both **containerized and serverless**. Cloud Run is a concrete example: the deployment artifact is a container, while Google manages instance lifecycle and autoscaling according to Cloud Run's service contract.
 
-Cloud Run is a concrete example: the deployment artifact is a container, while Google manages instance lifecycle and autoscaling according to Cloud Run's service contract. This separates two questions:
+Separate the questions:
 
 1. **How is the runtime packaged and defined?** A container image may answer this.
 2. **Who owns capacity, scheduling, scaling, and host lifecycle?** A managed/serverless platform may answer this.
-
-Keeping the questions separate avoids a false either/or decision.
 
 ## Failure modes and hidden costs
 
 ### Assuming autoscaling is instantaneous or unlimited
 
-Scaling behavior is a service contract, not a synonym for serverless. Providers can impose concurrency settings, quotas, ramp behavior, maximum instances, or other limits. A burst can still queue, throttle, fail, or overload a downstream dependency.
+Scaling behavior is a service contract, not a synonym for serverless. A burst can still queue, throttle, fail, or overload a downstream dependency.
 
 ### Ignoring downstream capacity
 
@@ -180,18 +213,16 @@ If compute grows from ten concurrent workers to a thousand, the database, queue,
 
 ### Treating portability as binary
 
-A portable container image does not make cloud IAM, databases, queues, storage, service discovery, networking, and deployment policy portable. Define the specific boundary you expect to move.
+A portable container image does not make cloud IAM, databases, queues, storage, service discovery, networking, and deployment policy portable. Define the boundary you expect to move.
 
 ### Treating consumption pricing as automatically cheaper
 
-A consumption model can reduce idle-capacity cost, but that does not determine total cost. Minimum instances, request/execution duration, memory/CPU allocation, data transfer, observability, downstream fan-out, and engineering time can all dominate. Compare actual workload models, not category slogans.
+A consumption model can reduce idle-capacity cost, but total cost can be dominated by minimum instances, duration, memory/CPU allocation, data transfer, observability, downstream fan-out, or engineering time. Compare actual workload models, not category slogans.
 
 ## Practical heuristic
 
-Use this sequence:
-
 1. **Describe the lifecycle.** Request, event, job, worker, or continuously running service?
-2. **List required runtime capabilities.** Separate real requirements from preferences for control.
+2. **List required runtime capabilities.** Separate requirements from preferences for control.
 3. **Model baseline, burst, and downstream capacity.** Include acceptable queueing and throttling.
 4. **Choose the ownership boundary.** Which infrastructure tasks create enough value for the team to keep?
 5. **Verify the selected platform.** Record scaling, startup, concurrency, lifecycle, and billing behavior plus networking, state, quotas, and observability.

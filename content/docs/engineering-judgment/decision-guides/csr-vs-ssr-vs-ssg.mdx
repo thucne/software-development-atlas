@@ -39,6 +39,16 @@ A practical starting rule is:
 
 These are not mutually exclusive product identities. Modern applications commonly mix them by route, component, and data dependency.
 
+<TermBox term="CSR / SSR / SSG">
+These labels describe **where and when useful HTML is produced**.
+
+- **CSR (client-side rendering):** the browser runs application JavaScript to create or update the useful UI.
+- **SSR (server-side rendering):** the server creates useful HTML for a particular request.
+- **SSG (static site generation / prerendering):** useful HTML is generated before an individual request and reused later.
+
+**Why it matters here:** the decision is about data timing, cacheability, latency, client work, and operational ownership—not which acronym is newest.
+</TermBox>
+
 ## Decision frame
 
 Before naming a framework, write down the constraints:
@@ -52,6 +62,12 @@ Before naming a framework, write down the constraints:
 - How much client JavaScript is required before the important interactions work?
 - Which failures can the team operate reliably: build/revalidation failures, request-time rendering failures, client data-loading failures, or some combination?
 
+<TermBox term="Request-time state">
+**Request-time state** is information only known, trusted, or selected when a particular request arrives—for example the authenticated user, request cookies, authorization result, geography, or data that must be current for that request.
+
+**Why it matters here:** if useful initial HTML truly depends on request-time state, one shared prebuilt representation may not be sufficient or safe.
+</TermBox>
+
 Those answers narrow the choice more reliably than a framework feature checklist.
 
 ## The options
@@ -64,15 +80,27 @@ Choose CSR as the center of gravity when the initial HTML does not need request-
 
 ### Server-side rendering (SSR)
 
-With SSR, the server produces useful HTML for a request and may incorporate request-time data. Interactive applications commonly execute client JavaScript afterward to attach behavior to that server-rendered HTML; in React, that attachment process is hydration.
+With SSR, the server produces useful HTML for a request and may incorporate request-time data. Interactive applications commonly execute client JavaScript afterward to attach behavior to that server-rendered HTML.
 
-Choose SSR for a surface when useful initial HTML must include request-time state, or when moving data access into the server request path avoids an unacceptable browser-to-API waterfall. Rendering then becomes part of the request path, so server capacity, cache policy, latency, timeout behavior, and rendering failures become production concerns.
+<TermBox term="Hydration">
+**Hydration** is the process where client-side application code attaches interactive behavior to HTML that was already rendered on the server.
+
+**Why it matters here:** SSR can deliver useful HTML before the client runtime is ready, but interactive regions may still depend on JavaScript download, execution, and successful client activation. In React, the initial client output must match the server-rendered markup closely enough for `hydrateRoot()` to hydrate it correctly.
+</TermBox>
+
+Choose SSR when useful initial HTML must include request-time state, or when moving data access into the server request path avoids an unacceptable browser-to-API waterfall. Rendering then becomes part of the request path, so capacity, cache policy, latency, timeout behavior, and rendering failures become production concerns.
 
 ### Static site generation / prerendering (SSG)
 
 With SSG, HTML is produced before an individual request, usually during a build, publish, or revalidation process. The generated artifact can then be served without performing a full page render for every request.
 
-Choose SSG when many requests can safely receive the same generated representation and the allowed staleness window can be met through publishing or revalidation. This moves page-generation work out of the request path and makes shared caching straightforward. Request-specific or continuously changing regions need another mechanism.
+<TermBox term="Revalidation">
+In static-generation systems, **revalidation** is a process that refreshes or regenerates previously produced content when its freshness rules say it should be updated.
+
+**Why it matters here:** static does not have to mean “never changes.” The design question is whether publishing or revalidation can keep shared generated content within the product's allowed staleness window.
+</TermBox>
+
+Choose SSG when many requests can safely receive the same generated representation and the allowed staleness window can be met through publishing or revalidation. Request-specific or continuously changing regions need another mechanism.
 
 <DecisionMatrix
   caption="CSR vs SSR vs SSG decision matrix"
@@ -145,6 +173,12 @@ Choose SSG when many requests can safely receive the same generated representati
   ]}
 />
 
+<TermBox term="Cache key">
+A **cache key** is the information used to decide which stored response may satisfy a request.
+
+**Why it matters here:** an SSR response that varies by user, cookie, locale, or authorization state cannot be safely shared unless the caching design includes the relevant variation. SSG is most reusable when many requests genuinely share the same representation.
+</TermBox>
+
 ## When each option fits
 
 ### Prefer CSR when
@@ -162,6 +196,12 @@ A CSR choice does **not** mean "put all logic in the browser." Authentication, a
 - delivering that HTML before the client runtime becomes ready matters to the user experience;
 - request-time server data access avoids an otherwise unacceptable client-side data waterfall;
 - the team can operate rendering as part of the latency-sensitive request path.
+
+<TermBox term="Critical request path">
+The **critical request path** is the chain of work that must finish before a request can produce the user-visible result you care about.
+
+**Why it matters here:** SSR moves rendering and often data access onto that path. Slow serial data work, render capacity, or cache misses can therefore directly increase response latency.
+</TermBox>
 
 SSR does not guarantee a fast page. Slow server data fetching, serial work, poor caching, or a large client activation payload can still dominate latency and interactivity.
 
@@ -186,15 +226,15 @@ The useful design unit is therefore the **surface and its data**, not an archite
 
 ### Treating SEO as the only reason for server/static HTML
 
-Search visibility can matter, but users may also benefit when useful HTML exists before a large client runtime is ready. Conversely, a public page does not automatically require SSR; shared static HTML may satisfy the same requirement with less request-time work.
+Search visibility can matter, but useful HTML before a large client runtime is ready can also matter for user experience. Conversely, a public page does not automatically require SSR; shared static HTML may satisfy the same requirement with less request-time work.
 
 ### Ignoring hydration and client activation cost
 
-Server-rendered HTML can still require substantial JavaScript before interactions work. React's `hydrateRoot()` requires the initial client output to match the server-rendered markup; mismatches are bugs, and React does not guarantee that every mismatch will be patched automatically.
+Server-rendered HTML can still require substantial JavaScript before interactions work. React's `hydrateRoot()` requires the initial client output to match the server-rendered markup; mismatches are bugs, and React does not guarantee every mismatch will be patched automatically.
 
 ### Assuming static means stale forever
 
-Static generation is a production strategy, not a promise that content never changes. Publishing, revalidation, and targeted dynamic/client data paths can provide controlled freshness. The important contract is **how stale the user-visible representation may become and what updates it**.
+Static generation is a production strategy, not a promise that content never changes. Publishing, revalidation, and targeted dynamic/client data paths can provide controlled freshness.
 
 ### Assuming CSR removes server complexity
 
@@ -222,7 +262,7 @@ Use these questions in order:
 
 ## Related concepts
 
-This decision connects directly to **Hydration**, **Frontend Data Fetching**, **HTTP Caching**, **CDN Behavior**, and the browser rendering/runtime model. Use the [Modern Web Systems](/docs/learning-paths/modern-web-systems) path when you want to place these trade-offs in the larger request lifecycle.
+This decision connects directly to **Hydration**, **Frontend Data Fetching**, **HTTP Caching**, **CDN Behavior**, and the browser rendering/runtime model. Use the [Modern Web Systems](/docs/learning-paths/modern-web-systems) path to place these trade-offs in the larger request lifecycle.
 
 ## Sources
 

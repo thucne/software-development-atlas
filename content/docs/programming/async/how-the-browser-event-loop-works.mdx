@@ -36,74 +36,15 @@ concepts:
 
 ## TL;DR
 
-**In ordinary browser code, the browser finishes the JavaScript for the current event-loop task before it starts another event-loop task. After that task finishes, the browser runs queued microtasks—such as Promise reactions and `queueMicrotask()` callbacks—before moving on to later task work.**
+In ordinary browser code, **the JavaScript that is already running finishes first**. After that work finishes, the browser runs queued microtasks such as fulfilled-Promise reactions and `queueMicrotask()` callbacks before it moves on to later regular task work such as a timer callback.
 
-`setTimeout(fn, 0)` therefore means “schedule `fn` for later,” not “interrupt the JavaScript that is running now.” Rendering is scheduled separately by the browser and is not guaranteed between arbitrary callbacks.
+So `setTimeout(fn, 0)` means “make `fn` eligible for later timer work,” not “interrupt what is running now.” Rendering is controlled separately by the browser; a paint is not guaranteed between arbitrary callbacks.
 
-This page describes **browser** scheduling. Node.js also runs Promise microtasks, but Node has its own event-loop rules and no browser rendering step. Do not assume that browser timer, task-source, or rendering rules automatically apply to Node.js.
+This page describes **browser** scheduling. Node.js also runs JavaScript and Promise microtasks, but Node has its own event-loop rules and no browser rendering pipeline.
 
-## Mental model and vocabulary
+## Start with one concrete example
 
-Start with four pieces of browser scheduling vocabulary.
-
-1. **Current task** — one unit of regular event-loop work that the browser has selected to run. The JavaScript for a script or callback executes as part of such work.
-2. **Microtask** — checkpoint work used by browser Promise reactions and work queued with `queueMicrotask()`. The browser keeps a microtask queue separate from its regular task queues.
-3. **Task source** — the specification category that produced a task. Timers, user interaction, networking, and other browser features use task sources with ordering rules defined by the relevant specifications.
-4. **Rendering opportunity** — a point at which the browser may decide that rendering-related work should be scheduled. It is not a promise that the browser paints after every callback.
-
-For ordinary browser application reasoning, use this simplified flow:
-
-```text
-current event-loop task
-        │
-        │ JavaScript runs to completion
-        ▼
- microtask checkpoint
-        │
-        │ queued microtasks drain until empty
-        ▼
- browser continues event-loop scheduling
-        │
-        ├─ later runnable task work can be selected
-        │
-        └─ a rendering opportunity can cause
-           rendering-update work to be queued
-```
-
-This is deliberately **not** the common picture:
-
-```text
-Call stack -> one macrotask FIFO -> microtask FIFO -> guaranteed paint
-```
-
-That second picture mixes several mechanisms together. In particular, HTML does not define one universal FIFO queue containing every timer, click, network callback, and other task, and the browser does not guarantee a paint after every task.
-
-## Why this matters
-
-The event loop explains behavior that otherwise looks arbitrary:
-
-- Why can a fulfilled Promise callback run before `setTimeout(..., 0)`?
-- Why does a long synchronous loop delay input and rendering?
-- Why can a chain that keeps producing microtasks delay later work?
-- Why is a zero-delay timer not a precise clock?
-- Why is a paint not guaranteed between two callbacks?
-- Why can callback-order assumptions break when code moves between a browser and Node.js?
-
-The event loop is therefore useful for responsiveness, scheduling, rendering, performance work, test design, and deciding whether an ordering relationship is actually guaranteed by the platform.
-
-## Run-to-completion
-
-For ordinary browser application code, **the browser does not start an unrelated event-loop callback in the middle of the JavaScript that is already executing for the current task**.
-
-```ts
-console.log('A');
-console.log('B');
-console.log('C');
-```
-
-The current script finishes its synchronous statements before later event-loop callbacks take over.
-
-Now consider:
+Predict this output before learning any event-loop vocabulary:
 
 ```ts
 console.log('A');
@@ -115,7 +56,7 @@ Promise.resolve().then(() => console.log('promise'));
 console.log('B');
 ```
 
-For this browser example, the output is:
+In a browser, the relevant output is:
 
 ```text
 A
@@ -124,24 +65,52 @@ promise
 timer
 ```
 
-Why?
+The useful first model is simple:
 
-1. The current script prints `A`.
-2. `setTimeout()` arranges timer callback work for later; it does not interrupt the script.
-3. The fulfilled Promise arranges its reaction as browser microtask work.
-4. The current script still prints `B` before the current task finishes.
-5. The browser performs the microtask checkpoint after the task, so the Promise reaction runs.
-6. The timer callback remains later task work and can run afterward.
+1. the current JavaScript keeps running, so `A` and `B` appear first;
+2. the already-fulfilled Promise schedules its callback for the browser's microtask processing;
+3. the timer callback is later regular event-loop work;
+4. when the current JavaScript finishes, the browser processes the queued microtask before that later timer task.
 
-This example establishes a useful guaranteed relationship between the current task, its subsequent microtask checkpoint, and the later timer task. It does **not** prove that every kind of regular browser task shares one global FIFO order.
+Everything else on this page makes that model more precise without changing the basic intuition.
+
+<TermBox term="Task">
+A **task** is one unit of regular browser event-loop work selected to run, such as executing a script, dispatching certain events, or running a timer callback.
+
+**Why it matters here:** the browser lets the JavaScript for the selected task run to completion before it starts unrelated regular task work.
+</TermBox>
+
+<TermBox term="Microtask">
+A **microtask** is short checkpoint work kept separate from regular browser task queues. In browsers, fulfilled-Promise reactions and callbacks queued with `queueMicrotask()` participate in microtask processing.
+
+**Why it matters here:** the Promise callback in the example becomes microtask work, so it is processed after the current task finishes and before later timer task work.
+</TermBox>
+
+## Run-to-completion
+
+For ordinary browser application code, **the browser does not start an unrelated event-loop callback in the middle of the JavaScript that is already executing for the current task**.
+
+```ts
+console.log('A');
+console.log('B');
+console.log('C');
+```
+
+Those synchronous statements finish before a later timer, click callback, or other unrelated event-loop task takes over.
+
+This is the “run-to-completion” part of the model. It does not mean the browser can never do work concurrently elsewhere; it means unrelated event-loop JavaScript does not interleave statement-by-statement inside the current task's JavaScript execution.
 
 ## Microtasks and checkpoints
 
-The browser's microtask queue is separate from its regular task queues.
+The browser keeps microtasks separate from regular task queues. When the browser reaches a point where the HTML processing model requires a checkpoint, queued microtasks are processed until the microtask queue becomes empty.
 
-After a selected task finishes, the HTML event-loop processing model performs a **microtask checkpoint**. During that checkpoint, the browser repeatedly takes and runs queued microtasks until the microtask queue is empty.
+<TermBox term="Microtask checkpoint">
+A **microtask checkpoint** is a point where the browser repeatedly takes and runs queued microtasks until the microtask queue is empty.
 
-That “until empty” rule has an important consequence: a microtask can queue another microtask, and the new microtask can run during the **same checkpoint**.
+**Why it matters here:** Promise reactions commonly run during this checkpoint before the browser moves on to later regular task work. A microtask can also queue another microtask, and the newly queued work can run during the same checkpoint.
+</TermBox>
+
+A nested microtask shows the “until empty” rule:
 
 ```ts
 console.log('script');
@@ -163,13 +132,29 @@ microtask A
 microtask B
 ```
 
-`microtask B` does not wait for an unrelated later task. It was added while the current microtask checkpoint was still draining.
+`microtask B` does not wait for an unrelated later task. It was added while the same microtask checkpoint was still draining.
 
-This behavior is useful for short ordering work. It is also why a microtask chain that keeps replenishing the queue can delay later event-loop progress.
+For ordinary browser reasoning, this simplified flow is useful:
+
+```text
+current browser task
+        │
+        │ JavaScript runs to completion
+        ▼
+ microtask checkpoint
+        │
+        │ queued microtasks drain until empty
+        ▼
+ browser continues scheduling
+        │
+        ├─ later runnable task work can be selected
+        │
+        └─ rendering-related work may be considered
+```
 
 ## Promise reactions and `queueMicrotask()`
 
-In an HTML browser, Promise reactions participate in microtask processing. That is why an already-fulfilled Promise still runs its `then()` handler after the current synchronous JavaScript finishes rather than calling the handler inline:
+An already-fulfilled Promise still does not call its `then()` handler inline:
 
 ```ts
 console.log('before');
@@ -189,6 +174,8 @@ after
 promise reaction
 ```
 
+The synchronous code finishes first. The Promise reaction is processed later as browser microtask work.
+
 `queueMicrotask()` gives browser code a direct way to queue microtask work without constructing a Promise solely for deferral:
 
 ```ts
@@ -199,7 +186,7 @@ queueMicrotask(() => {
 
 One useful case is making two branches of an API expose consistent asynchronous ordering when one branch already has data and another obtains it asynchronously.
 
-Microtasks are not a free “run sooner” priority lane. Their work still consumes time, and microtasks that continuously queue more microtasks can prevent the current checkpoint from becoming empty.
+Microtasks are not a free “run sooner” priority lane. Their work still consumes time, and excessive microtask work can delay later event-loop progress.
 
 ## Timers mean later, not exactly on time
 
@@ -221,25 +208,23 @@ It does not mean:
 
 > Interrupt the JavaScript that is currently running and execute `doWork` now.
 
-Likewise:
-
-```ts
-setTimeout(doWork, 100);
-```
-
-does not guarantee that `doWork` starts exactly 100 milliseconds later.
-
-Browsers also apply rules such as minimum delays for sufficiently nested timers. If correctness depends on an exact wall-clock start time, a timer alone is the wrong synchronization mechanism.
+Likewise, `setTimeout(doWork, 100)` does not guarantee that `doWork` starts exactly 100 milliseconds later. If correctness depends on an exact wall-clock start time, a timer alone is the wrong synchronization mechanism.
 
 ## Tasks are not one universal FIFO queue
 
-Now that the observable task/microtask ordering is clear, the HTML specification adds an important nuance.
+The simple model above is enough for many application-level questions. The HTML specification adds an important nuance when you compare unrelated kinds of regular browser work.
 
 The HTML Standard uses **task** as the regular event-loop unit. “Macrotask” is common informal vocabulary, but it is not the core HTML-standard term.
 
-A browser event loop has one or more task queues. Formally, an HTML task queue is modeled as a **set of tasks**, because the processing model chooses one runnable task queue and then takes the first runnable task from that chosen queue. The microtask queue is explicitly separate from these task queues.
+<TermBox term="Task source">
+A **task source** is the specification category that produced a task. Timers, user interaction, networking, and other browser features use task sources so their required ordering relationships can be defined.
 
-Each regular task also has a **task source**. Task sources let specifications group logically related work and define ordering constraints. For a given event loop:
+**Why it matters here:** unrelated task sources do not automatically gain one universal cross-source FIFO order. Correct code should rely on the ordering guarantee of the actual API or source instead of imagining one global “macrotask queue.”
+</TermBox>
+
+A browser event loop has one or more task queues. Formally, an HTML task queue is modeled as a **set of tasks**, because the processing model chooses a runnable task queue and then takes the first runnable task from that chosen queue. The microtask queue is explicitly separate.
+
+For a given event loop:
 
 - every task source is associated with a task queue;
 - multiple task sources may be associated with the same task queue;
@@ -256,7 +241,7 @@ one global macrotask queue
 always run the globally oldest item
 ```
 
-A safer conceptual picture is:
+A safer teaching picture is:
 
 ```text
 runnable browser task work
@@ -275,9 +260,7 @@ The lanes are teaching labels, not a claim that a browser must implement exactly
 
 ## Rendering opportunities and `requestAnimationFrame()`
 
-Rendering is where many event-loop diagrams become misleading.
-
-A common simplified story says:
+Rendering is where many event-loop diagrams become misleading. A common simplified story says:
 
 ```text
 task -> all microtasks -> paint -> next task
@@ -285,7 +268,13 @@ task -> all microtasks -> paint -> next task
 
 That is **not a guaranteed per-task paint sequence**.
 
-The HTML processing model lets the browser determine rendering opportunities. Current HTML processing can queue rendering-update work on a rendering task source when a window has a rendering opportunity, and the user agent may skip unnecessary rendering or coalesce work. The specification explicitly allows tasks to run back-to-back with microtask checkpoints but no intermediate rendering update.
+<TermBox term="Rendering opportunity">
+A **rendering opportunity** is a point where the browser may decide that rendering-related work should be processed for a window.
+
+**Why it matters here:** finishing a task and draining microtasks does not promise an immediate paint. The browser may skip unnecessary rendering, coalesce work, or run additional tasks before a rendering update.
+</TermBox>
+
+The HTML processing model lets the browser determine rendering opportunities. Current HTML processing can queue rendering-update work on a rendering task source when a window has a rendering opportunity, and the specification explicitly allows tasks to run back-to-back with microtask checkpoints but no intermediate rendering update.
 
 `requestAnimationFrame()` participates in rendering-update processing:
 
@@ -359,6 +348,12 @@ The appropriate fix depends on the workload: reduce the work, choose a better al
 
 ### A microtask chain that keeps replenishing itself
 
+<TermBox term="Microtask starvation">
+**Microtask starvation** happens when microtasks keep creating more microtasks so the current checkpoint cannot become empty for a long time.
+
+**Why it matters here:** later regular tasks and rendering-related work can be delayed even when each individual microtask is small.
+</TermBox>
+
 ```ts
 function again() {
   doSmallThing();
@@ -368,7 +363,7 @@ function again() {
 queueMicrotask(again);
 ```
 
-Each callback may be small, but every callback queues another microtask before the checkpoint becomes empty. An unbounded chain can therefore delay later regular tasks and rendering-related work.
+Each callback queues another microtask before the checkpoint becomes empty. An unbounded chain can therefore delay later regular tasks and rendering-related work.
 
 The Atlas simulator intentionally stops after five iterations. Do not copy the unbounded example into a real page as a general scheduling technique.
 
@@ -376,11 +371,21 @@ Microtasks are not inherently harmful. The problem is **unbounded or excessive w
 
 ## How Promise Jobs enter a browser microtask queue
 
-The earlier sections used the browser-facing term **microtask** because that is what application developers need first. The formal JavaScript/browser boundary uses additional vocabulary.
+The earlier sections deliberately used browser-facing vocabulary first. The formal JavaScript/browser boundary introduces another layer only after the observable scheduling model is clear.
 
-ECMAScript defines language-level **Jobs** for work such as Promise reactions and defines host hooks such as `HostEnqueuePromiseJob()`. In ECMAScript terminology, the **host** is the environment that integrates the JavaScript language with platform behavior. A web browser is one host environment; Node.js is another.
+<TermBox term="ECMAScript Job">
+An **ECMAScript Job** is a language-level unit of deferred work defined by the ECMAScript specification. Promise reactions are expressed using Jobs and host hooks.
 
-For HTML browsers, HTML specifies how Promise-related Jobs are integrated with the browser event loop: Promise Jobs are queued into browser microtask processing.
+**Why it matters here:** JavaScript defines the Promise semantics, while the surrounding environment decides how those Jobs are integrated into its scheduling system.
+</TermBox>
+
+<TermBox term="Host">
+In ECMAScript terminology, the **host** is the environment that integrates the JavaScript language with platform behavior and APIs. A web browser is one host environment; Node.js is another.
+
+**Why it matters here:** Promise language semantics can be shared across environments while browser task sources, rendering, and Node-specific scheduling remain different.
+</TermBox>
+
+ECMAScript defines host hooks such as `HostEnqueuePromiseJob()`. For HTML browsers, HTML specifies how Promise-related Jobs are integrated with browser microtask processing.
 
 This division of responsibility explains why Promise semantics belong to JavaScript while the exact event-loop integration belongs to the surrounding runtime/platform.
 

@@ -32,45 +32,61 @@ concepts:
 
 A monolith, modular monolith, and microservices architecture are not three maturity levels. They place **code, data, deployment, and ownership boundaries** differently.
 
-Start with the least distributed deployment model that meets the real constraints. Improve internal modularity before assuming a network boundary is necessary. Extract a service when **independent deployment creates measurable value**—for example, when it removes release coordination that is actually slowing a team, isolates a workload that must scale independently, creates a separately operated failure boundary, or gives one team ownership it cannot achieve inside a shared deployment.
+Start with the least distributed deployment model that meets the real constraints. Improve internal modularity before assuming a network boundary is necessary. Extract a service when **independent deployment creates measurable value**—for example by removing real release coordination, isolating a workload that must scale separately, creating a deliberately operated failure boundary, or giving one team ownership it cannot achieve inside a shared deployment.
 
-The question is not "Can this be a service?" It is: **which specific constraint becomes easier to satisfy after this boundary becomes an independently deployed network boundary, and how will we measure that improvement?**
+The question is not “Can this be a service?” Ask: **which constraint becomes easier after this boundary becomes independently deployed, and how will we measure that improvement?**
+
+<TermBox term="Deployment unit">
+A **deployment unit** (or deployable) is a piece of software released and rolled out as one operational unit.
+
+**Why it matters here:** a monolith and modular monolith normally share one deployment unit; microservices create multiple deployment units whose versions, rollouts, failures, and ownership can diverge.
+</TermBox>
 
 ## Decision frame
 
 Write down the forces before choosing an architecture label:
 
-- How many teams need genuinely independent release schedules?
-- Which business capabilities have stable ownership and materially different change rates?
-- Which operations benefit from one local ACID transaction across several pieces of state?
-- Which workloads need different scaling, availability, isolation, or runtime characteristics?
+- How many teams genuinely need independent release schedules?
+- Which business capabilities have stable ownership and different change rates?
+- Which operations benefit from one local ACID transaction?
+- Which workloads need materially different scaling, availability, isolation, or runtime characteristics?
 - Can the organization operate multiple independently failing deployments, data stores, dashboards, alerts, compatibility contracts, and on-call surfaces?
-- Is current pain caused by coordinated deployment, or by poor module boundaries inside the codebase?
-- What release-time, runtime, and incident-response outcome would improve if a boundary became a service?
+- Is current pain caused by coordinated deployment, or poor module boundaries inside the codebase?
+- What measurable release-time, runtime, or incident-response outcome would improve if a boundary became a service?
 
-A service boundary earns its cost when the independence it creates solves a named problem better than a local module boundary can.
+<TermBox term="Independent deployment">
+**Independent deployment** means one unit can be released, rolled back, scaled, or evolved without requiring a synchronized release of another unit, subject to their compatibility contracts.
+
+**Why it matters here:** this is one of the main benefits microservices can buy. If the team still coordinates every change across services, the network boundaries may add cost without delivering the intended autonomy.
+</TermBox>
 
 ## The options
 
 ### Monolith
 
-A monolith is deployed as one application unit. It can be well modularized or tightly coupled; "monolith" describes deployment shape, not code quality.
+A monolith is deployed as one application unit. It can be well modularized or tightly coupled; “monolith” describes deployment shape, not code quality.
 
-Calls between modules can remain local, transactions can often stay inside one database boundary, deployment coordination happens around one deployable, and debugging does not inherently cross service networks. The trade-off is that all modules share the deployment lifecycle unless the deployment is later split.
+Local calls can stay local, transactions can often remain inside one database boundary, and debugging does not inherently cross service networks. The trade-off is that modules share the deployment lifecycle.
 
 ### Modular monolith
 
 A modular monolith keeps one deployment while enforcing explicit domain boundaries inside it. Modules expose deliberate interfaces, hide implementation details, and can have ownership/dependency rules even though they ship together.
 
-This model is useful when teams need stronger code/domain boundaries but coordinated deployment is still acceptable. It also tests whether a proposed domain boundary is real: if the boundary cannot be kept clean inside one process/repository, moving it behind a network API usually preserves the conceptual coupling while adding distributed-system failure modes.
+This is useful when teams need stronger code/domain boundaries but coordinated deployment remains acceptable. It also tests whether a proposed boundary is real: if the boundary cannot stay clean inside one process, putting it behind a network API usually preserves the conceptual coupling while adding distributed-system failure modes.
 
-A modular monolith can be a long-lived architecture. It does not need to be justified as a temporary step toward services.
+A modular monolith can be a long-lived final architecture.
 
 ### Microservices
 
-A microservices architecture moves selected domain boundaries into independently deployable services, usually with explicit network APIs/events and separately owned data or state boundaries.
+A microservices architecture moves selected domain boundaries into independently deployable services, usually with explicit network APIs/events and separately owned state boundaries.
 
-That deployment independence can matter when different teams need separate release schedules, selected workloads need isolated scaling or availability policy, or one capability needs a different runtime/operational lifecycle. The cost is structural: local calls become remote calls, failures become partial, compatibility spans deployed versions, data consistency can cross transaction boundaries, and observability must correlate work across services.
+<TermBox term="Partial failure">
+**Partial failure** means one part of a distributed operation can fail or become unreachable while other parts remain healthy or may already have completed work.
+
+**Why it matters here:** a remote call can time out without telling the caller whether the other service failed before acting, succeeded but lost the response, or is still working. Network boundaries therefore change correctness, not just deployment topology.
+</TermBox>
+
+That deployment independence can matter when teams need separate release schedules, selected workloads need isolated scaling/availability policy, or one capability needs a different runtime lifecycle. The cost is structural: local calls become remote, compatibility spans deployed versions, data consistency can cross transaction boundaries, and observability must correlate work across services.
 
 <DecisionMatrix
   caption="Monolith vs modular monolith vs microservices decision matrix"
@@ -127,71 +143,66 @@ That deployment independence can matter when different teams need separate relea
     {
       criterion: 'Operational work',
       values: [
-        'One deployable/runtime surface, plus the complexity of the application and its dependencies',
+        'One deployable/runtime surface, plus application dependencies',
         'One deployable plus explicit module-boundary governance',
         'Operational work grows with deployable count, networks, data boundaries, compatibility, telemetry, and ownership surfaces',
-      ],
-    },
-    {
-      criterion: 'End-to-end diagnosis',
-      values: [
-        'Can often be traced inside one runtime plus its external dependencies',
-        'Module boundaries aid local diagnosis without adding network hops',
-        'Requires correlation across independently deployed services and their partial failures',
       ],
     },
   ]}
 />
 
-**Operational complexity depends on deployment count, infrastructure automation, ownership, data boundaries, reliability requirements, and the maturity of the platform around them.** The table describes mechanisms; it is not a universal low/medium/high score.
+**Operational complexity depends on deployment count, infrastructure automation, ownership, data boundaries, reliability requirements, and the maturity of the surrounding platform.** The matrix describes mechanisms, not universal low/medium/high scores.
 
 ## When each model fits
 
 ### Prefer a monolith when
 
-- one team or a small number of closely coordinated teams own the product;
+- one team or a few closely coordinated teams own the product;
 - the domain is changing quickly and stable service boundaries are not yet evident;
-- coordinated deployment is not producing measurable delivery pain;
-- local transaction/debugging simplicity matters more than independent service lifecycle;
-- the organization has higher-value uses for operational complexity than adding independently operated services.
+- coordinated deployment is not causing measurable delivery pain;
+- local transaction/debugging simplicity matters more than independent service lifecycle.
 
 A monolith is not permission to create a ball of mud. Explicit modules, tests, dependency rules, and ownership boundaries still matter.
 
 ### Prefer a modular monolith when
 
 - domain boundaries and code ownership need stronger enforcement;
-- teams can coordinate one deployment even if they own separate modules;
+- teams can coordinate one deployment;
 - you want to reduce coupling before deciding whether independent deployment is necessary;
-- important workflows still benefit from local transaction boundaries;
-- there is not yet evidence that network/deployment independence pays for its additional correctness and operations cost.
-
-This can remain the final architecture as long as those conditions hold.
+- important workflows still benefit from local transaction boundaries.
 
 ### Prefer microservices when
 
 - independent deployment solves a concrete, measured coordination problem;
 - service boundaries align with durable business capabilities and clear owning teams;
 - selected workloads require materially different scaling, availability, isolation, or release cadence;
-- the organization can operate routing/discovery, telemetry, CI/CD, secrets, version compatibility, incident response, and asynchronous consistency across the intended number of services;
-- the expected benefit of independence is observable enough to compare with the new distributed-system costs.
+- the organization can operate routing, telemetry, CI/CD, secrets, version compatibility, incident response, and asynchronous consistency across the intended number of services.
 
-Examples of measurable value include shorter release lead time for the owning team, reduced coordination with unrelated teams, independently enforced capacity/availability objectives, or a smaller runtime blast radius for a capability.
+Examples of measurable value include shorter release lead time, reduced coordination with unrelated teams, independently enforced capacity/availability objectives, or a smaller runtime blast radius.
 
-## Microservices change the failure model
+<TermBox term="Blast radius">
+**Blast radius** is the scope of users, requests, components, or business capabilities affected when something fails.
 
-Inside one process, a normal function call completes under one runtime failure boundary. Across a service boundary, a caller can time out without knowing whether the remote operation failed before acting, succeeded but lost its response, or is still executing.
+**Why it matters here:** separating a service can reduce some runtime failure scope, but it can also create new dependency failures. A smaller process boundary does not automatically produce a smaller end-to-end incident.
+</TermBox>
 
-That ambiguity introduces design work around:
+## Microservices change the consistency and recovery model
 
-- timeouts and retry budgets;
-- idempotency;
-- partial failure;
-- delivery semantics;
-- distributed tracing/correlation;
-- eventual consistency and compensating workflows;
-- compatibility between independently deployed versions.
+Inside one process, a normal function call completes under one runtime failure boundary. Across a service boundary, the caller can time out without knowing the remote outcome.
 
-This is why splitting a module into a service is not a neutral refactor. It changes correctness and operations as well as deployment topology.
+<TermBox term="Eventual consistency">
+**Eventual consistency** means related copies or pieces of state are allowed to disagree temporarily and are expected to converge through later processing.
+
+**Why it matters here:** once one workflow spans separately committed service data, a single local transaction may no longer make every piece of state change atomically.
+</TermBox>
+
+<TermBox term="Compensating workflow">
+A **compensating workflow** performs explicit follow-up work to counteract or repair an earlier committed action when a multi-step distributed workflow cannot simply roll everything back in one transaction.
+
+**Why it matters here:** compensation is recovery logic, not a magic distributed rollback. Its behavior must be designed for the business operation.
+</TermBox>
+
+Distributed boundaries introduce design work around timeouts, retry budgets, idempotency, partial failure, delivery semantics, tracing/correlation, eventual consistency, compensation, and compatibility between independently deployed versions.
 
 ## Common traps
 
@@ -201,15 +212,15 @@ A network boundary does not create a coherent business boundary or clear ownersh
 
 ### Mistaking repository size for deployment pressure
 
-A large codebase may need module boundaries, build tooling, ownership, and dependency rules without requiring many deployables. Name the deployment constraint separately from the codebase-size problem.
+A large codebase may need module boundaries, build tooling, ownership, and dependency rules without requiring many deployables.
 
 ### Using independent databases as an ideology
 
-Service-owned data can improve autonomy when a service truly owns its business capability. But cross-service workflows must then model consistency and recovery explicitly. Splitting data without a concrete autonomy requirement can convert local transactions into distributed workflows without compensating value.
+Service-owned data can improve autonomy when a service truly owns its business capability. But cross-service workflows must then model consistency and recovery explicitly.
 
 ### Extracting before observing the pressure
 
-Early boundaries often encode assumptions rather than durable capabilities. A modular codebase lets you gather evidence about ownership, release cadence, scaling, and failure isolation before committing to a network boundary.
+Early service boundaries often encode assumptions rather than durable capabilities. A modular codebase lets you gather evidence about ownership, release cadence, scaling, and failure isolation before committing to a network boundary.
 
 ## Practical heuristic
 
@@ -219,9 +230,9 @@ Ask these questions in order:
 2. **Which exact boundary needs independent lifecycle?** Name the release, ownership, scaling, availability, or isolation constraint.
 3. **What changes when the call/data crosses a network?** Identify timeout, retry, transaction, consistency, and compatibility consequences.
 4. **Who operates the new service during an incident?** Include dashboards, alerts, dependencies, runbooks, rollback, and ownership.
-5. **How will we know the service boundary paid off?** Define a measurable release, scaling, reliability, or ownership outcome before extracting it.
+5. **How will we know the service boundary paid off?** Define a measurable outcome before extracting it.
 
-The extraction threshold is reached when independent deployment creates measurable value that a local module boundary cannot provide at lower cost.
+The extraction threshold is reached when **independent deployment creates measurable value** that a local module boundary cannot provide at lower cost.
 
 ## Questions to ask before choosing
 
@@ -233,7 +244,6 @@ The extraction threshold is reached when independent deployment creates measurab
 - Does each service have a durable owning team and incident responsibility?
 - Are independent scaling/availability requirements observed or speculative?
 - Could architecture tests enforce the desired boundary inside one deployment first?
-- How many deployables can the current platform/on-call model operate reliably?
 
 ## Related concepts
 
