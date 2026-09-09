@@ -1,0 +1,8 @@
+{
+  "title": "Decision Guides",
+  "pages": [
+    "csr-vs-ssr-vs-ssg",
+    "monolith-vs-modular-monolith-vs-microservices",
+    "containers-vs-serverless"
+  ]
+}

@@ -4,7 +4,7 @@ Instructions for coding agents and automated contributors working in this reposi
 
 ## Mission
 
-Software Development Atlas is a living, open-source knowledge system for software engineering. Optimize for correctness, depth, referenceability, accessibility, broad high-value coverage, and long-term maintainability.
+Software Development Atlas is a living, open-source knowledge system for software engineering. Optimize for correctness, depth, referenceability, accessibility, broad high-value coverage, engineering judgment, and long-term maintainability.
 
 ## Hard constraints
 
@@ -17,6 +17,7 @@ Software Development Atlas is a living, open-source knowledge system for softwar
 7. **Do not bulk-generate content:** quality, coverage value, and verification are more important than page count.
 8. **Do not weaken metadata validation:** required placement metadata must stay required; fix authored content rather than making the schema optional.
 9. **Do not game coverage:** never add incidental concept references merely to increase a domain or learning-path coverage count.
+10. **Do not turn judgment content into a decision engine:** comparison matrices and walkthroughs support reasoning; they do not create a second registry, universal ranking, or mandatory architecture.
 
 ## Planned implementation direction
 
@@ -69,6 +70,31 @@ Start-here/meta guides may use `concepts: []` when they do not teach a software-
 
 Not every concept requires an interactive deep dive. Prefer a focused `concept` page when that communicates the mental model adequately. Use a `decision-guide` when the learner need is choosing among alternatives, and an `architecture-walkthrough` when the learning value is in cross-component boundaries and flow.
 
+## Engineering judgment content
+
+Engineering Judgment is a top-level docs section, not a new data model. Keep decision guides and architecture walkthroughs as canonical MDX with normal Atlas metadata.
+
+When authoring a `decision-guide`:
+
+1. frame the engineering decision and constraints before discussing products or frameworks;
+2. compare the alternatives using explicit criteria that can change the choice;
+3. include operational/failure consequences, not only feature differences;
+4. give conditional heuristics instead of naming a universal winner;
+5. use `DecisionMatrix` only when a static semantic table improves scanning;
+6. keep the explanatory reasoning in Markdown so the matrix never becomes the sole source of meaning.
+
+When authoring an `architecture-walkthrough`:
+
+1. state the scenario and important assumptions;
+2. trace boundaries and data flow end-to-end;
+3. use the repo's existing Mermaid support for static system flow before inventing a new diagram component;
+4. make transaction/consistency boundaries explicit where relevant;
+5. examine duplicate requests, timeouts, retries, redelivery, and partial failure where relevant;
+6. cover security, observability, scaling/cost, and credible alternatives;
+7. describe the topology as a reference shape, not a mandatory architecture.
+
+Do not create a judgment JSON registry, scoring model, recommendation engine, or duplicated concept/page mapping unless a later approved design explicitly requires it.
+
 ## Learning paths and coverage
 
 `content/learning-paths.json` is the canonical source for curated path **order and learning intent only**. It is not a concept registry and must not duplicate authored page URLs.
@@ -91,6 +117,8 @@ Read `docs/superpowers/specs/2026-08-19-atlas-foundation-design.md`, the current
 For the knowledge model, read `docs/superpowers/specs/2026-09-09-atlas-knowledge-model-design.md`.
 
 For learning paths and coverage, read `docs/superpowers/specs/2026-09-09-learning-paths-coverage-design.md`.
+
+For Engineering Judgment content and its reusable primitive, read `docs/superpowers/specs/2026-09-09-engineering-judgment-design.md`.
 
 Significant architectural changes should begin with an issue/design discussion rather than an implementation-first pull request.
 
@@ -125,6 +153,8 @@ For learning-path changes, verify at minimum that:
 - a path does not repeat a concept ID;
 - uncovered concepts remain visible;
 - content recommendations are derived rather than hand-maintained.
+
+For Engineering Judgment changes, verify representative routes render, `DecisionMatrix` remains semantic/static, authored metadata is valid, and serious/critical accessibility violations are absent on representative pages.
 
 ## Pull requests
 

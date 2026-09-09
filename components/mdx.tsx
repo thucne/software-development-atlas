@@ -3,6 +3,7 @@ import {
   LearningPath,
   LearningPathsOverview,
 } from '@/components/atlas/server';
+import { DecisionMatrix } from '@/components/judgment/decision-matrix';
 import { AsyncWaterfallLab } from '@/components/learning/async-waterfall-lab';
 import { EventLoopLab } from '@/components/learning/event-loop-lab';
 import { PromiseResolutionLab } from '@/components/learning/promise-resolution-lab';
@@ -26,6 +27,7 @@ export function getMDXComponents(components?: MDXComponents) {
     AtlasCoverage,
     LearningPath,
     LearningPathsOverview,
+    DecisionMatrix,
     AsyncWaterfallLab,
     EventLoopLab,
     PromiseResolutionLab,

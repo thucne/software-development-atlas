@@ -1,10 +1,10 @@
 # Contributing to Software Development Atlas
 
-Thank you for helping build Software Development Atlas. Contributions can be new content, corrections, better examples, interactive visualizations, accessibility improvements, tooling, learning-path changes, or reports that material has become outdated.
+Thank you for helping build Software Development Atlas. Contributions can be new content, corrections, better examples, interactive visualizations, accessibility improvements, tooling, learning-path changes, engineering-judgment guides, or reports that material has become outdated.
 
 ## Before you contribute
 
-Please read [CONTENT_GUIDE.md](./CONTENT_GUIDE.md). It defines the content contract, canonical Atlas placement, freshness model, source expectations, content types, learning-depth model, coverage semantics, and learning-path rules.
+Please read [CONTENT_GUIDE.md](./CONTENT_GUIDE.md). It defines the content contract, canonical Atlas placement, freshness model, source expectations, content types, learning-depth model, coverage semantics, learning-path rules, and Engineering Judgment authoring standard.
 
 For new engineering content, also inspect [`content/atlas-map.json`](./content/atlas-map.json). Reuse canonical concept IDs whenever possible instead of inventing page-local labels.
 
@@ -33,6 +33,14 @@ A strong proposal should:
 Use the **New Atlas content** issue form when proposing a larger topic.
 
 A concept does not need to become a deep interactive lesson to be valuable. A focused concept page, decision guide, field guide, or architecture walkthrough may be the better unit.
+
+### Engineering Judgment content
+
+A `decision-guide` should help a reader make a conditional engineering choice. Strong proposals should name the decision, alternatives, constraints, important comparison criteria, operational/failure consequences, and the conditions under which the recommendation changes. Do not pitch one framework, runtime, or cloud product as universally best.
+
+An `architecture-walkthrough` should trace a realistic vertical slice across boundaries. Include the happy path, then show where state changes, partial failure, retries/redelivery, security, observability, scaling/cost, and alternatives affect the design. Treat the walkthrough as a reference shape rather than a required topology.
+
+Use the static `DecisionMatrix` MDX primitive when a semantic comparison table improves scanning. Do not create a second decision registry, scoring model, or page mapping to drive judgment content.
 
 ### Learning-path change
 
@@ -77,7 +85,7 @@ Do not create a new concept merely because a page mentions a technology. Content
 
 AI tools are welcome as assistants, not as authorities.
 
-Contributors remain responsible for every submitted claim, example, citation, concept placement, learning-path decision, and code path. Do not submit large volumes of unreviewed model-generated content. Verify evolving technical claims against primary sources and run examples or tests where practical.
+Contributors remain responsible for every submitted claim, example, citation, concept placement, learning-path decision, engineering recommendation, architecture trade-off, and code path. Do not submit large volumes of unreviewed model-generated content. Verify evolving technical claims against primary sources and run examples or tests where practical.
 
 ## Sources
 
@@ -105,12 +113,16 @@ A content pull request should normally include:
 
 A learning-path pull request should normally include the path-data change, a learner-outcome rationale, and validation updates when the path model changes. It should not duplicate page URLs that can be derived from content placement.
 
+An Engineering Judgment pull request should make the decision or system reasoning reviewable in Markdown, keep reusable UI static unless interactivity materially improves the teaching outcome, and include representative route/accessibility coverage when it changes presentation behavior.
+
 ### Pull request checklist
 
 - [ ] I followed `CONTENT_GUIDE.md` where applicable.
 - [ ] I checked the canonical Atlas map before choosing concept IDs.
 - [ ] The content type and target learning depth match the learner outcome.
 - [ ] I did not attach incidental concept IDs merely to improve coverage metrics.
+- [ ] Decision guidance is conditional and explains trade-offs instead of naming a universal winner.
+- [ ] Architecture walkthroughs cover relevant failure/recovery, security, observability, and alternatives.
 - [ ] Learning-path changes use existing concept IDs and do not duplicate authored page URLs.
 - [ ] I verified factual claims, especially evolving/frontier claims.
 - [ ] I preferred primary sources where available.

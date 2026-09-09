@@ -1,4 +1,10 @@
 {
   "title": "Atlas",
-  "pages": ["index", "start-here", "learning-paths", "programming"]
+  "pages": [
+    "index",
+    "start-here",
+    "learning-paths",
+    "engineering-judgment",
+    "programming"
+  ]
 }

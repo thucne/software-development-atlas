@@ -1,0 +1,195 @@
+---
+title: CSR vs SSR vs SSG
+description: Choose a web rendering model by freshness, personalization, interactivity, cacheability, server work, and operational constraints instead of framework fashion.
+category: engineering-judgment
+level: intermediate
+status: evolving
+lastVerified: 2026-09-09
+reviewAfterDays: 180
+topics:
+  - web
+  - rendering
+  - frontend
+  - architecture
+prerequisites:
+  - http-request-lifecycle
+  - browser-runtime
+related:
+  - modern-web-systems
+technologies: []
+contentType: decision-guide
+learningDepth: reason
+concepts:
+  - csr-ssr-ssg
+  - hydration
+  - frontend-data-fetching
+  - http-caching
+  - cdn-behavior
+---
+
+## TL;DR
+
+Do not choose CSR, SSR, or SSG by asking which one is "modern." Ask **when the HTML must be produced, how personalized it is, how fresh it must be, how much JavaScript is required for useful interaction, and where you want to spend operational complexity**.
+
+A useful default is to choose the cheapest rendering point that still satisfies the product constraints. Static output is powerful when many users can share the same representation. Request-time server rendering is useful when the initial HTML genuinely depends on request-time state. Client rendering is useful when the screen behaves mainly like an application after a lightweight shell is loaded.
+
+Modern frameworks can mix these strategies by route, component, or data dependency. The architectural decision is therefore often **per surface**, not one label for the entire product.
+
+## Decision frame
+
+Before naming a framework, write down the constraints:
+
+- Must anonymous search crawlers receive meaningful content without running application JavaScript?
+- Is the first useful view the same for many users or personalized per request?
+- How quickly can content become stale before that is a product problem?
+- Is the page mainly reading/navigation, or is it a highly interactive application workspace?
+- Can responses be reused through HTTP/CDN caching?
+- What latency budget exists between a request and the first useful HTML?
+- Do you want rendering capacity at build time, request time, or mostly in the browser?
+
+Those answers usually narrow the choice more reliably than a framework feature checklist.
+
+## The options
+
+### Client-side rendering (CSR)
+
+The server typically sends a relatively small HTML shell plus JavaScript. The browser executes application code, obtains data, and builds or updates the visible UI.
+
+CSR is attractive when the product is interaction-heavy, authentication already gates most content, SEO is secondary, and the browser will remain active for a long session. Its main architectural cost is that **initial usefulness depends more heavily on JavaScript execution and client-side data acquisition**.
+
+### Server-side rendering (SSR)
+
+The server produces useful HTML for a request, often using request-time data, and sends it to the browser. Interactive applications commonly execute client JavaScript afterward to attach behavior to that server-rendered HTML; in React terminology, that attachment process is hydration.
+
+SSR is attractive when request-time personalization or freshness matters and useful HTML should arrive before the full client application is ready. The trade-off is that rendering becomes part of the request path, so server capacity, cache policy, latency, and failure behavior become more important.
+
+### Static site generation / prerendering (SSG)
+
+HTML is produced before an individual request, usually during a build or revalidation process, and can then be served as a static artifact.
+
+SSG is attractive when many users can share the same content and freshness can be handled through publishing/revalidation rather than request-time rendering. It shifts work away from the request path and makes broad caching easy, but highly personalized or continuously changing pages need another mechanism.
+
+<DecisionMatrix
+  caption="CSR vs SSR vs SSG decision matrix"
+  options={['CSR', 'SSR', 'SSG']}
+  rows={[
+    {
+      criterion: 'Per-request personalization',
+      values: ['Natural after client data loads', 'Strong fit', 'Weak fit without a dynamic layer'],
+    },
+    {
+      criterion: 'Very fresh request-time data',
+      values: ['Strong after API fetch', 'Strong fit', 'Requires revalidation or client fetch'],
+    },
+    {
+      criterion: 'Useful initial HTML',
+      values: ['Often limited until JavaScript runs', 'Strong fit', 'Strong fit'],
+    },
+    {
+      criterion: 'Heavy application interactivity',
+      values: ['Strong fit', 'Strong after client activation', 'Needs client JavaScript for interactive regions'],
+    },
+    {
+      criterion: 'Shared CDN/cache reuse',
+      values: ['Shell and assets cache well; data varies', 'Depends on response variability and cache policy', 'Excellent when content is shared'],
+    },
+    {
+      criterion: 'Request-time server rendering work',
+      values: ['Low for the UI shell', 'Highest of the three', 'Very low after generation'],
+    },
+    {
+      criterion: 'Freshness mechanism',
+      values: ['Client data requests', 'Render on request or cached SSR', 'Build, publish, or revalidate'],
+    },
+    {
+      criterion: 'Operational complexity',
+      values: ['Client state and API orchestration', 'Rendering capacity plus client behavior', 'Build/revalidation pipeline plus dynamic escape hatches'],
+    },
+  ]}
+/>
+
+## Strong-fit scenarios
+
+### Prefer CSR when
+
+- the product is an authenticated dashboard or editor where most value appears after interaction begins;
+- the initial HTML does not need to contain user-specific application data;
+- the application already depends on rich client state and frequent API interactions;
+- you can invest in bundle discipline, loading states, error handling, and client performance.
+
+A CSR choice does **not** mean "put all logic in the browser." Authentication, authorization, durable state, and trust boundaries remain backend concerns.
+
+### Prefer SSR when
+
+- the initial response must contain request-specific or rapidly changing content;
+- useful content should appear before the client application is fully interactive;
+- request-time server access can avoid a slower browser-to-API waterfall;
+- you are prepared to operate rendering as part of the latency-sensitive request path.
+
+SSR does not automatically make a page fast. Expensive data fetching, serial server work, poor caching, or a large hydration payload can still create a slow experience.
+
+### Prefer SSG when
+
+- content is largely shared across users;
+- publishing or periodic revalidation is an acceptable freshness model;
+- pages benefit from broad edge/CDN reuse;
+- you want request-time behavior to stay simple and inexpensive.
+
+Documentation, marketing pages, public reference material, and many catalog/detail pages are common candidates, although the exact fit depends on freshness and personalization requirements.
+
+## The hybrid answer is often the correct one
+
+The three labels describe **where initial rendering work happens**, not mutually exclusive product identities.
+
+A product can statically generate public documentation, server-render personalized account pages, and client-render a complex editor. A single route can also start with server/static HTML and then use client-side data fetching for information that must update continuously.
+
+The architectural skill is not picking one acronym. It is recognizing which data and UI boundaries deserve which rendering lifecycle.
+
+## Failure modes and hidden costs
+
+### Treating SEO as the only reason for server/static HTML
+
+Search visibility can matter, but users also benefit from receiving meaningful HTML before a large client runtime becomes ready. Conversely, SSR is not justified merely because a page is public.
+
+### Ignoring hydration and client activation cost
+
+Server-rendered HTML can still require substantial JavaScript before interactions work. Hydration also assumes that the client and server agree on the initial rendered structure. If they diverge, frameworks may warn or recover imperfectly.
+
+### Assuming static means stale forever
+
+Static generation is a production strategy, not a promise that content never changes. Build hooks, incremental/revalidation mechanisms, and targeted client data fetching can provide controlled freshness. The important question is the **freshness contract**, not whether the word "static" appears in the architecture.
+
+### Assuming CSR removes server complexity
+
+The browser may render the UI, but APIs still need authentication, authorization, caching, rate limits, observability, and failure semantics. CSR moves rendering work; it does not remove backend engineering.
+
+## Practical heuristic
+
+Start with these questions in order:
+
+1. **Can many users share the same initial representation?** If yes, consider static generation and caching first.
+2. **Must the initial representation depend on request-time state?** If yes, consider SSR for that surface.
+3. **Is the main value delivered after a long interactive session?** If yes, CSR may be the simplest center of gravity.
+4. **Can the route be split?** Keep stable/shared content static or server-rendered and move only truly interactive or continuously fresh regions to the client.
+5. **What happens when rendering or data fetching fails?** Choose a model whose failure mode you can observe and operate.
+
+## Questions to ask before choosing
+
+- What must be visible before JavaScript executes?
+- Which data is public, shared, personalized, or continuously changing?
+- What is the allowed staleness window?
+- Which responses can be cached safely, and what changes the cache key?
+- How large is the client JavaScript required for interactivity?
+- What work is on the critical request path?
+- Can the team diagnose failures separately in rendering, data access, and client activation?
+
+## Related concepts
+
+This decision connects directly to **Hydration**, **Frontend Data Fetching**, **HTTP Caching**, **CDN Behavior**, and the browser rendering/runtime model. Use the [Modern Web Systems](/docs/learning-paths/modern-web-systems) path when you want to place these trade-offs in the larger request lifecycle.
+
+## Sources
+
+- [Rendering on the Web — web.dev](https://web.dev/articles/rendering-on-the-web)
+- [hydrateRoot — React](https://react.dev/reference/react-dom/client/hydrateRoot)
+- [HTTP caching — MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching)
+- [Static and Dynamic Rendering — Next.js Learn](https://nextjs.org/learn/dashboard-app/static-and-dynamic-rendering)
