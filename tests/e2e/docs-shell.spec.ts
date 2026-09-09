@@ -73,7 +73,7 @@ test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
     )
     .toBeGreaterThan(widthBefore);
 
-  await figure.getByRole('button', { name: 'Reset zoom' })).click();
+  await figure.getByRole('button', { name: 'Reset zoom' }).click();
 
   await expect
     .poll(() =>
