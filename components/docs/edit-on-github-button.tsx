@@ -2,13 +2,17 @@ import { buttonVariants } from 'fumadocs-ui/components/ui/button';
 
 type EditOnGitHubButtonProps = {
   href: string;
+  label?: string;
 };
 
 /**
  * Page-action control styled to match Fumadocs MarkdownCopyButton /
  * ViewOptionsPopover (secondary + sm + icon sizing).
  */
-export function EditOnGitHubButton({ href }: EditOnGitHubButtonProps) {
+export function EditOnGitHubButton({
+  href,
+  label = 'Edit on GitHub',
+}: EditOnGitHubButtonProps) {
   return (
     <a
       href={href}
@@ -19,7 +23,7 @@ export function EditOnGitHubButton({ href }: EditOnGitHubButtonProps) {
       })}
     >
       <GitHubIcon />
-      Edit on GitHub
+      {label}
     </a>
   );
 }

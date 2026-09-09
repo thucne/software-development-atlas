@@ -12,15 +12,17 @@ import {
   learningPaths,
 } from '@/lib/content/learning-paths';
 
-export function AtlasCoverage() {
-  const placements = getContentPlacements();
+export function AtlasCoverage({ locale = 'en' }: { locale?: string } = {}) {
+  const placements = getContentPlacements(locale);
   const domains = buildDomainCoverage(atlasMap, placements);
 
-  return <AtlasCoverageView domains={domains} />;
+  return <AtlasCoverageView domains={domains} locale={locale} />;
 }
 
-export function LearningPathsOverview() {
-  const placements = getContentPlacements();
+export function LearningPathsOverview({
+  locale = 'en',
+}: { locale?: string } = {}) {
+  const placements = getContentPlacements(locale);
   const paths = learningPaths.paths.map((path) => {
     const coverage = buildPathCoverage(path, placements);
 
@@ -34,13 +36,19 @@ export function LearningPathsOverview() {
     };
   });
 
-  return <LearningPathsOverviewView paths={paths} />;
+  return <LearningPathsOverviewView paths={paths} locale={locale} />;
 }
 
-export function LearningPath({ pathId }: { pathId: string }) {
+export function LearningPath({
+  pathId,
+  locale = 'en',
+}: {
+  pathId: string;
+  locale?: string;
+}) {
   const path = getLearningPath(pathId);
-  const placements = getContentPlacements();
+  const placements = getContentPlacements(locale);
   const coverage = buildPathCoverage(path, placements);
 
-  return <LearningPathView path={path} coverage={coverage} />;
+  return <LearningPathView path={path} coverage={coverage} locale={locale} />;
 }

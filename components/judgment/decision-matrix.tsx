@@ -7,10 +7,12 @@ export function DecisionMatrix({
   options,
   rows,
   caption,
+  criterionLabel = 'Criterion',
 }: {
   options: readonly string[];
   rows: readonly DecisionMatrixRow[];
   caption: string;
+  criterionLabel?: string;
 }) {
   for (const row of rows) {
     if (row.values.length !== options.length) {
@@ -27,7 +29,7 @@ export function DecisionMatrix({
         <thead>
           <tr>
             <th scope="col" className="border px-3 py-2 text-left">
-              Criterion
+              {criterionLabel}
             </th>
             {options.map((option) => (
               <th

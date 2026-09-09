@@ -17,6 +17,7 @@ import {
   type TaskDurations,
   type TaskId,
 } from '@/lib/learning/async-schedule';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const TASK_IDS: TaskId[] = ['A', 'B', 'C'];
@@ -69,20 +70,24 @@ function Timeline({
 
 function SchedulePanel({
   label,
+  displayLabel,
   schedule,
   comparisonTotalMs,
   testId,
   isPlaying,
+  isVi,
 }: {
   label: 'Sequential' | 'Concurrent';
+  displayLabel: string;
   schedule: Schedule;
   comparisonTotalMs: number;
   testId: 'sequential-total' | 'concurrent-total';
   isPlaying: boolean;
+  isVi?: boolean;
 }) {
   return (
     <section className="space-y-4" aria-label={`${label} schedule`}>
-      <h4 className="font-semibold">{label}</h4>
+      <h4 className="font-semibold">{displayLabel}</h4>
       <Timeline
         schedule={schedule}
         comparisonTotalMs={comparisonTotalMs}
@@ -97,10 +102,10 @@ function SchedulePanel({
         <table className="w-full min-w-80 text-sm">
           <thead>
             <tr className="border-b">
-              <th scope="col" className="py-2 text-left">Task</th>
-              <th scope="col" className="py-2 text-right">Start</th>
-              <th scope="col" className="py-2 text-right">Duration</th>
-              <th scope="col" className="py-2 text-right">End</th>
+              <th scope="col" className="py-2 text-left">{isVi ? 'Tác vụ' : 'Task'}</th>
+              <th scope="col" className="py-2 text-right">{isVi ? 'Bắt đầu' : 'Start'}</th>
+              <th scope="col" className="py-2 text-right">{isVi ? 'Thời lượng' : 'Duration'}</th>
+              <th scope="col" className="py-2 text-right">{isVi ? 'Kết thúc' : 'End'}</th>
             </tr>
           </thead>
           <tbody>
@@ -116,7 +121,7 @@ function SchedulePanel({
         </table>
       </div>
       <p>
-        <strong>{label} total:</strong>{' '}
+        <strong>{isVi ? (label === 'Sequential' ? 'Tổng thời gian tuần tự:' : 'Tổng thời gian đồng thời:') : `${label} total:`}</strong>{' '}
         <span data-testid={testId} className="tabular-nums">
           {schedule.totalMs}ms
         </span>
@@ -125,7 +130,9 @@ function SchedulePanel({
   );
 }
 
-export function AsyncWaterfallLab() {
+export function AsyncWaterfallLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
+  const pathname = usePathname() || '';
+  const isVi = locale === 'vi' || pathname.includes('/vi/docs') || pathname.endsWith('/vi');
   const [durations, setDurations] = useState<TaskDurations>(
     DEFAULT_TASK_DURATIONS,
   );
@@ -204,23 +211,29 @@ export function AsyncWaterfallLab() {
       `}</style>
 
       <LabShell
-        title="Async Waterfall Lab"
+        title={isVi ? 'Phòng thực hành Thác nước bất đồng bộ' : 'Async Waterfall Lab'}
         description={
-          <>
-            Change the durations to compare sequential waiting with independent
-            asynchronous work that starts together. Both timelines use the same
-            elapsed-time scale.
-          </>
+          isVi ? (
+            <>
+              Thay đổi thời lượng để đối chiếu thời gian chờ tuần tự so với công việc bất đồng bộ độc lập chạy đồng thời. Cả hai đồ thị đều dùng cùng một thang thời gian.
+            </>
+          ) : (
+            <>
+              Change the durations to compare sequential waiting with independent
+              asynchronous work that starts together. Both timelines use the same
+              elapsed-time scale.
+            </>
+          )
         }
       >
         <fieldset className="grid gap-4 sm:grid-cols-3">
-          <legend className="sr-only">Task durations</legend>
+          <legend className="sr-only">{isVi ? 'Thời lượng tác vụ' : 'Task durations'}</legend>
           {TASK_IDS.map((id) => (
             <label key={id} className="grid gap-2 font-medium">
-              Task {id} duration
+              {isVi ? `Thời lượng Tác vụ ${id}` : `Task ${id} duration`}
               <span className="flex items-center gap-2">
                 <input
-                  aria-label={`Task ${id} duration in milliseconds`}
+                  aria-label={isVi ? `Thời lượng Tác vụ ${id} tính bằng mili-giây` : `Task ${id} duration in milliseconds`}
                   type="number"
                   inputMode="numeric"
                   min={MIN_TASK_DURATION_MS}
@@ -244,40 +257,58 @@ export function AsyncWaterfallLab() {
             onClick={play}
             className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            {isPlaying ? 'Replay' : 'Play'} timelines
+            {isPlaying
+              ? (isVi ? 'Chạy lại đồ thị' : 'Replay timelines')
+              : (isVi ? 'Chạy mô phỏng đồ thị' : 'Play timelines')}
           </button>
           <button
             type="button"
             onClick={reset}
             className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Reset
+            {isVi ? 'Đặt lại' : 'Reset'}
           </button>
         </LabControls>
 
         <div key={playbackKey} className="grid gap-8 lg:grid-cols-2">
           <SchedulePanel
             label="Sequential"
+            displayLabel={isVi ? 'Xử lý tuần tự (Sequential)' : 'Sequential'}
             schedule={sequential}
             comparisonTotalMs={comparisonTotalMs}
             testId="sequential-total"
             isPlaying={isPlaying}
+            isVi={isVi}
           />
           <SchedulePanel
             label="Concurrent"
+            displayLabel={isVi ? 'Xử lý đồng thời (Concurrent)' : 'Concurrent'}
             schedule={concurrent}
             comparisonTotalMs={comparisonTotalMs}
             testId="concurrent-total"
             isPlaying={isPlaying}
+            isVi={isVi}
           />
         </div>
 
         <LiveStatus>
-          With these durations, starting independent work together saves{' '}
-          <strong data-testid="time-saved" className="tabular-nums">
-            {savedMs}ms
-          </strong>{' '}
-          of elapsed time.
+          {isVi ? (
+            <>
+              Với thời lượng này, việc chạy đồng thời các tác vụ độc lập tiết kiệm được{' '}
+              <strong data-testid="time-saved" className="tabular-nums">
+                {savedMs}ms
+              </strong>{' '}
+              thời gian chờ tổng thể.
+            </>
+          ) : (
+            <>
+              With these durations, starting independent work together saves{' '}
+              <strong data-testid="time-saved" className="tabular-nums">
+                {savedMs}ms
+              </strong>{' '}
+              of elapsed time.
+            </>
+          )}
         </LiveStatus>
       </LabShell>
     </>

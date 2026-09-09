@@ -2,9 +2,13 @@ import type { DomainCoverage } from '@/lib/content/coverage';
 
 export function AtlasCoverageView({
   domains,
+  locale = 'en',
 }: {
   domains: readonly DomainCoverage[];
+  locale?: string;
 }) {
+  const isVi = locale === 'vi';
+
   return (
     <div className="space-y-6">
       {domains.map((domain) => {
@@ -21,12 +25,18 @@ export function AtlasCoverageView({
                 {domain.title}
               </h3>
               <p className="m-0 text-sm text-fd-muted-foreground">
-                {domain.covered} / {domain.total} concepts covered
+                {isVi
+                  ? `${domain.covered} / ${domain.total} khái niệm đã bao phủ`
+                  : `${domain.covered} / ${domain.total} concepts covered`}
               </p>
             </div>
 
             <progress
-              aria-label={`${domain.title} coverage`}
+              aria-label={
+                isVi
+                  ? `Độ bao phủ ${domain.title}`
+                  : `${domain.title} coverage`
+              }
               className="mt-3 h-2 w-full"
               value={domain.covered}
               max={domain.total}
@@ -40,7 +50,13 @@ export function AtlasCoverageView({
                 >
                   <span>{concept.title}</span>
                   <span className="shrink-0 text-fd-muted-foreground">
-                    {concept.covered ? 'Covered' : 'Uncovered'}
+                    {concept.covered
+                      ? isVi
+                        ? 'Đã bao phủ'
+                        : 'Covered'
+                      : isVi
+                        ? 'Chưa bao phủ'
+                        : 'Uncovered'}
                   </span>
                 </li>
               ))}

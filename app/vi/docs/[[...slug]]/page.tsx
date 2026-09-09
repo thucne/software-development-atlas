@@ -93,7 +93,7 @@ export default async function Page(props: {
       <div className="mt-4 border-b pb-6">
         <div className="flex flex-wrap items-center gap-2">
           <MarkdownCopyButton markdownUrl={markdownUrl} />
-          <EditOnGitHubButton href={githubUrl} />
+          <EditOnGitHubButton href={githubUrl} label="Chỉnh sửa trên GitHub" />
           <ViewOptionsPopover
             markdownUrl={markdownUrl}
             githubUrl={githubUrl}
@@ -116,7 +116,7 @@ export default async function Page(props: {
       </div>
 
       <DocsBody>
-        <MDX components={getMDXComponents()} />
+        <MDX components={getMDXComponents(undefined, 'vi')} />
       </DocsBody>
     </DocsPage>
   );

@@ -17,12 +17,15 @@ function collectMdxFiles(directory: string): string[] {
 }
 
 function routeForFile(filePath: string): string {
+  const isVi = filePath.endsWith('.vi.mdx');
   const relative = path
     .relative(docsRoot, filePath)
     .replaceAll(path.sep, '/')
+    .replace(/\.vi\.mdx$/, '')
     .replace(/\.mdx$/, '');
   const normalized = relative === 'index' ? '' : relative.replace(/\/index$/, '');
-  return appUrl(normalized ? `/docs/${normalized}` : '/docs');
+  const prefix = isVi ? '/vi/docs' : '/docs';
+  return appUrl(normalized ? `${prefix}/${normalized}` : prefix);
 }
 
 const authoredRoutes = collectMdxFiles(docsRoot).map(routeForFile).sort();

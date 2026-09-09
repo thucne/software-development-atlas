@@ -56,4 +56,55 @@ test.describe('Bilingual Documentation Experience', () => {
       page.getByText('Ma trận so sánh Containers và Serverless'),
     ).toBeVisible();
   });
+  test('renders the Vietnamese sidebar with localized folder titles', async ({
+    page,
+  }) => {
+    const viHome = appUrl('/vi/docs');
+    await page.goto(viHome);
+
+    await expect(
+      page.getByRole('button', { name: 'Bắt đầu tại đây' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Lộ trình học tập' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Đánh giá kỹ thuật' }),
+    ).toBeVisible();
+  });
+
+  test('renders the Vietnamese Learning Path view with localized labels and items', async ({
+    page,
+  }) => {
+    const viPath = appUrl('/vi/docs/learning-paths/modern-web-systems');
+    await page.goto(viPath);
+
+    await expect(
+      page.getByRole('heading', { name: 'Hệ thống Web hiện đại', level: 1 }),
+    ).toBeVisible();
+
+    await expect(page.getByText('Mức độ tiếp cận mục tiêu')).toBeVisible();
+    await expect(page.getByText('Mục tiêu đạt được')).toBeVisible();
+    await expect(page.getByText('Các bước trong lộ trình')).toBeVisible();
+  });
+
+  test('renders the Vietnamese Reliable Checkout architecture walkthrough', async ({
+    page,
+  }) => {
+    const viCheckoutPath = appUrl(
+      '/vi/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+    );
+    await page.goto(viCheckoutPath);
+
+    await expect(
+      page.getByRole('heading', {
+        name: 'Phân tích Kiến trúc Thanh toán Đáng tin cậy (Reliable Checkout)',
+        level: 1,
+      }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole('heading', { name: 'Sơ đồ kiến trúc tổng thể' }),
+    ).toBeVisible();
+  });
 });
