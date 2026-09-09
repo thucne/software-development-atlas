@@ -1,4 +1,4 @@
-import { atlasSeo, canonicalUrl } from '@/lib/seo';
+import { canonicalUrl } from '@/lib/seo';
 import type { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
@@ -8,6 +8,5 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
     },
     sitemap: canonicalUrl('/sitemap.xml'),
-    host: atlasSeo.siteUrl,
   };
 }
