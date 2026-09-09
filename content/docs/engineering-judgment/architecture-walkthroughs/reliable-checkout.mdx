@@ -79,8 +79,7 @@ The application can associate that key with the authenticated actor, logical ope
 
 ## High-level flow
 
-> 🖼️ **[Illustration Placeholder: End-to-end Checkout Sequence & Consistency Boundaries]**  
-> *Illustration description:* Sequence diagram explicitly delineating the 5 operational boundaries: (1) Client -> API (with Idempotency-Key), (2) API -> DB (Local ACID Transaction wrapping Order + Outbox row), (3) API -> Payment Provider (Timeout Ambiguity window), (4) Outbox Publisher -> Message Broker (At-least-once handoff), (5) Broker -> Fulfillment Consumer (Idempotent execution).
+<AtlasIllustration id="checkout-consistency-boundaries" />
 
 ```mermaid
 graph LR
@@ -134,8 +133,7 @@ Do not keep a database transaction open around a slow external payment call just
 
 ## 2. Treat payment response loss as an ambiguous outcome
 
-> 🖼️ **[Illustration Placeholder: Two Generals Problem & Payment Ambiguity Window]**  
-> *Illustration description:* Ambiguity window diagram when a client issues a payment request: if the response packet is lost in transit, the client cannot distinguish whether the third-party provider debited the funds or aborted without a reconciliation protocol or idempotent query.
+<AtlasIllustration id="payment-ambiguity-window" />
 
 > **Production scenario:** A customer clicks "Place Order" on an unstable mobile 4G connection. The API charges $120 via Stripe, and Stripe responds with success. But before the HTTP response packet reaches the mobile app, the connection drops and the app displays "Request Timeout". Panicking, the customer taps "Place Order" a second time. Without a stable idempotency key tied to that logical cart, the system creates a second order and charges another $120—triggering an immediate customer support incident and chargeback risk.
 
@@ -241,10 +239,7 @@ The architecture becomes easier to reason about when every boundary states its a
 
 ### Database state commits but the process crashes before broker publish
 
-> 🖼️ **[Illustration Placeholder: Dual-Write Problem vs Transactional Outbox Pattern]**  
-> *Illustration description:* Architectural comparison:
-> - **Dual-Write Failure:** App writes to database successfully -> App calls Message Broker but crashes or hits network drop -> State in DB is committed but no downstream event is published (silent persistent inconsistency).
-> - **Transactional Outbox Solution:** App writes Order and Outbox Event within the same local ACID database transaction -> Background worker polls/streams the Outbox table and publishes to Broker -> Guarantees at-least-once delivery even across process crashes.
+<AtlasIllustration id="dual-write-vs-outbox" />
 
 **Control:** store the outbox publish intent in the same local database transaction as the business transition, then let a later publisher continue.
 
@@ -258,10 +253,7 @@ If the selected broker/delivery mode supports redelivery, the same message may a
 
 ### Dependency outage creates a retry storm
 
-> 🖼️ **[Illustration Placeholder: Thundering Herd Retry Storm vs Exponential Backoff with Jitter]**  
-> *Illustration description:* Two-wave traffic graph:
-> - **Retry Storm:** When a downstream payment gateway recovers from a 10s outage, thousands of clients retry synchronously at fixed intervals (t = 1s, 2s, 4s), producing sharp synchronized traffic spikes that immediately crash the gateway again.
-> - **Full Jitter:** Clients distribute retry attempts randomly across `[0, Backoff(n)]`, producing a smoothed, flat request curve that allows downstream dependencies to recover safely.
+<AtlasIllustration id="retry-storm-vs-jitter" />
 
 <TermBox term="Backoff and jitter">
 **Backoff** increases the delay between retries after repeated failure. **Jitter** adds variation so many clients do not retry at exactly the same moments.
