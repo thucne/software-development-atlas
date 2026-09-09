@@ -110,10 +110,10 @@ describe('substantive lesson illustrations', () => {
       if (definition.kind !== 'static-image') return [];
 
       const problems: string[] = [];
-      if (!/^\/illustrations\/.+\.webp$/.test(definition.asset)) {
+      if (!/^\/illustrations\/.+\.(?:webp|svg)$/.test(definition.asset)) {
         problems.push(`${id} has invalid asset path ${definition.asset}`);
       }
-      if (!definition.asset.endsWith(`/${id}.webp`)) {
+      if (!definition.asset.match(new RegExp(`/${id}\\.(?:webp|svg)$`))) {
         problems.push(`${id} asset filename does not match its semantic ID`);
       }
       if (
@@ -130,9 +130,30 @@ describe('substantive lesson illustrations', () => {
       const assetPath = path.join(process.cwd(), 'public', definition.asset);
       if (!existsSync(assetPath)) {
         problems.push(`${id} asset does not exist at public${definition.asset}`);
-      } else if (statSync(assetPath).size > 300 * 1024) {
-        problems.push(`${id} asset exceeds the 300 KB target`);
+        return problems;
       }
+
+      const size = statSync(assetPath).size;
+      if (definition.asset.endsWith('.webp') && size > 300 * 1024) {
+        problems.push(`${id} raster asset exceeds the 300 KB target`);
+      }
+
+      if (definition.asset.endsWith('.svg')) {
+        if (size > 100 * 1024) {
+          problems.push(`${id} vector asset exceeds the 100 KB target`);
+        }
+        const source = readFileSync(assetPath, 'utf8');
+        if (!source.includes('viewBox="0 0 1600 900"')) {
+          problems.push(`${id} vector asset must use the 1600x900 teaching canvas`);
+        }
+        if (/<(?:text|foreignObject|script)\b/i.test(source)) {
+          problems.push(`${id} vector asset contains embedded text or executable content`);
+        }
+        if (/(?:href|xlink:href)=["']https?:/i.test(source)) {
+          problems.push(`${id} vector asset references an external resource`);
+        }
+      }
+
       return problems;
     });
 
