@@ -11,7 +11,7 @@ export const atlasSeo = {
   siteOrigin,
   siteUrl: `${siteOrigin}${sitePath}`,
   ogImage: {
-    url: `${siteOrigin}${sitePath}/og/software-development-atlas.jpg`,
+    url: `${siteOrigin}${sitePath}/og/software-development-atlas`,
     width: 1200,
     height: 630,
     alt: 'Software Development Atlas — a personal learning atlas for modern software engineering',
@@ -124,19 +124,13 @@ export function createPageMetadata({
 
 type SitemapPage = {
   url: string;
-  lastVerified: string;
 };
-
-function verifiedDate(value: string) {
-  return new Date(`${value}T00:00:00.000Z`);
-}
 
 export function createSitemapEntries(
   pages: SitemapPage[],
 ): MetadataRoute.Sitemap {
   return pages.map((page) => ({
     url: canonicalUrl(page.url),
-    lastModified: verifiedDate(page.lastVerified),
     changeFrequency: 'monthly' as const,
     priority: 0.8,
   }));
