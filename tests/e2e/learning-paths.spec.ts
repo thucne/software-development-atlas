@@ -29,7 +29,7 @@ test('exposes Learning Paths in documentation navigation', async ({ page }) => {
   await page.goto('/docs');
 
   await expect(
-    page.locator('a[href="/docs/learning-paths"]').first(),
+    page.getByText('Learning Paths', { exact: true }).first(),
   ).toBeVisible();
 });
 
