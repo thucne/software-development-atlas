@@ -1,4 +1,4 @@
-import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
+import { atlasMaintainer } from '@/lib/site-metadata';
 import type { Metadata, MetadataRoute } from 'next';
 
 const siteOrigin = 'https://thucde.dev';
@@ -134,18 +134,10 @@ function verifiedDate(value: string) {
 export function createSitemapEntries(
   pages: SitemapPage[],
 ): MetadataRoute.Sitemap {
-  return [
-    {
-      url: atlasSeo.siteUrl,
-      lastModified: verifiedDate(atlasLastUpdated),
-      changeFrequency: 'weekly',
-      priority: 1,
-    },
-    ...pages.map((page) => ({
-      url: canonicalUrl(page.url),
-      lastModified: verifiedDate(page.lastVerified),
-      changeFrequency: 'monthly' as const,
-      priority: 0.8,
-    })),
-  ];
+  return pages.map((page) => ({
+    url: canonicalUrl(page.url),
+    lastModified: verifiedDate(page.lastVerified),
+    changeFrequency: 'monthly' as const,
+    priority: 0.8,
+  }));
 }
