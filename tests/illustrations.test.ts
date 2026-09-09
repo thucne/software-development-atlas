@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { atlasIllustrationMedia } from '../components/mdx/atlas-illustration-runtime';
@@ -91,6 +91,16 @@ describe('substantive lesson illustrations', () => {
     expect(failures).toEqual([]);
   });
 
+  test('uses the approved first-generation static/programmatic allocation', () => {
+    const definitions = Object.values(atlasIllustrationMedia);
+    const staticDefinitions = definitions.filter(
+      (definition) => definition.kind === 'static-image',
+    );
+
+    expect(definitions).toHaveLength(31);
+    expect(staticDefinitions).toHaveLength(12);
+  });
+
   test('static teaching images have accessible shared repository assets', () => {
     const staticDefinitions = Object.entries(atlasIllustrationMedia).filter(
       ([, definition]) => definition.kind === 'static-image',
@@ -106,11 +116,22 @@ describe('substantive lesson illustrations', () => {
       if (!definition.asset.endsWith(`/${id}.webp`)) {
         problems.push(`${id} asset filename does not match its semantic ID`);
       }
-      if (!definition.description.en.trim() || !definition.description.vi.trim()) {
-        problems.push(`${id} is missing a localized accessible description`);
+      if (
+        !definition.title.en.trim() ||
+        !definition.title.vi.trim() ||
+        !definition.caption.en.trim() ||
+        !definition.caption.vi.trim() ||
+        !definition.description.en.trim() ||
+        !definition.description.vi.trim()
+      ) {
+        problems.push(`${id} is missing localized title, caption, or accessible description`);
       }
-      if (!existsSync(path.join(process.cwd(), 'public', definition.asset))) {
+
+      const assetPath = path.join(process.cwd(), 'public', definition.asset);
+      if (!existsSync(assetPath)) {
         problems.push(`${id} asset does not exist at public${definition.asset}`);
+      } else if (statSync(assetPath).size > 300 * 1024) {
+        problems.push(`${id} asset exceeds the 300 KB target`);
       }
       return problems;
     });
