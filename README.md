@@ -4,13 +4,14 @@ A living, open-source knowledge system for software engineering — built for hu
 
 Software Development Atlas aims to make deep software-development knowledge easy to learn, easy to reference, easy to verify, and easy to contribute to. The project spans durable fundamentals through modern AI-native and agentic engineering practices while keeping the core experience free to operate.
 
-> **Status:** foundation phase. The project is establishing the knowledge model, representative coverage, curated learning paths, and gold-standard content patterns before scaling further.
+> **Status:** foundation phase. The project has established the canonical knowledge map, curated learning paths, derived coverage views, and first-class engineering-judgment patterns while representative cross-domain coverage continues to grow.
 
 ## Principles
 
 - **Depth without friction.** Explain concepts rigorously, then make them fast to scan and reference.
 - **Map the territory.** Grow by important software-engineering coverage and connections, not raw article count.
 - **Keep gaps honest.** Uncovered concepts and learning-path steps remain visible instead of being hidden to improve metrics.
+- **Teach judgment, not recipes.** Compare alternatives under explicit constraints and trace failure modes across realistic system boundaries.
 - **Learn by interacting when it helps.** Prefer diagrams, runnable examples, comparisons, exercises, and visualizations where they materially improve understanding.
 - **Human + agent native.** Canonical knowledge should be useful as documentation and as structured context for coding agents.
 - **Freshness is visible.** Evolving and frontier material records when it was last verified and how often it should be reviewed.
@@ -31,7 +32,9 @@ This keeps difficulty, navigation, loose search tags, content format, learning o
 
 `content/learning-paths.json` defines curated concept sequences for particular learning outcomes. It stores path order and intent, not authored page URLs. Coverage and available-content links are derived from canonical MDX concept placement, so the Atlas can show both supported and currently uncovered steps without maintaining a second lesson registry.
 
-See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard, the [Software Engineering Map](./content/docs/start-here/software-engineering-map.mdx) for the human-readable model, [Atlas Coverage](./content/docs/start-here/coverage.mdx) for current authored support, and [Learning Paths](./content/docs/learning-paths/index.mdx) for curated traversals.
+Engineering Judgment is a docs experience built on the same canonical MDX and concept placement. Decision guides compare alternatives under explicit constraints; architecture walkthroughs trace realistic vertical slices across boundaries, failure/recovery, security, observability, and cost. No separate decision registry or scoring engine is required.
+
+See [CONTENT_GUIDE.md](./CONTENT_GUIDE.md) for the canonical authoring standard, the [Software Engineering Map](./content/docs/start-here/software-engineering-map.mdx) for the human-readable model, [Atlas Coverage](./content/docs/start-here/coverage.mdx) for current authored support, [Learning Paths](./content/docs/learning-paths/index.mdx) for curated traversals, and [Engineering Judgment](./content/docs/engineering-judgment/index.mdx) for decision guides and architecture walkthroughs.
 
 ## Planned stack
 
@@ -68,6 +71,8 @@ A deep dive may include:
 12. Primary sources
 13. Freshness metadata
 
+Decision guides and architecture walkthroughs use different anatomy because the learning outcome is engineering reasoning rather than exhaustive concept exposition. The reusable `DecisionMatrix` component remains a static semantic presentation primitive; the explanation stays canonical in Markdown.
+
 ## Project roadmap
 
 The project intentionally grows through small, reviewable slices:
@@ -78,7 +83,8 @@ The project intentionally grows through small, reviewable slices:
 4. extract reusable learning primitives from real needs;
 5. grow representative coverage across the Software Engineering Map;
 6. add curated learning paths and derived coverage views;
-7. make decision guides and architecture walkthroughs first-class content for engineering judgment.
+7. make decision guides and architecture walkthroughs first-class content for engineering judgment;
+8. continue expanding representative cross-domain content before community-scale discovery and contribution work.
 
 See [docs/roadmap.md](./docs/roadmap.md) for details.
 
@@ -122,7 +128,7 @@ pnpm test:e2e
 
 ### Content
 
-Canonical authored pages live in `content/docs` as Markdown/MDX. The canonical concept map lives in `content/atlas-map.json`; curated learning-path order lives in `content/learning-paths.json`. Frontmatter, concept references, path references, and coverage behavior are validated in CI/build tooling. Do not add a runtime database for ordinary Atlas content.
+Canonical authored pages live in `content/docs` as Markdown/MDX. The canonical concept map lives in `content/atlas-map.json`; curated learning-path order lives in `content/learning-paths.json`. Frontmatter, concept references, path references, coverage behavior, representative judgment routes, and accessibility are validated in CI/build tooling. Do not add a runtime database for ordinary Atlas content.
 
 ### Cost boundary
 
