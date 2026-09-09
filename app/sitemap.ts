@@ -6,7 +6,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return createSitemapEntries(
     source.getPages().map((page) => ({
       url: page.url,
-      lastVerified: page.data.lastVerified,
     })),
   );
 }
