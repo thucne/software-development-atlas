@@ -53,15 +53,7 @@ Theo đặc tả ECMAScript, một Promise luôn nằm ở một trong ba trạn
 Một Promise được gọi là **settled** khi nó đã chuyển sang trạng thái `fulfilled` hoặc `rejected`. Quá trình chuyển sang settled là **bất biến và một chiều** — một khi đã settled, Promise không thể đổi trạng thái hay đổi giá trị lần thứ hai.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Sơ đồ máy trạng thái Promise & Resolution vs Settlement]**  
-> *Mô tả hình minh họa:* Sơ đồ máy trạng thái (State Machine) của Promise:
-> 1. **Khởi tạo:** Bắt đầu ở trạng thái `pending`.
-> 2. **Chuyển trạng thái 1 chiều (Settled):**
->    - Gọi `resolve(primitiveValue)` -> Chuyển vĩnh viễn sang `fulfilled` với giá trị `value`.
->    - Gọi `reject(reason)` -> Chuyển vĩnh viễn sang `rejected` với lý do lỗi.
->    - Một khi đã Settled thì không thể đổi trạng thái được nữa (Bất biến / Immutable).
-> 3. **Trường hợp đặc biệt "Promise Adoption" (Resolved nhưng vẫn Pending):**
->    - Khi gọi `resolve(innerPromise)` -> Promise ngoài lập tức được xem là `resolved` (số phận đã ấn định, không thể reject để đổi ý), NHƯNG bản thân nó vẫn ở trạng thái `pending` cho đến khi `innerPromise` hoàn tất.
+<AtlasIllustration id="promise-state-machine" />
 
 ```js
 const p1 = new Promise((resolve) => {
@@ -102,13 +94,7 @@ Khi gọi `.then()`, `.catch()`, hay `.finally()`, JavaScript không biến đ�
 P0 --then(fn1)--> P1 --catch(fn2)--> P2
 ```
 
-> 🖼️ **[Illustration Placeholder: Luồng dữ liệu qua chuỗi Promise Chain]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng dữ liệu qua các mắt xích Promise Chain (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
-> - Mỗi mắt xích là một Object Promise riêng biệt độc lập trong heap memory (`p0 !== p1 !== p2`).
-> - Minh họa trực quan 3 kịch bản kết quả của một Handler:
->   1. **Return Value:** Handler trả về `x` -> downstream Promise lập tức fulfill với `x`.
->   2. **Throw Error:** Handler ném lỗi `throw err` -> downstream Promise lập tức reject với `err`.
->   3. **Return Promise (Flattening/Adoption):** Handler trả về một Promise khác `fetchData()` -> downstream Promise sẽ "nhận nuôi" (adopt) và chỉ settle khi `fetchData()` hoàn thành (không bị lồng thành `Promise<Promise<T>>`).
+<AtlasIllustration id="promise-chain-outcomes" />
 
 ### Bảng đối chiếu kết quả của Handler
 
@@ -133,12 +119,7 @@ Sử dụng môi trường mô phỏng dưới đây để từng bước quan s
 
 Lỗi trong chuỗi Promise hoạt động như một thác nước: nếu mắt xích hiện tại không có handler xử lý lỗi (`onRejected`), lỗi sẽ nhảy cóc qua tất cả các `.then()` trung gian cho đến khi gặp `.catch()` đầu tiên.
 
-> 🖼️ **[Illustration Placeholder: Thác nước lan truyền lỗi & Cơ chế Recovery]**  
-> *Mô tả hình minh họa:* Mô hình "thác đổ" (waterfall) của lỗi trong Promise chain:
-> - Khi một mắt xích ném lỗi (`throw Error`), lỗi sẽ nhảy cóc qua tất cả các `.then(onFulfilled)` trung gian mà không thực thi chúng.
-> - Điểm chạm `.catch(onRejected)`:
->   - **Kịch bản Khôi phục (Recovery):** Nếu `.catch()` return fallback data -> downstream Promise phía sau nó lập tức trở lại trạng thái `fulfilled` và các `.then()` tiếp theo lại chạy bình thường!
->   - **Kịch bản Bắt lỗi không trọn vẹn (Swallowed Error):** `.catch()` chỉ chạy `console.log(err)` mà quên `throw` -> vô tình biến luồng lỗi thành `fulfilled undefined`, gây bug logic nguy hiểm cho các bước phía sau.
+<AtlasIllustration id="promise-error-propagation" />
 
 ```js
 fetchUser(id)
@@ -162,12 +143,7 @@ fetchUser(id)
 Một **Promise Combinator** là một phương thức tĩnh nhận vào một mảng/tập hợp các Promise và trả về một Promise duy nhất tổng hợp kết quả của chúng.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Bảng ma trận so sánh 4 Promise Combinators]**  
-> *Mô tả hình minh họa:* Bảng đồ họa so sánh trực quan 4 combinators với 3 Promise con [P1 (hoàn thành sớm, thành công), P2 (hoàn thành muộn, thành công), P3 (hoàn thành giữa chừng, thất bại)]:
-> 1. `Promise.all`: Đòi hỏi TẤT CẢ thành công. P3 fail -> lập tức reject toàn cục (Fail-fast), kết quả của P1/P2 bị bỏ qua.
-> 2. `Promise.allSettled`: Luôn chờ TẤT CẢ P1, P2, P3 hoàn thành -> Trả về mảng 3 records trạng thái `{status: 'fulfilled' | 'rejected'}` (an toàn tuyệt đối cho batch operations).
-> 3. `Promise.race`: Ai cán đích đầu tiên (dù thắng hay thua) sẽ quyết định số phận -> P1 xong trước -> resolve theo P1.
-> 4. `Promise.any`: Tìm người THÀNH CÔNG đầu tiên -> P1 thành công -> resolve theo P1. Chỉ reject khi CẢ BA cùng fail (trả về `AggregateError`).
+<AtlasIllustration id="promise-combinators" />
 
 | API | Nhu cầu sử dụng | Hành vi khi có lỗi (Failure) |
 | :--- | :--- | :--- |

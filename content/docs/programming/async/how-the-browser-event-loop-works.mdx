@@ -88,13 +88,7 @@ A **microtask** is short checkpoint work kept separate from regular browser task
 
 ## Run-to-completion
 
-> 🖼️ **[Illustration Placeholder: Browser Event Loop Architecture Overview]**  
-> *Illustration description:* Overview of the 4 core components of the browser event loop architecture:
-> 1. **Call Stack:** Synchronous LIFO JavaScript execution (Run-to-completion).
-> 2. **Web APIs:** Background browser runtime capabilities (Timers, Fetch network requests, DOM event listeners).
-> 3. **Microtask Queue:** High-priority queue (`Promise.then`, `queueMicrotask`, `MutationObserver`), drained to completion at each checkpoint.
-> 4. **Task Queues (Macrotasks):** Task-source queues for scheduled callbacks and user events (`setTimeout`, I/O, click handlers).
-> Arrows show the Event Loop engine coordinating execution between the Call Stack, Queues, and the Rendering pipeline.
+<AtlasIllustration id="event-loop-architecture" />
 
 For ordinary browser application code, **the browser does not start an unrelated event-loop callback in the middle of the JavaScript that is already executing for the current task**.
 
@@ -118,8 +112,7 @@ A **microtask checkpoint** is a point where the browser repeatedly takes and run
 **Why it matters here:** Promise reactions commonly run during this checkpoint before the browser moves on to later regular task work. A microtask can also queue another microtask, and the newly queued work can run during the same checkpoint.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Microtask Checkpoint Drain Loop]**  
-> *Illustration description:* Checkpoint drain loop diagram: When the executing task finishes -> Enter Microtask Checkpoint -> Continuously dequeue and execute microtasks -> If a running microtask queues another via `queueMicrotask()` -> Appends to the active queue and executes within the SAME checkpoint until the queue is completely empty -> Only then does the browser proceed to check rendering opportunities or select the next task.
+<AtlasIllustration id="microtask-checkpoint-drain" />
 
 A nested microtask shows the “until empty” rule:
 
@@ -285,12 +278,7 @@ A **rendering opportunity** is a point where the browser may decide that renderi
 **Why it matters here:** finishing a task and draining microtasks does not promise an immediate paint. The browser may skip unnecessary rendering, coalesce work, or run additional tasks before a rendering update.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Browser Rendering Pipeline & Frame Lifecycle]**  
-> *Illustration description:* Sequence diagram of a browser frame render lifecycle (e.g., 60Hz display ~ 16.6ms frame budget):
-> 1. Main thread completes current Task execution and reaches a microtask checkpoint.
-> 2. Rendering Opportunity evaluation: Browser checks whether a frame update is warranted (skips if tab is backgrounded or no DOM/CSS mutations occurred).
-> 3. Pipeline execution: Resize/Scroll events -> `requestAnimationFrame()` callbacks -> Style recalculation -> Layout (Reflow) -> Paint -> Composite -> Hand-off to GPU compositor.
-> 4. Key pedagogical takeaway: `requestAnimationFrame()` runs immediately BEFORE Style & Layout in the frame pipeline, NOT after an arbitrary microtask checkpoint.
+<AtlasIllustration id="browser-rendering-pipeline" />
 
 The HTML processing model lets the browser determine rendering opportunities. Current HTML processing can queue rendering-update work on a rendering task source when a window has a rendering opportunity, and the specification explicitly allows tasks to run back-to-back with microtask checkpoints but no intermediate rendering update.
 
@@ -372,10 +360,7 @@ The appropriate fix depends on the workload: reduce the work, choose a better al
 **Why it matters here:** later regular tasks and rendering-related work can be delayed even when each individual microtask is small.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Main Thread Starvation: Long Task vs Microtask Loop]**  
-> *Illustration description:* Side-by-side comparison of two main thread starvation mechanisms:
-> - **Scenario A (Long Synchronous Task):** A heavy CPU computation blocks the Call Stack for 400ms -> User clicks and scrolls queue up in the Task Queue without running -> Chrome DevTools flags a bright red "Long Task (>50ms)", causing Interaction to Next Paint (INP) to degrade.
-> - **Scenario B (Unbounded Microtask Chain):** Each microtask takes only 0.5ms but recursively calls `queueMicrotask()` -> The microtask queue never empties -> The engine stays locked in the microtask checkpoint, unable to yield to Macrotasks or Rendering updates -> The viewport freezes completely even with no synchronous `while(true)` loop.
+<AtlasIllustration id="main-thread-starvation" />
 
 ```ts
 function again() {

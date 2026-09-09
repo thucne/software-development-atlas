@@ -67,10 +67,7 @@ Tác vụ C: 0 ─── 300
 
 Tổng thời gian thực thi chỉ bằng tác vụ lâu nhất: `max(800, 400, 300) = 800ms`. Khoảng thời gian chờ đợi đã gối đầu lên nhau, tiết kiệm được tới `700ms`.
 
-> 🖼️ **[Illustration Placeholder: Đối chiếu Waterfall và Chạy đồng thời trên DevTools Network]**  
-> *Mô tả hình minh họa:* So sánh trực quan trên bảng Network của DevTools giữa hai đồ thị thực thi:  
-> - **Tuần tự bậc thang (Waterfall):** Request A (800ms) -> Request B (400ms) -> Request C (300ms) tạo thành bậc thang nối tiếp tổng cộng 1500ms.  
-> - **Đồng thời (Concurrent):** Cả ba Request A, B, C cùng xuất phát tại t = 0ms; hoàn tất khi request dài nhất (A, 800ms) kết thúc.
+<AtlasIllustration id="network-waterfall-vs-overlap" />
 
 <TermBox term="Dependency graph">
 **Đồ thị phụ thuộc (Dependency graph)** mô tả những thao tác nào bắt buộc phải có kết quả từ các thao tác khác trước khi được phép bắt đầu. Một mũi tên `A → B` thể hiện B phụ thuộc vào dữ liệu do A sinh ra.
@@ -134,10 +131,7 @@ const [flags, recommendations] = await Promise.all([
 **Ý nghĩa thực tiễn:** Độ trễ đầu cuối được quyết định bởi đường găng, không phải tổng thời gian cộng dồn của từng thao tác riêng lẻ. Kích hoạt sớm các tác vụ ngoài đường găng sẽ rút ngắn thời gian xử lý mà không vi phạm tính toàn vẹn dữ liệu.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Đồ thị DAG và Đường găng (Critical Path)]**  
-> *Mô tả hình minh họa:* Sơ đồ luồng DAG:  
-> - Nhánh phụ thuộc: `getUser(id)` (500ms) -> `getOrganization(user.orgId)` (400ms) tạo thành Đường găng chính (900ms).  
-> - Nhánh độc lập: `getFeatureFlags(id)` (300ms) và `getRecommendations(id)` (700ms) khởi động song song tại t = 0ms và hoàn thành trước khi đường găng kết thúc.
+<AtlasIllustration id="dag-critical-path" />
 
 ## `Promise.all()` là công cụ, không phải quy tắc vạn năng
 
@@ -174,8 +168,7 @@ const results = await Promise.all(
 **Ý nghĩa thực tiễn:** Bung tỏa không kiểm soát sẽ nhanh chóng vét cạn connection pool của cơ sở dữ liệu, socket mạng, file descriptors, dung lượng RAM và CPU.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Cơ chế Semaphore giới hạn mức đồng thời (Bounded Concurrency)]**  
-> *Mô tả hình minh họa:* Sơ đồ kiểm soát Fan-out: 1,000 request được điều tiết qua Semaphore/Queue với `concurrency = 5`. Tại mỗi thời điểm chỉ có tối đa 5 kết nối đồng thời tác động vào cơ sở dữ liệu; các request còn lại xếp hàng đợi, giúp hệ thống vận hành ổn định và không bị quá tải.
+<AtlasIllustration id="bounded-concurrency" />
 
 ## Khi nào thực thi tuần tự là chính xác?
 

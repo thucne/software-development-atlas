@@ -67,10 +67,7 @@ C: 0 ─── 300
 
 Elapsed time is about `max(800, 400, 300) = 800ms`. The waiting periods overlap, saving roughly `700ms` in this simplified model.
 
-> 🖼️ **[Illustration Placeholder: DevTools Network Waterfall vs Parallel Overlap]**  
-> *Illustration description:* Visual comparison in the DevTools Network panel between two execution timelines:
-> - **Sequential Waterfall:** Request A (800ms) -> Request B (400ms) -> Request C (300ms) form a stair-step cascade totaling 1500ms.
-> - **Concurrent Overlap:** Requests A, B, and C launch simultaneously at t = 0ms, settling when the longest request (A, 800ms) completes.
+<AtlasIllustration id="network-waterfall-vs-overlap" />
 
 <TermBox term="Dependency graph">
 A **dependency graph** describes which operations require results from other operations before they can start. An arrow `A → B` means B needs something produced by A.
@@ -221,10 +218,7 @@ The **critical path** is the longest chain of dependent operations that determin
 **Why it matters here:** end-to-end latency is often determined by the slowest required dependency chain, not by the sum of every operation the system performs. Starting independent work earlier can shorten elapsed time without breaking the real chain.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Directed Acyclic Graph (DAG) Scheduling with Critical Path]**  
-> *Illustration description:* DAG flow diagram showing execution branches:
-> - Dependent path: `getUser(id)` (500ms) -> `getOrganization(user.orgId)` (400ms) forms the Critical Path (900ms).
-> - Independent paths: `getFeatureFlags(id)` (300ms) and `getRecommendations(id)` (700ms) launch concurrently at t = 0ms and finish well before the Critical Path concludes.
+<AtlasIllustration id="dag-critical-path" />
 
 ## `Promise.all()` is a tool, not the rule
 
@@ -264,8 +258,7 @@ Concurrency has costs. Removing a waterfall can make one request faster while pl
 **Why it matters here:** reducing a waterfall by starting everything at once can overwhelm connection pools, sockets, databases, remote APIs, memory, or CPU when the fan-out is large.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Bounded Concurrency Semaphore / Worker Pool]**  
-> *Illustration description:* Fan-out control mechanism diagram: An array of 1,000 independent requests dispatched through a Semaphore / Worker Pool with `concurrency = 5`. At any given moment, a maximum of 5 concurrent connections hit the database; remaining items wait in queue for available slots, keeping latency predictable without overwhelming downstream services.
+<AtlasIllustration id="bounded-concurrency" />
 
 <TermBox term="Backpressure">
 **Backpressure** is a way for a system to limit or slow incoming/concurrent work when a downstream resource cannot safely process more of it yet.

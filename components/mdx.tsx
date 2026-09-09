@@ -8,6 +8,7 @@ import { AsyncWaterfallLab } from '@/components/learning/async-waterfall-lab';
 import { EventLoopLab } from '@/components/learning/event-loop-lab';
 import { HttpRequestPathExplorer } from '@/components/learning/http-request-path-explorer';
 import { PromiseResolutionLab } from '@/components/learning/promise-resolution-lab';
+import { AtlasIllustration } from '@/components/mdx/atlas-illustration';
 import { Mermaid } from '@/components/mdx/mermaid';
 import { TermBox } from '@/components/mdx/term-box';
 import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
@@ -49,6 +50,9 @@ export function getMDXComponents(
     LearningPathsOverview: (
       props: Parameters<typeof LearningPathsOverview>[0],
     ) => <LearningPathsOverview locale={locale} {...props} />,
+    AtlasIllustration: (
+      props: Omit<Parameters<typeof AtlasIllustration>[0], 'locale'>,
+    ) => <AtlasIllustration locale={locale} {...props} />,
     DecisionMatrix,
     AsyncWaterfallLab,
     EventLoopLab,

@@ -90,15 +90,7 @@ settled = fulfilled OR rejected
 A Promise can be **pending and already resolved** when it has been resolved to another still-pending Promise or thenable whose eventual outcome it must follow.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Promise State Machine & Resolution vs Settlement]**  
-> *Illustration description:* State machine diagram of a JavaScript Promise:
-> 1. **Initial state:** Starts in the `pending` state.
-> 2. **Irreversible one-way transition (Settled):**
->    - Calling `resolve(primitiveValue)` -> Permanently transitions to `fulfilled` with value `value`.
->    - Calling `reject(reason)` -> Permanently transitions to `rejected` with failure `reason`.
->    - Once Settled, state transitions are permanently locked (Immutable).
-> 3. **Special case: "Promise Adoption" (Resolved but still Pending):**
->    - Calling `resolve(innerPromise)` -> Outer promise is immediately marked as `resolved` (its fate is sealed, cannot be rejected), BUT its state remains `pending` until `innerPromise` settles.
+<AtlasIllustration id="promise-state-machine" />
 
 The simple cases look unsurprising:
 
@@ -264,13 +256,7 @@ P0 --then(handleValue)--> P1 --catch(handleError)--> P2 --finally(cleanup)--> P3
 
 `P0`, `P1`, `P2`, and `P3` are separate Promise objects. Each downstream Promise has its **own** outcome.
 
-> 🖼️ **[Illustration Placeholder: Downstream Promise Generation & Handler Outcomes]**  
-> *Illustration description:* Data flow diagram through chained Promise nodes (`p0` -> `then()` -> `p1` -> `catch()` -> `p2`):
-> - Each link in the chain is an independent Promise object allocated on the heap (`p0 !== p1 !== p2`).
-> - Visualizing the 3 outcome pathways of any handler:
->   1. **Return Value:** Handler returns `x` -> downstream Promise immediately fulfills with `x`.
->   2. **Throw Error:** Handler executes `throw err` -> downstream Promise immediately rejects with `err`.
->   3. **Return Promise (Adoption / Flattening):** Handler returns another Promise `fetchData()` -> downstream Promise adopts its fate and only settles when `fetchData()` settles (no nested `Promise<Promise<T>>`).
+<AtlasIllustration id="promise-chain-outcomes" />
 
 ## Return, throw, adopt
 
@@ -361,12 +347,7 @@ That is a concrete resolved-but-not-fulfilled state.
 
 ## Error propagation and recovery
 
-> 🖼️ **[Illustration Placeholder: Promise Error Propagation & Recovery Mechanics]**  
-> *Illustration description:* Waterfall diagram of error propagation down a Promise chain:
-> - When a handler throws an error (`throw Error`), the rejection bypasses all intermediate `.then(onFulfilled)` handlers without invoking them.
-> - At the `.catch(onRejected)` interception point:
->   - **Recovery pathway:** If `.catch()` returns fallback data -> downstream Promise immediately returns to `fulfilled` state, and subsequent `.then()` handlers resume normal execution.
->   - **Swallowed Error hazard:** If `.catch()` only executes `console.log(err)` without rethrowing -> implicitly fulfills with `undefined`, allowing downstream success handlers to execute with invalid state.
+<AtlasIllustration id="promise-error-propagation" />
 
 When the current outcome does not match a supplied handler, that outcome propagates until a matching handler is reached.
 
@@ -425,12 +406,7 @@ A **Promise combinator** is a static Promise API that combines several input val
 **Why it matters here:** each combinator has a different success and failure contract. Choose the contract you need rather than treating them as interchangeable ways to “run things in parallel.”
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Promise Combinators Comparison Matrix & Behavior]**  
-> *Illustration description:* Visual comparison table of the four Promise combinators operating on three sub-promises [P1 (fast, fulfills), P2 (slow, fulfills), P3 (medium, rejects)]:
-> 1. `Promise.all`: Requires ALL to fulfill. P3 fails -> immediately rejects globally (Fail-fast); outcomes of P1/P2 are disregarded.
-> 2. `Promise.allSettled`: Waits for ALL sub-promises (P1, P2, P3) to complete -> returns an array of 3 `{status: 'fulfilled' | 'rejected'}` result objects (safe for batch processing).
-> 3. `Promise.race`: First to cross the finish line (whether fulfilled or rejected) dictates the outcome -> P1 settles first -> resolves with P1.
-> 4. `Promise.any`: Searches for the FIRST fulfillment -> P1 succeeds -> resolves with P1. Rejects only if ALL three fail (rejecting with `AggregateError`).
+<AtlasIllustration id="promise-combinators" />
 
 | Need | API | Key failure behavior |
 | --- | --- | --- |

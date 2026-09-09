@@ -65,8 +65,7 @@ Trước khi chọn một framework, hãy liệt kê rõ ràng các ràng buộc
 **Ý nghĩa thực tiễn:** Nếu HTML ban đầu thực sự phụ thuộc vào trạng thái này, một bản HTML tĩnh dùng chung sẽ không thể đáp ứng an toàn.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Đối chiếu Timeline tải trang của CSR vs SSR vs SSG]**  
-> *Mô tả hình minh họa:* Sơ đồ 3 dòng timeline thể hiện các mốc quan trọng: Thời điểm nhận HTML (vỏ rỗng vs DOM đầy đủ), Tải và phân tích bundle JavaScript, Hoàn tất Hydration, và Khả năng tương tác của người dùng (First Contentful Paint vs Time to Interactive / INP).
+<AtlasIllustration id="rendering-strategies-timeline" />
 
 ## So sánh chi tiết các mô hình
 
@@ -86,11 +85,7 @@ Với SSR, máy chủ render mã HTML hoàn chỉnh cho từng request và có t
 **Ý nghĩa thực tiễn:** SSR giúp hiển thị nội dung trực quan rất nhanh, nhưng người dùng vẫn có thể bị trễ tương tác (Uncanny Valley) trong lúc chờ đợi JavaScript hoàn tất quá trình hydration.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Quá trình Hydration & Khoảng trống Uncanny Valley]**  
-> *Mô tả hình minh họa:* Sơ đồ 3 giai đoạn tải trang SSR:  
-> 1. Nhận HTML từ Server: Giao diện hiển thị ngay lập tức, user thấy nội dung nhưng bấm nút không ăn do DOM chưa có event listeners.  
-> 2. Khoảng trống Uncanny Valley: User bấm nút nhưng giao diện đóng băng do trình duyệt đang bận tải, phân tích và thực thi bundle JavaScript lớn.  
-> 3. Hydration hoàn tất: Framework gắn xong event listeners vào DOM; trang web đạt trạng thái tương tác hoàn chỉnh (Time to Interactive).
+<AtlasIllustration id="hydration-gap" />
 
 ### Static site generation (SSG) / Prerendering
 
@@ -102,11 +97,7 @@ Trong các hệ thống SSG hiện đại, **revalidation (tái xác thực)** l
 **Ý nghĩa thực tiễn:** Trang tĩnh không có nghĩa là "vĩnh viễn không đổi". Vấn đề là chu kỳ revalidate có đáp ứng được ngưỡng chấp nhận dữ liệu cũ của sản phẩm hay không.
 </TermBox>
 
-> 🖼️ **[Illustration Placeholder: Vòng đời tái xác thực tĩnh (ISR Lifecycle)]**  
-> *Mô tả hình minh họa:* Chu trình ISR tại Edge CDN:  
-> - Request 1 (Trúng Cache Fresh): Phục vụ tức thì từ CDN (0ms tính toán backend).  
-> - Request 2 (Chạm ngưỡng Stale): Lập tức trả nội dung cũ cho user (stale-while-revalidate), đồng thời kích hoạt ngầm lệnh render trang mới tại server.  
-> - Request 3 (Sau khi render xong): CDN cập nhật bản HTML mới và phục vụ cho tất cả các request tiếp theo.
+<AtlasIllustration id="isr-lifecycle" />
 
 ## Ma trận đánh giá quyết định
 
@@ -173,6 +164,8 @@ Trong các hệ thống SSG hiện đại, **revalidation (tái xác thực)** l
     },
   ]}
 />
+
+<AtlasIllustration id="hybrid-rendering-architecture" />
 
 ## Tình huống thực tế trên Production
 
