@@ -430,17 +430,27 @@ const definitions: Record<AtlasIllustrationId, IllustrationDefinition> = {
     ],
   },
   'dag-critical-path': {
-    kind: 'flow',
+    kind: 'compare',
     title: t('Dependency graph and critical path', 'Đồ thị phụ thuộc và Critical Path'),
     caption: t(
-      'Start independent branches early while preserving the real dependency chain that determines completion.',
-      'Khởi động sớm các nhánh độc lập nhưng vẫn giữ đúng chuỗi phụ thuộc thực sự quyết định thời điểm hoàn tất.',
+      'Start independent branches early at t=0 while preserving the sequential dependency chain that determines completion.',
+      'Khởi động sớm các nhánh độc lập tại t=0 nhưng vẫn giữ đúng chuỗi phụ thuộc tuần tự quyết định thời điểm hoàn tất.',
     ),
-    cards: [
-      { label: t('getUser · 500 ms', 'getUser · 500 ms'), detail: t('Critical path starts', 'Bắt đầu critical path'), tone: 'accent' },
-      { label: t('getOrganization · 400 ms', 'getOrganization · 400 ms'), detail: t('Depends on user', 'Phụ thuộc user'), tone: 'danger' },
-      { label: t('Feature flags · 300 ms', 'Feature flags · 300 ms'), detail: t('Independent from t=0', 'Độc lập từ t=0'), tone: 'success' },
-      { label: t('Recommendations · 700 ms', 'Recommendations · 700 ms'), detail: t('Independent from t=0', 'Độc lập từ t=0'), tone: 'success' },
+    columns: [
+      {
+        title: t('Critical path: 900 ms (Sequential)', 'Đường găng: 900 ms (Tuần tự bắt buộc)'),
+        cards: [
+          { label: t('getUser · 500 ms', 'getUser · 500 ms'), detail: t('Step 1: Starts at t=0', 'Bước 1: Bắt đầu tại t=0'), tone: 'accent' },
+          { label: t('getOrganization · 400 ms', 'getOrganization · 400 ms'), detail: t('Step 2: Awaits user.orgId', 'Bước 2: Chờ user.orgId'), tone: 'danger' },
+        ],
+      },
+      {
+        title: t('Independent branches (Run concurrently from t=0)', 'Các nhánh độc lập (Chạy song song từ t=0)'),
+        cards: [
+          { label: t('Feature flags · 300 ms', 'Feature flags · 300 ms'), detail: t('Finishes at t=300 ms', 'Hoàn thành tại t=300 ms'), tone: 'success' },
+          { label: t('Recommendations · 700 ms', 'Recommendations · 700 ms'), detail: t('Finishes at t=700 ms', 'Hoàn thành tại t=700 ms'), tone: 'success' },
+        ],
+      },
     ],
   },
   'bounded-concurrency': {
@@ -690,32 +700,48 @@ function DiagramCard({ card, locale }: { card: Card; locale: Locale }) {
 }
 
 function FlowDiagram({ definition, locale }: { definition: FlowDefinition; locale: Locale }) {
+  const scrollLabel = locale === 'vi' ? 'Sơ đồ luồng' : 'Flow diagram';
+
   return (
-    <div className="grid gap-2 md:grid-flow-col md:auto-cols-fr md:items-stretch">
-      {definition.cards.map((card, index) => (
-        <div key={`${localized(card.label, locale)}-${index}`} className="contents">
-          <DiagramCard card={card} locale={locale} />
-          {index < definition.cards.length - 1 ? (
-            <div
-              aria-hidden="true"
-              className="flex items-center justify-center text-lg font-semibold text-fd-muted-foreground max-md:rotate-90"
-            >
-              →
+    <div
+      role="region"
+      aria-label={scrollLabel}
+      tabIndex={0}
+      className="overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <div className="flex min-w-max items-stretch gap-2.5 sm:gap-3">
+        {definition.cards.map((card, index) => (
+          <div key={`${localized(card.label, locale)}-${index}`} className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-48 sm:w-56 shrink-0">
+              <DiagramCard card={card} locale={locale} />
             </div>
-          ) : null}
-        </div>
-      ))}
+            {index < definition.cards.length - 1 ? (
+              <div
+                aria-hidden="true"
+                className="shrink-0 text-base font-semibold text-fd-muted-foreground select-none"
+              >
+                →
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function CompareDiagram({ definition, locale }: { definition: CompareDefinition; locale: Locale }) {
+  const colCount = definition.columns.length;
+
   return (
     <div
-      className="grid gap-3"
-      style={{
-        gridTemplateColumns: `repeat(${Math.min(definition.columns.length, 4)}, minmax(0, 1fr))`,
-      }}
+      className={`grid gap-3 ${
+        colCount === 2
+          ? 'grid-cols-1 md:grid-cols-2'
+          : colCount === 3
+            ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+            : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+      }`}
     >
       {definition.columns.map((column) => (
         <section
@@ -741,34 +767,50 @@ function CompareDiagram({ definition, locale }: { definition: CompareDefinition;
 }
 
 function TimelineDiagram({ definition, locale }: { definition: TimelineDefinition; locale: Locale }) {
+  const scrollLabel = locale === 'vi' ? 'Biểu đồ tiến trình' : 'Timeline diagram';
+
   return (
-    <div className="grid gap-4">
-      {definition.lanes.map((lane) => (
-        <div key={localized(lane.label, locale)} className="grid gap-2 md:grid-cols-[8rem_1fr] md:items-center">
-          <div className="text-sm font-semibold text-fd-foreground">
-            {localized(lane.label, locale)}
+    <div
+      role="region"
+      aria-label={scrollLabel}
+      tabIndex={0}
+      className="overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <div className="min-w-[32rem] grid gap-4">
+        {definition.lanes.map((lane) => (
+          <div key={localized(lane.label, locale)} className="grid gap-2 grid-cols-[8rem_1fr] items-center">
+            <div className="text-sm font-semibold text-fd-foreground">
+              {localized(lane.label, locale)}
+            </div>
+            <div className="relative h-14 overflow-hidden rounded-lg border border-fd-border bg-fd-muted/25">
+              {lane.segments.map((segment, index) => (
+                <div
+                  key={`${localized(segment.label, locale)}-${index}`}
+                  className={`absolute top-2 flex h-10 items-center overflow-hidden rounded-md border px-2 text-[11px] font-medium leading-tight text-fd-foreground ${toneClass[segment.tone ?? 'muted']}`}
+                  style={{ left: `${segment.start}%`, width: `${segment.width}%` }}
+                  title={localized(segment.label, locale)}
+                >
+                  <span className="truncate">{localized(segment.label, locale)}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="relative h-14 overflow-hidden rounded-lg border border-fd-border bg-fd-muted/25">
-            {lane.segments.map((segment, index) => (
-              <div
-                key={`${localized(segment.label, locale)}-${index}`}
-                className={`absolute top-2 flex h-10 items-center overflow-hidden rounded-md border px-2 text-[11px] font-medium leading-tight text-fd-foreground ${toneClass[segment.tone ?? 'muted']}`}
-                style={{ left: `${segment.start}%`, width: `${segment.width}%` }}
-                title={localized(segment.label, locale)}
-              >
-                {localized(segment.label, locale)}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 function MatrixDiagram({ definition, locale }: { definition: MatrixDefinition; locale: Locale }) {
+  const scrollLabel = locale === 'vi' ? 'Bảng ma trận' : 'Matrix table';
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-fd-border">
+    <div
+      role="region"
+      aria-label={scrollLabel}
+      tabIndex={0}
+      className="overflow-x-auto rounded-lg border border-fd-border focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
       <table className="m-0 min-w-full border-collapse text-sm">
         <thead>
           <tr className="bg-fd-muted/40">
@@ -824,10 +866,16 @@ function ChartDiagram({ definition, locale }: { definition: ChartDefinition; loc
     danger: '#ef4444',
     muted: 'var(--color-fd-muted-foreground)',
   };
+  const scrollLabel = locale === 'vi' ? 'Biểu đồ trực quan' : 'Visual chart';
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border border-fd-border bg-fd-card/45 p-2">
+      <div
+        role="region"
+        aria-label={scrollLabel}
+        tabIndex={0}
+        className="overflow-x-auto rounded-lg border border-fd-border bg-fd-card/45 p-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
         <svg
           aria-hidden="true"
           className="min-w-[36rem] text-fd-muted-foreground"
