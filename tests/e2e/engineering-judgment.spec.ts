@@ -41,3 +41,37 @@ test('representative decision guide has no serious or critical accessibility vio
 
   expect(serious).toEqual([]);
 });
+
+test('renders the reliable checkout walkthrough across failure and observability boundaries', async ({
+  page,
+}) => {
+  await page.goto(
+    '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+  );
+
+  await expect(
+    page.getByRole('heading', { name: 'Reliable Checkout Walkthrough', level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Failure modes' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Observability' }),
+  ).toBeVisible();
+  await expect(page.getByText('transactional outbox', { exact: false }).first()).toBeVisible();
+});
+
+test('reliable checkout walkthrough has no serious or critical accessibility violations', async ({
+  page,
+}) => {
+  await page.goto(
+    '/docs/engineering-judgment/architecture-walkthroughs/reliable-checkout',
+  );
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter((violation) =>
+    ['serious', 'critical'].includes(violation.impact ?? ''),
+  );
+
+  expect(serious).toEqual([]);
+});
