@@ -128,28 +128,42 @@ Roughly 25 excellent content items remains a useful first public milestone, but 
 
 **Goal:** add opinionated sequences through subsets of the map without turning the map itself into one mandatory curriculum.
 
-Candidate paths include:
+Implemented baseline:
 
 - Modern Web Systems
 - Backend Systems
 - Cloud Architecture for Software Engineers
 - AI-Native Software Engineering
+- derived Atlas/domain/path coverage that keeps uncovered steps visible
+- static/server-rendered path views without duplicated authored page mappings
 
-Paths should order canonical concepts and recommend existing content; they should not duplicate the canonical explanations.
+Further path expansion should be driven by learner outcomes and representative authored coverage, not by a target count.
 
 ## Phase 0.6 — Decision guides and architecture walkthroughs
 
 **Goal:** make senior-level engineering judgment a first-class Atlas experience.
 
-Candidate decision guides include:
+Implemented baseline:
 
-- CSR vs SSR vs SSG
-- monolith vs modular monolith vs microservices
-- Java vs Node.js vs Go vs Rust for backend workloads
-- queue vs event stream
-- containers vs serverless
+- top-level Engineering Judgment navigation and orientation;
+- first-class Decision Guides and Architecture Walkthroughs sections;
+- `CSR vs SSR vs SSG` decision guide;
+- `Monolith vs Modular Monolith vs Microservices` decision guide;
+- `Containers vs Serverless` decision guide;
+- `Reliable Checkout Flow` architecture walkthrough connecting request flow, transactions, idempotency, payment ambiguity, outbox/message delivery, retries, security, observability, scaling/cost, and alternatives;
+- a static semantic `DecisionMatrix` MDX primitive proven by the decision guides;
+- representative route and accessibility validation.
 
-Architecture walkthroughs should connect concepts across request flow, data, async boundaries, reliability, security, observability, and cost.
+The baseline deliberately does not introduce a judgment registry, scoring engine, client-heavy comparison UI, or mandatory architecture topology. Judgment content remains canonical MDX mapped to the Software Engineering Map.
+
+Useful future expansions include:
+
+- Java vs Node.js vs Go vs Rust for backend workloads;
+- queue vs event stream;
+- more architecture walkthroughs spanning cloud, data, observability, and security;
+- additional static primitives only after repeated authored content demonstrates the need.
+
+**Exit:** the Atlas has proven content patterns for explicit technology/architecture decisions and cross-boundary system reasoning without creating a parallel knowledge model.
 
 ## Phase 1 — Community launch
 
