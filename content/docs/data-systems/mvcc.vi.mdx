@@ -247,11 +247,12 @@ snapshot cũ vẫn active
   -> table/index có thể bloat và vacuum khó làm việc hơn
 ```
 
-Transaction không cần query liên tục từng giây mới gây ảnh hưởng. Application bắt đầu transaction rồi chờ user input, remote I/O, job queue hoặc connection-pool code bị quên có thể giữ snapshot lâu hơn dự kiến rất nhiều.
+Transaction không cần query liên tục từng giây mới gây ảnh hưởng. Application bắt đầu transaction rồi chờ user input, remote I/O, job queue hoặc connection-pool code bị quên có thể giữ snapshot lâu hơn dự kiến rất nhiều khi isolation/cursor semantics của nó giữ snapshot đó.
 
 Các câu hỏi review thực tế:
 
 - Transaction này có thể mở bao lâu?
+- Isolation level có giữ một snapshot cho cả transaction không?
 - Application có gọi network trong lúc giữ transaction không?
 - Session `idle in transaction` có được monitor không?
 - Batch reader có thể dùng transaction boundary nhỏ hơn không?
@@ -291,15 +292,15 @@ Nếu invariant yêu cầu luôn còn ít nhất một doctor on call, mỗi sna
 
 Vấn đề này thuộc transaction-isolation reasoning, không phải “bật MVCC”. PostgreSQL đã dùng MVCC; bạn vẫn phải chọn transaction boundary và conflict handling bảo vệ invariant.
 
-## 13. Tình huống production: reporting transaction bỏ idle làm table phình ra
+## 13. Tình huống production: snapshot reporting sống lâu làm table phình ra
 
-Một reporting endpoint bắt đầu transaction, chạy query đầu tiên, rồi chuẩn bị stream kết quả qua nhiều remote enrichment call trước khi commit. Một bug timeout đôi lúc để session ở trạng thái `idle in transaction` hàng giờ. Trong lúc đó, table `events` có write traffic cao liên tục update và delete.
+Một reporting endpoint bắt đầu transaction `REPEATABLE READ, READ ONLY` để một export nhìn thấy database view ổn định. Nó chạy query đầu tiên, rồi thực hiện nhiều remote enrichment call trước khi commit. Một bug timeout đôi lúc để session ở trạng thái `idle in transaction` hàng giờ. Trong lúc đó, table `events` có write traffic cao liên tục update và delete.
 
-**Hậu quả:** dead tuple tích lũy, kích thước table và index tăng, vacuum không thu hồi được nhiều space như kỳ vọng, query latency xấu dần vì nhiều page phải được chạm hơn và maintenance pressure tăng dù report gần như chỉ đọc.
+**Hậu quả:** dead tuple tích lũy, kích thước table và index tăng, vacuum không thu hồi được nhiều space như kỳ vọng, query latency xấu dần vì nhiều page phải được chạm hơn và maintenance pressure tăng dù report chỉ đọc.
 
-**Nguyên nhân cốt lõi:** team coi read-only transaction là vô hại. Snapshot cũ của nó giữ visibility horizon mở trong khi write-heavy table tiếp tục tạo obsolete row version. Transaction boundary còn bao gồm remote wait không cần snapshot consistency của database.
+**Nguyên nhân cốt lõi:** team coi read-only transaction là vô hại. Transaction-level snapshot sống lâu của nó giữ old visibility horizon còn liên quan trong khi write-heavy table tiếp tục tạo obsolete row version. Transaction boundary còn bao gồm remote wait không cần database snapshot consistency.
 
-**Cách khắc phục chuẩn:** giữ reporting transaction boundary ngắn đúng bằng consistency window thực sự cần, không giữ database transaction mở qua unrelated remote I/O, monitor long-running và `idle in transaction` session, đặt transaction/session timeout phù hợp, và quan sát dead tuple cùng vacuum progress thay vì chỉ phản ứng khi disk growth đã rõ ràng.
+**Cách khắc phục chuẩn:** giữ reporting transaction `Repeatable Read` ngắn đúng bằng consistency window thực sự cần, không giữ database transaction mở qua unrelated remote I/O, monitor long-running transaction và session `idle in transaction`, đặt transaction/session timeout phù hợp, và quan sát dead tuple cùng vacuum progress thay vì chỉ phản ứng khi disk growth đã rõ ràng.
 
 ## 14. Chẩn đoán vấn đề MVCC bằng ba câu hỏi tách biệt
 
@@ -315,7 +316,7 @@ Kiểm tra row/table lock, blocked session, deadlock và statement cố ý locki
 
 ### Dữ liệu cũ nào chưa thể cleanup?
 
-Kiểm tra long-running transaction, replication/maintenance horizon khi có liên quan, dead tuple accumulation, vacuum progress và transaction age.
+Kiểm tra long-running snapshot/transaction, replication hoặc maintenance horizon khi có liên quan, dead tuple accumulation, vacuum progress và transaction age.
 
 Gộp cả ba thành “database bị lock” hoặc “MVCC stale” sẽ che mất mechanism thật.
 
@@ -342,9 +343,9 @@ Database không tuyên bố account có hai business balance đồng thời. MVC
 - [ ] **Visibility:** giải thích unexpected read bằng snapshot timing trước khi đổ lỗi cho cache hoặc replication.
 - [ ] **Lock:** kiểm tra blocking tách khỏi snapshot visibility; MVCC không loại bỏ writer conflict hay explicit lock.
 - [ ] **Tuổi thọ transaction:** giữ transaction không dài hơn consistency/invariant thực sự yêu cầu.
-- [ ] **Remote work:** tránh giữ transaction mở qua unrelated network call, user think time hoặc queue wait.
+- [ ] **Remote work:** tránh giữ retained transaction snapshot mở qua unrelated network call, user think time hoặc queue wait.
 - [ ] **Vacuum health:** monitor dead tuple, vacuum/autovacuum activity, relation growth và maintenance lag trên write-heavy table.
-- [ ] **Idle session:** phát hiện và giới hạn session `idle in transaction`.
+- [ ] **Idle session:** phát hiện và giới hạn session `idle in transaction`, đặc biệt khi isolation level hoặc cursor giữ snapshot cũ.
 - [ ] **Isolation failure:** xem serialization failure là retryable transaction outcome dự kiến khi dùng isolation level cao hơn.
 - [ ] **Wraparound protection:** không tắt hoặc làm vacuum cần cho transaction ID aging/freezing bị đói tài nguyên vô thời hạn.
 - [ ] **Ranh giới DDL:** nhớ rằng một số heavy table-rewrite operation có locking/MVCC caveat ngoài ordinary DML behavior.
@@ -352,7 +353,7 @@ Database không tuyên bố account có hai business balance đồng thời. MVC
 
 ## Quy tắc cho agent
 
-Khi chẩn đoán PostgreSQL concurrency, đừng dừng ở câu “MVCC nghĩa là read không block”. Hãy xác định snapshot scope, row version nào có thể visible với snapshot đó, lock nào phối hợp các operation xung đột và cleanup horizon nào quyết định lúc obsolete version có thể được thu hồi. Giữ application transaction đủ ngắn để snapshot consistency không vô tình biến thành vấn đề storage maintenance.
+Khi chẩn đoán PostgreSQL concurrency, đừng dừng ở câu “MVCC nghĩa là read không block”. Hãy xác định snapshot scope, row version nào có thể visible với snapshot đó, lock nào phối hợp các operation xung đột và cleanup horizon nào quyết định lúc obsolete version có thể được thu hồi. Giữ application transaction đủ ngắn để retained snapshot consistency không vô tình biến thành vấn đề storage maintenance.
 
 ## Nguồn tham khảo
 
