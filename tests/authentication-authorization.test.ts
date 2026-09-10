@@ -44,7 +44,7 @@ describe('Authentication and Authorization lesson', () => {
       expect(source, relativePath).toMatch(/authentication|xác thực/i);
       expect(source, relativePath).toMatch(/authorization|phân quyền|ủy quyền/i);
       expect(source, relativePath).toMatch(/principal|chủ thể/i);
-      expect(source, relativePath).toMatch(/subject.*action.*resource.*context|chủ thể.*hành động.*tài nguyên.*ngữ cảnh/is);
+      expect(source, relativePath).toMatch(/subject[\s\S]*action[\s\S]*resource[\s\S]*context|chủ thể[\s\S]*hành động[\s\S]*tài nguyên[\s\S]*ngữ cảnh/i);
       expect(source, relativePath).toMatch(/deny by default|mặc định từ chối/i);
       expect(source, relativePath).toMatch(/object[- ]level|resource[- ]level|cấp đối tượng|cấp tài nguyên/i);
       expect(source, relativePath).toMatch(/session|phiên/i);
