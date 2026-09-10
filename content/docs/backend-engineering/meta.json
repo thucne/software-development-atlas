@@ -1,6 +1,7 @@
 {
   "title": "Backend Engineering",
   "pages": [
-    "backend-request-lifecycle"
+    "backend-request-lifecycle",
+    "authentication-and-authorization"
   ]
 }
