@@ -9,32 +9,32 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/data-systems/database-replication.mdx',
-  vi: 'content/docs/data-systems/database-replication.vi.mdx',
+  en: 'content/docs/data-systems/data-partitioning.mdx',
+  vi: 'content/docs/data-systems/data-partitioning.vi.mdx',
 } as const;
 
-describe('Database Replication lesson', () => {
-  it('publishes replication after MVCC in both Data Systems sidebars', () => {
+describe('Partitioning and Sharding lesson', () => {
+  it('publishes after database replication in both Data Systems sidebars', () => {
     for (const relativePath of [
       'content/docs/data-systems/meta.json',
       'content/docs/data-systems/meta.vi.json',
     ]) {
       const source = read(relativePath);
-      const mvcc = source.indexOf('"mvcc"');
       const replication = source.indexOf('"database-replication"');
+      const partitioning = source.indexOf('"data-partitioning"');
 
-      expect(mvcc, relativePath).toBeGreaterThan(-1);
-      expect(replication, relativePath).toBeGreaterThan(mvcc);
+      expect(replication, relativePath).toBeGreaterThan(-1);
+      expect(partitioning, relativePath).toBeGreaterThan(replication);
     }
   });
 
-  it('places both locale variants on the canonical replication concept at reason depth', () => {
+  it('places both locale variants on only the canonical data-partitioning concept at reason depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
-      expect(source, relativePath).toMatch(/concepts:\n  - database-replication\n---/);
+      expect(source, relativePath).toMatch(/concepts:\n  - data-partitioning\n---/);
       expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
@@ -43,7 +43,7 @@ describe('Database Replication lesson', () => {
     }
   });
 
-  it('teaches replication lag, consistency contracts, failover, slots, and standby conflicts', () => {
+  it('teaches partitioning keys, pruning, sharding, hotspots, fan-out, and resharding trade-offs', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -51,18 +51,17 @@ describe('Database Replication lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/WAL/i);
-      expect(source, relativePath).toMatch(/streaming replication/i);
-      expect(source, relativePath).toMatch(/asynchronous|bất đồng bộ|async/i);
-      expect(source, relativePath).toMatch(/synchronous|đồng bộ|sync/i);
-      expect(source, relativePath).toMatch(/replication lag|độ trễ replication|lag/i);
-      expect(source, relativePath).toMatch(/read-after-write/i);
-      expect(source, relativePath).toMatch(/replication slot/i);
-      expect(source, relativePath).toMatch(/hot standby/i);
-      expect(source, relativePath).toMatch(/hot_standby_feedback/i);
-      expect(source, relativePath).toMatch(/failover/i);
-      expect(source, relativePath).toMatch(/fenc|STONITH|split-brain/i);
-      expect(source, relativePath).toMatch(/remote_apply/i);
+      expect(source, relativePath).toMatch(/partition key|khóa phân vùng/i);
+      expect(source, relativePath).toMatch(/range partition|phân vùng theo range/i);
+      expect(source, relativePath).toMatch(/list partition|phân vùng theo list/i);
+      expect(source, relativePath).toMatch(/hash partition|phân vùng theo hash/i);
+      expect(source, relativePath).toMatch(/partition pruning|pruning phân vùng|loại bỏ partition/i);
+      expect(source, relativePath).toMatch(/shard key|khóa shard/i);
+      expect(source, relativePath).toMatch(/hotspot|điểm nóng/i);
+      expect(source, relativePath).toMatch(/fan.?out|scatter.?gather|quét nhiều shard/i);
+      expect(source, relativePath).toMatch(/cross.?shard|liên shard/i);
+      expect(source, relativePath).toMatch(/reshard|tái phân shard|di chuyển shard/i);
+      expect(source, relativePath).toMatch(/unique|duy nhất/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -80,8 +79,6 @@ describe('Database Replication lesson', () => {
     ]) {
       const source = read(relativePath);
       expect(source, relativePath).toContain('24');
-      expect(source, relativePath).toContain('/data-systems/mvcc');
-      expect(source, relativePath).toContain('/data-systems/database-replication');
       expect(source, relativePath).toContain('/data-systems/data-partitioning');
     }
 

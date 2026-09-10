@@ -6,6 +6,7 @@
     "database-indexes-and-query-plans",
     "database-transactions-and-isolation",
     "mvcc",
-    "database-replication"
+    "database-replication",
+    "data-partitioning"
   ]
 }
