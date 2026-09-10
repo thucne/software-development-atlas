@@ -9,6 +9,7 @@
     "application-caching",
     "message-queues",
     "rate-limiting",
-    "idempotency"
+    "idempotency",
+    "service-resilience"
   ]
 }
