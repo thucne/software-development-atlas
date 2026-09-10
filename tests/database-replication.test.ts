@@ -9,34 +9,33 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/data-systems/sql-querying.mdx',
-  vi: 'content/docs/data-systems/sql-querying.vi.mdx',
+  en: 'content/docs/data-systems/database-replication.mdx',
+  vi: 'content/docs/data-systems/database-replication.vi.mdx',
 } as const;
 
-describe('SQL Querying lesson', () => {
-  it('publishes the lesson after relational modeling and before query-plan optimization', () => {
+describe('Database Replication lesson', () => {
+  it('publishes replication after MVCC in both Data Systems sidebars', () => {
     for (const relativePath of [
       'content/docs/data-systems/meta.json',
       'content/docs/data-systems/meta.vi.json',
     ]) {
       const source = read(relativePath);
-      const relational = source.indexOf('"relational-data-model"');
-      const querying = source.indexOf('"sql-querying"');
-      const indexes = source.indexOf('"database-indexes-and-query-plans"');
+      const mvcc = source.indexOf('"mvcc"');
+      const replication = source.indexOf('"database-replication"');
 
-      expect(relational, relativePath).toBeGreaterThan(-1);
-      expect(querying, relativePath).toBeGreaterThan(relational);
-      expect(querying, relativePath).toBeLessThan(indexes);
+      expect(mvcc, relativePath).toBeGreaterThan(-1);
+      expect(replication, relativePath).toBeGreaterThan(mvcc);
     }
   });
 
-  it('places both variants on the canonical SQL querying concept at operate depth', () => {
+  it('places both locale variants on the canonical replication concept at reason depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
-      expect(source, relativePath).toContain('learningDepth: operate');
-      expect(source, relativePath).toMatch(/concepts:\n  - sql-querying\n---/);
+      expect(source, relativePath).toContain('learningDepth: reason');
+      expect(source, relativePath).toMatch(/concepts:\n  - database-replication\n---/);
+      expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -44,7 +43,7 @@ describe('SQL Querying lesson', () => {
     }
   });
 
-  it('teaches query semantics before optimization mechanics', () => {
+  it('teaches replication lag, consistency contracts, failover, slots, and standby conflicts', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -52,21 +51,18 @@ describe('SQL Querying lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/SELECT/i);
-      expect(source, relativePath).toMatch(/FROM/i);
-      expect(source, relativePath).toMatch(/WHERE/i);
-      expect(source, relativePath).toMatch(/JOIN/i);
-      expect(source, relativePath).toMatch(/GROUP BY/i);
-      expect(source, relativePath).toMatch(/HAVING/i);
-      expect(source, relativePath).toMatch(/NULL/i);
-      expect(source, relativePath).toMatch(/three-valued|ba giá trị/i);
-      expect(source, relativePath).toMatch(/ORDER BY/i);
-      expect(source, relativePath).toMatch(/LIMIT/i);
-      expect(source, relativePath).toMatch(/cursor|keyset/i);
-      expect(source, relativePath).toMatch(/CTE/i);
-      expect(source, relativePath).toMatch(/subquer|truy vấn con/i);
-      expect(source, relativePath).toMatch(/parameter|tham số hóa/i);
-      expect(source, relativePath).toMatch(/EXPLAIN/i);
+      expect(source, relativePath).toMatch(/WAL/i);
+      expect(source, relativePath).toMatch(/streaming replication/i);
+      expect(source, relativePath).toMatch(/asynchronous|bất đồng bộ|async/i);
+      expect(source, relativePath).toMatch(/synchronous|đồng bộ|sync/i);
+      expect(source, relativePath).toMatch(/replication lag|độ trễ replication|lag/i);
+      expect(source, relativePath).toMatch(/read-after-write/i);
+      expect(source, relativePath).toMatch(/replication slot/i);
+      expect(source, relativePath).toMatch(/hot standby/i);
+      expect(source, relativePath).toMatch(/hot_standby_feedback/i);
+      expect(source, relativePath).toMatch(/failover/i);
+      expect(source, relativePath).toMatch(/fenc|STONITH|split-brain/i);
+      expect(source, relativePath).toMatch(/remote_apply/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -83,11 +79,7 @@ describe('SQL Querying lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-
       expect(source, relativePath).toContain('23');
-      expect(source, relativePath).toContain('/data-systems/relational-data-model');
-      expect(source, relativePath).toContain('/data-systems/sql-querying');
-      expect(source, relativePath).toContain('/data-systems/database-indexes-and-query-plans');
       expect(source, relativePath).toContain('/data-systems/mvcc');
       expect(source, relativePath).toContain('/data-systems/database-replication');
     }
