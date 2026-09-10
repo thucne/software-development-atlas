@@ -2,6 +2,7 @@
   "title": "Data Systems",
   "pages": [
     "relational-data-model",
+    "sql-querying",
     "database-indexes-and-query-plans",
     "database-transactions-and-isolation"
   ]

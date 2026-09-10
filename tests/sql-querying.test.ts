@@ -9,32 +9,34 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/data-systems/relational-data-model.mdx',
-  vi: 'content/docs/data-systems/relational-data-model.vi.mdx',
+  en: 'content/docs/data-systems/sql-querying.mdx',
+  vi: 'content/docs/data-systems/sql-querying.vi.mdx',
 } as const;
 
-describe('Relational Data Model lesson', () => {
-  it('publishes the lesson first in the bilingual Data Systems section', () => {
+describe('SQL Querying lesson', () => {
+  it('publishes the lesson after relational modeling and before query-plan optimization', () => {
     for (const relativePath of [
       'content/docs/data-systems/meta.json',
       'content/docs/data-systems/meta.vi.json',
     ]) {
       const source = read(relativePath);
       const relational = source.indexOf('"relational-data-model"');
+      const querying = source.indexOf('"sql-querying"');
       const indexes = source.indexOf('"database-indexes-and-query-plans"');
 
       expect(relational, relativePath).toBeGreaterThan(-1);
-      expect(relational, relativePath).toBeLessThan(indexes);
+      expect(querying, relativePath).toBeGreaterThan(relational);
+      expect(querying, relativePath).toBeLessThan(indexes);
     }
   });
 
-  it('places both variants on only the canonical concept at reason depth', () => {
+  it('places both variants on the canonical SQL querying concept at operate depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
-      expect(source, relativePath).toContain('learningDepth: reason');
-      expect(source, relativePath).toMatch(/concepts:\n  - relational-data-model\n---/);
+      expect(source, relativePath).toContain('learningDepth: operate');
+      expect(source, relativePath).toMatch(/concepts:\n  - sql-querying\n---/);
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -42,7 +44,7 @@ describe('Relational Data Model lesson', () => {
     }
   });
 
-  it('teaches facts, identity, relationships, constraints, normalization, ownership, and safe evolution', () => {
+  it('teaches query semantics before optimization mechanics', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -50,23 +52,21 @@ describe('Relational Data Model lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/relation|table|bảng/i);
-      expect(source, relativePath).toMatch(/row|tuple/i);
-      expect(source, relativePath).toMatch(/attribute|column|thuộc tính|cột/i);
-      expect(source, relativePath).toMatch(/candidate key/i);
-      expect(source, relativePath).toMatch(/primary key/i);
-      expect(source, relativePath).toMatch(/foreign key/i);
-      expect(source, relativePath).toMatch(/cardinality/i);
-      expect(source, relativePath).toMatch(/nullability|nullable|NULL/i);
-      expect(source, relativePath).toMatch(/many-to-many/i);
-      expect(source, relativePath).toMatch(/UNIQUE/);
-      expect(source, relativePath).toMatch(/CHECK/);
-      expect(source, relativePath).toMatch(/NOT NULL/);
-      expect(source, relativePath).toMatch(/normalization|normalize|chuẩn hóa/i);
-      expect(source, relativePath).toMatch(/update anomal|write anomal|bất thường|anomaly/i);
-      expect(source, relativePath).toMatch(/source of truth|nguồn sự thật/i);
-      expect(source, relativePath).toMatch(/denormali/i);
-      expect(source, relativePath).toMatch(/schema evolution|expand-and-contract|tiến hóa schema/i);
+      expect(source, relativePath).toMatch(/SELECT/i);
+      expect(source, relativePath).toMatch(/FROM/i);
+      expect(source, relativePath).toMatch(/WHERE/i);
+      expect(source, relativePath).toMatch(/JOIN/i);
+      expect(source, relativePath).toMatch(/GROUP BY/i);
+      expect(source, relativePath).toMatch(/HAVING/i);
+      expect(source, relativePath).toMatch(/NULL/i);
+      expect(source, relativePath).toMatch(/three-valued|ba giá trị/i);
+      expect(source, relativePath).toMatch(/ORDER BY/i);
+      expect(source, relativePath).toMatch(/LIMIT/i);
+      expect(source, relativePath).toMatch(/cursor|keyset/i);
+      expect(source, relativePath).toMatch(/CTE/i);
+      expect(source, relativePath).toMatch(/subquer|truy vấn con/i);
+      expect(source, relativePath).toMatch(/parameter|tham số hóa/i);
+      expect(source, relativePath).toMatch(/EXPLAIN/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -85,11 +85,9 @@ describe('Relational Data Model lesson', () => {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('21');
-      expect(source, relativePath).toContain('/backend-engineering/rate-limiting');
-      expect(source, relativePath).toContain('/backend-engineering/idempotency');
-      expect(source, relativePath).toContain('/backend-engineering/service-resilience');
       expect(source, relativePath).toContain('/data-systems/relational-data-model');
       expect(source, relativePath).toContain('/data-systems/sql-querying');
+      expect(source, relativePath).toContain('/data-systems/database-indexes-and-query-plans');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
