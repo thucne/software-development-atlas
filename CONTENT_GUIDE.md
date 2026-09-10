@@ -223,6 +223,17 @@ Typical `reviewAfterDays`: `90`.
 
 `lastVerified` means a contributor intentionally checked that the material remained correct on that date. It is not simply the last edit date.
 
+### Updating dates after an edit
+
+When your change finishes, update dates only where they apply:
+
+| Marker | Where | Bump when | Do not bump when |
+| --- | --- | --- | --- |
+| `lastVerified` | lesson frontmatter (and any body sentence that restates it) | intentional re-verification or material teaching/factual change; keep EN/VI pairs identical | typo-only, formatting-only, or unrelated wording |
+| `atlasLastUpdated` | `lib/site-metadata.ts` (docs footer) | site/content maintenance that should show as “Atlas last updated”; sync tests that hard-code the footer string | every tiny edit; do not use it as a substitute for per-lesson `lastVerified` |
+
+Use today's calendar date in ISO form (`YYYY-MM-DD`). Never mass-reset every lesson's `lastVerified` just because the site footer date moved.
+
 ## Recommended deep-dive anatomy
 
 Not every content type needs every section. For a `deep-dive`, this is the default order:

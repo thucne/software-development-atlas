@@ -4,7 +4,7 @@ description: "Xây dựng mô hình tư duy chuẩn xác về trạng thái Prom
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-09-10
 reviewAfterDays: 180
 topics:
   - javascript
@@ -105,6 +105,29 @@ P0 --then(fn1)--> P1 --catch(fn2)--> P2
 | Trả về một Promise khác (`return fetch()`) | **Nhận nuôi (Adopt)** | Phụ thuộc vào kết quả của `fetch()` |
 | Không trả về gì (`undefined`) | **`fulfilled`** | `undefined` |
 
+### Tự kiểm tra: chuỗi này settle thành gì?
+
+Dự đoán giá trị fulfillment của `p1` trước khi mở đáp án.
+
+```js
+const p0 = Promise.resolve({ id: 7 });
+const p1 = p0.then((user) => {
+  loadProfile(user.id); // cố ý bỏ return trong bài tập này
+  return user.id;
+});
+```
+
+Giả sử `loadProfile()` trả về một Promise fulfill với object profile.
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+- Handler `return user.id` (`7`) nên `p1` **fulfill** với `7`.
+- `loadProfile(user.id)` vẫn chạy, nhưng Promise của nó **không** được adopt vì không được `return`.
+- Code phía sau `await p1` tiếp tục với `7` trong khi profile có thể vẫn chưa xong—lỗi thứ tự trông như “đã async” nhưng thực ra không được nối chuỗi.
+
+</details>
+
 ---
 
 ## Phòng thí nghiệm Promise (Interactive Lab)
@@ -134,6 +157,28 @@ fetchUser(id)
     console.log('Áp dụng cài đặt:', settings);
   });
 ```
+
+### Tự kiểm tra: `.catch()` có chặn handler phía sau không?
+
+```js
+fetchCart()
+  .catch((error) => {
+    report(error);
+    return emptyCart();
+  })
+  .then((cart) => renderCheckout(cart));
+```
+
+Nếu `fetchCart()` reject và `emptyCart()` trả về `{ items: [] }`, `renderCheckout` có chạy không?
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+- Có. Handler `.catch()` khôi phục bằng cách trả về cart bình thường, nên Promise do `.catch()` trả về **fulfill**.
+- `.then()` tiếp theo vì thế vẫn chạy với cart đã khôi phục.
+- Trường hợp nguy hiểm là `.catch()` chỉ log rồi `return` ngầm `undefined`, khiến bước “thành công” phía sau vẫn chạy.
+
+</details>
 
 ---
 
@@ -185,6 +230,30 @@ function processOrderPayment(orderId: string) {
     })
     .then(() => markOrderAsPaidAndDispatch(orderId));
   ```
+
+### Kịch bản thực tế: Quên `return` khiến toast báo “đã lưu” quá sớm
+
+```js
+loadUser()
+  .then((user) => {
+    saveUser(user); // quên return
+  })
+  .then(() => {
+    showToast('Saved');
+  });
+```
+
+- **Hậu quả:** Toast có thể hiện khi `saveUser` vẫn đang chạy—hoặc sau khi nó reject—nên sản phẩm báo thành công trước khi biết dữ liệu đã bền vững.
+- **Nguyên nhân cốt lõi:** Handler đầu trả về `undefined` ngay, nên Promise downstream fulfill mà không adopt Promise của `saveUser`.
+- **Cách khắc phục chuẩn:** `return` đúng công việc bất đồng bộ cần nối chuỗi:
+
+```js
+loadUser()
+  .then((user) => saveUser(user))
+  .then(() => {
+    showToast('Saved');
+  });
+```
 
 ---
 

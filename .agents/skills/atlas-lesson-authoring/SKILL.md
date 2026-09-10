@@ -189,8 +189,9 @@ For every new or materially revised visual anchor, verify:
    - Visual Anchor 3 — edge case, system pressure, or architectural consequence;
    - Exercise / quiz in `<details>`;
    - Agent rule or review checklist.
-6. **Check bilingual parity:** English and Vietnamese companions use the same semantic illustration concepts; generated/static pixels are shared by default.
-7. **Run visual review:** Apply the 10-item checklist above.
-8. **Run machine checks:** At minimum run the relevant illustration/content tests plus typecheck and lint; run E2E when a visual renderer or responsive layout changes.
+6. **Check bilingual parity:** English and Vietnamese companions use the same semantic illustration concepts; generated/static pixels are shared by default. Keep `lastVerified` identical across the pair when both are updated.
+7. **Update dates when applicable:** Bump `lastVerified` for intentional re-verification or material teaching/factual changes; bump `atlasLastUpdated` in `lib/site-metadata.ts` when the docs footer should move; sync body date lines and hard-coded footer tests. Do not bump `lastVerified` for typo-only edits, and do not mass-bump every lesson because the footer moved.
+8. **Run visual review:** Apply the 10-item checklist above.
+9. **Run machine checks:** At minimum run the relevant illustration/content tests plus typecheck and lint; run E2E when a visual renderer or responsive layout changes.
 
 Published substantive lessons must not contain illustration-placeholder blocks. If a draft uses a temporary placeholder, its prompt must be explicit and language-pure, and the placeholder must be replaced before publication.

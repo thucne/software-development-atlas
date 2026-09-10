@@ -56,6 +56,15 @@ For factual changes:
 - preserve or update `lastVerified` intentionally;
 - do not update verification dates for unrelated wording changes.
 
+### Date updates after edits (when applicable)
+
+After finishing substantive edits, update freshness dates in the same change when they apply—do not leave stale chrome dates:
+
+1. **`lastVerified` (per lesson):** bump to today's ISO date (`YYYY-MM-DD`) when you intentionally re-checked or materially changed teaching claims, production scenarios, self-checks, diagrams/labs tied to those claims, or primary-source facts. Keep EN/VI companions on the same `lastVerified` when both are updated. Sync any body line that restates the verification date.
+2. **Do not bump `lastVerified`** for typo-only, formatting-only, pure navigation/metadata renames, or unrelated wording that does not change correctness.
+3. **`atlasLastUpdated` (`lib/site-metadata.ts`):** bump to today's ISO date when the change is a site/content maintenance event that should appear in the docs footer (“Atlas last updated”). Update hard-coded footer assertions in tests (for example e2e) in the same change.
+4. **Do not mass-bump** every lesson's `lastVerified` merely because `atlasLastUpdated` moved; lesson verification and site maintenance are separate markers.
+
 ### Content clarity checklist
 
 Apply the canonical **Atlas Clarity Contract** and **Atlas Teaching Contract** in `CONTENT_GUIDE.md` to new or materially revised prose. Before committing content, check that:

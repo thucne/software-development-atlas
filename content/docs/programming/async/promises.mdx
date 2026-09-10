@@ -4,7 +4,7 @@ description: Reason about Promise states, resolution, chaining, error recovery, 
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-09-10
 reviewAfterDays: 180
 topics:
   - javascript
@@ -308,6 +308,29 @@ const p1 = p0.then(() => loadUser());
 
 If `loadUser()` returns a Promise, `p1` adopts that Promise's eventual outcome. Normal Promise chains therefore flatten asynchronous dependencies instead of giving application code a useful nested `Promise<Promise<T>>` shape.
 
+### Check yourself: what does this chain settle to?
+
+Predict the fulfillment value of `p1` before opening the answer.
+
+```js
+const p0 = Promise.resolve({ id: 7 });
+const p1 = p0.then((user) => {
+  loadProfile(user.id); // intentional omission for this exercise
+  return user.id;
+});
+```
+
+Assume `loadProfile()` returns a Promise that fulfills with a profile object.
+
+<details>
+<summary>Show the reasoning</summary>
+
+- The handler returns `user.id` (`7`) as a plain value, so `p1` fulfills with `7`.
+- `loadProfile(user.id)` still starts, but its Promise is **not** adopted by `p1` because it was not returned.
+- Downstream code that awaits `p1` therefore continues with `7` while profile loading may still be unfinished—an ordering bug that looks “async” but is not sequenced.
+
+</details>
+
 ### Return a thenable
 
 <TermBox term="Thenable">
@@ -370,6 +393,28 @@ loadUser().catch((error) => {
 ```
 
 This rejection handler returns normally with `undefined`, so the Promise returned by `catch()` fulfills with `undefined`. If the error must remain a failure, rethrow it or return a rejected Promise.
+
+### Check yourself: does `catch()` stop later handlers?
+
+```js
+fetchCart()
+  .catch((error) => {
+    report(error);
+    return emptyCart();
+  })
+  .then((cart) => renderCheckout(cart));
+```
+
+If `fetchCart()` rejects and `emptyCart()` returns `{ items: [] }`, does `renderCheckout` run?
+
+<details>
+<summary>Show the reasoning</summary>
+
+- Yes. The `catch()` handler recovers by returning a normal cart value, so the Promise returned by `catch()` **fulfills**.
+- The following `then()` therefore runs with that recovered cart.
+- Recovery is intentional here. The dangerous case is logging-only `catch()` that returns `undefined` and still lets a later “success” step run.
+
+</details>
 
 ## `finally()` is transparent until cleanup fails or delays
 
@@ -549,11 +594,21 @@ loadUser()
     saveUser(user); // forgot return
   })
   .then(() => {
-    // This does not wait for saveUser if saveUser returns a Promise.
+    showToast('Saved');
   });
 ```
 
-Return `saveUser(user)` when the next link must depend on it.
+- **Impact:** The toast can appear while `saveUser` is still in flight—or after it later rejects—so the product reports success before durability is known.
+- **Root cause:** The first handler returns `undefined` immediately, so the downstream Promise fulfills without adopting `saveUser`'s Promise.
+- **Correct pattern:** Return the asynchronous work you intend to sequence:
+
+```js
+loadUser()
+  .then((user) => saveUser(user))
+  .then(() => {
+    showToast('Saved');
+  });
+```
 
 ### Accidentally swallowing a rejection
 
@@ -633,7 +688,7 @@ When changing Promise-heavy code, verify against this checklist:
 
 ## Primary sources
 
-This lesson was last verified on **2026-09-09** and is classified as **evolving** with a 180-day review target.
+This lesson was last verified on **2026-09-10** and is classified as **evolving** with a 180-day review target.
 
 - [ECMAScript 2026 — Promise Objects](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise-objects) — normative Promise states, resolution, constructor behavior, combinators, `Promise.try()`, `Promise.withResolvers()`, and prototype methods.
 - [ECMAScript 2026 — `Promise.resolve()` / `PromiseResolve`](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.resolve) — normative identity behavior for same-constructor Promises and creation of a new resolving Promise otherwise.

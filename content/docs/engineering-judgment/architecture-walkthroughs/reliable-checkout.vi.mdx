@@ -4,7 +4,7 @@ description: Phân tích tường tận luồng thanh toán từ xác thực req
 category: engineering-judgment
 level: advanced
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-09-10
 reviewAfterDays: 180
 topics:
   - backend
@@ -141,6 +141,23 @@ Khách hàng thấy màn hình báo lỗi, hoảng hốt nhấn nút "Đặt hà
   2. Khi gặp timeout, chuyển trạng thái đơn hàng sang `PAYMENT_AMBIGUOUS` (hoặc `PENDING`).
   3. Kích hoạt quy trình đối soát (Reconciliation): gọi API truy vấn trạng thái giao dịch (`GET /charges/{id}`) hoặc chờ Webhook từ nhà cung cấp thanh toán để chốt kết quả cuối cùng trước khi quyết định trừ tiền lại.
 
+### Tự kiểm tra: timeout nghĩa là gì?
+
+Sau khi request thanh toán bị timeout, phát biểu nào an toàn nhất?
+
+1. Charge chắc chắn thất bại; tạo Payment Attempt ID mới rồi trừ lại.
+2. Charge chắc chắn thành công; đánh dấu đơn `PAID` ngay.
+3. Kết quả phía xa chưa biết; tái sử dụng hoặc đối soát cùng một lượt thanh toán logic.
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+- Đáp án đúng là 3.
+- Timeout chỉ chứng minh caller chưa nhận được xác nhận dứt khoát.
+- Giữ cùng identity của lượt thanh toán và đối soát giúp tránh side effect trùng khi lần trừ đầu đã thành công.
+
+</details>
+
 <TermBox term="Ambiguous outcome">
 **Kết quả mơ hồ (Ambiguous outcome)** xảy ra khi phía gọi không biết thao tác ở phía nhận có thực sự diễn ra hay chưa. Timeout chỉ chứng minh bạn không nhận được kết quả; nó không chứng minh thao tác bên kia đã thất bại.
 </TermBox>
@@ -175,6 +192,29 @@ COMMIT;
 ```
 
 Lưu ý: Transactional Outbox đảm bảo chuyển phát sự kiện **ít nhất một lần (At-least-once)**, chứ không tự động mang lại hiệu ứng exactly-once. Nếu publisher gửi thành công sang Kafka nhưng bị sập trước khi kịp cập nhật trạng thái dòng outbox, sự kiện đó sẽ được gửi lại lần thứ hai.
+
+### Tự kiểm tra: khoảng trống crash còn ở đâu?
+
+Giả sử ứng dụng cập nhật đơn sang `PAID` trong một transaction, rồi ở câu lệnh sau mới publish `OrderPaid` sang broker mà không có dòng outbox. Process sập sau khi DB commit và trước khi publish xong.
+
+Mâu thuẫn bền vững nào có thể còn lại?
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+- Đơn đã `PAID` bền vững, nhưng không có ý định publish bền vững.
+- Fulfillment/email phía sau có thể không bao giờ chạy trừ khi có đường phục hồi khác phát hiện đơn đã thanh toán.
+- Transactional outbox khép khoảng trống này bằng cách commit trạng thái nghiệp vụ và ý định publish cùng lúc; consumer vẫn phải idempotent vì sự kiện có thể bị gửi lại.
+
+</details>
+
+### Kịch bản thực tế: Dual-write khiến đơn đã trả tiền nhưng không bao giờ giao
+
+Một service commit `orders.status = 'PAID'` rồi gọi `broker.publish('OrderPaid')` như hai bước độc lập. Process restart ngay sau commit DB. Không có outbox, không có job phục hồi.
+
+- **Hậu quả:** Khách đã bị trừ tiền; fulfillment/email không chạy; đơn “treo” ở trạng thái đã trả tiền nhưng chưa giao.
+- **Nguyên nhân cốt lõi:** Giả định “ghi DB rồi publish” luôn hoàn tất cả hai bước dù process có thể chết giữa chừng.
+- **Cách khắc phục chuẩn:** Ghi trạng thái đơn + dòng outbox trong cùng transaction cục bộ; publisher đọc outbox đã commit để gửi lại an toàn.
 
 ## 5. Thiết kế Worker phía sau Message Broker
 

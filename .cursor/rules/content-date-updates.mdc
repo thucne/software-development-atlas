@@ -1,0 +1,24 @@
+---
+description: Update lastVerified / atlasLastUpdated after substantive content or site maintenance edits
+globs: content/docs/**/*.{mdx,vi.mdx},lib/site-metadata.ts,CONTENT_GUIDE.md,AGENTS.md
+alwaysApply: false
+---
+
+# Content date updates
+
+After substantive edits, update freshness dates **when applicable** in the same change.
+
+## `lastVerified` (per lesson)
+
+- Bump to today's `YYYY-MM-DD` when you intentionally re-verify or materially change teaching claims, scenarios, self-checks, claim-tied diagrams/labs, or primary-source facts.
+- Keep EN/VI companions on the same date when both are updated.
+- Sync any body sentence that restates the verification date.
+- Do **not** bump for typo-only, formatting-only, or unrelated wording.
+
+## `atlasLastUpdated` (`lib/site-metadata.ts`)
+
+- Bump to today's `YYYY-MM-DD` when the change should update the docs footer (“Atlas last updated”).
+- Sync hard-coded footer assertions in tests in the same change.
+- Do **not** mass-bump every lesson's `lastVerified` just because the footer moved.
+
+Canonical detail: `AGENTS.md` → “Date updates after edits” and `CONTENT_GUIDE.md` → Freshness.

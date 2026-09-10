@@ -4,7 +4,7 @@ description: Trace a checkout across request validation, payment ambiguity, loca
 category: engineering-judgment
 level: advanced
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-09-10
 reviewAfterDays: 180
 topics:
   - backend
@@ -137,12 +137,33 @@ Do not keep a database transaction open around a slow external payment call just
 
 > **Production scenario:** A customer clicks "Place Order" on an unstable mobile 4G connection. The API charges $120 via Stripe, and Stripe responds with success. But before the HTTP response packet reaches the mobile app, the connection drops and the app displays "Request Timeout". Panicking, the customer taps "Place Order" a second time. Without a stable idempotency key tied to that logical cart, the system creates a second order and charges another $120—triggering an immediate customer support incident and chargeback risk.
 
+- **Impact:** The customer is charged twice; support load and chargeback risk spike immediately.
+- **Root cause:** Treating a network timeout as proof that the remote charge failed, then retrying under a fresh payment identity.
+- **Correct pattern:** Keep one stable payment-attempt identity, mark the outcome as ambiguous/pending on timeout, and reconcile via provider lookup or webhook before creating another charge.
+
 ```text
 Checkout API -> Payment provider: payment request
 Payment provider: operation succeeds
 Network: response is lost
 Checkout API: timeout
 ```
+
+### Check yourself: what should a timeout mean?
+
+After a payment request times out, which statement is safest?
+
+1. The charge definitely failed; create a new payment attempt ID and retry.
+2. The charge definitely succeeded; mark the order paid immediately.
+3. The remote outcome is unknown; reuse or reconcile the same logical payment attempt.
+
+<details>
+<summary>Show the reasoning</summary>
+
+- Option 3 is correct.
+- A timeout proves only that the caller lacks a definitive response.
+- Reusing/reconciling the same payment-attempt identity prevents duplicate side effects when the first charge already succeeded.
+
+</details>
 
 <TermBox term="Ambiguous outcome">
 An **ambiguous outcome** occurs when the caller does not know whether a remote side effect happened. A timeout proves that the caller did not receive a definitive result; it does not prove the remote operation failed.
@@ -190,6 +211,21 @@ COMMIT
 ```
 
 The outbox does **not** automatically create exactly-once end-to-end effects. A publisher can send an event successfully and crash before recording its own progress, causing the same logical event to be sent again.
+
+### Check yourself: where does the crash gap remain?
+
+Suppose the app updates the order to `PAID` in one transaction, then in a later statement publishes `OrderPaid` to the broker with no outbox row. The process crashes after the DB commit and before the publish completes.
+
+What durable inconsistency can remain?
+
+<details>
+<summary>Show the reasoning</summary>
+
+- The order is durably `PAID`, but no durable publish intent exists.
+- Downstream fulfillment may never start unless some other recovery path notices the paid order.
+- A transactional outbox closes this gap by committing business state and publish intent together; it still requires idempotent consumers because publication can be retried.
+
+</details>
 
 ## 5. Design consumers from the selected delivery contract
 
@@ -242,6 +278,10 @@ The architecture becomes easier to reason about when every boundary states its a
 <AtlasIllustration id="dual-write-vs-outbox" />
 
 **Control:** store the outbox publish intent in the same local database transaction as the business transition, then let a later publisher continue.
+
+- **Impact:** Paid orders never trigger fulfillment/email because the process died after commit and before broker publish.
+- **Root cause:** Treating “update DB, then publish” as two independent writes creates a crash window with no durable recover intent.
+- **Correct pattern:** Commit order state + outbox row together; publish asynchronously from committed outbox rows.
 
 ### Publisher sends and crashes before recording progress
 

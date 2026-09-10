@@ -43,7 +43,7 @@ test('renders page freshness and Atlas maintenance metadata', async ({ page }) =
   await expect(
     page.getByRole('link', { name: 'Tran Trong Thuc' }),
   ).toHaveAttribute('href', 'https://github.com/thucne');
-  await expect(page.getByText(/Atlas last updated Sep 9, 2026/)).toBeVisible();
+  await expect(page.getByText(/Atlas last updated Sep 10, 2026/)).toBeVisible();
 });
 
 test('renders an About page for the Atlas maintainer', async ({ page }) => {

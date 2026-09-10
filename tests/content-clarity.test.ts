@@ -3,12 +3,6 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = process.cwd();
-const deepDives = [
-  'content/docs/programming/async/avoiding-sequential-async-waterfalls.mdx',
-  'content/docs/programming/async/how-the-browser-event-loop-works.mdx',
-  'content/docs/programming/async/promises.mdx',
-] as const;
-
 const substantivePages = [
   'content/docs/programming/async/avoiding-sequential-async-waterfalls.mdx',
   'content/docs/programming/async/how-the-browser-event-loop-works.mdx',
@@ -25,10 +19,16 @@ function read(relativePath: string) {
 }
 
 describe('Atlas content reliability migration', () => {
-  it('records the completed 2026-09-09 verification date on all three migrated deep dives', () => {
-    for (const relativePath of deepDives) {
-      expect(read(relativePath)).toContain('lastVerified: 2026-09-09');
-    }
+  it('records verification dates for the migrated deep dives', () => {
+    expect(
+      read('content/docs/programming/async/avoiding-sequential-async-waterfalls.mdx'),
+    ).toContain('lastVerified: 2026-09-09');
+    expect(
+      read('content/docs/programming/async/how-the-browser-event-loop-works.mdx'),
+    ).toContain('lastVerified: 2026-09-09');
+    expect(read('content/docs/programming/async/promises.mdx')).toContain(
+      'lastVerified: 2026-09-10',
+    );
   });
 
   it('removes the dangling Event Loop TLDR diagram reference', () => {

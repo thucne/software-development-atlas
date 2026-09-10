@@ -33,6 +33,12 @@ Whenever writing, editing, or refactoring lesson content (`content/docs/**/*.mdx
    - Place near first substantive use; do not stack consecutively at page start.
    - Do not wrap ordinary developer vocabulary.
 
-7. **Verification Requirements:**
+7. **Date updates after edits (when applicable):**
+   - Bump `lastVerified` to today's `YYYY-MM-DD` when the edit is an intentional re-verification or material teaching/factual change; keep EN/VI companions identical; sync body lines that restate the date.
+   - Do **not** bump `lastVerified` for typo-only or formatting-only edits.
+   - Bump `atlasLastUpdated` in `lib/site-metadata.ts` when the change should update the docs footer; sync hard-coded footer tests in the same change.
+   - Do **not** mass-bump every lesson's `lastVerified` merely because the site footer date moved.
+
+8. **Verification Requirements:**
    - All tests in `vitest run` must pass 100%.
    - `pnpm typecheck` and `pnpm lint` must pass with zero errors.
