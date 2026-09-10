@@ -84,16 +84,17 @@ describe('SQL Querying lesson', () => {
     ]) {
       const source = read(relativePath);
 
-      expect(source, relativePath).toContain('23');
+      expect(source, relativePath).toContain('24');
       expect(source, relativePath).toContain('/data-systems/relational-data-model');
       expect(source, relativePath).toContain('/data-systems/sql-querying');
       expect(source, relativePath).toContain('/data-systems/database-indexes-and-query-plans');
       expect(source, relativePath).toContain('/data-systems/mvcc');
       expect(source, relativePath).toContain('/data-systems/database-replication');
+      expect(source, relativePath).toContain('/data-systems/data-partitioning');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('23 bài học kiến trúc hệ thống');
-    expect(banner).toContain('23 new system architecture lessons');
+    expect(banner).toContain('24 bài học kiến trúc hệ thống');
+    expect(banner).toContain('24 new system architecture lessons');
   });
 });
