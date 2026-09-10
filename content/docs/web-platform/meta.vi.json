@@ -1,4 +1,4 @@
 {
   "title": "Nền tảng Web",
-  "pages": ["http-request-lifecycle"]
+  "pages": ["dns-resolution-and-tls", "http-request-lifecycle"]
 }
