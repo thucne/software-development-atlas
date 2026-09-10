@@ -8,6 +8,7 @@
     "mvcc",
     "database-replication",
     "data-partitioning",
-    "in-memory-data-stores"
+    "in-memory-data-stores",
+    "search-indexes"
   ]
 }
