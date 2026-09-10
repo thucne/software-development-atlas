@@ -38,7 +38,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ### September 10, 2026 · System Architecture & Engineering Foundations
 
-This major milestone nearly doubles the Atlas curriculum, adding **22 new deep dives, decision guides, and architectural walkthroughs** spanning backend design, data consistency, distributed systems resilience, security, and AI-native engineering:
+This major milestone nearly doubles the Atlas curriculum, adding **23 new deep dives, decision guides, and architectural walkthroughs** spanning backend design, data consistency, distributed systems resilience, security, and AI-native engineering:
 
 #### Backend Engineering
 - [Backend Request Lifecycle](/docs/backend-engineering/backend-request-lifecycle): Trace an HTTP request end-to-end through DNS, TLS termination, reverse proxying, worker routing, database connection pools, and response streaming.
@@ -58,6 +58,7 @@ This major milestone nearly doubles the Atlas curriculum, adding **22 new deep d
 - [Database Indexes & Query Plans](/docs/data-systems/database-indexes-and-query-plans): Understand B-Tree indexing mechanics, composite index column ordering, covering indexes, and how to verify execution paths with `EXPLAIN ANALYZE`.
 - [Database Transactions & Isolation](/docs/data-systems/database-transactions-and-isolation): Master ACID guarantees, transaction boundaries, and isolation levels (Read Committed, Repeatable Read, Serializable) to prevent dirty reads, non-repeatable reads, and write skew.
 - [MVCC](/docs/data-systems/mvcc): Reason about snapshots, row-version visibility, isolation-level snapshot scope, writer conflicts, vacuum cleanup, long-running transactions, and transaction ID wraparound.
+- [Database Replication](/docs/data-systems/database-replication): Reason about WAL streaming, asynchronous and synchronous commit guarantees, replica lag, read-after-write routing, replication slots, hot-standby conflicts, failover, and fencing.
 
 #### Distributed Systems & Networking
 - [Timeouts, Retries & Backoff](/docs/distributed-systems/timeouts-retries-and-backoff): Bound downstream failure without causing retry storms using deadline propagation, exponential backoff with full jitter, and circuit breakers.
