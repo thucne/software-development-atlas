@@ -42,3 +42,9 @@ li.task-list-item > input[type='checkbox'] {
   accent-color: var(--color-fd-primary, #3b82f6) !important;
 }
 
+/* Compact stacked terminology boxes: keep always-visible teaching content
+   without double card gaps when several TermBoxes appear in sequence. */
+.atlas-term-box + .atlas-term-box {
+  margin-top: 0.5rem;
+}
+

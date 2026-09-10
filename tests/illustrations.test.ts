@@ -91,14 +91,77 @@ describe('substantive lesson illustrations', () => {
     expect(failures).toEqual([]);
   });
 
-  test('uses the approved first-generation static/programmatic allocation', () => {
+  test('uses the approved first-generation medium allocation', () => {
     const definitions = Object.values(atlasIllustrationMedia);
     const staticDefinitions = definitions.filter(
       (definition) => definition.kind === 'static-image',
     );
+    const interactiveDefinitions = definitions.filter(
+      (definition) => definition.kind === 'interactive-phases',
+    );
 
+    // First-generation Atlas keeps bilingual labels in HTML. Two high-value
+    // ambiguity/load concepts use phase walkthroughs; the rest stay
+    // programmatic. Static assets remain supported but none are registered.
     expect(definitions).toHaveLength(31);
-    expect(staticDefinitions).toHaveLength(12);
+    expect(staticDefinitions).toHaveLength(0);
+    expect(interactiveDefinitions).toHaveLength(2);
+  });
+
+  test('interactive phase walkthroughs have bilingual phases and valid node refs', () => {
+    const interactiveDefinitions = Object.entries(atlasIllustrationMedia).filter(
+      ([, definition]) => definition.kind === 'interactive-phases',
+    );
+
+    const failures = interactiveDefinitions.flatMap(([id, definition]) => {
+      if (definition.kind !== 'interactive-phases') return [];
+
+      const problems: string[] = [];
+      if (!definition.title.en.trim() || !definition.title.vi.trim()) {
+        problems.push(`${id} is missing localized title`);
+      }
+      if (!definition.caption.en.trim() || !definition.caption.vi.trim()) {
+        problems.push(`${id} is missing localized caption`);
+      }
+      if (definition.nodes.length < 2) {
+        problems.push(`${id} needs at least two nodes`);
+      }
+      if (definition.phases.length < 2) {
+        problems.push(`${id} needs at least two phases`);
+      }
+
+      const nodeIds = new Set(definition.nodes.map((node) => node.id));
+      for (const phase of definition.phases) {
+        if (!phase.label.en.trim() || !phase.label.vi.trim()) {
+          problems.push(`${id}/${phase.id} is missing localized phase label`);
+        }
+        if (!phase.summary.en.trim() || !phase.summary.vi.trim()) {
+          problems.push(`${id}/${phase.id} is missing localized phase summary`);
+        }
+        if (phase.activeNodeIds.length === 0) {
+          problems.push(`${id}/${phase.id} has no active nodes`);
+        }
+        for (const nodeId of phase.activeNodeIds) {
+          if (!nodeIds.has(nodeId)) {
+            problems.push(`${id}/${phase.id} references unknown node ${nodeId}`);
+          }
+        }
+        for (const edge of phase.edgeNotes ?? []) {
+          if (!nodeIds.has(edge.afterNodeId)) {
+            problems.push(
+              `${id}/${phase.id} edge references unknown node ${edge.afterNodeId}`,
+            );
+          }
+          if (!edge.label.en.trim() || !edge.label.vi.trim()) {
+            problems.push(`${id}/${phase.id} edge is missing localized label`);
+          }
+        }
+      }
+
+      return problems;
+    });
+
+    expect(failures).toEqual([]);
   });
 
   test('static teaching images have accessible shared repository assets', () => {

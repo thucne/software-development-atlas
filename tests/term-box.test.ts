@@ -33,19 +33,23 @@ describe('TermBox', () => {
     );
 
     expect(html).toContain('<aside');
+    expect(html).toContain('data-atlas-term-box');
     expect(html).toContain('aria-label="What is Microtask checkpoint?"');
     expect(html).toContain('What is Microtask checkpoint?');
+    expect(html).toContain('Microtask checkpoint');
     expect(html).toContain('Runs queued microtasks until the queue is empty.');
+    expect(html).toContain('atlas-term-box');
     expect(html).not.toContain('<details');
   });
 
-  it('is registered as a global MDX component', () => {
+  it('is registered as a global MDX component with locale wiring', () => {
     const source = readFileSync(
       path.join(process.cwd(), 'components/mdx.tsx'),
       'utf8',
     );
 
     expect(source).toContain("import { TermBox } from '@/components/mdx/term-box';");
-    expect(source).toMatch(/\n\s*TermBox,\n/);
+    expect(source).toContain('TermBox: (props:');
+    expect(source).toContain('<TermBox locale={locale}');
   });
 });

@@ -65,19 +65,71 @@ const STATUS_LABELS_VI: Record<EventLoopState['status'], string> = {
   'starvation-warning': 'Cảnh báo tắc nghẽn (Starvation warning)',
 };
 
-function QueueList({ items, emptyLabel = 'Empty' }: { items: WorkItem[]; emptyLabel?: string }) {
+function QueueList({
+  items,
+  emptyLabel = 'Empty',
+}: {
+  items: WorkItem[];
+  emptyLabel?: string;
+}) {
   if (items.length === 0) {
-    return <p className="text-sm text-fd-muted-foreground">{emptyLabel}</p>;
+    return <p className="m-0 text-xs text-fd-muted-foreground">{emptyLabel}</p>;
   }
 
   return (
-    <ol className="space-y-2">
+    <ol className="m-0 space-y-1">
       {items.map((item) => (
-        <li key={item.id} className="rounded-md border bg-fd-background px-3 py-2 text-sm">
+        <li
+          key={item.id}
+          className="rounded border bg-fd-background px-2 py-1 text-xs leading-snug"
+        >
           {item.label}
         </li>
       ))}
     </ol>
+  );
+}
+
+function TaskSourceLanes({
+  state,
+  sourceLabels,
+  emptyLabel,
+  note,
+}: {
+  state: EventLoopState;
+  sourceLabels: Record<TaskSource, string>;
+  emptyLabel: string;
+  note: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="overflow-hidden rounded-md border border-fd-border">
+        {TASK_SOURCES.map((source) => {
+          const items = state.runnableTasksBySource[source] ?? [];
+          const hasWork = items.length > 0;
+
+          return (
+            <div
+              key={source}
+              className="grid grid-cols-1 gap-1 border-b border-fd-border px-2 py-1.5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-2"
+              data-has-work={hasWork ? 'true' : 'false'}
+            >
+              <div
+                className={`text-xs font-medium ${
+                  hasWork ? 'text-fd-foreground' : 'text-fd-muted-foreground'
+                }`}
+              >
+                {sourceLabels[source]}
+              </div>
+              <div className={`min-w-0 ${hasWork ? '' : 'opacity-60'}`}>
+                <QueueList items={items} emptyLabel={emptyLabel} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="m-0 text-[11px] leading-snug text-fd-muted-foreground">{note}</p>
+    </div>
   );
 }
 
@@ -147,13 +199,19 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
     setState((current) => chooseRunnableTask(current, choiceId));
   }
 
+  const controlButtonClass =
+    'rounded-md border px-2.5 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2';
+
   return (
     <LabShell
+      compact
       title={isVi ? 'Phòng thực hành Event Loop' : 'Event Loop Lab'}
       description={
         isVi ? (
           <>
-            Từng bước khám phá các kịch bản lập lịch tác vụ của trình duyệt. Trình mô phỏng mô hình hóa chuyển đổi trạng thái phục vụ học tập, không chạy mã JavaScript tùy ý.
+            Từng bước khám phá các kịch bản lập lịch tác vụ của trình duyệt. Trình mô
+            phỏng mô hình hóa chuyển đổi trạng thái phục vụ học tập, không chạy mã
+            JavaScript tùy ý.
           </>
         ) : (
           <>
@@ -164,6 +222,7 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
       }
     >
       <ScenarioSelect
+        compact
         label={isVi ? 'Kịch bản Event Loop' : 'Event loop scenario'}
         value={scenarioId}
         options={EVENT_LOOP_SCENARIOS.map((candidate) => ({
@@ -174,48 +233,67 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
         onChange={handleScenarioChange}
       />
 
-      <ScrollableCodeRegion label={isVi ? 'Mã nguồn kịch bản' : 'Scenario source'}>
+      <ScrollableCodeRegion
+        compact
+        maxHeightClassName="max-h-28 sm:max-h-36"
+        label={isVi ? 'Mã nguồn kịch bản' : 'Scenario source'}
+      >
         {scenario.source}
       </ScrollableCodeRegion>
 
-      <LabControls trailing={<span>{isVi ? `Bước ${state.stepIndex}` : `Step ${state.stepIndex}`}</span>}>
-        <button
-          type="button"
-          onClick={handleStep}
-          disabled={state.complete || state.status === 'scheduler-choice'}
-          className="rounded-md border px-3 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50 hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {isVi ? 'Bước tiếp' : 'Step'}
-        </button>
-        <button
-          type="button"
-          onClick={handleRunToggle}
-          disabled={
-            state.complete ||
-            state.status === 'scheduler-choice' ||
-            state.status === 'starvation-warning'
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <LabControls
+          trailing={
+            <span className="text-xs">
+              {isVi ? `Bước ${state.stepIndex}` : `Step ${state.stepIndex}`}
+            </span>
           }
-          className="rounded-md border px-3 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50 hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          {canAutoRun ? (isVi ? 'Tạm dừng' : 'Pause') : (isVi ? 'Chạy tự động' : 'Run')}
-        </button>
-        <button
-          type="button"
-          onClick={() => reset()}
-          className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
-        >
-          {isVi ? 'Đặt lại' : 'Reset'}
-        </button>
-      </LabControls>
+          <button
+            type="button"
+            onClick={handleStep}
+            disabled={state.complete || state.status === 'scheduler-choice'}
+            className={controlButtonClass}
+          >
+            {isVi ? 'Bước tiếp' : 'Step'}
+          </button>
+          <button
+            type="button"
+            onClick={handleRunToggle}
+            disabled={
+              state.complete ||
+              state.status === 'scheduler-choice' ||
+              state.status === 'starvation-warning'
+            }
+            className={controlButtonClass}
+          >
+            {canAutoRun ? (isVi ? 'Tạm dừng' : 'Pause') : isVi ? 'Chạy tự động' : 'Run'}
+          </button>
+          <button
+            type="button"
+            onClick={() => reset()}
+            className={controlButtonClass}
+          >
+            {isVi ? 'Đặt lại' : 'Reset'}
+          </button>
+        </LabControls>
 
-      <LiveStatus label={isVi ? 'Trạng thái' : 'Status'}>
-        <span data-testid="event-loop-status">{statusLabels[state.status]}</span>
-      </LiveStatus>
+        <LiveStatus compact label={isVi ? 'Trạng thái' : 'Status'} className="min-w-0 sm:max-w-xs">
+          <span data-testid="event-loop-status">{statusLabels[state.status]}</span>
+        </LiveStatus>
+      </div>
 
       {state.status === 'scheduler-choice' && state.choices.length > 0 ? (
-        <section className="space-y-3 rounded-lg border p-4" aria-label={isVi ? 'Lựa chọn hợp lệ của bộ điều phối' : 'Valid scheduler choices'}>
-          <h4 className="font-semibold">{isVi ? 'Chọn một nguồn tác vụ hợp lệ' : 'Choose one valid runnable source'}</h4>
-          <p className="text-sm text-fd-muted-foreground">
+        <section
+          className="space-y-2 rounded-lg border p-3"
+          aria-label={
+            isVi ? 'Lựa chọn hợp lệ của bộ điều phối' : 'Valid scheduler choices'
+          }
+        >
+          <h4 className="m-0 text-sm font-semibold">
+            {isVi ? 'Chọn một nguồn tác vụ hợp lệ' : 'Choose one valid runnable source'}
+          </h4>
+          <p className="m-0 text-xs text-fd-muted-foreground">
             {isVi
               ? 'Cả hai lựa chọn đều hợp lệ trong kịch bản đơn giản hóa này. Trình duyệt không cam kết thứ tự FIFO tuyệt đối giữa các nguồn khác nhau.'
               : 'Both choices are valid in this simplified scenario. The browser platform does not promise one universal cross-source FIFO order.'}
@@ -226,7 +304,7 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
                 key={choice.id}
                 type="button"
                 onClick={() => handleSchedulerChoice(choice.id)}
-                className="rounded-md border px-3 py-2 font-medium hover:bg-fd-muted focus-visible:outline-2 focus-visible:outline-offset-2"
+                className={controlButtonClass}
               >
                 {choice.label}
               </button>
@@ -235,56 +313,80 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
         </section>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <LabPanel title={isVi ? 'Tác vụ đang thực thi' : 'Currently running work'}>
-          {state.current ? (
-            <p className="rounded-md border bg-fd-background px-3 py-2 text-sm">
-              {state.current.label}
-            </p>
-          ) : (
-            <p className="text-sm text-fd-muted-foreground">{isVi ? 'Không có' : 'None'}</p>
-          )}
-        </LabPanel>
+      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="grid min-w-0 gap-2">
+          <LabPanel compact title={isVi ? 'Tác vụ đang thực thi' : 'Currently running work'}>
+            {state.current ? (
+              <p className="m-0 break-words rounded border bg-fd-background px-2 py-1 text-xs">
+                {state.current.label}
+              </p>
+            ) : (
+              <p className="m-0 text-xs text-fd-muted-foreground">
+                {isVi ? 'Không có' : 'None'}
+              </p>
+            )}
+          </LabPanel>
 
-        <LabPanel title={isVi ? 'Hàng đợi Microtasks' : 'Microtasks'}>
-          <QueueList items={state.microtasks} emptyLabel={isVi ? 'Trống' : 'Empty'} />
-        </LabPanel>
+          <LabPanel compact title={isVi ? 'Hàng đợi Microtasks' : 'Microtasks'}>
+            <QueueList
+              items={state.microtasks}
+              emptyLabel={isVi ? 'Trống' : 'Empty'}
+            />
+          </LabPanel>
 
-        <LabPanel title={isVi ? 'Tác vụ sẵn sàng theo nguồn' : 'Runnable task-source work'}>
-          <div className="space-y-4">
-            {TASK_SOURCES.map((source) => (
-              <div key={source} className="space-y-2">
-                <h5 className="text-sm font-medium">{sourceLabels[source]}</h5>
-                <QueueList items={state.runnableTasksBySource[source] ?? []} emptyLabel={isVi ? 'Trống' : 'Empty'} />
+          <LabPanel
+            compact
+            title={isVi ? 'Công việc liên quan đến dựng hình' : 'Rendering-related work'}
+          >
+            <div className="min-w-0 space-y-2">
+              <p className="m-0 break-words text-xs">
+                <strong>{isVi ? 'Trạng thái dựng hình:' : 'Rendering state:'}</strong>{' '}
+                {statusLabels[state.status]}
+              </p>
+              <div className="min-w-0">
+                <h5 className="mb-1 text-xs font-medium">
+                  {isVi
+                    ? 'Các hàm gọi lại requestAnimationFrame'
+                    : 'requestAnimationFrame callbacks'}
+                </h5>
+                <QueueList
+                  items={state.animationFrameCallbacks}
+                  emptyLabel={isVi ? 'Trống' : 'Empty'}
+                />
               </div>
-            ))}
-          </div>
-          <p className="mt-4 text-xs text-fd-muted-foreground">
-            {isVi
-              ? 'Các luồng này gom nhóm công việc theo nguồn tác vụ phục vụ giải thích. Điều này không có nghĩa là mỗi nguồn tác vụ tương ứng 1-1 với một hàng đợi tác vụ của trình duyệt.'
-              : 'These lanes group runnable work by task source for teaching. They do not imply that every task source maps one-to-one to a browser task queue; user agents may coalesce task sources into task queues.'}
-          </p>
-        </LabPanel>
-
-        <LabPanel title={isVi ? 'Công việc liên quan đến dựng hình' : 'Rendering-related work'}>
-          <div className="space-y-3">
-            <p className="text-sm">
-              <strong>{isVi ? 'Trạng thái dựng hình:' : 'Rendering state:'}</strong> {statusLabels[state.status]}
-            </p>
-            <div>
-              <h5 className="mb-2 text-sm font-medium">{isVi ? 'Các hàm gọi lại requestAnimationFrame' : 'requestAnimationFrame callbacks'}</h5>
-              <QueueList items={state.animationFrameCallbacks} emptyLabel={isVi ? 'Trống' : 'Empty'} />
             </div>
-          </div>
+          </LabPanel>
+        </div>
+
+        <LabPanel
+          compact
+          className="min-w-0"
+          title={isVi ? 'Tác vụ sẵn sàng theo nguồn' : 'Runnable task-source work'}
+        >
+          <TaskSourceLanes
+            state={state}
+            sourceLabels={sourceLabels}
+            emptyLabel={isVi ? 'Trống' : 'Empty'}
+            note={
+              isVi
+                ? 'Các luồng này gom nhóm công việc theo nguồn tác vụ phục vụ giải thích. Điều này không có nghĩa là mỗi nguồn tác vụ tương ứng 1-1 với một hàng đợi tác vụ của trình duyệt.'
+                : 'These lanes group runnable work by task source for teaching. They do not imply that every task source maps one-to-one to a browser task queue; user agents may coalesce task sources into task queues.'
+            }
+          />
         </LabPanel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <LabPanel title={isVi ? 'Nhật ký kết quả' : 'Output log'}>
+      <div className="grid min-w-0 gap-2 lg:grid-cols-2">
+        <LabPanel compact title={isVi ? 'Nhật ký kết quả' : 'Output log'}>
           {state.output.length === 0 ? (
-            <p className="text-sm text-fd-muted-foreground">{isVi ? 'Chưa có kết quả' : 'No output yet'}</p>
+            <p className="m-0 text-xs text-fd-muted-foreground">
+              {isVi ? 'Chưa có kết quả' : 'No output yet'}
+            </p>
           ) : (
-            <ol data-testid="event-loop-output" className="list-decimal space-y-1 pl-5 font-mono text-sm">
+            <ol
+              data-testid="event-loop-output"
+              className="m-0 list-decimal space-y-0.5 break-words pl-4 font-mono text-xs"
+            >
               {state.output.map((line, index) => (
                 <li key={`${index}-${line}`}>{line}</li>
               ))}
@@ -292,8 +394,8 @@ export function EventLoopLab({ locale }: { locale?: 'en' | 'vi' } = {}) {
           )}
         </LabPanel>
 
-        <LabPanel title={isVi ? 'Giải thích bước này' : 'Why this step?'}>
-          <p className="text-sm leading-relaxed" aria-live="polite">
+        <LabPanel compact title={isVi ? 'Giải thích bước này' : 'Why this step?'}>
+          <p className="m-0 break-words text-xs leading-relaxed" aria-live="polite">
             {state.explanation}
           </p>
         </LabPanel>

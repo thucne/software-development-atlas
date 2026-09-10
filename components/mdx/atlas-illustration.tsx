@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 type Locale = 'en' | 'vi';
 type Tone = 'accent' | 'success' | 'warning' | 'danger' | 'muted';
@@ -131,28 +131,32 @@ const definitions: Record<AtlasIllustrationId, IllustrationDefinition> = {
     ],
   },
   'payment-ambiguity-window': {
-    kind: 'compare',
+    kind: 'flow',
     title: t('Payment ambiguity after a lost response', 'Sự bất định thanh toán khi mất response'),
     caption: t(
-      'A timeout tells the caller that the response is unknown, not that the remote operation failed.',
-      'Timeout chỉ cho biết caller không biết response, không chứng minh thao tác phía xa đã thất bại.',
+      'A timeout tells the caller that the response is unknown, not that the remote operation failed. Recover with the same idempotency key and remote reconciliation—never infer “not charged” from timeout alone.',
+      'Timeout chỉ cho biết caller không biết response, không chứng minh thao tác phía xa đã thất bại. Khôi phục bằng cùng idempotency key và reconcile trạng thái từ xa—không suy ra “chưa trừ tiền” chỉ từ timeout.',
     ),
-    columns: [
+    cards: [
       {
-        title: t('What actually happened', 'Điều thực sự đã xảy ra'),
-        cards: [
-          { label: t('Charge succeeds', 'Charge thành công'), tone: 'success' },
-          { label: t('Response packet is lost', 'Gói response bị mất'), tone: 'danger' },
-          { label: t('Caller sees timeout', 'Caller thấy timeout'), tone: 'warning' },
-        ],
+        label: t('Checkout API', 'Checkout API'),
+        detail: t('Sends charge + idempotency key', 'Gửi charge + idempotency key'),
+        tone: 'accent',
       },
       {
-        title: t('Safe recovery', 'Khôi phục an toàn'),
-        cards: [
-          { label: t('Reuse the same idempotency key', 'Dùng lại cùng idempotency key'), tone: 'accent' },
-          { label: t('Query / reconcile remote state', 'Query / reconcile trạng thái từ xa') },
-          { label: t('Never infer “not charged” from timeout', 'Không suy ra “chưa trừ tiền” chỉ từ timeout'), tone: 'warning' },
-        ],
+        label: t('Payment provider', 'Nhà cung cấp thanh toán'),
+        detail: t('Charge may already succeed', 'Charge có thể đã thành công'),
+        tone: 'success',
+      },
+      {
+        label: t('Response path', 'Đường response'),
+        detail: t('Success packet lost / never arrives', 'Gói success bị mất / không tới'),
+        tone: 'danger',
+      },
+      {
+        label: t('Caller timeout', 'Caller timeout'),
+        detail: t('Outcome unknown — do not invent failure', 'Kết quả bất định — không bịa failure'),
+        tone: 'warning',
       },
     ],
   },
@@ -682,16 +686,36 @@ const toneClass: Record<Tone, string> = {
   muted: 'border-fd-border bg-fd-muted/35',
 };
 
-function DiagramCard({ card, locale }: { card: Card; locale: Locale }) {
+function DiagramCard({
+  card,
+  locale,
+  dense = false,
+}: {
+  card: Card;
+  locale: Locale;
+  dense?: boolean;
+}) {
   return (
     <div
-      className={`rounded-lg border px-3 py-3 ${toneClass[card.tone ?? 'muted']}`}
+      className={`h-full rounded-lg border ${
+        dense ? 'px-2.5 py-2' : 'px-3 py-3'
+      } ${toneClass[card.tone ?? 'muted']}`}
     >
-      <div className="text-sm font-semibold text-fd-foreground">
+      <div
+        className={`font-semibold text-fd-foreground ${
+          dense ? 'text-xs leading-snug' : 'text-sm'
+        }`}
+      >
         {localized(card.label, locale)}
       </div>
       {card.detail ? (
-        <div className="mt-1 text-xs leading-relaxed text-fd-muted-foreground">
+        <div
+          className={`text-fd-muted-foreground ${
+            dense
+              ? 'mt-0.5 text-[11px] leading-snug'
+              : 'mt-1 text-xs leading-relaxed'
+          }`}
+        >
           {localized(card.detail, locale)}
         </div>
       ) : null}
@@ -700,30 +724,76 @@ function DiagramCard({ card, locale }: { card: Card; locale: Locale }) {
 }
 
 function FlowDiagram({ definition, locale }: { definition: FlowDefinition; locale: Locale }) {
-  const scrollLabel = locale === 'vi' ? 'Sơ đồ luồng' : 'Flow diagram';
+  const regionLabel = locale === 'vi' ? 'Sơ đồ luồng' : 'Flow diagram';
+  const cardCount = definition.cards.length;
+  // Long flows stay vertical so labels remain readable and the article never
+  // needs a horizontal scroll gutter. Short flows may sit in one row when wide.
+  const useVerticalTimeline = cardCount >= 4;
+
+  if (useVerticalTimeline) {
+    return (
+      <div
+        role="region"
+        aria-label={regionLabel}
+        tabIndex={0}
+        className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <ol className="m-0 grid list-none gap-0 p-0">
+          {definition.cards.map((card, index) => {
+            const isLast = index === definition.cards.length - 1;
+            return (
+              <li
+                key={`${localized(card.label, locale)}-${index}`}
+                className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-2.5"
+              >
+                <div className="flex flex-col items-center">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-fd-border bg-fd-muted/50 text-[10px] font-semibold text-fd-muted-foreground"
+                  >
+                    {index + 1}
+                  </span>
+                  {isLast ? null : (
+                    <span
+                      aria-hidden="true"
+                      className="my-1 w-px flex-1 bg-fd-border"
+                    />
+                  )}
+                </div>
+                <div className={`min-w-0 ${isLast ? '' : 'pb-2.5'}`}>
+                  <DiagramCard card={card} locale={locale} dense />
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    );
+  }
 
   return (
     <div
       role="region"
-      aria-label={scrollLabel}
+      aria-label={regionLabel}
       tabIndex={0}
-      className="overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+      className="@container min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
     >
-      <div className="flex min-w-max items-stretch gap-2.5 sm:gap-3">
+      <div className="flex flex-col items-stretch gap-1.5 @[28rem]:flex-row @[28rem]:gap-1.5">
         {definition.cards.map((card, index) => (
-          <div key={`${localized(card.label, locale)}-${index}`} className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-48 sm:w-56 shrink-0">
-              <DiagramCard card={card} locale={locale} />
+          <Fragment key={`${localized(card.label, locale)}-${index}`}>
+            <div className="min-w-0 flex-1">
+              <DiagramCard card={card} locale={locale} dense />
             </div>
             {index < definition.cards.length - 1 ? (
               <div
                 aria-hidden="true"
-                className="shrink-0 text-base font-semibold text-fd-muted-foreground select-none"
+                className="flex shrink-0 items-center justify-center px-0.5 text-sm font-semibold text-fd-muted-foreground select-none"
               >
-                →
+                <span className="@[28rem]:hidden">↓</span>
+                <span className="hidden @[28rem]:inline">→</span>
               </div>
             ) : null}
-          </div>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -767,26 +837,29 @@ function CompareDiagram({ definition, locale }: { definition: CompareDefinition;
 }
 
 function TimelineDiagram({ definition, locale }: { definition: TimelineDefinition; locale: Locale }) {
-  const scrollLabel = locale === 'vi' ? 'Biểu đồ tiến trình' : 'Timeline diagram';
+  const regionLabel = locale === 'vi' ? 'Biểu đồ tiến trình' : 'Timeline diagram';
 
   return (
     <div
       role="region"
-      aria-label={scrollLabel}
+      aria-label={regionLabel}
       tabIndex={0}
-      className="overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+      className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
     >
-      <div className="min-w-[32rem] grid gap-4">
+      <div className="grid gap-3">
         {definition.lanes.map((lane) => (
-          <div key={localized(lane.label, locale)} className="grid gap-2 grid-cols-[8rem_1fr] items-center">
+          <div
+            key={localized(lane.label, locale)}
+            className="grid grid-cols-1 gap-2 sm:grid-cols-[7.5rem_1fr] sm:items-center"
+          >
             <div className="text-sm font-semibold text-fd-foreground">
               {localized(lane.label, locale)}
             </div>
-            <div className="relative h-14 overflow-hidden rounded-lg border border-fd-border bg-fd-muted/25">
+            <div className="relative h-12 overflow-hidden rounded-lg border border-fd-border bg-fd-muted/25 sm:h-14">
               {lane.segments.map((segment, index) => (
                 <div
                   key={`${localized(segment.label, locale)}-${index}`}
-                  className={`absolute top-2 flex h-10 items-center overflow-hidden rounded-md border px-2 text-[11px] font-medium leading-tight text-fd-foreground ${toneClass[segment.tone ?? 'muted']}`}
+                  className={`absolute top-1.5 flex h-9 items-center overflow-hidden rounded-md border px-1.5 text-[10px] font-medium leading-tight text-fd-foreground sm:top-2 sm:h-10 sm:px-2 sm:text-[11px] ${toneClass[segment.tone ?? 'muted']}`}
                   style={{ left: `${segment.start}%`, width: `${segment.width}%` }}
                   title={localized(segment.label, locale)}
                 >
@@ -874,12 +947,13 @@ function ChartDiagram({ definition, locale }: { definition: ChartDefinition; loc
         role="region"
         aria-label={scrollLabel}
         tabIndex={0}
-        className="overflow-x-auto rounded-lg border border-fd-border bg-fd-card/45 p-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="rounded-lg border border-fd-border bg-fd-card/45 p-2 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <svg
           aria-hidden="true"
-          className="min-w-[36rem] text-fd-muted-foreground"
+          className="h-auto w-full text-fd-muted-foreground"
           viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
         >
           {[0, 25, 50, 75, 100].map((value) => {
             const y = top + (1 - value / 100) * usableHeight;
@@ -971,7 +1045,7 @@ export function AtlasIllustration({
     <figure
       data-atlas-illustration={id}
       aria-labelledby={labelId}
-      className="my-7 overflow-hidden rounded-2xl border border-fd-border bg-gradient-to-br from-fd-card to-fd-muted/25 shadow-sm"
+      className="my-7 min-w-0 overflow-hidden rounded-2xl border border-fd-border bg-gradient-to-br from-fd-card to-fd-muted/25 shadow-sm"
     >
       <div className="border-b border-fd-border px-4 py-3 sm:px-5">
         <div id={labelId} className="text-sm font-semibold text-fd-foreground">

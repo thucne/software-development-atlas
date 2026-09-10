@@ -59,7 +59,9 @@ export function getMDXComponents(
     HttpRequestPathExplorer,
     PromiseResolutionLab,
     Mermaid,
-    TermBox,
+    TermBox: (props: Omit<Parameters<typeof TermBox>[0], 'locale'>) => (
+      <TermBox locale={locale} {...props} />
+    ),
     ...components,
   } satisfies MDXComponents;
 }
