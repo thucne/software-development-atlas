@@ -3,6 +3,7 @@
   "pages": [
     "backend-request-lifecycle",
     "api-design",
-    "authentication-and-authorization"
+    "authentication-and-authorization",
+    "backend-concurrency"
   ]
 }
