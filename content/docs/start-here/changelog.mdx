@@ -38,7 +38,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ### September 10, 2026 · System Architecture & Engineering Foundations
 
-This major milestone nearly doubles the Atlas curriculum, adding **16 new deep dives, decision guides, and architectural walkthroughs** spanning backend design, data consistency, distributed systems resilience, security, and AI-native engineering:
+This major milestone nearly doubles the Atlas curriculum, adding **20 new deep dives, decision guides, and architectural walkthroughs** spanning backend design, data consistency, distributed systems resilience, security, and AI-native engineering:
 
 #### Backend Engineering
 - [Backend Request Lifecycle](/docs/backend-engineering/backend-request-lifecycle): Trace an HTTP request end-to-end through DNS, TLS termination, reverse proxying, worker routing, database connection pools, and response streaming.
@@ -48,8 +48,12 @@ This major milestone nearly doubles the Atlas curriculum, adding **16 new deep d
 - [Backend Concurrency](/docs/backend-engineering/backend-concurrency): Preserve data invariants under overlapping requests with atomic updates, optimistic locking, and pessimistic row locks.
 - [Background Jobs](/docs/backend-engineering/background-jobs): Move asynchronous work out of the request path using durable job queues, state machines, worker pools, and at-least-once retry safety.
 - [Message Queues](/docs/backend-engineering/message-queues): Decouple producers and consumers with explicit delivery semantics, acknowledgments, dead-letter queues, and backpressure.
+- [Rate Limiting](/docs/backend-engineering/rate-limiting): Protect shared capacity with scoped identities, burst-aware admission policies, distributed enforcement, and explicit client retry signals.
+- [Idempotency](/docs/backend-engineering/idempotency): Make ambiguous retries safe with stable logical-operation keys, atomic reservation, request fingerprints, replay contracts, and duplicate-safe downstream effects.
+- [Service Resilience](/docs/backend-engineering/service-resilience): Contain dependency failure with end-to-end deadline budgets, bulkheads, bounded concurrency, retry budgets, circuit breakers, load shedding, and graceful degradation.
 
 #### Data Systems
+- [Relational Data Model](/docs/data-systems/relational-data-model): Model durable business facts with candidate keys, relationship cardinality, integrity constraints, normalization, explicit source-of-truth ownership, and safe schema evolution.
 - [Database Indexes & Query Plans](/docs/data-systems/database-indexes-and-query-plans): Understand B-Tree indexing mechanics, composite index column ordering, covering indexes, and how to verify execution paths with `EXPLAIN ANALYZE`.
 - [Database Transactions & Isolation](/docs/data-systems/database-transactions-and-isolation): Master ACID guarantees, transaction boundaries, and isolation levels (Read Committed, Repeatable Read, Serializable) to prevent dirty reads, non-repeatable reads, and write skew.
 

@@ -1,6 +1,7 @@
 {
   "title": "Data Systems",
   "pages": [
+    "relational-data-model",
     "database-indexes-and-query-plans",
     "database-transactions-and-isolation"
   ]
