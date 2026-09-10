@@ -4,6 +4,7 @@
     "backend-request-lifecycle",
     "api-design",
     "authentication-and-authorization",
-    "backend-concurrency"
+    "backend-concurrency",
+    "background-jobs"
   ]
 }
