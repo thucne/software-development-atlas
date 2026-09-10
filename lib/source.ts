@@ -55,10 +55,11 @@ function atlasStatusBadgesPlugin(): LoaderPlugin {
         node.name = createElement(
           'span',
           { className: 'flex w-full items-center justify-between gap-1.5' },
-          createElement('span', { className: 'truncate' }, originalName),
+          createElement('span', { key: 'title', className: 'truncate' }, originalName),
           createElement(
             'span',
             {
+              key: 'badge',
               'data-status': badgeType,
               className: `shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider leading-none ${badgeTone}`,
             },
