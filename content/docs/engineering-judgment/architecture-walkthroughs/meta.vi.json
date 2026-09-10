@@ -1,4 +1,7 @@
 {
   "title": "Phân tích kiến trúc thực tế",
-  "pages": ["reliable-checkout"]
+  "pages": [
+    "reliable-checkout",
+    "reliable-file-processing-pipeline"
+  ]
 }
