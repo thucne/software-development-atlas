@@ -218,12 +218,12 @@ Hệ quả vận hành quan trọng: logical deletion và physical space reclama
 ## 9. VACUUM là một phần của vòng đời MVCC
 
 <TermBox term="VACUUM">
-Trong PostgreSQL, **VACUUM** thực hiện maintenance gồm thu hồi hoặc làm reusable space từ obsolete row version, duy trì planner statistics/visibility information và bảo vệ khỏi transaction ID wraparound.
+Trong PostgreSQL, **VACUUM** thu hồi hoặc làm reusable space từ obsolete row version, duy trì visibility map và góp phần bảo vệ khỏi transaction ID wraparound. Planner statistics được thu thập bởi `ANALYZE`, có thể chạy riêng hoặc như một bước tùy chọn cùng `VACUUM`.
 
 **Vì sao quan trọng:** giữ old version là điều cho phép snapshot read hoạt động, nhưng version mà không valid snapshot nào còn cần phải được cleanup để lịch sử không tăng vô hạn.
 </TermBox>
 
-Tài liệu routine vacuuming của PostgreSQL liệt kê nhiều lý do phải vacuum đều đặn, gồm thu hồi space của updated/deleted row version, duy trì planner statistics và visibility map, cùng bảo vệ khỏi transaction ID wraparound.
+Tài liệu routine maintenance của PostgreSQL tách rõ các trách nhiệm này: `VACUUM` xử lý cleanup obsolete row version, visibility-map maintenance và transaction-ID aging, còn `ANALYZE` thu thập statistics cho query planner. Hệ thống autovacuum có thể lập lịch cả hai hoạt động khi table thay đổi.
 
 Standard `VACUUM` thường đánh dấu space để tái sử dụng bên trong relation. Nó không mặc định shrink table file trả về operating system. `VACUUM FULL` là một operation rewrite nặng hơn, cần exclusive table lock và không nên bị hiểu như routine MVCC cleanup.
 
