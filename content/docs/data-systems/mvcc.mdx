@@ -247,11 +247,12 @@ old snapshot remains active
   -> tables/indexes can bloat and vacuum work becomes harder
 ```
 
-A transaction does not need to be actively querying every second to matter. An application that begins a transaction and then waits on user input, remote I/O, a job queue, or forgotten connection-pool code can hold a snapshot much longer than intended.
+A transaction does not need to be actively querying every second to matter. An application that begins a transaction and then waits on user input, remote I/O, a job queue, or forgotten connection-pool code can hold a snapshot much longer than intended when its isolation/cursor semantics retain that snapshot.
 
 Practical review questions include:
 
 - How long can this transaction remain open?
+- Does the isolation level retain one snapshot for the transaction?
 - Does application code perform network calls while holding the transaction?
 - Are idle-in-transaction sessions monitored?
 - Can batch readers use smaller transaction boundaries?
@@ -291,15 +292,15 @@ If the invariant says at least one doctor must remain on call, each transaction'
 
 That problem belongs to transaction-isolation reasoning, not to “turning MVCC on.” PostgreSQL already uses MVCC; you still must select transaction boundaries and conflict handling that preserve the invariant.
 
-## 13. Production scenario: an idle reporting transaction causes table growth
+## 13. Production scenario: a long-lived reporting snapshot causes table growth
 
-A reporting endpoint starts a transaction, runs an initial query, then streams result preparation through several remote enrichment calls before committing. A connection timeout bug sometimes leaves the session `idle in transaction` for hours. Meanwhile, a high-write `events` table receives frequent updates and deletes.
+A reporting endpoint starts a `REPEATABLE READ, READ ONLY` transaction so one export sees a stable database view. It runs an initial query, then performs several remote enrichment calls before committing. A connection timeout bug sometimes leaves the session `idle in transaction` for hours. Meanwhile, a high-write `events` table receives frequent updates and deletes.
 
-**Impact:** dead tuples accumulate, table and index sizes grow, vacuum cannot reclaim as much space as expected, query latency degrades as more pages are touched, and maintenance pressure rises even though the report itself is mostly read-only.
+**Impact:** dead tuples accumulate, table and index sizes grow, vacuum cannot reclaim as much space as expected, query latency degrades as more pages are touched, and maintenance pressure rises even though the report itself is read-only.
 
-**Root cause:** the team treated a read-only transaction as harmless. Its old snapshot kept a visibility horizon open while write-heavy tables continued producing obsolete row versions. The transaction boundary included remote waiting that did not need database snapshot consistency.
+**Root cause:** the team treated a read-only transaction as harmless. Its long-lived transaction-level snapshot kept an old visibility horizon relevant while write-heavy tables continued producing obsolete row versions. The transaction boundary included remote waiting that did not need database snapshot consistency.
 
-**Correct pattern:** keep reporting transaction boundaries as short as the required consistency window, do not hold database transactions open across unrelated remote I/O, monitor long-running and idle-in-transaction sessions, set appropriate transaction/session timeouts, and observe dead tuples plus vacuum progress instead of reacting only after disk growth becomes obvious.
+**Correct pattern:** keep `Repeatable Read` reporting transactions as short as the consistency window actually requires, do not hold database transactions open across unrelated remote I/O, monitor long-running transactions and `idle in transaction` sessions, set appropriate transaction/session timeouts, and observe dead tuples plus vacuum progress instead of reacting only after disk growth becomes obvious.
 
 ## 14. Diagnose MVCC problems by separating three questions
 
@@ -315,7 +316,7 @@ Check row/table locks, blocked sessions, deadlocks, and deliberately locking sta
 
 ### What cannot be cleaned up yet?
 
-Check long-running transactions, replication/maintenance horizons where relevant, dead tuple accumulation, vacuum progress, and transaction age.
+Check long-running snapshots/transactions, replication or maintenance horizons where relevant, dead tuple accumulation, vacuum progress, and transaction age.
 
 Combining all three into “the database is locked” or “MVCC is stale” hides the real mechanism.
 
@@ -342,9 +343,9 @@ The database is not claiming that the account has two simultaneous business bala
 - [ ] **Visibility:** explain unexpected reads using snapshot timing before blaming caches or replication.
 - [ ] **Locks:** inspect blocking separately from snapshot visibility; MVCC does not eliminate writer conflicts or explicit locks.
 - [ ] **Transaction lifetime:** keep transactions no longer than the consistency/invariant requires.
-- [ ] **Remote work:** avoid holding a transaction open across unrelated network calls, user think time, or queue waits.
+- [ ] **Remote work:** avoid holding a retained transaction snapshot open across unrelated network calls, user think time, or queue waits.
 - [ ] **Vacuum health:** monitor dead tuples, vacuum/autovacuum activity, relation growth, and maintenance lag on write-heavy tables.
-- [ ] **Idle sessions:** detect and bound `idle in transaction` sessions.
+- [ ] **Idle sessions:** detect and bound `idle in transaction` sessions, especially when an isolation level or cursor retains an old snapshot.
 - [ ] **Isolation failures:** treat serialization failures as expected retryable transaction outcomes where higher isolation is used.
 - [ ] **Wraparound protection:** do not disable or indefinitely starve vacuuming required for transaction ID aging and freezing.
 - [ ] **DDL boundary:** remember that some heavy table-rewriting operations have locking/MVCC caveats beyond ordinary DML behavior.
@@ -352,7 +353,7 @@ The database is not claiming that the account has two simultaneous business bala
 
 ## Agent rule
 
-When diagnosing PostgreSQL concurrency, do not say “MVCC means reads never block” and stop. Identify the snapshot scope, the row versions that can be visible to that snapshot, any locks that coordinate conflicting operations, and the cleanup horizon that determines when obsolete versions become reclaimable. Keep application transactions short enough that snapshot consistency does not accidentally become a storage-maintenance problem.
+When diagnosing PostgreSQL concurrency, do not say “MVCC means reads never block” and stop. Identify the snapshot scope, the row versions that can be visible to that snapshot, any locks that coordinate conflicting operations, and the cleanup horizon that determines when obsolete versions become reclaimable. Keep application transactions short enough that retained snapshot consistency does not accidentally become a storage-maintenance problem.
 
 ## Sources
 
