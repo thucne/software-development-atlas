@@ -8,6 +8,7 @@
     "background-jobs",
     "application-caching",
     "message-queues",
-    "rate-limiting"
+    "rate-limiting",
+    "idempotency"
   ]
 }
