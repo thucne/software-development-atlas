@@ -4,38 +4,30 @@ import {
   atlasIllustrationIds,
   type AtlasIllustrationId,
 } from '@/components/mdx/atlas-illustration';
+import {
+  atlasStaticIllustrationMedia,
+  type LocalizedIllustrationText,
+  type StaticTeachingIllustrationMedia,
+} from '@/components/mdx/atlas-static-illustrations';
 
 type Locale = 'en' | 'vi';
 
-export type LocalizedIllustrationText = {
-  en: string;
-  vi: string;
-};
-
 type ProgrammaticIllustrationMedia = {
   kind: 'programmatic';
-};
-
-export type StaticTeachingIllustrationMedia = {
-  kind: 'static-image';
-  title: LocalizedIllustrationText;
-  caption: LocalizedIllustrationText;
-  description: LocalizedIllustrationText;
-  asset: `/illustrations/${string}.webp`;
 };
 
 export type AtlasIllustrationMedia =
   | ProgrammaticIllustrationMedia
   | StaticTeachingIllustrationMedia;
 
-export const illustrationText = (
-  en: string,
-  vi: string,
-): LocalizedIllustrationText => ({ en, vi });
-
-export const atlasIllustrationMedia = Object.fromEntries(
+const programmaticIllustrationMedia = Object.fromEntries(
   atlasIllustrationIds.map((id) => [id, { kind: 'programmatic' }]),
 ) as Record<AtlasIllustrationId, AtlasIllustrationMedia>;
+
+export const atlasIllustrationMedia = {
+  ...programmaticIllustrationMedia,
+  ...atlasStaticIllustrationMedia,
+} satisfies Record<AtlasIllustrationId, AtlasIllustrationMedia>;
 
 function localized(text: LocalizedIllustrationText, locale: Locale) {
   return text[locale];
@@ -74,6 +66,7 @@ function StaticTeachingIllustration({
             width={1600}
             height={900}
             sizes="(max-width: 768px) 100vw, 900px"
+            unoptimized={definition.asset.endsWith('.svg')}
             className="block h-auto w-full object-contain"
           />
         </div>

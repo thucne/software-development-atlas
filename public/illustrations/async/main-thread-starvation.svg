@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a0f18"/><stop offset=".55" stop-color="#101a28"/><stop offset="1" stop-color="#090e16"/></linearGradient>
+  <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#7890aa" stroke-opacity=".08"/></pattern>
+  <filter id="g" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <marker id="ab" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#60a5fa"/></marker>
+  <marker id="ag" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#37cd91"/></marker>
+  <marker id="ac" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#41dcc8"/></marker>
+  <marker id="aa" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0l12 6-12 6z" fill="#f59e0b"/></marker>
+  <g id="task"><rect width="112" height="70" rx="18" fill="#162233" stroke="#60a5fa" stroke-width="3"/><rect x="12" y="12" width="88" height="8" rx="4" fill="#60a5fa" opacity=".7"/></g>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/><rect width="1600" height="900" fill="url(#grid)"/>
+<rect x="120" y="382" width="1370" height="130" rx="44" fill="#171f2e" stroke="#2c3a4e" stroke-width="4"/>
+<g filter="url(#g)">
+  <circle cx="180" cy="445" r="17" fill="#f59e0b"/><circle cx="246" cy="445" r="17" fill="#f59e0b"/><circle cx="312" cy="445" r="17" fill="#f59e0b"/><circle cx="378" cy="445" r="17" fill="#f59e0b"/><circle cx="444" cy="445" r="17" fill="#f59e0b"/><circle cx="510" cy="445" r="17" fill="#f59e0b"/><circle cx="576" cy="445" r="17" fill="#f59e0b"/><circle cx="642" cy="445" r="17" fill="#f59e0b"/><circle cx="708" cy="445" r="17" fill="#f59e0b"/><circle cx="774" cy="445" r="17" fill="#f59e0b"/><circle cx="840" cy="445" r="17" fill="#f59e0b"/><circle cx="906" cy="445" r="17" fill="#f59e0b"/><circle cx="972" cy="445" r="17" fill="#f59e0b"/><circle cx="1038" cy="445" r="17" fill="#f59e0b"/><circle cx="1104" cy="445" r="17" fill="#ef4444"/><circle cx="1170" cy="445" r="17" fill="#ef4444"/><circle cx="1236" cy="445" r="17" fill="#ef4444"/><circle cx="1302" cy="445" r="17" fill="#ef4444"/>
+</g>
+<g opacity=".9"><use href="#task" x="210" y="185"/><use href="#task" x="375" y="185"/><use href="#task" x="540" y="185"/><use href="#task" x="705" y="185"/><use href="#task" x="870" y="185"/><use href="#task" x="1035" y="185"/><use href="#task" x="1200" y="185"/><path d="M1320 220h140" stroke="#60a5fa" stroke-width="7" marker-end="url(#ab)"/>
+<use href="#task" x="210" y="645"/><use href="#task" x="375" y="645"/><use href="#task" x="540" y="645"/><use href="#task" x="705" y="645"/><use href="#task" x="870" y="645"/><use href="#task" x="1035" y="645"/><use href="#task" x="1200" y="645"/><path d="M1320 680h140" stroke="#37cd91" stroke-width="7" marker-end="url(#ag)"/></g>
+<rect x="1370" y="330" width="48" height="240" rx="20" fill="#451f26" stroke="#ef4444" stroke-width="4"/>
+<path d="M1290 345c180-45 190 215-10 265" fill="none" stroke="#f59e0b" stroke-width="10" marker-end="url(#aa)"/>
+<path d="M1302 445h46" stroke="#41dcc8" stroke-width="6" stroke-dasharray="12 12" marker-end="url(#ac)" opacity=".5"/>
+</svg>
