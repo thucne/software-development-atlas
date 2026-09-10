@@ -5,6 +5,7 @@
     "api-design",
     "authentication-and-authorization",
     "backend-concurrency",
-    "background-jobs"
+    "background-jobs",
+    "application-caching"
   ]
 }
