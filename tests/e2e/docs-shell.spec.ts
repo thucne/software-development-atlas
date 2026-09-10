@@ -100,6 +100,32 @@ test('lets readers zoom dense Mermaid diagrams and reset the view', async ({
     .toBeCloseTo(widthBefore, 0);
 });
 
+test('constrains small Mermaid diagrams to their natural width instead of blowing up to full width', async ({
+  page,
+}) => {
+  await page.goto(
+    appUrl('/docs/security/threat-modeling-and-least-privilege'),
+  );
+
+  const figures = page.getByRole('figure', { name: 'Mermaid diagram' });
+  await expect(figures.first()).toBeVisible();
+
+  // The 3rd diagram is the small 4-node Deny-by-default diagram
+  const denyByDefaultFigure = figures.nth(2);
+  await expect(denyByDefaultFigure).toBeVisible();
+
+  const viewport = denyByDefaultFigure.locator('[data-diagram-viewport]');
+  const viewportWidth = await viewport.evaluate(
+    (el) => el.getBoundingClientRect().width,
+  );
+
+  const svg = denyByDefaultFigure.locator('svg');
+  const svgWidth = await svg.evaluate((el) => el.getBoundingClientRect().width);
+
+  // The compact diagram should be comfortably smaller than the article viewport width
+  expect(svgWidth).toBeLessThan(viewportWidth * 0.85);
+});
+
 test('serves clean Markdown for a docs page', async ({ request }) => {
   const response = await request.get(appUrl('/docs/start-here/freshness.md'));
 

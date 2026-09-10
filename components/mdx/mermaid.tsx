@@ -12,6 +12,29 @@ const MIN_ZOOM = 0.75;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
 
+function extractSvgDimensions(svg: string): { width: number; height: number } | null {
+  const viewBoxMatch = svg.match(
+    /viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i,
+  );
+  if (viewBoxMatch) {
+    const width = parseFloat(viewBoxMatch[3]);
+    const height = parseFloat(viewBoxMatch[4]);
+    if (!Number.isNaN(width) && !Number.isNaN(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+  }
+
+  const maxWidthMatch = svg.match(/max-width:\s*([0-9.]+)px/i);
+  if (maxWidthMatch) {
+    const width = parseFloat(maxWidthMatch[1]);
+    if (!Number.isNaN(width) && width > 0) {
+      return { width, height: 0 };
+    }
+  }
+
+  return null;
+}
+
 export function Mermaid({ chart }: { chart: string }) {
   const id = useId().replaceAll(':', '');
   const { resolvedTheme } = useTheme();
@@ -76,7 +99,17 @@ export function Mermaid({ chart }: { chart: string }) {
     );
   }
 
+  const dimensions = extractSvgDimensions(rendered.svg);
+  const naturalWidth = dimensions?.width;
   const zoomPercent = Math.round(zoom * 100);
+
+  const containerStyle = naturalWidth
+    ? {
+        width: `calc(min(100%, ${naturalWidth}px) * ${zoom})`,
+      }
+    : {
+        width: `${zoomPercent}%`,
+      };
 
   return (
     <figure aria-label="Mermaid diagram" className="my-6">
@@ -119,9 +152,12 @@ export function Mermaid({ chart }: { chart: string }) {
 
       <div
         data-diagram-viewport
-        className="max-h-[75vh] overflow-auto rounded-md border border-fd-border p-3"
+        role="region"
+        aria-label="Diagram viewport"
+        tabIndex={0}
+        className="max-h-[75vh] overflow-auto rounded-md border border-fd-border p-3 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <div style={{ width: `${zoomPercent}%` }}>
+        <div style={containerStyle} className="mx-auto">
           <div
             className="[&_svg]:!block [&_svg]:!h-auto [&_svg]:!w-full [&_svg]:!max-w-none"
             dangerouslySetInnerHTML={{ __html: rendered.svg }}
