@@ -2,13 +2,24 @@ import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
 const githubUrl = 'https://github.com/thucne/software-development-atlas';
 
-export function baseOptions(): BaseLayoutProps {
+export function baseOptions(locale: string = 'en'): BaseLayoutProps {
+  const isVi = locale === 'vi';
+  const changelogUrl = isVi
+    ? '/vi/docs/start-here/changelog'
+    : '/docs/start-here/changelog';
+  const changelogText = isVi ? 'Cập nhật' : "What's New";
+
   return {
     nav: {
       title: 'Software Development Atlas',
     },
     i18n: true,
     links: [
+      {
+        type: 'main',
+        text: changelogText,
+        url: changelogUrl,
+      },
       {
         type: 'icon',
         url: githubUrl,

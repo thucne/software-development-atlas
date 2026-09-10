@@ -1,0 +1,84 @@
+---
+title: Cập nhật mới & Nhật ký thay đổi
+description: Theo dõi các bài học mới, deep dive, architecture walkthrough và cải tiến hệ thống trực quan trong Atlas.
+category: start-here
+level: beginner
+status: evergreen
+lastVerified: 2026-09-10
+reviewAfterDays: 365
+topics:
+  - atlas
+  - changelog
+  - releases
+  - freshness
+prerequisites: []
+related:
+  - freshness
+  - coverage
+  - software-engineering-map
+technologies: []
+contentType: guide
+learningDepth: recognize
+concepts: []
+---
+
+Software Development Atlas được phát triển liên tục cùng với sự trưởng thành của các tiêu chuẩn kỹ thuật, runtime và các mẫu thiết kế kiến trúc. Trang nhật ký thay đổi này ghi lại các đợt phát hành nội dung quan trọng, các bài deep dive mới, nâng cấp hệ thống trình diễn trực quan và các bài phân tích kiến trúc để người đọc dễ dàng theo dõi những thay đổi mới nhất.
+
+## Cách nắm bắt nội dung mới
+
+Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hiện các chủ đề mới hoặc vừa được cập nhật:
+
+1. **Banner thông báo đầu trang (Top Banner):** Thông báo nhanh các mốc phát hành lớn kèm đường dẫn trực tiếp tới trang tóm tắt. Lựa chọn đóng thông báo được lưu trên trình duyệt của bạn.
+2. **Huy hiệu trạng thái trên Sidebar (Status Badges):** Các bài học mới phát hành hoặc vừa được cập nhật sẽ hiển thị huy hiệu nổi bật (`MỚI` hoặc `CẬP NHẬT`) ngay cạnh tiêu đề bài học trên cây điều hướng.
+3. **Dữ liệu kiểm chứng độ tươi mới (Freshness):** Mọi trang nội dung đều công khai ngày `lastVerified` trong metadata. Xem [Độ tươi mới nội dung](/vi/docs/start-here/freshness) để nắm rõ chu kỳ rà soát và kiểm chứng kỹ thuật.
+
+---
+
+## Các mốc phát hành quan trọng
+
+### Ngày 10 tháng 09 năm 2026 · Kiến trúc Hệ thống & Nền tảng Kỹ thuật
+
+Đợt cập nhật này mở rộng gấp đôi chương trình học của Atlas, bổ sung **16 bài học chuyên sâu, cẩm nang quyết định và phân tích kiến trúc** thuộc các mảng backend, tính nhất quán dữ liệu, độ tin cậy hệ thống phân tán, bảo mật và kỹ thuật phần mềm AI-native:
+
+#### Backend Engineering
+- [Vòng đời Request phía Backend](/vi/docs/backend-engineering/backend-request-lifecycle): Lần theo đường đi trọn vẹn của request HTTP qua DNS, TLS termination, reverse proxy, worker routing, connection pool cơ sở dữ liệu và streaming response.
+- [Thiết kế API](/vi/docs/backend-engineering/api-design): Xây dựng mô hình tài nguyên rõ ràng, định dạng lỗi nhất quán, cursor-based pagination, chiến lược phiên bản hóa và ngữ nghĩa ghi an toàn (idempotency keys).
+- [Application Caching](/vi/docs/backend-engineering/application-caching): Đánh đổi độ tươi mới lấy năng lực xử lý có chủ đích với cache-aside, write-through, stale-while-revalidate và cơ chế chống sập cache (stampede protection).
+- [Xác thực & Phân quyền](/vi/docs/backend-engineering/authentication-and-authorization): Tách biệt việc nhận diện danh tính với thực thi quyền hạn; so sánh sessions, tokens, RBAC, ABAC và ranh giới thu hồi quyền.
+- [Concurrency phía Backend](/vi/docs/backend-engineering/backend-concurrency): Bảo toàn bất biến dữ liệu khi các request chạy gối nhau bằng atomic updates, optimistic locking và pessimistic row locks.
+- [Background Jobs](/vi/docs/backend-engineering/background-jobs): Đưa tác vụ nặng ra khỏi luồng xử lý request bằng hàng đợi công việc bền vững, state machine, worker pool và cơ chế retry at-least-once an toàn.
+- [Message Queues](/vi/docs/backend-engineering/message-queues): Tách rời bên phát và bên nhận thông điệp với ngữ nghĩa phân phối tường minh, cơ chế xác nhận (ack/nack), dead-letter queues và backpressure.
+
+#### Data Systems
+- [Database Indexes & Kế hoạch Thực thi](/vi/docs/data-systems/database-indexes-and-query-plans): Hiểu sâu cơ chế index B-Tree, thứ tự cột trong composite index, covering index và cách kiểm chứng đường dẫn truy vấn bằng `EXPLAIN ANALYZE`.
+- [Giao dịch Cơ sở Dữ liệu & Mức độ Cô lập](/vi/docs/data-systems/database-transactions-and-isolation): Nắm vững cam kết ACID, ranh giới transaction và các cấp độ cô lập (Read Committed, Repeatable Read, Serializable) để ngăn chặn dirty reads, non-repeatable reads và write skew.
+
+#### Distributed Systems & Networking
+- [Timeouts, Retries & Backoff](/vi/docs/distributed-systems/timeouts-retries-and-backoff): Giới hạn phạm vi hỏng hóc mà không gây bão retry bằng cách phân bổ deadline, exponential backoff kết hợp full jitter và circuit breaker.
+- [Phân giải DNS & TLS](/vi/docs/web-platform/dns-resolution-and-tls): Từ quá trình đệ quy DNS và bộ nhớ đệm bản ghi tới bắt tay TLS 1.3, chuỗi chứng chỉ số, SNI và khôi phục phiên kết nối.
+
+#### Security
+- [Threat Modeling & Đặc quyền Tối thiểu](/vi/docs/security/threat-modeling-and-least-privilege): Chủ động nhận diện ranh giới bảo mật bằng mô hình STRIDE, áp dụng cơ chế deny-by-default và thu hẹp bán kính tổn thương (blast radius).
+
+#### Delivery & Operations
+- [Logs, Metrics & Traces](/vi/docs/delivery-operations/logs-metrics-and-traces): Xây dựng hệ thống quan sát production dựa trên log có cấu trúc gắn kết trace context, định lượng phân vị p95/p99 và spans phân tán (W3C traceparent).
+
+#### AI-Native Engineering
+- [Vòng lặp Kiểm chứng & Rào chắn Máy móc](/vi/docs/ai-native-engineering/verification-loops-and-machine-checkable-guardrails): Xây dựng quy trình tự động hóa kỹ thuật đáng tin cậy với compiler tất định, AST linter, typecheck và contract testing thay vì để mô hình AI tự chấm điểm mơ hồ.
+
+#### Engineering Judgment
+- [Cẩm nang Quyết định: Queue vs Event Stream](/vi/docs/engineering-judgment/decision-guides/queue-vs-event-stream): Đặt lên bàn cân hàng đợi thông điệp điểm-điểm (RabbitMQ, SQS) với luồng sự kiện phân vùng (Kafka, Redpanda) về độ đồng thời của consumer, khả năng đọc lại, thứ tự và vận hành.
+- [Kiến trúc Thực tế: Pipeline Xử lý File Bền vững](/vi/docs/engineering-judgment/architecture-walkthroughs/reliable-file-processing-pipeline): Phân tích từng bước mô hình tải lên trực tiếp S3, xác thực, chia nhỏ chunk và xử lý qua hàng đợi worker kèm transactional outbox và dead-letter queue.
+
+#### Cải tiến Nền tảng & Sơ đồ Trực quan
+- **Chuẩn hóa Kích thước Sơ đồ:** Sơ đồ Mermaid tự động co giãn theo kích thước tự nhiên của nội dung, căn giữa trang, chữ thanh thoát và hỗ trợ phóng to/thu nhỏ mượt mà không bị tràn màn hình.
+- **Walkthrough Từng Bước Tương tác:** Bổ sung giao diện trực quan theo bước cho cửa sổ bất định thanh toán và bão retry phân tán.
+
+---
+
+### Ngày 09 tháng 09 năm 2026 · Hệ thống Nền tảng & Trực quan Hóa
+
+- **Kiến trúc Song ngữ Gốc:** Ra mắt 100% các bài học song ngữ tiếng Anh và tiếng Việt song hành.
+- **Các Phòng Lab Tương tác:** Tích hợp Event Loop Lab, Promise Resolution Lab, Async Waterfall Lab và HTTP Request Path Explorer.
+- **Bản đồ Atlas Chuẩn & Động cơ Đo lường Độ phủ:** Đồng bộ 12 domain kỹ thuật phần mềm và hệ thống concept trong `content/atlas-map.json` và `content/learning-paths.json`.
+- **Chuyên mục Phán đoán Kỹ thuật (Engineering Judgment):** Giới thiệu các hướng dẫn quyết định giữa Containers vs Serverless, CSR vs SSR vs SSG, Monolith vs Microservices và kiến trúc Reliable Checkout.

@@ -53,6 +53,7 @@ export const lessonFrontmatterSchema = pageSchema.extend({
   contentType: contentTypeSchema,
   learningDepth: learningDepthSchema,
   concepts: conceptsSchema,
+  badge: z.enum(['new', 'updated']).optional(),
 });
 
 export type LessonFrontmatter = z.infer<typeof lessonFrontmatterSchema>;

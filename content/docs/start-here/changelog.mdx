@@ -1,0 +1,84 @@
+---
+title: What's New & Changelog
+description: Track new lessons, deep dives, architectural walkthroughs, and visual improvements across the Atlas.
+category: start-here
+level: beginner
+status: evergreen
+lastVerified: 2026-09-10
+reviewAfterDays: 365
+topics:
+  - atlas
+  - changelog
+  - releases
+  - freshness
+prerequisites: []
+related:
+  - freshness
+  - coverage
+  - software-engineering-map
+technologies: []
+contentType: guide
+learningDepth: recognize
+concepts: []
+---
+
+Software Development Atlas evolves continuously as engineering practices, runtimes, and architectural patterns mature. This changelog documents significant content releases, new deep dives, visual demonstration upgrades, and architectural walkthroughs so readers can quickly find recent updates.
+
+## How to stay informed
+
+The Atlas provides three built-in ways to discover new and recently revised content:
+
+1. **Top Announcement Banner:** Highlights major milestone releases with direct links to summary notes. Dismissals persist locally in your browser.
+2. **Sidebar Status Badges:** Newly authored lessons and recently updated topics display a visible badge (`NEW` or `UPDATED`) next to their titles in the navigation tree.
+3. **Changelog & Freshness Records:** Every substantive page declares an explicit `lastVerified` date in its metadata. See [Content Freshness](/docs/start-here/freshness) for verification rules and review intervals.
+
+---
+
+## Releases & Milestones
+
+### September 10, 2026 · System Architecture & Engineering Foundations
+
+This major milestone nearly doubles the Atlas curriculum, adding **16 new deep dives, decision guides, and architectural walkthroughs** spanning backend design, data consistency, distributed systems resilience, security, and AI-native engineering:
+
+#### Backend Engineering
+- [Backend Request Lifecycle](/docs/backend-engineering/backend-request-lifecycle): Trace an HTTP request end-to-end through DNS, TLS termination, reverse proxying, worker routing, database connection pools, and response streaming.
+- [API Design](/docs/backend-engineering/api-design): Design clear resource models, predictable error contracts, cursor-based pagination, versioning strategies, and idempotent write semantics.
+- [Application Caching](/docs/backend-engineering/application-caching): Deliberately trade freshness for reduced work using cache-aside, write-through, stale-while-revalidate, and stampede protection.
+- [Authentication & Authorization](/docs/backend-engineering/authentication-and-authorization): Separate identity verification from permission enforcement; evaluate sessions, tokens, RBAC, ABAC, and revocation boundaries.
+- [Backend Concurrency](/docs/backend-engineering/backend-concurrency): Preserve data invariants under overlapping requests with atomic updates, optimistic locking, and pessimistic row locks.
+- [Background Jobs](/docs/backend-engineering/background-jobs): Move asynchronous work out of the request path using durable job queues, state machines, worker pools, and at-least-once retry safety.
+- [Message Queues](/docs/backend-engineering/message-queues): Decouple producers and consumers with explicit delivery semantics, acknowledgments, dead-letter queues, and backpressure.
+
+#### Data Systems
+- [Database Indexes & Query Plans](/docs/data-systems/database-indexes-and-query-plans): Understand B-Tree indexing mechanics, composite index column ordering, covering indexes, and how to verify execution paths with `EXPLAIN ANALYZE`.
+- [Database Transactions & Isolation](/docs/data-systems/database-transactions-and-isolation): Master ACID guarantees, transaction boundaries, and isolation levels (Read Committed, Repeatable Read, Serializable) to prevent dirty reads, non-repeatable reads, and write skew.
+
+#### Distributed Systems & Networking
+- [Timeouts, Retries & Backoff](/docs/distributed-systems/timeouts-retries-and-backoff): Bound downstream failure without causing retry storms using deadline propagation, exponential backoff with full jitter, and circuit breakers.
+- [DNS Resolution & TLS](/docs/web-platform/dns-resolution-and-tls): From recursive DNS lookups and caching records to TLS 1.3 handshakes, certificate chains, SNI, and session resumption.
+
+#### Security
+- [Threat Modeling & Least Privilege](/docs/security/threat-modeling-and-least-privilege): Proactively identify security boundaries using STRIDE, enforce deny-by-default authorization, and bound compromise blast radius.
+
+#### Delivery & Operations
+- [Logs, Metrics & Traces](/docs/delivery-operations/logs-metrics-and-traces): Build production observability using structured logs with trace correlation, high-cardinality metrics, and distributed spans (W3C traceparent).
+
+#### AI-Native Engineering
+- [Verification Loops & Machine-Checkable Guardrails](/docs/ai-native-engineering/verification-loops-and-machine-checkable-guardrails): Build robust agentic engineering pipelines using deterministic compilers, AST linters, type checks, and contracts rather than subjective model self-grading.
+
+#### Engineering Judgment
+- [Queue vs Event Stream Decision Guide](/docs/engineering-judgment/decision-guides/queue-vs-event-stream): Compare point-to-point worker queues (RabbitMQ, SQS) with partitioned log streams (Kafka, Redpanda) across consumer concurrency, replay, ordering, and operations.
+- [Reliable File Processing Pipeline Architecture Walkthrough](/docs/engineering-judgment/architecture-walkthroughs/reliable-file-processing-pipeline): Step through a large-scale asynchronous file upload, validation, chunking, and worker processing topology with transaction outboxes and dead-letter handling.
+
+#### Platform & Diagram Improvements
+- **Responsive Diagram Sizing:** Mermaid diagrams now naturally conform to their intrinsic dimensions, center neatly within the reading column, scale text proportionally, and support controlled zooming without viewport bloat.
+- **Interactive Phase Walkthroughs:** Added step-by-step interactive phase walkthroughs for the payment ambiguity window and retry storms.
+
+---
+
+### September 09, 2026 · Foundation & Visual Demonstration System
+
+- **Bilingual Core Architecture:** Released 100% paired English and Vietnamese companion lessons across all documentation routes.
+- **Interactive Learning Primitives:** Integrated the Event Loop Lab, Promise Resolution Lab, Async Waterfall Lab, and HTTP Request Path Explorer.
+- **Canonical Atlas Map & Coverage Engine:** Unified 12 engineering domains and concept registries in `content/atlas-map.json` and `content/learning-paths.json`.
+- **Engineering Judgment Section:** Introduced decision guides for Containers vs Serverless, CSR vs SSR vs SSG, and Monolith vs Microservices, alongside the Reliable Checkout walkthrough.

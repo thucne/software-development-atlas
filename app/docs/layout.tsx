@@ -1,3 +1,4 @@
+import { AtlasReleaseBanner } from '@/components/atlas/release-banner';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
@@ -9,8 +10,11 @@ export default function DocsRootLayout({
   children: ReactNode;
 }) {
   return (
-    <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
-      {children}
-    </DocsLayout>
+    <>
+      <AtlasReleaseBanner locale="en" />
+      <DocsLayout tree={source.getPageTree()} {...baseOptions('en')}>
+        {children}
+      </DocsLayout>
+    </>
   );
 }

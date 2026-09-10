@@ -1,3 +1,4 @@
+import { AtlasReleaseBanner } from '@/components/atlas/release-banner';
 import { baseOptions } from '@/lib/layout.shared';
 import { source } from '@/lib/source';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
@@ -9,8 +10,11 @@ export default function ViDocsLayout({
   children: ReactNode;
 }) {
   return (
-    <DocsLayout tree={source.getPageTree('vi')} {...baseOptions()}>
-      {children}
-    </DocsLayout>
+    <>
+      <AtlasReleaseBanner locale="vi" />
+      <DocsLayout tree={source.getPageTree('vi')} {...baseOptions('vi')}>
+        {children}
+      </DocsLayout>
+    </>
   );
 }
