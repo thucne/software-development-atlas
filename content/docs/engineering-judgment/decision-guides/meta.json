@@ -3,6 +3,7 @@
   "pages": [
     "csr-vs-ssr-vs-ssg",
     "monolith-vs-modular-monolith-vs-microservices",
-    "containers-vs-serverless"
+    "containers-vs-serverless",
+    "queue-vs-event-stream"
   ]
 }
