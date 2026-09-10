@@ -5,6 +5,7 @@
     "sql-querying",
     "database-indexes-and-query-plans",
     "database-transactions-and-isolation",
-    "mvcc"
+    "mvcc",
+    "database-replication"
   ]
 }
