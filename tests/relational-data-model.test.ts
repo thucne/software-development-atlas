@@ -84,15 +84,16 @@ describe('Relational Data Model lesson', () => {
     ]) {
       const source = read(relativePath);
 
-      expect(source, relativePath).toContain('20');
+      expect(source, relativePath).toContain('21');
       expect(source, relativePath).toContain('/backend-engineering/rate-limiting');
       expect(source, relativePath).toContain('/backend-engineering/idempotency');
       expect(source, relativePath).toContain('/backend-engineering/service-resilience');
       expect(source, relativePath).toContain('/data-systems/relational-data-model');
+      expect(source, relativePath).toContain('/data-systems/sql-querying');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('20 bài học kiến trúc hệ thống');
-    expect(banner).toContain('20 new system architecture lessons');
+    expect(banner).toContain('21 bài học kiến trúc hệ thống');
+    expect(banner).toContain('21 new system architecture lessons');
   });
 });
