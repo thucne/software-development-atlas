@@ -9,32 +9,32 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/data-systems/in-memory-data-stores.mdx',
-  vi: 'content/docs/data-systems/in-memory-data-stores.vi.mdx',
+  en: 'content/docs/data-systems/search-indexes.mdx',
+  vi: 'content/docs/data-systems/search-indexes.vi.mdx',
 } as const;
 
-describe('In-Memory Data Stores lesson', () => {
-  it('publishes the lesson after Partitioning & Sharding in both Data Systems sidebars', () => {
+describe('Search Indexes lesson', () => {
+  it('publishes after In-Memory Data Stores in both Data Systems sidebars', () => {
     for (const relativePath of [
       'content/docs/data-systems/meta.json',
       'content/docs/data-systems/meta.vi.json',
     ]) {
       const source = read(relativePath);
-      const partitioning = source.indexOf('"data-partitioning"');
       const inMemory = source.indexOf('"in-memory-data-stores"');
+      const search = source.indexOf('"search-indexes"');
 
-      expect(partitioning, relativePath).toBeGreaterThan(-1);
-      expect(inMemory, relativePath).toBeGreaterThan(partitioning);
+      expect(inMemory, relativePath).toBeGreaterThan(-1);
+      expect(search, relativePath).toBeGreaterThan(inMemory);
     }
   });
 
-  it('places both locale variants on only the canonical concept at reason depth', () => {
+  it('places both locale variants on only the canonical search-indexes concept at reason depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
-      expect(source, relativePath).toMatch(/concepts:\n  - in-memory-data-stores\n---/);
+      expect(source, relativePath).toMatch(/concepts:\n  - search-indexes\n---/);
       expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
@@ -43,7 +43,7 @@ describe('In-Memory Data Stores lesson', () => {
     }
   });
 
-  it('teaches memory, eviction, expiry, persistence, replication, hot keys, and failure contracts', () => {
+  it('teaches inverted indexes, analysis, relevance, freshness, and reindexing contracts', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -51,19 +51,19 @@ describe('In-Memory Data Stores lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/in-memory|bộ nhớ|RAM/i);
-      expect(source, relativePath).toMatch(/working set|tập dữ liệu nóng/i);
+      expect(source, relativePath).toMatch(/inverted index|chỉ mục đảo/i);
+      expect(source, relativePath).toMatch(/analy[sz]er|bộ phân tích/i);
+      expect(source, relativePath).toMatch(/token/i);
+      expect(source, relativePath).toMatch(/text`?\s+field|trường text/i);
+      expect(source, relativePath).toMatch(/keyword`?\s+field|trường keyword/i);
+      expect(source, relativePath).toMatch(/match`?\s+query/i);
+      expect(source, relativePath).toMatch(/BM25/i);
+      expect(source, relativePath).toMatch(/refresh/i);
+      expect(source, relativePath).toMatch(/near.?real.?time|gần thời gian thực|NRT/i);
       expect(source, relativePath).toMatch(/source of truth|nguồn sự thật/i);
-      expect(source, relativePath).toMatch(/cache/i);
-      expect(source, relativePath).toMatch(/eviction|maxmemory/i);
-      expect(source, relativePath).toMatch(/TTL|expire|expiration|hết hạn/i);
-      expect(source, relativePath).toMatch(/RDB/i);
-      expect(source, relativePath).toMatch(/AOF/i);
-      expect(source, relativePath).toMatch(/persistence|durability|bền vững/i);
-      expect(source, relativePath).toMatch(/replication/i);
-      expect(source, relativePath).toMatch(/hot key/i);
-      expect(source, relativePath).toMatch(/shard|hash slot/i);
-      expect(source, relativePath).toMatch(/stampede|thundering herd|dogpile/i);
+      expect(source, relativePath).toMatch(/reindex/i);
+      expect(source, relativePath).toMatch(/alias/i);
+      expect(source, relativePath).toMatch(/stale|staleness|cũ|độ trễ/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -81,7 +81,6 @@ describe('In-Memory Data Stores lesson', () => {
     ]) {
       const source = read(relativePath);
       expect(source, relativePath).toContain('26');
-      expect(source, relativePath).toContain('/data-systems/data-partitioning');
       expect(source, relativePath).toContain('/data-systems/in-memory-data-stores');
       expect(source, relativePath).toContain('/data-systems/search-indexes');
     }
