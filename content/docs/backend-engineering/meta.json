@@ -2,6 +2,7 @@
   "title": "Backend Engineering",
   "pages": [
     "backend-request-lifecycle",
+    "api-design",
     "authentication-and-authorization"
   ]
 }
