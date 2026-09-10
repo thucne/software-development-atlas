@@ -1,6 +1,7 @@
 {
   "title": "Hệ thống Dữ liệu",
   "pages": [
+    "relational-data-model",
     "database-indexes-and-query-plans",
     "database-transactions-and-isolation"
   ]
