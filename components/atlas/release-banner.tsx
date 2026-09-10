@@ -17,8 +17,8 @@ export function AtlasReleaseBanner({ locale = 'en' }: { locale?: string }) {
         </span>
         <span>
           {isVi
-            ? '21 bài học kiến trúc hệ thống mới vừa ra mắt!'
-            : '21 new system architecture lessons added!'}
+            ? '22 bài học kiến trúc hệ thống mới vừa ra mắt!'
+            : '22 new system architecture lessons added!'}
         </span>
         <Link
           href={changelogHref}
