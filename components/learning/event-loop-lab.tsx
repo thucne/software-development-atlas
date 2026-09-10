@@ -121,7 +121,7 @@ function TaskSourceLanes({
               >
                 {sourceLabels[source]}
               </div>
-              <div className={`min-w-0 ${hasWork ? '' : 'opacity-60'}`}>
+              <div className="min-w-0">
                 <QueueList items={items} emptyLabel={emptyLabel} />
               </div>
             </div>
