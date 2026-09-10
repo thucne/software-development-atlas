@@ -2,6 +2,7 @@
   "title": "Kỹ thuật phía máy chủ",
   "pages": [
     "backend-request-lifecycle",
+    "api-design",
     "authentication-and-authorization"
   ]
 }
