@@ -6,6 +6,7 @@
     "authentication-and-authorization",
     "backend-concurrency",
     "background-jobs",
-    "application-caching"
+    "application-caching",
+    "message-queues"
   ]
 }
