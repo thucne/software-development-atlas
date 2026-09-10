@@ -7,6 +7,7 @@
     "database-transactions-and-isolation",
     "mvcc",
     "database-replication",
-    "data-partitioning"
+    "data-partitioning",
+    "in-memory-data-stores"
   ]
 }
