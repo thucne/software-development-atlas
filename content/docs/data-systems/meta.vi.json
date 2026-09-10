@@ -4,6 +4,7 @@
     "relational-data-model",
     "sql-querying",
     "database-indexes-and-query-plans",
-    "database-transactions-and-isolation"
+    "database-transactions-and-isolation",
+    "mvcc"
   ]
 }

@@ -38,7 +38,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ### Ngày 10 tháng 09 năm 2026 · Kiến trúc Hệ thống & Nền tảng Kỹ thuật
 
-Đợt cập nhật này mở rộng gấp đôi chương trình học của Atlas, bổ sung **21 bài học chuyên sâu, cẩm nang quyết định và phân tích kiến trúc** thuộc các mảng backend, tính nhất quán dữ liệu, độ tin cậy hệ thống phân tán, bảo mật và kỹ thuật phần mềm AI-native:
+Đợt cập nhật này mở rộng gấp đôi chương trình học của Atlas, bổ sung **22 bài học chuyên sâu, cẩm nang quyết định và phân tích kiến trúc** thuộc các mảng backend, tính nhất quán dữ liệu, độ tin cậy hệ thống phân tán, bảo mật và kỹ thuật phần mềm AI-native:
 
 #### Backend Engineering
 - [Vòng đời Request phía Backend](/vi/docs/backend-engineering/backend-request-lifecycle): Lần theo đường đi trọn vẹn của request HTTP qua DNS, TLS termination, reverse proxy, worker routing, connection pool cơ sở dữ liệu và streaming response.
@@ -57,6 +57,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 - [Truy vấn SQL](/vi/docs/data-systems/sql-querying): Vận hành query quan hệ bằng cách xác định result grain, kiểm soát join cardinality, tách row filter khỏi group filter, xử lý `NULL`, tạo ordering tất định, paginate an toàn và chứng minh correctness trước khi tối ưu query plan.
 - [Database Indexes & Kế hoạch Thực thi](/vi/docs/data-systems/database-indexes-and-query-plans): Hiểu sâu cơ chế index B-Tree, thứ tự cột trong composite index, covering index và cách kiểm chứng đường dẫn truy vấn bằng `EXPLAIN ANALYZE`.
 - [Giao dịch Cơ sở Dữ liệu & Mức độ Cô lập](/vi/docs/data-systems/database-transactions-and-isolation): Nắm vững cam kết ACID, ranh giới transaction và các cấp độ cô lập để ngăn dirty read, non-repeatable read và write skew.
+- [MVCC](/vi/docs/data-systems/mvcc): Suy luận về snapshot, khả kiến của row version, phạm vi snapshot theo isolation level, xung đột writer, vacuum cleanup, transaction chạy lâu và transaction ID wraparound.
 
 #### Distributed Systems & Networking
 - [Timeouts, Retries & Backoff](/vi/docs/distributed-systems/timeouts-retries-and-backoff): Giới hạn phạm vi hỏng hóc mà không gây bão retry bằng deadline propagation, exponential backoff kết hợp full jitter và circuit breaker.
