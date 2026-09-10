@@ -45,7 +45,7 @@ describe('Queue vs Event Stream decision guide', () => {
       expect(source, relativePath).toContain('<DecisionMatrix');
       expect(source, relativePath).toContain('<details>');
       expect(source, relativePath).toContain('- [ ]');
-      expect(source, relativePath).toMatch(/competing consumer|cạnh tranh.*consumer/i);
+      expect(source, relativePath).toMatch(/competing consumer|tranh nhau xử lý/i);
       expect(source, relativePath).toMatch(/replay|phát lại/i);
       expect(source, relativePath).toMatch(/retention|lưu giữ/i);
       expect(source, relativePath).toMatch(/ordering|thứ tự/i);
