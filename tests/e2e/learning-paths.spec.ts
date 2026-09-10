@@ -23,7 +23,9 @@ test('renders an ordered backend learning path with honest uncovered steps', asy
   await expect(
     page.getByRole('heading', { name: 'Backend Systems', level: 1 }),
   ).toBeVisible();
-  await expect(page.getByText('Backend Request Lifecycle', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Backend Request Lifecycle', level: 4 }),
+  ).toBeVisible();
   await expect(page.getByText('API Design', { exact: true })).toBeVisible();
   await expect(page.getByText('No Atlas content yet').first()).toBeVisible();
 });
