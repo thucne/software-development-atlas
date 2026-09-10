@@ -218,12 +218,12 @@ The consequence is important for operations: logical deletion and physical space
 ## 9. VACUUM is part of the MVCC lifecycle
 
 <TermBox term="VACUUM">
-In PostgreSQL, **VACUUM** performs maintenance including reclaiming or making reusable space from obsolete row versions, maintaining planner statistics/visibility information, and protecting against transaction ID wraparound.
+In PostgreSQL, **VACUUM** reclaims or makes reusable space from obsolete row versions, maintains the visibility map, and helps protect against transaction ID wraparound. Planner statistics are gathered by `ANALYZE`, which can run separately or as an optional step with `VACUUM`.
 
 **Why it matters here:** keeping old versions is what enables snapshot reads, but versions that no valid snapshot can need must eventually be cleaned up so history does not grow without bound.
 </TermBox>
 
-PostgreSQL's routine vacuuming documentation lists several reasons for regular vacuuming, including reclaiming updated/deleted row-version space, maintaining planner statistics and the visibility map, and preventing transaction ID wraparound problems.
+PostgreSQL's routine maintenance documentation separates these responsibilities: `VACUUM` handles obsolete row-version cleanup, visibility-map maintenance, and transaction-ID aging, while `ANALYZE` gathers statistics used by the query planner. The autovacuum subsystem can schedule both activities as tables change.
 
 Standard `VACUUM` normally marks space for reuse inside the relation. It does not generally shrink the table file back to the operating system. `VACUUM FULL` is a different, heavier rewrite that requires an exclusive table lock and should not be treated as routine MVCC cleanup.
 
