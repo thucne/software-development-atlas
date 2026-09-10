@@ -54,9 +54,9 @@ describe('Search Indexes lesson', () => {
       expect(source, relativePath).toMatch(/inverted index|chỉ mục đảo/i);
       expect(source, relativePath).toMatch(/analy[sz]er|bộ phân tích/i);
       expect(source, relativePath).toMatch(/token/i);
-      expect(source, relativePath).toMatch(/text field|trường text/i);
-      expect(source, relativePath).toMatch(/keyword field|trường keyword/i);
-      expect(source, relativePath).toMatch(/match query/i);
+      expect(source, relativePath).toMatch(/text`?\s+field|trường text/i);
+      expect(source, relativePath).toMatch(/keyword`?\s+field|trường keyword/i);
+      expect(source, relativePath).toMatch(/match`?\s+query/i);
       expect(source, relativePath).toMatch(/BM25/i);
       expect(source, relativePath).toMatch(/refresh/i);
       expect(source, relativePath).toMatch(/near.?real.?time|gần thời gian thực|NRT/i);
