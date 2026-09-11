@@ -3,6 +3,7 @@
   "pages": [
     "coupling-and-cohesion",
     "modularity",
-    "layered-architecture"
+    "layered-architecture",
+    "hexagonal-architecture"
   ]
 }
