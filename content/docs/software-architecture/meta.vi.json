@@ -8,6 +8,7 @@
     "clean-architecture",
     "monolith-architecture",
     "modular-monolith",
-    "microservices"
+    "microservices",
+    "event-driven-architecture"
   ]
 }
