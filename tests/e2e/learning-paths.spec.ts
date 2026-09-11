@@ -15,7 +15,7 @@ test('renders Atlas coverage with domain-level gaps', async ({ page }) => {
   await expect(page.getByText('Uncovered', { exact: true }).first()).toBeVisible();
 });
 
-test('renders an ordered backend learning path with honest uncovered steps', async ({
+test('renders an ordered backend learning path with covered steps', async ({
   page,
 }) => {
   await page.goto(appUrl('/docs/learning-paths/backend-systems'));
@@ -28,6 +28,19 @@ test('renders an ordered backend learning path with honest uncovered steps', asy
   ).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'API Design', level: 4 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Backend Request Lifecycle' }).first(),
+  ).toBeVisible();
+});
+
+test('renders honest uncovered steps in learning paths with coverage gaps', async ({
+  page,
+}) => {
+  await page.goto(appUrl('/docs/learning-paths/modern-web-systems'));
+
+  await expect(
+    page.getByRole('heading', { name: 'Modern Web Systems', level: 1 }),
   ).toBeVisible();
   await expect(page.getByText('No Atlas content yet').first()).toBeVisible();
 });

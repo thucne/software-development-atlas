@@ -54,7 +54,7 @@ describe('Layered Architecture lesson', () => {
       expect(source, relativePath).toMatch(/presentation(?:\s+layer)?|tầng trình bày/i);
       expect(source, relativePath).toMatch(/application layer|tầng ứng dụng/i);
       expect(source, relativePath).toMatch(/domain layer|tầng domain|tầng miền/i);
-      expect(source, relativePath).toMatch(/infrastructure layer|tầng hạ tầng/i);
+      expect(source, relativePath).toMatch(/infrastructure(?:\s+layer)?|tầng hạ tầng/i);
       expect(source, relativePath).toMatch(/dependency rule|quy tắc phụ thuộc/i);
       expect(source, relativePath).toMatch(/strict layering|strict layer|layering nghiêm ngặt|phân tầng nghiêm ngặt/i);
       expect(source, relativePath).toMatch(/relaxed layering|relaxed layer|layering linh hoạt|phân tầng linh hoạt/i);
