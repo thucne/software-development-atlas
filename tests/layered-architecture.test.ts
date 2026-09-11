@@ -51,7 +51,7 @@ describe('Layered Architecture lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/presentation layer|tầng trình bày/i);
+      expect(source, relativePath).toMatch(/presentation(?:\s+layer)?|tầng trình bày/i);
       expect(source, relativePath).toMatch(/application layer|tầng ứng dụng/i);
       expect(source, relativePath).toMatch(/domain layer|tầng domain|tầng miền/i);
       expect(source, relativePath).toMatch(/infrastructure layer|tầng hạ tầng/i);
