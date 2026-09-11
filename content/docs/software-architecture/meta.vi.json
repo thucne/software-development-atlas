@@ -9,6 +9,7 @@
     "monolith-architecture",
     "modular-monolith",
     "microservices",
-    "event-driven-architecture"
+    "event-driven-architecture",
+    "domain-boundaries"
   ]
 }
