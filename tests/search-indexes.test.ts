@@ -80,14 +80,14 @@ describe('Search Indexes lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-      expect(source, relativePath).toContain('30');
+      expect(source, relativePath).toContain('31');
       expect(source, relativePath).toContain('/data-systems/in-memory-data-stores');
       expect(source, relativePath).toContain('/data-systems/search-indexes');
       expect(source, relativePath).toContain('/data-systems/object-storage');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('30 bài học kiến trúc hệ thống');
-    expect(banner).toContain('30 new system architecture lessons');
+    expect(banner).toContain('31 bài học kiến trúc hệ thống');
+    expect(banner).toContain('31 new system architecture lessons');
   });
 });
