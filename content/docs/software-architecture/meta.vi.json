@@ -4,6 +4,7 @@
     "coupling-and-cohesion",
     "modularity",
     "layered-architecture",
-    "hexagonal-architecture"
+    "hexagonal-architecture",
+    "clean-architecture"
   ]
 }
