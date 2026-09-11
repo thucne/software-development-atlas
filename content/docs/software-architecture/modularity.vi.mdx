@@ -30,7 +30,7 @@ concepts:
 
 ## Tóm tắt nhanh
 
-Một module hữu ích khi nó cung cấp cho phần còn lại của hệ thống một **hợp đồng nhỏ và ổn định**, đồng thời giữ kiến thức triển khai dễ thay đổi ở bên trong.
+Một module hữu ích khi nó cung cấp cho phần còn lại của hệ thống một **hợp đồng nhỏ và ổn định**, đồng thời giữ kiến thức triển khai dễ biến động ở bên trong.
 
 Dùng vòng vận hành này:
 
@@ -55,21 +55,17 @@ flowchart LR
   D --> V[Kiểm chứng ranh giới]
 ```
 
-Một folder không tự động là module. Một package không tự động là module. Một microservice cũng không tự động là module tốt.
+Folder, package hay microservice không tự động trở thành module tốt. Tính chất quan trọng là **khoanh vùng thay đổi**.
 
-Tính chất quan trọng là **khoanh vùng thay đổi**.
-
-## 1. Module là một ranh giới thay đổi
+## 1. Module là ranh giới thay đổi
 
 <TermBox term="Module boundary">
-**Ranh giới module** tách một capability nhất quán khỏi phần còn lại của hệ thống bằng một hợp đồng rõ ràng.
+**Ranh giới module** tách một capability nhất quán khỏi phần còn lại của hệ thống bằng một contract rõ ràng.
 
-Bên trong ranh giới, chi tiết triển khai có thể thay đổi cùng nhau. Bên ngoài ranh giới, caller chủ yếu nên phụ thuộc vào contract thay vì phụ thuộc vào những chi tiết đó.
+Bên trong ranh giới, implementation có thể thay đổi cùng nhau. Bên ngoài, caller nên phụ thuộc chủ yếu vào contract thay vì chi tiết nội bộ.
 
 **Vì sao quan trọng:** module tốt cho phép thay internals mà không buộc nhiều khu vực không liên quan phải sửa đồng thời.
 </TermBox>
-
-Giả sử checkout cần pricing.
 
 Ranh giới yếu:
 
@@ -82,7 +78,7 @@ checkout/
   currency-rounding.ts
 ```
 
-Tên file có vẻ gọn, nhưng checkout biết trực tiếp quá nhiều chi tiết pricing.
+Checkout đang biết trực tiếp quá nhiều chi tiết pricing.
 
 Ranh giới mạnh hơn:
 
@@ -99,19 +95,17 @@ checkout/
   checkout-service.ts -> pricing/public.ts
 ```
 
-Caller yêu cầu một capability:
+Caller chỉ yêu cầu capability:
 
 ```ts
 pricing.quote({ cart, customer, currency })
 ```
 
-Nó không tự chọn tax rule, không đọc pricing table, và không cần biết repository nào được dùng.
-
-Đó là modularity khi được vận hành thật.
+Nó không tự chọn tax rule, không đọc pricing table và không cần biết repository nào được dùng.
 
 ## 2. Bắt đầu từ reason-to-change, không phải thẩm mỹ thư mục
 
-Sai lầm modularization dễ gặp nhất là di chuyển file trước khi hiểu **vì sao** chúng thay đổi.
+Sai lầm modularization phổ biến là di chuyển file trước khi hiểu **vì sao** chúng thay đổi.
 
 Evidence hữu ích gồm:
 
@@ -122,12 +116,12 @@ Evidence hữu ích gồm:
 - workflow phát triển cùng cadence;
 - dependency không nên lộ cho phần lớn caller.
 
-Không nên diễn giải co-change một cách máy móc. Hai file thay đổi cùng nhau có thể thuộc cùng module, nhưng cũng có thể là accidental coupling cần loại bỏ.
+Co-change chỉ là tín hiệu. Hai file thay đổi cùng nhau có thể thuộc một module, nhưng cũng có thể là accidental coupling cần loại bỏ.
 
 Hãy hỏi:
 
-1. Business capability nào đang thay đổi?
-2. Code nào sở hữu invariant đó?
+1. Business capability nào đang đổi?
+2. Code nào sở hữu invariant?
 3. Quyết định nào caller không cần biết?
 4. Lần sau, thay đổi nào nên nằm hoàn toàn bên trong module?
 
@@ -145,14 +139,12 @@ flowchart TD
 <TermBox term="Information hiding">
 **Che giấu thông tin** nghĩa là module giấu các quyết định thiết kế có khả năng thay đổi để caller không phụ thuộc vào chúng.
 
-Ví dụ gồm cấu trúc table, cache strategy, chi tiết SDK bên thứ ba, retry policy, parsing rule và algorithm choice.
+Ví dụ gồm table shape, cache strategy, third-party SDK, retry policy, parsing rule và algorithm choice.
 
 Cú pháp `private` hữu ích, nhưng mục tiêu kiến trúc là giấu **kiến thức dễ biến động**.
 </TermBox>
 
-Một module có thể toàn `private` method nhưng vẫn leak internals.
-
-Ví dụ:
+Một module có thể dùng nhiều `private` method nhưng vẫn leak internals:
 
 ```ts
 await orderRepository.insertOrderRow(...)
@@ -162,47 +154,36 @@ await inventoryRepository.decrementRows(...)
 
 Caller giờ biết persistence sequence và schema concept.
 
-Contract tốt hơn có thể là:
+Contract tốt hơn:
 
 ```ts
 await ordering.placeOrder(command)
 ```
 
-Giờ module có thể thay transaction boundary, table hoặc persistence strategy mà caller không phải sửa theo.
+Module có thể thay transaction boundary, table hoặc persistence strategy mà caller không phải sửa theo.
 
-### Giấu mechanism sau capability
-
-Ưu tiên:
+Ưu tiên capability như:
 
 ```text
 sendPasswordReset(userId)
 ```
 
-thay vì:
+thay vì expose từng bước SMTP cho caller.
 
-```text
-renderResetTemplate()
-getSmtpClient()
-buildMimeMessage()
-sendSmtpMessage()
-```
-
-Caller thường cần outcome, không cần mechanism.
-
-## 4. Giữ public API nhỏ một cách có chủ đích
+## 4. Giữ public API nhỏ có chủ đích
 
 Mỗi exported symbol tạo thêm một thứ caller có thể phụ thuộc vào.
 
-Hãy coi public API của module như product surface:
+Coi public API của module như product surface:
 
 - export capability, không export convenience internal;
 - dùng input/output mang ngữ nghĩa domain;
 - không trả persistence model nếu caller không cần;
 - mô tả failure và consistency behavior;
 - deprecate trước khi xóa contract có nhiều caller;
-- giữ implementation import không thể truy cập bằng convention hoặc tooling.
+- dùng convention hoặc tooling để chặn internal import.
 
-Một cấu trúc hữu ích:
+Ví dụ:
 
 ```text
 billing/
@@ -215,23 +196,23 @@ billing/
     provider.ts
 ```
 
-Sau đó enforce module khác chỉ import từ:
+Module khác chỉ nên import:
 
 ```text
 billing/index.ts
 ```
 
-chứ không phải:
+không deep-import:
 
 ```text
 billing/internal/repository.ts
 ```
 
-Deep import thường cho thấy public contract đang thiếu một capability thật — hoặc caller đang vượt qua ownership boundary.
+Deep import thường cho thấy public contract thiếu capability thật hoặc caller đang vượt ownership boundary.
 
 ## 5. Package by feature khi behavior thuộc về nhau
 
-Cấu trúc theo loại kỹ thuật có thể làm một business change bị rải qua nhiều folder cấp cao:
+Cấu trúc theo loại kỹ thuật:
 
 ```text
 controllers/
@@ -241,7 +222,7 @@ models/
 validators/
 ```
 
-Thêm “pause subscription” có thể buộc chạm vào tất cả folder trên.
+có thể làm một business change bị rải qua nhiều folder.
 
 Feature boundary có thể làm change local hơn:
 
@@ -253,19 +234,17 @@ subscriptions/
   public.ts
 ```
 
-Điều này **không** có nghĩa mỗi feature cần một repository, deployment hay database riêng.
-
-Logical modularity và physical deployment là hai quyết định khác nhau.
+Điều này **không** có nghĩa mỗi feature cần repository, deployment hoặc database riêng. Logical modularity và physical deployment là hai quyết định khác nhau.
 
 ## 6. Vẽ dependency graph
 
 <TermBox term="Dependency graph">
 **Đồ thị phụ thuộc** biểu diễn module thành node và dependency relationship thành edge có hướng.
 
-Graph giúp phát hiện cycle, module trung tâm gánh quá nhiều trách nhiệm, dependency direction không ổn định và các vị trí change dễ lan rộng.
+Graph giúp phát hiện cycle, dependency hub, hướng phụ thuộc không ổn định và nơi change dễ lan rộng.
 </TermBox>
 
-Ví dụ:
+Graph dễ suy luận:
 
 ```mermaid
 flowchart LR
@@ -277,7 +256,7 @@ flowchart LR
   Catalog --> Core
 ```
 
-Dễ suy luận hơn graph này:
+Graph có cycle:
 
 ```mermaid
 flowchart LR
@@ -287,38 +266,29 @@ flowchart LR
   Catalog --> Orders
 ```
 
-Graph thứ hai có cycle. Change có thể chạy quanh vòng, initialization order khó hơn, test cần graph lớn hơn và ownership trở nên mơ hồ.
+Cycle làm initialization, testing, ownership và change propagation khó hơn.
 
 ### Break cycle bằng cách chuyển đúng responsibility
 
-Đừng tự động thêm interface chỉ để mũi tên biến mất.
+Đừng tự động thêm interface chỉ để graph đẹp.
 
-Hãy hỏi trước:
+Hãy hỏi:
 
 1. Responsibility có đang nằm sai module không?
-2. Policy dùng chung có đang bị duplicate ở hai bên không?
+2. Policy dùng chung có đang duplicate ở hai bên không?
 3. Một abstraction trung lập ở tầng thấp hơn có nên sở hữu concept chung không?
-4. Một bên có đang query data lẽ ra nên nhận qua contract có mục đích rõ không?
+4. Một bên có đang query data lẽ ra nên nhận qua purpose-built contract không?
 5. Event có phù hợp vì reaction thực sự asynchronous không?
 
-Interface hữu ích khi nó bảo vệ một policy hoặc volatility boundary có ý nghĩa, không phải để graph đẹp hơn.
+Interface hữu ích khi bảo vệ một policy hoặc volatility boundary có ý nghĩa.
 
 ## 7. Stable dependency giảm ripple effect
 
-Một module biến động mạnh không nên trở thành dependency phổ quát nếu có thể đặt một contract ổn định hơn trước nó.
+Một module biến động mạnh không nên trở thành dependency phổ quát nếu có thể đặt contract ổn định hơn trước nó.
 
-Ví dụ chi tiết dễ biến động:
+Chi tiết dễ biến động gồm vendor SDK, database driver, workflow engine, third-party schema, UI framework type và experimental algorithm.
 
-- vendor SDK;
-- database driver;
-- workflow engine thay đổi nhanh;
-- schema bên thứ ba;
-- UI framework type;
-- thuật toán thử nghiệm.
-
-Giữ chúng gần edge của module sở hữu.
-
-Caller nên phụ thuộc vào concept thay đổi chậm hơn:
+Caller nên phụ thuộc vào concept ổn định hơn:
 
 ```text
 Fulfillment -> ShippingQuotePort
@@ -327,15 +297,13 @@ Fulfillment -> ShippingQuotePort
             CarrierSdkAdapter
 ```
 
-Đây không phải lệnh “abstract everything”.
-
-Nếu chỉ có một implementation ổn định và không có volatility boundary thật, thêm interface chỉ tạo ceremony.
+Nhưng không nên “abstract everything”. Nếu implementation ổn định và không có volatility boundary thật, interface bổ sung chỉ tạo ceremony.
 
 ## 8. Ownership làm module trở thành boundary thật
 
 Module không có ownership rõ thường thành shared dumping ground.
 
-Với mỗi module quan trọng, hãy trả lời:
+Với mỗi major module, hãy trả lời:
 
 - Team/subsystem nào sở hữu public contract?
 - Module enforce business invariant nào?
@@ -343,9 +311,7 @@ Với mỗi module quan trọng, hãy trả lời:
 - Caller nhận compatibility promise gì?
 - Internal nào được phép đổi mà không cần coordination?
 
-Ownership đặc biệt quan trọng trong modular monolith vì process boundary không ép separation giúp bạn.
-
-Có thể dùng chung một physical database mà vẫn enforce rule:
+Trong modular monolith, nhiều module có thể dùng chung physical database nhưng vẫn có logical ownership:
 
 ```text
 Orders sở hữu write vào order state.
@@ -357,7 +323,7 @@ Billing không update trực tiếp orders table.
 
 Architecture chỉ tồn tại trên diagram sẽ drift.
 
-Dùng machine-checkable guardrail khi chi phí hợp lý:
+Guardrail hữu ích gồm:
 
 - lint rule chặn forbidden deep import;
 - dependency-cycle check;
@@ -367,18 +333,16 @@ Dùng machine-checkable guardrail khi chi phí hợp lý:
 - schema ownership rule;
 - code-review check cho cross-module dependency mới.
 
-Policy ví dụ:
+Ví dụ policy:
 
 ```text
 checkout/* được import pricing/public
 checkout/* không được import pricing/internal/*
 ```
 
-Điểm quan trọng không phải tool cụ thể. Điểm quan trọng là làm ranh giới **quan sát được và enforce được**.
+Điểm quan trọng là làm boundary **quan sát được và enforce được**.
 
 ## 10. Vận hành bằng evidence từ change frequency
-
-Module structure nên tiến hóa khi change pattern của hệ thống rõ hơn.
 
 Theo dõi signal như:
 
@@ -386,17 +350,15 @@ Theo dõi signal như:
 - số module bị chạm trên mỗi feature;
 - số team cần phối hợp cho một change;
 - tần suất contract bị break;
-- số cyclic dependency;
-- số deep-import violation;
+- cyclic dependency count;
+- deep-import violation;
 - test phải boot module không liên quan.
 
-Đây là signal để điều tra, không phải target number phổ quát.
+Đây là signal để điều tra, không phải universal target number.
 
-KPI “số lượng module” riêng lẻ rất nguy hiểm. Chia một capability gắn kết thành mười package có thể làm kiến trúc tệ hơn nhưng metric trông có vẻ modular hơn.
+KPI “số lượng module” riêng lẻ rất nguy hiểm. Chia một capability gắn kết thành mười package có thể làm kiến trúc tệ hơn dù metric trông “modular” hơn.
 
 ## 11. Quy trình modularization thực tế
-
-Khi một feature area trở nên rối, dùng trình tự này.
 
 ### Bước 1 — chọn một change thật gần đây
 
@@ -404,7 +366,7 @@ Chọn feature hoặc incident từng yêu cầu quá nhiều coordinated edit.
 
 ### Bước 2 — map responsibility bị chạm
 
-Gắn nhãn mỗi file/module theo business decision mà nó chứa.
+Gắn nhãn mỗi file/module theo business decision nó chứa.
 
 ### Bước 3 — xác định rule owner
 
@@ -416,46 +378,35 @@ Diễn đạt caller cần gì mà không lộ cách triển khai.
 
 ### Bước 5 — đưa cohesive behavior vào trong
 
-Di chuyển policy, validation, persistence orchestration và volatile detail vào owner boundary khi chúng thuộc về đó.
+Di chuyển policy, validation, persistence orchestration và volatile detail vào owner boundary khi phù hợp.
 
 ### Bước 6 — xóa bypass path
 
-Thay deep import, direct table write và duplicated policy bằng contract dự kiến.
+Thay deep import, direct table write và duplicated policy bằng intended contract.
 
 ### Bước 7 — kiểm dependency graph
 
-Break cycle và reverse dependency đáng ngờ.
+Break cycle và suspicious reverse dependency.
 
 ### Bước 8 — thêm boundary verification
 
-Thêm test hoặc lint/dependency rule cho boundary có rủi ro cao nhất.
+Thêm test hoặc lint/dependency rule cho boundary rủi ro cao nhất.
 
 ### Bước 9 — replay change ban đầu
 
-Hỏi: nếu requirement đó quay lại ngày mai, giờ cần bao nhiêu module và owner cùng sửa?
-
-Replay này là bằng chứng cải thiện.
+Nếu requirement đó quay lại ngày mai, giờ cần bao nhiêu module và owner cùng sửa? Replay này là bằng chứng cải thiện.
 
 ## 12. Production failure: package “shared” trở thành monolith thật sự
 
-Một sản phẩm SaaS tạo package `shared-domain` để Orders, Billing, Support và Reporting reuse customer/account logic.
-
-Theo thời gian package chứa:
-
-- database entity;
-- billing status rule;
-- order eligibility rule;
-- API request type;
-- notification helper;
-- vendor SDK wrapper.
+Một sản phẩm SaaS tạo package `shared-domain` để Orders, Billing, Support và Reporting reuse customer/account logic. Theo thời gian package chứa database entity, billing rule, order eligibility rule, API type, notification helper và vendor SDK wrapper.
 
 Một billing rule change sau đó đòi release bốn khu vực vì tất cả import shared type/helper nội bộ.
 
 **Hậu quả:** một thay đổi billing nhỏ biến thành multi-team release có coordination cao, deployment bị chậm, và một reporting job không liên quan bị lỗi sau khi shared type đổi.
 
-**Nguyên nhân cốt lõi:** package gom code theo tiêu chí “nhiều team cùng dùng” thay vì một responsibility gắn kết. Public surface leak volatile implementation knowledge và biến package thành dependency hub có degree rất cao.
+**Nguyên nhân cốt lõi:** package gom code theo tiêu chí “nhiều team cùng dùng” thay vì một responsibility gắn kết. Public surface leak volatile implementation knowledge và biến package thành dependency hub.
 
-**Cách khắc phục chuẩn:** đưa business rule về module sở hữu, tách stable primitive thực sự, expose contract hẹp, chặn deep import và migrate caller theo từng capability. Replay billing change để xác nhận module không liên quan აღარ cần sửa.
+**Cách khắc phục chuẩn:** đưa business rule về module sở hữu, tách stable primitive thực sự, expose contract hẹp, chặn deep import và migrate caller theo từng capability. Replay billing change để xác nhận các module không liên quan აღარ phải sửa.
 
 ## 13. Tự kiểm tra
 
