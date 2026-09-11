@@ -2,7 +2,7 @@
 
 import { withBasePath } from '@/lib/base-path';
 import { useDocsSearch } from 'fumadocs-core/search/client';
-import { staticClient } from 'fumadocs-core/search/client/orama-static';
+import { fetchClient } from 'fumadocs-core/search/client/fetch';
 import {
   SearchDialog,
   SearchDialogClose,
@@ -18,7 +18,7 @@ import {
 export default function AtlasSearchDialog(props: SharedProps) {
   const { search, setSearch, query } = useDocsSearch({
     // Fumadocs' default `/api/search` does not apply Next.js `basePath`.
-    client: staticClient({ from: withBasePath('/api/search') }),
+    client: fetchClient({ api: withBasePath('/api/search') }),
   });
 
   return (
