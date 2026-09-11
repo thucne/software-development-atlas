@@ -80,13 +80,13 @@ describe('Object Storage lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-      expect(source, relativePath).toContain('27');
+      expect(source, relativePath).toContain('28');
       expect(source, relativePath).toContain('/data-systems/search-indexes');
       expect(source, relativePath).toContain('/data-systems/object-storage');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('27 bài học kiến trúc hệ thống');
-    expect(banner).toContain('27 new system architecture lessons');
+    expect(banner).toContain('28 bài học kiến trúc hệ thống');
+    expect(banner).toContain('28 new system architecture lessons');
   });
 });
