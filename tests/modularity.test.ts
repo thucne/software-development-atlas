@@ -9,38 +9,32 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/software-architecture/coupling-and-cohesion.mdx',
-  vi: 'content/docs/software-architecture/coupling-and-cohesion.vi.mdx',
+  en: 'content/docs/software-architecture/modularity.mdx',
+  vi: 'content/docs/software-architecture/modularity.vi.mdx',
 } as const;
 
-describe('Coupling and Cohesion lesson', () => {
-  it('opens Software Architecture between Data Systems and Distributed Systems in both root sidebars', () => {
-    for (const relativePath of ['content/docs/meta.json', 'content/docs/meta.vi.json']) {
-      const source = read(relativePath);
-      const dataSystems = source.indexOf('"data-systems"');
-      const architecture = source.indexOf('"software-architecture"');
-      const distributed = source.indexOf('"distributed-systems"');
-
-      expect(dataSystems, relativePath).toBeGreaterThan(-1);
-      expect(architecture, relativePath).toBeGreaterThan(dataSystems);
-      expect(distributed, relativePath).toBeGreaterThan(architecture);
-    }
-
+describe('Modularity lesson', () => {
+  it('publishes after Coupling & Cohesion in both Software Architecture sidebars', () => {
     for (const relativePath of [
       'content/docs/software-architecture/meta.json',
       'content/docs/software-architecture/meta.vi.json',
     ]) {
-      expect(read(relativePath), relativePath).toContain('"coupling-and-cohesion"');
+      const source = read(relativePath);
+      const coupling = source.indexOf('"coupling-and-cohesion"');
+      const modularity = source.indexOf('"modularity"');
+
+      expect(coupling, relativePath).toBeGreaterThan(-1);
+      expect(modularity, relativePath).toBeGreaterThan(coupling);
     }
   });
 
-  it('places both locale variants on only the canonical concept at operate depth', () => {
+  it('places both locale variants on only the canonical modularity concept at operate depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: operate');
-      expect(source, relativePath).toMatch(/concepts:\n  - coupling-and-cohesion\n---/);
+      expect(source, relativePath).toMatch(/concepts:\n  - modularity\n---/);
       expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
@@ -49,7 +43,7 @@ describe('Coupling and Cohesion lesson', () => {
     }
   });
 
-  it('teaches actionable coupling, cohesion, ownership, and change-locality techniques', () => {
+  it('teaches actionable module boundaries, information hiding, dependency direction, and verification', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -57,17 +51,17 @@ describe('Coupling and Cohesion lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/coupling|liên kết phụ thuộc/i);
-      expect(source, relativePath).toMatch(/cohesion|tính gắn kết/i);
-      expect(source, relativePath).toMatch(/ripple|change propagation|lan truyền thay đổi|blast radius/i);
-      expect(source, relativePath).toMatch(/dependency|phụ thuộc/i);
-      expect(source, relativePath).toMatch(/encapsulation|information hiding|đóng gói|che giấu thông tin/i);
-      expect(source, relativePath).toMatch(/shared data|shared schema|shared table|dữ liệu dùng chung|schema dùng chung|bảng dùng chung/i);
-      expect(source, relativePath).toMatch(/temporal coupling|call order|thứ tự gọi|phụ thuộc thời gian/i);
+      expect(source, relativePath).toMatch(/module boundary|ranh giới module/i);
+      expect(source, relativePath).toMatch(/information hiding|che giấu thông tin/i);
+      expect(source, relativePath).toMatch(/public API|public contract|API công khai|hợp đồng công khai/i);
+      expect(source, relativePath).toMatch(/dependency graph|đồ thị phụ thuộc/i);
       expect(source, relativePath).toMatch(/cycle|cyclic|vòng phụ thuộc/i);
-      expect(source, relativePath).toMatch(/contract|API|giao diện/i);
-      expect(source, relativePath).toMatch(/change together|co.?change|thay đổi cùng nhau/i);
-      expect(source, relativePath).toMatch(/business rule|invariant|quy tắc nghiệp vụ|bất biến/i);
+      expect(source, relativePath).toMatch(/ownership|owner|quyền sở hữu|chủ sở hữu/i);
+      expect(source, relativePath).toMatch(/package by feature|feature boundary|theo feature|ranh giới feature/i);
+      expect(source, relativePath).toMatch(/internal|private|nội bộ/i);
+      expect(source, relativePath).toMatch(/contract test|boundary test|kiểm thử hợp đồng|kiểm thử ranh giới/i);
+      expect(source, relativePath).toMatch(/change frequency|change together|co.?change|tần suất thay đổi|thay đổi cùng nhau/i);
+      expect(source, relativePath).toMatch(/stable depend|ổn định/i);
     }
 
     expect(en).toContain('**Impact:**');

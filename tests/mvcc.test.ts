@@ -77,7 +77,7 @@ describe('MVCC lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-      expect(source, relativePath).toContain('28');
+      expect(source, relativePath).toContain('29');
       expect(source, relativePath).toContain('/data-systems/mvcc');
       expect(source, relativePath).toContain('/data-systems/database-replication');
       expect(source, relativePath).toContain('/data-systems/data-partitioning');
@@ -87,7 +87,7 @@ describe('MVCC lesson', () => {
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('28 bài học kiến trúc hệ thống');
-    expect(banner).toContain('28 new system architecture lessons');
+    expect(banner).toContain('29 bài học kiến trúc hệ thống');
+    expect(banner).toContain('29 new system architecture lessons');
   });
 });
