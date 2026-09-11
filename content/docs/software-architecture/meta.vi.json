@@ -5,6 +5,7 @@
     "modularity",
     "layered-architecture",
     "hexagonal-architecture",
-    "clean-architecture"
+    "clean-architecture",
+    "monolith-architecture"
   ]
 }
