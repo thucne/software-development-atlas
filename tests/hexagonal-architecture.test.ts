@@ -9,32 +9,32 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/software-architecture/layered-architecture.mdx',
-  vi: 'content/docs/software-architecture/layered-architecture.vi.mdx',
+  en: 'content/docs/software-architecture/hexagonal-architecture.mdx',
+  vi: 'content/docs/software-architecture/hexagonal-architecture.vi.mdx',
 } as const;
 
-describe('Layered Architecture lesson', () => {
-  it('publishes after Modularity in both Software Architecture sidebars', () => {
+describe('Hexagonal Architecture lesson', () => {
+  it('publishes after Layered Architecture in both Software Architecture sidebars', () => {
     for (const relativePath of [
       'content/docs/software-architecture/meta.json',
       'content/docs/software-architecture/meta.vi.json',
     ]) {
       const source = read(relativePath);
-      const modularity = source.indexOf('"modularity"');
       const layered = source.indexOf('"layered-architecture"');
+      const hexagonal = source.indexOf('"hexagonal-architecture"');
 
-      expect(modularity, relativePath).toBeGreaterThan(-1);
-      expect(layered, relativePath).toBeGreaterThan(modularity);
+      expect(layered, relativePath).toBeGreaterThan(-1);
+      expect(hexagonal, relativePath).toBeGreaterThan(layered);
     }
   });
 
-  it('places both locale variants on only the canonical layered-architecture concept at reason depth', () => {
+  it('places both locale variants on only the canonical concept at reason depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
-      expect(source, relativePath).toMatch(/concepts:\n  - layered-architecture\n---/);
+      expect(source, relativePath).toMatch(/concepts:\n  - hexagonal-architecture\n---/);
       expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
@@ -43,7 +43,7 @@ describe('Layered Architecture lesson', () => {
     }
   });
 
-  it('teaches layer responsibilities, dependency rules, bypass risks, and architectural trade-offs', () => {
+  it('teaches ports, adapters, driving/driven sides, isolation, and dependency boundaries', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -51,19 +51,18 @@ describe('Layered Architecture lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/presentation(?:\s+layer)?|tầng trình bày/i);
-      expect(source, relativePath).toMatch(/application layer|tầng ứng dụng/i);
-      expect(source, relativePath).toMatch(/domain layer|tầng domain|tầng miền/i);
-      expect(source, relativePath).toMatch(/infrastructure layer|tầng hạ tầng/i);
-      expect(source, relativePath).toMatch(/dependency rule|quy tắc phụ thuộc/i);
-      expect(source, relativePath).toMatch(/strict layering|strict layer|layering nghiêm ngặt|phân tầng nghiêm ngặt/i);
-      expect(source, relativePath).toMatch(/relaxed layering|relaxed layer|layering linh hoạt|phân tầng linh hoạt/i);
-      expect(source, relativePath).toMatch(/bypass|đi tắt|vượt tầng/i);
-      expect(source, relativePath).toMatch(/layer|tier/i);
-      expect(source, relativePath).toMatch(/transaction boundary|ranh giới transaction|ranh giới giao dịch/i);
-      expect(source, relativePath).toMatch(/cross.?cutting|xuyên tầng/i);
-      expect(source, relativePath).toMatch(/DTO|mapping|ánh xạ/i);
-      expect(source, relativePath).toMatch(/package by feature|vertical slice|theo feature|lát cắt dọc/i);
+      expect(source, relativePath).toMatch(/port|cổng/i);
+      expect(source, relativePath).toMatch(/adapter|bộ chuyển đổi/i);
+      expect(source, relativePath).toMatch(/ports? and adapters?|cổng và bộ chuyển đổi/i);
+      expect(source, relativePath).toMatch(/driving|primary actor|chủ động|khởi phát/i);
+      expect(source, relativePath).toMatch(/driven|secondary actor|bị điều khiển|được ứng dụng gọi/i);
+      expect(source, relativePath).toMatch(/inside|outside|bên trong|bên ngoài/i);
+      expect(source, relativePath).toMatch(/database|cơ sở dữ liệu/i);
+      expect(source, relativePath).toMatch(/HTTP|CLI|test harness|batch|kiểm thử/i);
+      expect(source, relativePath).toMatch(/mock|fake|in-memory|bộ nhớ/i);
+      expect(source, relativePath).toMatch(/dependency inversion|đảo ngược phụ thuộc/i);
+      expect(source, relativePath).toMatch(/composition root|wiring|lắp ghép|khởi tạo/i);
+      expect(source, relativePath).toMatch(/hexagon|sáu cạnh|6 cạnh/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -81,7 +80,6 @@ describe('Layered Architecture lesson', () => {
     ]) {
       const source = read(relativePath);
       expect(source, relativePath).toContain('31');
-      expect(source, relativePath).toContain('/software-architecture/modularity');
       expect(source, relativePath).toContain('/software-architecture/layered-architecture');
       expect(source, relativePath).toContain('/software-architecture/hexagonal-architecture');
     }
