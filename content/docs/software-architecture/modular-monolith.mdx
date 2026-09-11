@@ -1,0 +1,125 @@
+---
+title: "Modular Monolith: Enforce Boundaries Inside One Deployable"
+description: Operate a modular monolith with public contracts, data ownership, and dependency guardrails.
+category: software-architecture
+level: intermediate
+status: evolving
+lastVerified: 2026-09-11
+reviewAfterDays: 180
+topics: [software-architecture, modular-monolith]
+prerequisites: [monolith-architecture, modularity]
+related: [microservices, domain-boundaries]
+technologies: []
+contentType: deep-dive
+learningDepth: operate
+concepts:
+  - modular-monolith
+---
+
+# Modular Monolith: Enforce Boundaries Inside One Deployable
+
+A modular monolith keeps **one deployable application** while enforcing internal module ownership.
+
+```mermaid
+flowchart LR
+  C[Client] --> A[One deployable]
+  A --> O[Orders]
+  A --> B[Billing]
+  O -->|public contract| B
+```
+
+<TermBox term="Module boundary">
+A **module boundary** surrounds a cohesive capability with a clear owner, public contract, and private implementation details.
+</TermBox>
+
+<TermBox term="Public contract">
+A **public contract** is the operations, messages, and data shapes other modules may depend on. ORM entities, repositories, and table names should stay private internals.
+</TermBox>
+
+## Enforce dependency direction
+
+```mermaid
+flowchart LR
+  ROOT[Composition root] --> O[Orders]
+  ROOT --> B[Billing]
+  O --> B
+  B -. forbidden .-> O
+```
+
+Use public entry points, forbid deep imports, and make dependency cycles fail an **architecture test** or import rule.
+
+<TermBox term="Logical data ownership">
+**Logical data ownership** means one module owns business data meaning and mutation even when modules share one physical database.
+</TermBox>
+
+```text
+Orders owns: orders, order_lines
+Billing owns: invoices, payment_attempts
+```
+
+**Direct database access** or cross-module queries bypass owner invariants. Prefer a public operation or intentional read model.
+
+## Calls, events, and transactions
+
+An **in-process function call** is appropriate when the caller needs an immediate answer.
+
+```mermaid
+sequenceDiagram
+  participant O as Orders
+  participant B as Billing
+  O->>O: Commit order
+  O-->>B: OrderPlaced
+```
+
+Events still have contracts for semantics, ordering, duplicates, and freshness. A shared database can support a local **transaction** across modules, but the boundary needs a named owner.
+
+```mermaid
+flowchart TB
+  BOOT[Composition root] --> O[Orders]
+  BOOT --> B[Billing]
+  O --> BP[Billing public port]
+  BOOT -. wires .-> BP
+```
+
+A module boundary improves change locality; it does not provide process-level **fault isolation** or independent scaling.
+
+Extract to a **microservice** only when independent deployment brings concrete scaling, security, fault-isolation, or release-cadence value.
+
+## Production scenario
+
+Orders imports Billing ORM entities, Billing queries Orders tables directly, and a shared `core` package owns business rules.
+
+**Impact:** small features require broad coordination and future service extraction would move hidden coupling across the network.
+
+**Root cause:** package names exist without enforced public contracts, private internals, dependency direction, or data ownership.
+
+**Correct pattern:** assign capability owners, forbid deep imports, route cross-module reads/writes through explicit contracts, assign table/schema ownership, break cycles, and enforce the dependency graph with architecture tests.
+
+<details>
+<summary>Self-check: must every module be independently deployable?</summary>
+
+No. A modular monolith deliberately keeps one deployment boundary. Independent deployment changes the topology toward services or microservices.
+
+</details>
+
+## Production checklist
+
+- [ ] There is one understood **single deployable**.
+- [ ] Modules align with capabilities and ownership.
+- [ ] Public contracts are small; private internals cannot be deep-imported.
+- [ ] The **dependency graph** is machine-checkable.
+- [ ] Business data has module ownership even in a shared database.
+- [ ] Direct cross-module table writes are forbidden or explicit exceptions.
+- [ ] In-process calls and events are chosen by semantics.
+- [ ] Cross-module transaction boundaries have an owner.
+- [ ] Module boundaries are not confused with fault isolation.
+- [ ] Extraction requires concrete operational evidence.
+
+## Agent rule
+
+Identify the owning module first, use its public contract, keep storage and implementation details private, and strengthen a machine-checkable boundary when a change reveals an unauthorized dependency.
+
+## Sources
+
+- Microsoft Learn — https://learn.microsoft.com/en-us/shows/on-dotnet/on-dotnet-live-modular-monoliths-with-aspnet-core
+- Martin Fowler, Monolith First — https://martinfowler.com/bliki/MonolithFirst.html
