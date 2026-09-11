@@ -2,6 +2,7 @@
   "title": "Software Architecture",
   "pages": [
     "coupling-and-cohesion",
-    "modularity"
+    "modularity",
+    "layered-architecture"
   ]
 }

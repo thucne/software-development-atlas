@@ -84,13 +84,14 @@ describe('Coupling and Cohesion lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-      expect(source, relativePath).toContain('29');
+      expect(source, relativePath).toContain('30');
       expect(source, relativePath).toContain('/software-architecture/coupling-and-cohesion');
       expect(source, relativePath).toContain('/software-architecture/modularity');
+      expect(source, relativePath).toContain('/software-architecture/layered-architecture');
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('29 bài học kiến trúc hệ thống');
-    expect(banner).toContain('29 new system architecture lessons');
+    expect(banner).toContain('30 bài học kiến trúc hệ thống');
+    expect(banner).toContain('30 new system architecture lessons');
   });
 });
