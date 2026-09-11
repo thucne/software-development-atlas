@@ -7,6 +7,7 @@
     "hexagonal-architecture",
     "clean-architecture",
     "monolith-architecture",
-    "modular-monolith"
+    "modular-monolith",
+    "microservices"
   ]
 }
