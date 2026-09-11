@@ -406,7 +406,7 @@ Một billing rule change sau đó đòi release bốn khu vực vì tất cả 
 
 **Nguyên nhân cốt lõi:** package gom code theo tiêu chí “nhiều team cùng dùng” thay vì một responsibility gắn kết. Public surface leak volatile implementation knowledge và biến package thành dependency hub.
 
-**Cách khắc phục chuẩn:** đưa business rule về module sở hữu, tách stable primitive thực sự, expose contract hẹp, chặn deep import và migrate caller theo từng capability. Replay billing change để xác nhận các module không liên quan აღარ phải sửa.
+**Cách khắc phục chuẩn:** đưa business rule về module sở hữu, tách stable primitive thực sự, expose contract hẹp, chặn deep import và migrate caller theo từng capability. Replay billing change để xác nhận các module không liên quan không còn phải sửa.
 
 ## 13. Tự kiểm tra
 
