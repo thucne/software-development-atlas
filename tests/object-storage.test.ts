@@ -9,32 +9,32 @@ function read(relativePath: string) {
 }
 
 const lessonPaths = {
-  en: 'content/docs/data-systems/search-indexes.mdx',
-  vi: 'content/docs/data-systems/search-indexes.vi.mdx',
+  en: 'content/docs/data-systems/object-storage.mdx',
+  vi: 'content/docs/data-systems/object-storage.vi.mdx',
 } as const;
 
-describe('Search Indexes lesson', () => {
-  it('publishes after In-Memory Data Stores in both Data Systems sidebars', () => {
+describe('Object Storage lesson', () => {
+  it('publishes after Search Indexes in both Data Systems sidebars', () => {
     for (const relativePath of [
       'content/docs/data-systems/meta.json',
       'content/docs/data-systems/meta.vi.json',
     ]) {
       const source = read(relativePath);
-      const inMemory = source.indexOf('"in-memory-data-stores"');
       const search = source.indexOf('"search-indexes"');
+      const objectStorage = source.indexOf('"object-storage"');
 
-      expect(inMemory, relativePath).toBeGreaterThan(-1);
-      expect(search, relativePath).toBeGreaterThan(inMemory);
+      expect(search, relativePath).toBeGreaterThan(-1);
+      expect(objectStorage, relativePath).toBeGreaterThan(search);
     }
   });
 
-  it('places both locale variants on only the canonical search-indexes concept at reason depth', () => {
+  it('places both locale variants on only the canonical object-storage concept at reason depth', () => {
     for (const relativePath of Object.values(lessonPaths)) {
       const source = read(relativePath);
 
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
-      expect(source, relativePath).toMatch(/concepts:\n  - search-indexes\n---/);
+      expect(source, relativePath).toMatch(/concepts:\n  - object-storage\n---/);
       expect(source, relativePath).toContain('lastVerified: 2026-09-10');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
@@ -43,7 +43,7 @@ describe('Search Indexes lesson', () => {
     }
   });
 
-  it('teaches inverted indexes, analysis, relevance, freshness, and reindexing contracts', () => {
+  it('teaches keys, consistency, multipart integrity, access delegation, lifecycle, and versioning boundaries', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
 
@@ -51,19 +51,19 @@ describe('Search Indexes lesson', () => {
       [lessonPaths.en, en],
       [lessonPaths.vi, vi],
     ] as const) {
-      expect(source, relativePath).toMatch(/inverted index|chỉ mục đảo/i);
-      expect(source, relativePath).toMatch(/analy[sz]er|bộ phân tích/i);
-      expect(source, relativePath).toMatch(/token/i);
-      expect(source, relativePath).toMatch(/text`?\s+field|trường text/i);
-      expect(source, relativePath).toMatch(/keyword`?\s+field|trường keyword/i);
-      expect(source, relativePath).toMatch(/match`?\s+query/i);
-      expect(source, relativePath).toMatch(/BM25/i);
-      expect(source, relativePath).toMatch(/refresh/i);
-      expect(source, relativePath).toMatch(/near.?real.?time|gần thời gian thực|NRT/i);
+      expect(source, relativePath).toMatch(/bucket/i);
+      expect(source, relativePath).toMatch(/object key|khóa object|key object/i);
+      expect(source, relativePath).toMatch(/flat|phẳng|prefix/i);
+      expect(source, relativePath).toMatch(/strong read.?after.?write|nhất quán mạnh|strong consistency/i);
+      expect(source, relativePath).toMatch(/presigned/i);
+      expect(source, relativePath).toMatch(/multipart/i);
+      expect(source, relativePath).toMatch(/checksum/i);
+      expect(source, relativePath).toMatch(/ETag/i);
+      expect(source, relativePath).toMatch(/versioning|phiên bản hóa/i);
+      expect(source, relativePath).toMatch(/lifecycle|vòng đời/i);
+      expect(source, relativePath).toMatch(/storage class|lớp lưu trữ/i);
       expect(source, relativePath).toMatch(/source of truth|nguồn sự thật/i);
-      expect(source, relativePath).toMatch(/reindex/i);
-      expect(source, relativePath).toMatch(/alias/i);
-      expect(source, relativePath).toMatch(/stale|staleness|cũ|độ trễ/i);
+      expect(source, relativePath).toMatch(/immutable|bất biến/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -81,7 +81,6 @@ describe('Search Indexes lesson', () => {
     ]) {
       const source = read(relativePath);
       expect(source, relativePath).toContain('27');
-      expect(source, relativePath).toContain('/data-systems/in-memory-data-stores');
       expect(source, relativePath).toContain('/data-systems/search-indexes');
       expect(source, relativePath).toContain('/data-systems/object-storage');
     }
