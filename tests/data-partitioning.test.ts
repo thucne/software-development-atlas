@@ -78,7 +78,7 @@ describe('Partitioning and Sharding lesson', () => {
       'content/docs/start-here/changelog.vi.mdx',
     ]) {
       const source = read(relativePath);
-      expect(source, relativePath).toContain('29');
+      expect(source, relativePath).toContain('30');
       expect(source, relativePath).toContain('/data-systems/data-partitioning');
       expect(source, relativePath).toContain('/data-systems/in-memory-data-stores');
       expect(source, relativePath).toContain('/data-systems/search-indexes');
@@ -86,7 +86,7 @@ describe('Partitioning and Sharding lesson', () => {
     }
 
     const banner = read('components/atlas/release-banner.tsx');
-    expect(banner).toContain('29 bài học kiến trúc hệ thống');
-    expect(banner).toContain('29 new system architecture lessons');
+    expect(banner).toContain('30 bài học kiến trúc hệ thống');
+    expect(banner).toContain('30 new system architecture lessons');
   });
 });
