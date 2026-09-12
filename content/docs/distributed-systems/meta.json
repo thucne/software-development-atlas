@@ -1,4 +1,4 @@
 {
   "title": "Distributed Systems",
-  "pages": ["timeouts-retries-and-backoff"]
+  "pages": ["partial-failure", "timeouts-retries-and-backoff"]
 }
