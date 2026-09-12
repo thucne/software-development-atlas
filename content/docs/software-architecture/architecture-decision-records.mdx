@@ -1,0 +1,206 @@
+---
+title: "Architecture Decision Records: Preserve the Why"
+description: Operate ADRs by capturing significant decisions, context, alternatives, consequences, ownership, evidence, review, and supersession without rewriting history.
+category: software-architecture
+level: intermediate
+status: evolving
+lastVerified: 2026-09-12
+reviewAfterDays: 180
+topics: [software-architecture, architecture-decisions, documentation]
+prerequisites: [domain-boundaries, coupling-and-cohesion]
+related: [modularity, microservices, event-driven-architecture, continuous-delivery]
+technologies: []
+contentType: deep-dive
+learningDepth: operate
+concepts:
+  - architecture-decision-records
+---
+
+# Architecture Decision Records: Preserve the Why
+
+## TL;DR
+
+An **Architecture Decision Record (ADR)** is a small, durable record of one architecturally significant decision: its context, alternatives, chosen direction, and consequences.
+
+```mermaid
+flowchart LR
+  A[Significant choice] --> B[Context + constraints]
+  B --> C[Options + evidence]
+  C --> D[Decision]
+  D --> E[Consequences]
+  E --> F[Review + status]
+```
+
+Its value is preserving **why this choice made sense under these constraints**, so future engineers can distinguish intentional architecture from accidental legacy.
+
+<TermBox term="Architecture Decision Record">
+An **ADR** captures one significant architectural decision and its rationale. A collection of ADRs forms a decision log.
+</TermBox>
+
+## Know when an ADR is worth writing
+
+Do not write one for every code edit. Write one when reversing the choice later would be expensive, risky, cross-cutting, or coordination-heavy.
+
+Typical triggers include deployment topology, data ownership, integration contracts, consistency models, security or availability strategy, and frameworks that constrain many future components.
+
+That is what **architecturally significant** means: the decision shapes future choices.
+
+## Capture context before the answer
+
+Useful context includes the business goal, scope, current architecture, constraints, quality attributes, operational limits, assumptions, and evidence such as incidents, metrics, benchmarks, or experiments.
+
+<TermBox term="Decision Context">
+**Decision context** is the set of forces, constraints, evidence, and assumptions that make an architectural choice reasonable at a specific time.
+</TermBox>
+
+If context only says “we need a better architecture,” the ADR cannot explain why the decision was rational.
+
+## Compare real alternatives
+
+Record options that were seriously considered, not fake alternatives added after the fact.
+
+```mermaid
+flowchart TB
+  Need[Decouple Ordering and Billing] --> A[Shared database]
+  Need --> B[Synchronous API]
+  Need --> C[Event contract]
+  A --> A1[Simple now; ownership coupling]
+  B --> B1[Clear owner; runtime dependency]
+  C --> C1[Loose runtime coupling; eventual consistency]
+```
+
+For each viable option, capture meaningful trade-offs. Link evidence when it matters: benchmark results, incident reports, cost estimates, proof-of-concept findings, or capacity data.
+
+## State the decision plainly
+
+Prefer an explicit statement:
+
+> We will publish `OrderConfirmed` from Ordering to Billing. Billing owns its projection and will not read Ordering tables directly.
+
+Avoid vague language such as “we should probably move toward events.”
+
+A useful ADR identifies the decision owner or decision-makers, date, affected scope, and relevant stakeholders.
+
+## Record consequences, not only benefits
+
+Every decision creates a new operating context. Record positive, negative, and neutral consequences.
+
+For the event-contract example, independent private schemas improve, while at-least-once delivery, eventual consistency, schema compatibility, consumer lag, and recovery become explicit responsibilities.
+
+<TermBox term="Decision Consequence">
+A **consequence** is a condition the team accepts because of the decision, including costs and new responsibilities.
+</TermBox>
+
+An ADR that lists only advantages is advocacy, not a decision record.
+
+## Use a lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Proposed
+  Proposed --> Accepted
+  Proposed --> Rejected
+  Accepted --> Deprecated
+  Accepted --> Superseded
+```
+
+Common statuses are **Proposed**, **Accepted**, **Rejected**, **Deprecated**, and **Superseded**. The vocabulary may vary; readers must still be able to tell whether an ADR is current truth.
+
+## Preserve history: supersede, do not rewrite
+
+Once an ADR is accepted, preserve the historical decision. If context changes, create a new ADR that references the old one and mark the old ADR superseded.
+
+```mermaid
+flowchart LR
+  Old[ADR-0012 Accepted\nShared database] -->|context changed| New[ADR-0037 Accepted\nEvent integration]
+  New --> Note[ADR-0012\nSuperseded by ADR-0037]
+```
+
+The old ADR may explain years of code, schema, infrastructure, and incidents. Rewriting it to match today's architecture destroys that explanation. Keep it in the **decision log**.
+
+## Keep the template lightweight
+
+A practical template can stay small:
+
+```text
+# ADR-0042: Publish order events to Billing
+Status: Proposed
+Date: 2026-09-12
+Decision owner: Checkout Platform
+Scope: Ordering ↔ Billing
+
+## Context
+Problem, constraints, evidence, assumptions.
+
+## Options considered
+Viable alternatives and trade-offs.
+
+## Decision
+What we will do.
+
+## Consequences
+Benefits, costs, risks, responsibilities.
+
+## Links
+Experiments, incidents, diagrams, tickets, related ADRs.
+```
+
+Add fields only when they improve decisions. A template that takes hours to complete will be bypassed.
+
+## Use a practical review workflow
+
+1. **Trigger:** identify a significant choice.
+2. **Draft:** an owner records context, options, evidence, and a proposed decision.
+3. **Review:** engineers and stakeholders challenge assumptions and consequences.
+4. **Decide:** accept, reject, or keep proposed for more work.
+5. **Link implementation:** connect PRs, migrations, diagrams, or runbooks.
+6. **Enforce:** use design and code review to catch violations of accepted ADRs.
+7. **Revisit:** when context materially changes, create a new ADR and supersede the old one.
+
+Review scope should match decision blast radius; not every ADR needs a large governance meeting.
+
+## Production scenario
+
+A commerce platform once let Billing read Ordering's shared tables. After incidents and ownership conflicts, the teams moved to an event contract, but nobody recorded the rationale or constraints.
+
+Two years later, a new team sees event lag and proposes “simplifying” Billing by reading Ordering tables again. The old design looks cheaper because the incidents, ownership conflicts, and accepted consistency trade-offs are invisible.
+
+**Impact:** the team repeats an old debate, spends weeks rediscovering constraints, and risks reintroducing cross-team data coupling.
+
+**Root cause:** implementation changed without a durable decision record. Commits show what changed, but not the context, rejected alternatives, evidence, or consequences that justified it.
+
+**Correct pattern:** create an ADR around the architectural change; record context, options, evidence, decision, consequences, owner, date, and scope; review it with affected stakeholders; link implementation artifacts; and when later evidence changes the answer, create a new ADR that supersedes the old one instead of rewriting history.
+
+<details>
+<summary>Self-check: should you edit an accepted ADR when the team changes its mind?</summary>
+
+Usually no. Preserve the accepted ADR as historical evidence. Write a new ADR with the new context and decision, link the two, and mark the old one superseded.
+
+</details>
+
+## Production checklist
+
+- [ ] The choice is architecturally significant enough to deserve an ADR.
+- [ ] Context states problem, scope, constraints, assumptions, and evidence.
+- [ ] Real alternatives are listed with meaningful trade-offs.
+- [ ] The decision is explicit rather than aspirational.
+- [ ] Consequences include costs and operational responsibilities.
+- [ ] Status shows whether the ADR is proposed, accepted, rejected, deprecated, or superseded.
+- [ ] Owner or decision-makers, date, scope, and stakeholders are identifiable.
+- [ ] Important evidence and implementation artifacts are linked.
+- [ ] Accepted ADRs are referenced during review when relevant.
+- [ ] Superseded ADRs remain in the decision log and point to replacements.
+- [ ] The template remains lightweight enough to use consistently.
+- [ ] Changed context triggers a new decision instead of silent drift.
+
+## Agent rule
+
+When a change makes an architecturally significant choice, capture the forces and alternatives before implementation hardens the answer; record one explicit decision with its consequences, then preserve that history and supersede it only through a new ADR when context changes.
+
+## Sources
+
+- Michael Nygard — [Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+- ADR GitHub organization — [Architectural Decision Records](https://adr.github.io/)
+- ADR GitHub organization — [MADR template](https://adr.github.io/madr/)
+- AWS Prescriptive Guidance — [ADR process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html)
+- AWS Prescriptive Guidance — [ADR best practices](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/best-practices.html)
