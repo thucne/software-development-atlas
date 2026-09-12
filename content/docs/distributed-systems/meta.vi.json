@@ -1,4 +1,4 @@
 {
   "title": "Hệ thống Phân tán",
-  "pages": ["partial-failure", "timeouts-retries-and-backoff"]
+  "pages": ["partial-failure", "timeouts"]
 }
