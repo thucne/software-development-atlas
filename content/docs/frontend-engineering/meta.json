@@ -1,4 +1,4 @@
 {
   "title": "Frontend Engineering",
-  "pages": ["csr-ssr-ssg"]
+  "pages": ["csr-ssr-ssg", "hydration"]
 }
