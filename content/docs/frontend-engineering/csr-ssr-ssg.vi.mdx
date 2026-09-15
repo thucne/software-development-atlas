@@ -1,0 +1,171 @@
+---
+title: "CSR, SSR và SSG: HTML Được Tạo Ở Đâu và Khi Nào"
+description: Suy luận về client rendering, request-time server rendering và pre-rendering theo thời điểm tạo HTML, vòng đời dữ liệu, cache, hydration và composition theo route.
+category: frontend-engineering
+level: intermediate
+status: evolving
+lastVerified: 2026-09-15
+reviewAfterDays: 180
+topics: [frontend, rendering, csr, ssr, ssg]
+prerequisites: [http-request-lifecycle, browser-runtime, browser-rendering-pipeline]
+related: [hydration, frontend-data-fetching, http-caching, cdn-behavior]
+technologies: [react, nextjs]
+contentType: deep-dive
+learningDepth: reason
+concepts:
+  - csr-ssr-ssg
+---
+
+# CSR, SSR và SSG: HTML Được Tạo Ở Đâu và Khi Nào
+
+## Tóm tắt
+
+CSR, SSR và SSG trả lời một câu hỏi nền tảng: **HTML hữu ích của một route được tạo ở đâu và khi nào?** Câu trả lời thay đổi first response, thời điểm lấy dữ liệu, khả năng reuse cache, server work, client work và failure mode.
+
+<TermBox term="Rendering placement">
+**Rendering placement** là vị trí thực thi và thời điểm tạo ra HTML hữu ích: trong trình duyệt sau khi JavaScript chạy, trên server cho từng request, hoặc trước request cụ thể ở build/publish/revalidation time.
+</TermBox>
+
+```mermaid
+flowchart LR
+  subgraph CSR[CSR]
+    C1[Request] --> C2[HTML shell]
+    C2 --> C3[JavaScript trong trình duyệt]
+    C3 --> C4[UI hữu ích]
+  end
+  subgraph SSR[SSR]
+    S1[Request] --> S2[Server render]
+    S2 --> S3[HTML hữu ích]
+    S3 --> S4[Hydrate nếu cần tương tác]
+  end
+  subgraph SSG[SSG]
+    G1[Build / publish / revalidate] --> G2[HTML đã tạo]
+    G2 --> G3[CDN / static delivery]
+    G3 --> G4[Hydrate nếu cần tương tác]
+  end
+```
+
+## Client-side rendering: HTML lớn lên trong trình duyệt
+
+Với **CSR**, server có thể trả về document shell chung cùng JavaScript. Trình duyệt tải và chạy application code, thường fetch dữ liệu, rồi tạo hoặc cập nhật UI hữu ích.
+
+CSR hợp lý khi route là một workspace tương tác lâu dài và initial document có thể mang tính generic. Nhưng "client-rendered" không có nghĩa là "không cần server": API, authentication, authorization, durable state và trust boundary vẫn nằm ở phía khác.
+
+Trải nghiệm ban đầu phụ thuộc nhiều hơn vào thời gian tải/chạy JavaScript và client data loading. API nhanh không bù được một bundle rất lớn chưa kịp thực thi.
+
+## Server-side rendering: HTML là request-time work
+
+Với **SSR**, request đi tới server và server tạo HTML hữu ích cho request đó. Render có thể dùng request-time state như user đã đăng nhập, locale, cookie hoặc dữ liệu phải mới tại thời điểm request.
+
+Điều này đặt rendering lên latency-sensitive request path. Upstream chậm, thiếu render capacity, cache miss hoặc server failure đều có thể trì hoãn response trực tiếp.
+
+Vì vậy SSR không đơn giản là "SSG nhưng fresh hơn". Thuộc tính định nghĩa của SSR là page generation diễn ra trong quá trình xử lý request, trừ khi một rendered response trước đó được reuse từ cache.
+
+## Static site generation: HTML tồn tại trước request
+
+Với **SSG**, HTML hữu ích được tạo trước một request người dùng cụ thể—thường ở build, publish hoặc regeneration time—rồi được reuse cho các request sau.
+
+Điều này giúp nội dung dùng chung rất dễ cache và có thể loại full page generation khỏi request path thông thường. Trade-off là độ mới: output đã tạo chỉ hợp lệ khi sản phẩm còn chấp nhận tuổi của nó hoặc khi publishing/revalidation refresh đủ nhanh.
+
+Static **không** đồng nghĩa immutable. Revalidation hoặc regeneration có thể thay output đã tạo mà vẫn giữ thuộc tính cốt lõi: delivery thông thường reuse artifact thay vì render toàn bộ route cho mọi request.
+
+<TermBox term="Freshness window">
+**Freshness window** là khoảng thời gian một rendered representation được phép cũ trước khi trở nên sai, gây hiểu lầm hoặc không còn chấp nhận được với sản phẩm. Nó quyết định mức độ an toàn khi reuse generated output.
+</TermBox>
+
+## Rendering strategy không đồng nhất với data strategy
+
+Một route có thể bắt đầu bằng SSG HTML rồi fetch live stock badge trong trình duyệt. Một SSR route có thể reuse public fragment từ cache. Một CSR workspace có thể tải dữ liệu từ server API ngay sau startup.
+
+```mermaid
+flowchart TD
+  R[Route] --> H{HTML hữu ích phải có khi nào?}
+  H -->|Trình duyệt có thể tạo sau| CSR2[CSR là trọng tâm]
+  H -->|Trước JS, phụ thuộc request| SSR2[Ứng viên SSR]
+  H -->|Trước request và có thể reuse| SSG2[Ứng viên SSG]
+  SSR2 --> M[Kết hợp cached / client region khi cần]
+  SSG2 --> M
+  CSR2 --> M
+```
+
+Điểm quan trọng là **thời điểm page generation**, không phải route có bao giờ fetch dữ liệu ở client hay server hay không.
+
+## Hydration giải thích vì sao HTML chưa phải toàn bộ câu chuyện
+
+React HTML được render ở server hoặc static có thể đã hiển thị trước khi application runtime sẵn sàng. Để biến HTML có sẵn đó thành UI tương tác, React có thể **hydrate**: client code gắn component logic vào DOM đã được tạo trước.
+
+<TermBox term="Hydration">
+**Hydration** gắn hành vi phía client vào HTML đã tồn tại từ server rendering hoặc static generation. Vì vậy HTML có thể nhìn thấy trước khi toàn bộ hành vi tương tác sẵn sàng.
+</TermBox>
+
+`hydrateRoot` của React kỳ vọng initial client output khớp với server-rendered HTML. Bài kế tiếp sẽ đi sâu vào hydration và mismatch; ở đây mental model quan trọng là SSR/SSG có thể đưa HTML xuất hiện sớm hơn mà không loại bỏ client JavaScript ở các vùng cần tương tác.
+
+## Chọn theo constraint của route, không theo danh tính của app
+
+Hãy suy luận từng route hoặc surface bằng sáu câu hỏi:
+
+- **Initial usefulness:** nội dung nào phải có trước khi application JavaScript chạy?
+- **Cá nhân hóa:** initial HTML có phụ thuộc user hoặc request hiện tại không?
+- **Độ mới:** representation được phép cũ bao lâu?
+- **Cacheability:** nhiều user có thể reuse cùng response hoặc artifact an toàn không?
+- **Interactivity:** đây chủ yếu là surface để đọc hay workspace tương tác lâu dài?
+- **Operational path:** team muốn rendering failure xảy ra ở build/revalidation time, request time, browser time hay phối hợp có chủ đích?
+
+Một sản phẩm không cần chỉ một rendering acronym. Design boundary hữu ích thường là route và data lifecycle phía sau route đó.
+
+```mermaid
+flowchart LR
+  P[Một sản phẩm] --> A[Marketing: SSG]
+  P --> B[Catalog: SSG + revalidation]
+  P --> C[Account: SSR]
+  P --> D[Editor: CSR]
+  A --> E[Shared asset + CDN]
+  B --> E
+  C --> F[Request-time state]
+  D --> G[Client session + API]
+```
+
+## SEO là requirement signal, không phải định nghĩa rendering
+
+SSR không đồng nghĩa với SEO, và CSR cũng không đồng nghĩa "không index được". Search visibility phụ thuộc crawler có thể truy cập và hiểu gì, trong khi rendering strategy còn tác động latency, cacheability, freshness và client work.
+
+Với public content cần HTML hữu ích mà không phải chờ application JavaScript, **cả SSR lẫn pre-rendered HTML có thể reuse như SSG đều có thể thỏa requirement đó**. Private authenticated route thường không trở thành search target hữu ích chỉ vì chuyển sang SSR.
+
+## Kịch bản production
+
+Một team e-commerce dùng SSR cho mọi route vì "SSR tốt hơn cho SEO". Marketing page, catalog, account đã đăng nhập và inventory editor giàu tương tác đều render trên mỗi request. Phần lớn catalog chỉ thay đổi vài lần mỗi giờ.
+
+**Hậu quả:** request-time rendering và data access tiêu tốn capacity cho những page có thể reuse; campaign traffic làm TTFB và origin load tăng; các private interactive route phải trả chi phí SSR nhưng gần như không nhận lợi ích search tương ứng.
+
+**Nguyên nhân cốt lõi:** team coi rendering strategy là danh tính chung của cả application và dùng SEO thay cho việc phân tích freshness, personalization, cacheability và interactivity của từng route.
+
+**Cách khắc phục chuẩn:** phân loại từng route. Pre-render surface dùng chung và ổn định rồi refresh bằng publishing/revalidation; chỉ dùng SSR khi HTML hữu ích thật sự phụ thuộc request-time state; ưu tiên CSR khi generic shell cùng long-lived client session đã đủ. Đo hydration/client cost tách khỏi HTML delivery.
+
+## Tự kiểm tra
+
+Một product page public giống nhau với mọi visitor, thay đổi mỗi 30 phút và cần HTML hữu ích trước khi application JavaScript chạy. Requirement đó có tự động bắt buộc SSR không?
+
+<details>
+<summary>Xem reasoning</summary>
+
+Không. Page này dùng chung và có freshness window hữu hạn, nên SSG với publishing hoặc revalidation có thể thỏa requirement mà không phải render mỗi request. SSR mạnh hơn khi useful HTML cần request-time state không thể share an toàn.
+
+</details>
+
+## Checklist rendering model
+
+- [ ] Nêu rõ HTML hữu ích được tạo ở đâu và khi nào.
+- [ ] Tách rendering timing khỏi data fetching diễn ra sau đó.
+- [ ] Xác định freshness và personalization requirement của route.
+- [ ] Xác định response hoặc artifact HTML nào có thể reuse an toàn.
+- [ ] Tính cả client JavaScript và hydration trước khi gọi route là interactive.
+- [ ] Chọn theo route hoặc surface; không ép một acronym lên toàn sản phẩm.
+- [ ] Xem SEO là một requirement bên cạnh latency, freshness, caching và interactivity.
+
+## Agent rule
+
+Trước khi đề xuất CSR, SSR hoặc SSG, hãy tìm initial-HTML requirement, request-time state, freshness window, cacheability, client interactivity và operational failure path của route. Ưu tiên rendering path có thể reuse đơn giản nhất mà vẫn thỏa constraint, rồi kết hợp strategy khi data lifecycle khác nhau.
+
+## Nguồn
+
+Nguồn chính kiểm tra ngày **2026-09-15**: [React `createRoot`](https://react.dev/reference/react-dom/client/createRoot), [React `hydrateRoot`](https://react.dev/reference/react-dom/client/hydrateRoot), [Next.js pre-rendering](https://nextjs.org/learn/pages-router/data-fetching-pre-rendering), và [Next.js static and dynamic rendering](https://nextjs.org/learn/dashboard-app/static-and-dynamic-rendering).
