@@ -1,0 +1,124 @@
+---
+title: "Retries và Backoff: Phục hồi mà Không Khuếch đại Sự cố"
+description: Vận hành retry an toàn với backoff, jitter, ownership và giới hạn tải.
+category: distributed-systems
+level: intermediate
+status: evolving
+lastVerified: 2026-09-15
+reviewAfterDays: 180
+topics: [distributed-systems, reliability, retries, backoff, jitter]
+prerequisites: [partial-failure, timeouts, idempotency]
+related: [delivery-semantics, service-resilience]
+technologies: [http]
+contentType: deep-dive
+learningDepth: operate
+concepts:
+  - retries-and-backoff
+---
+
+# Retries và Backoff: Phục hồi mà Không Khuếch đại Sự cố
+
+## Tóm tắt
+
+Chỉ retry khi attempt mới có khả năng giúp **và** việc lặp là an toàn. Retry cũng tăng tải lên dependency có thể đang lỗi.
+
+```mermaid
+flowchart LR
+  F[Lỗi] --> C{Tạm thời + lặp an toàn?}
+  C -->|Không| S[Dừng / đối soát]
+  C -->|Có| B{Còn budget?}
+  B -->|Không| S
+  B -->|Có| R[Backoff + jitter -> retry]
+```
+
+<TermBox term="Retryability">
+Failure **retryable** khi attempt sau có thể đổi outcome. Transport tạm thời, throttling hoặc unavailable có thể phù hợp; input/credential sai thường deterministic.
+</TermBox>
+
+## Phân loại trước khi retry
+
+| Tín hiệu | Quyết định mặc định |
+| --- | --- |
+| transient transport error | retry nếu an toàn và còn budget |
+| `429` / `503` | back off; tôn trọng `Retry-After` hợp lệ |
+| auth / validation / business rejection | không retry input không đổi |
+| timeout sau write có outcome mơ hồ | cần idempotency hoặc reconciliation |
+
+<TermBox term="Retry Budget">
+**Ngân sách retry** giới hạn công việc thêm bằng số attempt, thời gian đã dùng, deadline còn lại hoặc shared quota.
+</TermBox>
+
+## Làm write an toàn trước
+
+Nếu attempt đầu có thể đã commit, request mới có thể tạo effect trùng. Dùng lại idempotency identity hoặc đối soát state trước. Retry không tự tạo idempotency.
+
+## Backoff, jitter và giữ trong deadline
+
+```text
+100 ms -> 200 ms -> 400 ms -> capped delay
+```
+
+**Exponential backoff** giãn attempt; **jitter** ngẫu nhiên hóa wait để fleet không thức cùng lúc. Cap attempt/delay và không sleep quá deadline còn lại.
+
+```mermaid
+sequenceDiagram
+  participant A as Client A
+  participant B as Client B
+  participant S as Service
+  S--xA: failure
+  S--xB: failure
+  A->>A: jitter 120 ms
+  B->>B: jitter 310 ms
+  A->>S: retry
+  B->>S: retry
+```
+
+## Chọn một retry owner
+
+Nếu Client, Service A và Service B đều cho ba total attempt, một request gốc có thể tạo `3 × 3 × 3 = 27` attempt. Chọn một **retry owner** có đủ context; tính cả SDK retry.
+
+<TermBox term="Retry Storm">
+**Bão retry** là overload bị retry khuếch đại: recovery traffic trở thành một phần của incident.
+</TermBox>
+
+## Bảo vệ cả fleet
+
+Khi failure lan rộng, **retry budget** hoặc **token bucket** có thể giảm retry. Quan sát request gốc tách khỏi số attempt, cùng lý do retry, cạn budget và saturation.
+
+## Kịch bản production
+
+Gateway gọi Checkout → Inventory → database. Khi latency tăng, mọi layer retry hai lần, dùng deterministic backoff và write thiếu stable idempotency identity.
+
+**Hậu quả:** một user request có thể tạo tới 27 database attempt; retry đồng bộ tạo burst, saturation nặng hơn và ambiguous write có thể tạo reservation trùng.
+
+**Nguyên nhân cốt lõi:** retry ownership bị rải ở nhiều layer, failure không được phân loại, write không an toàn khi lặp và timing làm cả fleet đồng bộ.
+
+**Cách khắc phục chuẩn:** chọn một retry owner, chỉ retry transient failure, giữ logical request identity, bound attempt trong deadline còn lại, dùng exponential backoff có jitter, tôn trọng `Retry-After` và dừng khi retry budget cạn. Tách original request khỏi attempt.
+
+## Tự kiểm tra
+
+SDK và service wrapper của bạn đều đã retry. Dependency bắt đầu trả `503`. Có nên thêm retry loop ở gateway không?
+
+<details>
+<summary>Xem reasoning</summary>
+
+Không. Trước tiên hãy tìm toàn bộ retry hiện có, chọn một owner và phối hợp total attempt/deadline budget rồi mới đổi policy.
+
+</details>
+
+## Checklist vận hành retry
+
+- [ ] Chỉ retry failure tạm thời, không retry lỗi deterministic.
+- [ ] Làm ambiguous write idempotent hoặc đối soát trước.
+- [ ] Giữ mọi retry trong deadline còn lại.
+- [ ] Chọn một retry owner và tính cả SDK retry.
+- [ ] Cap backoff, thêm jitter, tôn trọng `Retry-After`.
+- [ ] Giới hạn retry toàn fleet và tách request gốc khỏi attempt trong observability.
+
+## Agent rule
+
+Trước khi thêm retry, hãy tìm failure class, safety, deadline, retry hiện có, ownership, bounds, backoff/jitter, server hint, fleet budget và telemetry.
+
+## Nguồn
+
+Nguồn chính kiểm tra ngày **2026-09-15**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
