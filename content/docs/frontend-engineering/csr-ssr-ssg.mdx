@@ -1,0 +1,171 @@
+---
+title: "CSR, SSR, and SSG: Where and When HTML Is Produced"
+description: Reason about client, request-time server, and pre-request rendering by HTML timing, data lifecycle, caching, hydration, and route-level composition.
+category: frontend-engineering
+level: intermediate
+status: evolving
+lastVerified: 2026-09-15
+reviewAfterDays: 180
+topics: [frontend, rendering, csr, ssr, ssg]
+prerequisites: [http-request-lifecycle, browser-runtime, browser-rendering-pipeline]
+related: [hydration, frontend-data-fetching, http-caching, cdn-behavior]
+technologies: [react, nextjs]
+contentType: deep-dive
+learningDepth: reason
+concepts:
+  - csr-ssr-ssg
+---
+
+# CSR, SSR, and SSG: Where and When HTML Is Produced
+
+## TL;DR
+
+CSR, SSR, and SSG answer one foundational question: **where and when does useful HTML for a route come into existence?** The answer changes the first response, data timing, cache reuse, server work, client work, and failure modes.
+
+<TermBox term="Rendering placement">
+**Rendering placement** is the execution location and time that produces useful HTML: in the browser after JavaScript runs, on the server for a request, or before an individual request during build/publish/revalidation.
+</TermBox>
+
+```mermaid
+flowchart LR
+  subgraph CSR[CSR]
+    C1[Request] --> C2[HTML shell]
+    C2 --> C3[Browser JS]
+    C3 --> C4[Useful UI]
+  end
+  subgraph SSR[SSR]
+    S1[Request] --> S2[Server render]
+    S2 --> S3[Useful HTML]
+    S3 --> S4[Hydrate if interactive]
+  end
+  subgraph SSG[SSG]
+    G1[Build / publish / revalidate] --> G2[Generated HTML]
+    G2 --> G3[CDN / static delivery]
+    G3 --> G4[Hydrate if interactive]
+  end
+```
+
+## Client-side rendering: HTML grows in the browser
+
+With **CSR**, the server can return a generic document shell and JavaScript. The browser downloads and executes application code, often fetches data, and creates or updates the useful UI.
+
+CSR fits naturally when the route is a long-lived interactive workspace and the initial document can be generic. But "client-rendered" does not mean "no server": APIs, authentication, authorization, durable state, and trust boundaries still live elsewhere.
+
+The initial user experience depends more heavily on JavaScript download/execution and client data loading. A fast API cannot compensate for a very large bundle that has not executed yet.
+
+## Server-side rendering: HTML is request-time work
+
+With **SSR**, a request reaches a server that produces useful HTML for that request. The render can include request-time information such as authenticated state, locale, cookies, or data that must be current on that request.
+
+That convenience puts rendering on the latency-sensitive request path. Slow upstream calls, render capacity, cache misses, and server failures can directly delay the response.
+
+SSR is therefore not "SSG but fresher." Its defining property is that page generation happens as part of request handling, unless a previously rendered response is reused from a cache.
+
+## Static site generation: HTML exists before the request
+
+With **SSG**, useful HTML is produced before a particular user request—commonly at build, publish, or regeneration time—and then reused across later requests.
+
+This makes shared content highly cacheable and can remove full page generation from the normal request path. The trade-off is freshness: generated output remains valid only while the product can tolerate its age or while publishing/revalidation refreshes it quickly enough.
+
+Static does **not** mean immutable. Revalidation or regeneration can replace generated output while preserving the core property that normal delivery reuses an artifact instead of rendering the whole route for every request.
+
+<TermBox term="Freshness window">
+A **freshness window** is how old a rendered representation may become before it is wrong, misleading, or unacceptable for the product. It determines whether shared generated output can be reused safely.
+</TermBox>
+
+## Rendering strategy is not the same as data strategy
+
+A route can start from SSG HTML and fetch a live stock badge in the browser. An SSR route can reuse cached public fragments. A CSR workspace can load from server APIs immediately after startup.
+
+```mermaid
+flowchart TD
+  R[Route] --> H{When must useful HTML exist?}
+  H -->|Browser can create it later| CSR2[CSR center of gravity]
+  H -->|Before JS, request-specific| SSR2[SSR candidate]
+  H -->|Before request and reusable| SSG2[SSG candidate]
+  SSR2 --> M[Mix cached / client regions as needed]
+  SSG2 --> M
+  CSR2 --> M
+```
+
+The important distinction is **page-generation timing**, not whether the route ever fetches data on the client or server.
+
+## Hydration explains why HTML is not the whole story
+
+Server- or statically-rendered React HTML may already be visible before the application runtime is ready. To make that existing HTML interactive, React can **hydrate** it: client code attaches the component logic to DOM that was rendered earlier.
+
+<TermBox term="Hydration">
+**Hydration** attaches client-side application behavior to HTML that already exists from server rendering or static generation. Visible HTML can therefore arrive before every interactive behavior is ready.
+</TermBox>
+
+React's `hydrateRoot` expects the initial client output to match the server-rendered HTML. The next lesson treats hydration and mismatch behavior in depth; here, the key point is that SSR/SSG can move HTML earlier without eliminating client JavaScript for interactive regions.
+
+## Choose by route constraints, not app identity
+
+Reason about each route or surface using six questions:
+
+- **Initial usefulness:** what must exist before application JavaScript runs?
+- **Personalization:** must initial HTML depend on the current user or request?
+- **Freshness:** how old may the representation become?
+- **Cacheability:** can many users safely reuse the same response or artifact?
+- **Interactivity:** is this primarily a reading surface or a long-lived application workspace?
+- **Operational path:** do you want rendering failures at build/revalidation time, request time, browser time, or a deliberate combination?
+
+A product does not need one rendering acronym. The useful design boundary is often the route and the data lifecycle behind it.
+
+```mermaid
+flowchart LR
+  P[One product] --> A[Marketing: SSG]
+  P --> B[Catalog: SSG + revalidation]
+  P --> C[Account: SSR]
+  P --> D[Editor: CSR]
+  A --> E[Shared assets + CDN]
+  B --> E
+  C --> F[Request-time state]
+  D --> G[Client session + APIs]
+```
+
+## SEO is a requirement signal, not a definition
+
+SSR is not synonymous with SEO, and CSR is not synonymous with "unindexable." Search visibility depends on what crawlers can access and interpret, while rendering strategy also affects latency, cacheability, freshness, and client work.
+
+For public content that should have useful HTML available without waiting for application JavaScript, **either SSR or reusable pre-rendered HTML such as SSG may satisfy that requirement**. Private authenticated routes usually do not become useful search targets merely because they are SSR.
+
+## Production scenario
+
+An e-commerce team adopts SSR for every route because "SSR is better for SEO." Marketing pages, catalog pages, authenticated account screens, and a rich inventory editor all render on every request. Most catalog content changes only a few times per hour.
+
+**Impact:** request-time rendering and data access consume capacity for pages that could be reused, campaign traffic increases TTFB and origin load, and private interactive routes pay SSR cost without receiving meaningful search benefits.
+
+**Root cause:** the team treated a rendering strategy as an application-wide identity and used SEO as a proxy for route requirements instead of analyzing freshness, personalization, cacheability, and interactivity.
+
+**Correct pattern:** classify each route. Pre-render shared stable surfaces and refresh them through publishing/revalidation, use SSR only where useful initial HTML truly depends on request-time state, and center CSR where a generic shell plus a long-lived client session is sufficient. Measure hydration/client cost separately from HTML delivery.
+
+## Self-check
+
+A public product page is identical for all visitors, changes every 30 minutes, and needs useful HTML before application JavaScript runs. Does that requirement alone imply SSR?
+
+<details>
+<summary>Show the reasoning</summary>
+
+No. The page is shared and has a bounded freshness window, so SSG with publishing or revalidation may satisfy the requirement while avoiding per-request rendering. SSR becomes stronger when useful HTML needs request-time state that cannot safely be shared.
+
+</details>
+
+## Rendering-model checklist
+
+- [ ] State where and when useful HTML is produced.
+- [ ] Separate rendering timing from later data fetching.
+- [ ] Define the route's freshness and personalization requirements.
+- [ ] Identify which HTML responses or artifacts can be reused safely.
+- [ ] Account for client JavaScript and hydration before calling the route interactive.
+- [ ] Choose per route or surface; do not force one acronym onto the entire product.
+- [ ] Treat SEO as one requirement among latency, freshness, caching, and interactivity.
+
+## Agent rule
+
+Before recommending CSR, SSR, or SSG, recover the route's initial-HTML requirement, request-time state, freshness window, cacheability, client interactivity, and operational failure path. Prefer the simplest reusable rendering path that satisfies those constraints, then compose strategies where data lifecycles differ.
+
+## Sources
+
+Primary references verified on **2026-09-15**: [React `createRoot`](https://react.dev/reference/react-dom/client/createRoot), [React `hydrateRoot`](https://react.dev/reference/react-dom/client/hydrateRoot), [Next.js pre-rendering](https://nextjs.org/learn/pages-router/data-fetching-pre-rendering), and [Next.js static and dynamic rendering](https://nextjs.org/learn/dashboard-app/static-and-dynamic-rendering).
