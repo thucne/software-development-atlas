@@ -17,11 +17,13 @@ export function AtlasReleaseBanner({ locale = 'en' }: { locale?: string }) {
 
   return (
     <Banner id="atlas-release-2026-09-16" variant="rainbow">
-      <div className="flex min-w-0 flex-col items-center justify-center gap-1 px-8 py-0.5 text-center text-xs font-medium sm:flex-row sm:flex-wrap sm:gap-2 sm:text-sm">
-        <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-700/40 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-300">
-          {isVi ? 'Mới' : 'New'}
-        </span>
-        <span className="leading-snug">{primaryCopy}</span>
+      <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 ps-3 pe-8 text-center text-xs font-medium sm:flex-row sm:flex-wrap sm:gap-2 sm:px-8 sm:text-sm">
+        <div className="inline-flex max-w-full items-center justify-center gap-1.5 sm:contents">
+          <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-700/40 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 sm:px-2 sm:text-[11px] dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-300">
+            {isVi ? 'Mới' : 'New'}
+          </span>
+          <span className="leading-snug">{primaryCopy}</span>
+        </div>
         <span className="hidden leading-snug sm:inline">{secondaryCopy}</span>
         <Link
           href={changelogHref}

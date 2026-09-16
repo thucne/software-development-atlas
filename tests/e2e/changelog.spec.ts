@@ -25,43 +25,51 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     ).toBeVisible();
   });
 
-  test('keeps the New badge visible and shortens copy on narrow mobile viewports', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(appUrl('/docs'));
+  for (const width of [390, 360]) {
+    test(`keeps the New badge visible and shortens copy on ${width}px mobile viewport`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
-    const badge = banner.getByText('New', { exact: true });
-    const primaryCopy = banner.getByText('13 new lessons added since Sep 10!', {
-      exact: true,
+      const banner = page.locator('#atlas-release-2026-09-16');
+      const badge = banner.getByText('New', { exact: true });
+      const primaryCopy = banner.getByText('13 new lessons added since Sep 10!', {
+        exact: true,
+      });
+      const secondaryCopy = banner.getByText(
+        "Following the Sep 10 milestone's 33 new system architecture lessons.",
+        { exact: true },
+      );
+
+      await expect(banner).toBeVisible();
+      await expect(badge).toBeVisible();
+      await expect(primaryCopy).toBeVisible();
+      await expect(secondaryCopy).toBeHidden();
+      await expect(
+        banner.getByRole('link', { name: "Explore What's New →" }),
+      ).toBeVisible();
+
+      const bannerBox = await banner.boundingBox();
+      const badgeBox = await badge.boundingBox();
+      expect(bannerBox).not.toBeNull();
+      expect(badgeBox).not.toBeNull();
+      expect(badgeBox!.x).toBeGreaterThanOrEqual(bannerBox!.x);
+      expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(
+        bannerBox!.x + bannerBox!.width,
+      );
+      const link = banner.getByRole('link', { name: "Explore What's New →" });
+      const linkBox = await link.boundingBox();
+      expect(linkBox).not.toBeNull();
+      expect(badgeBox!.y).toBeGreaterThanOrEqual(bannerBox!.y);
+      expect(badgeBox!.y + badgeBox!.height).toBeLessThanOrEqual(
+        bannerBox!.y + bannerBox!.height,
+      );
+      expect(linkBox!.y + linkBox!.height).toBeLessThanOrEqual(
+        bannerBox!.y + bannerBox!.height,
+      );
     });
-    const secondaryCopy = banner.getByText(
-      "Following the Sep 10 milestone's 33 new system architecture lessons.",
-      { exact: true },
-    );
-
-    await expect(banner).toBeVisible();
-    await expect(badge).toBeVisible();
-    await expect(primaryCopy).toBeVisible();
-    await expect(secondaryCopy).toBeHidden();
-    await expect(
-      banner.getByRole('link', { name: "Explore What's New →" }),
-    ).toBeVisible();
-
-    const bannerBox = await banner.boundingBox();
-    const badgeBox = await badge.boundingBox();
-    expect(bannerBox).not.toBeNull();
-    expect(badgeBox).not.toBeNull();
-    expect(badgeBox!.x).toBeGreaterThanOrEqual(bannerBox!.x);
-    expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(
-      bannerBox!.x + bannerBox!.width,
-    );
-    expect(badgeBox!.y).toBeGreaterThanOrEqual(bannerBox!.y);
-    expect(badgeBox!.y + badgeBox!.height).toBeLessThanOrEqual(
-      bannerBox!.y + bannerBox!.height,
-    );
-  });
+  }
 
   test('renders Vietnamese localized banner on /vi/docs pages', async ({ page }) => {
     await page.goto(appUrl('/vi/docs'));
@@ -82,43 +90,52 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     ).toBeVisible();
   });
 
-  test('keeps the Mới badge visible and shortens Vietnamese copy on mobile', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(appUrl('/vi/docs'));
+  for (const width of [390, 360]) {
+    test(`keeps the Mới badge visible and shortens Vietnamese copy on ${width}px mobile viewport`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto(appUrl('/vi/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
-    const badge = banner.getByText('Mới', { exact: true });
-    const primaryCopy = banner.getByText('13 bài học mới được bổ sung từ 10/09!', {
-      exact: true,
+      const banner = page.locator('#atlas-release-2026-09-16');
+      const badge = banner.getByText('Mới', { exact: true });
+      const primaryCopy = banner.getByText(
+        '13 bài học mới được bổ sung từ 10/09!',
+        { exact: true },
+      );
+      const secondaryCopy = banner.getByText(
+        'Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.',
+        { exact: true },
+      );
+
+      await expect(banner).toBeVisible();
+      await expect(badge).toBeVisible();
+      await expect(primaryCopy).toBeVisible();
+      await expect(secondaryCopy).toBeHidden();
+      await expect(
+        banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' }),
+      ).toBeVisible();
+
+      const bannerBox = await banner.boundingBox();
+      const badgeBox = await badge.boundingBox();
+      expect(bannerBox).not.toBeNull();
+      expect(badgeBox).not.toBeNull();
+      expect(badgeBox!.x).toBeGreaterThanOrEqual(bannerBox!.x);
+      expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(
+        bannerBox!.x + bannerBox!.width,
+      );
+      const link = banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' });
+      const linkBox = await link.boundingBox();
+      expect(linkBox).not.toBeNull();
+      expect(badgeBox!.y).toBeGreaterThanOrEqual(bannerBox!.y);
+      expect(badgeBox!.y + badgeBox!.height).toBeLessThanOrEqual(
+        bannerBox!.y + bannerBox!.height,
+      );
+      expect(linkBox!.y + linkBox!.height).toBeLessThanOrEqual(
+        bannerBox!.y + bannerBox!.height,
+      );
     });
-    const secondaryCopy = banner.getByText(
-      'Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.',
-      { exact: true },
-    );
-
-    await expect(banner).toBeVisible();
-    await expect(badge).toBeVisible();
-    await expect(primaryCopy).toBeVisible();
-    await expect(secondaryCopy).toBeHidden();
-    await expect(
-      banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' }),
-    ).toBeVisible();
-
-    const bannerBox = await banner.boundingBox();
-    const badgeBox = await badge.boundingBox();
-    expect(bannerBox).not.toBeNull();
-    expect(badgeBox).not.toBeNull();
-    expect(badgeBox!.x).toBeGreaterThanOrEqual(bannerBox!.x);
-    expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(
-      bannerBox!.x + bannerBox!.width,
-    );
-    expect(badgeBox!.y).toBeGreaterThanOrEqual(bannerBox!.y);
-    expect(badgeBox!.y + badgeBox!.height).toBeLessThanOrEqual(
-      bannerBox!.y + bannerBox!.height,
-    );
-  });
+  }
 
   test('banner links directly to What\'s New & Changelog page', async ({ page }) => {
     await page.goto(appUrl('/docs'));
