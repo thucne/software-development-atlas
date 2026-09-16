@@ -12,14 +12,55 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     await expect(banner).toBeVisible();
     await expect(banner.getByText('New', { exact: true })).toBeVisible();
     await expect(
+      banner.getByText('13 new lessons added since Sep 10!', { exact: true }),
+    ).toBeVisible();
+    await expect(
       banner.getByText(
-        "13 new lessons added since Sep 10! (Following the Sep 10 milestone's 33 new system architecture lessons.)",
+        "Following the Sep 10 milestone's 33 new system architecture lessons.",
         { exact: true },
       ),
     ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: "Explore What's New →" }),
     ).toBeVisible();
+  });
+
+  test('keeps the New badge visible and shortens copy on narrow mobile viewports', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(appUrl('/docs'));
+
+    const banner = page.locator('#atlas-release-2026-09-16');
+    const badge = banner.getByText('New', { exact: true });
+    const primaryCopy = banner.getByText('13 new lessons added since Sep 10!', {
+      exact: true,
+    });
+    const secondaryCopy = banner.getByText(
+      "Following the Sep 10 milestone's 33 new system architecture lessons.",
+      { exact: true },
+    );
+
+    await expect(banner).toBeVisible();
+    await expect(badge).toBeVisible();
+    await expect(primaryCopy).toBeVisible();
+    await expect(secondaryCopy).toBeHidden();
+    await expect(
+      banner.getByRole('link', { name: "Explore What's New →" }),
+    ).toBeVisible();
+
+    const bannerBox = await banner.boundingBox();
+    const badgeBox = await badge.boundingBox();
+    expect(bannerBox).not.toBeNull();
+    expect(badgeBox).not.toBeNull();
+    expect(badgeBox!.x).toBeGreaterThanOrEqual(bannerBox!.x);
+    expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(
+      bannerBox!.x + bannerBox!.width,
+    );
+    expect(badgeBox!.y).toBeGreaterThanOrEqual(bannerBox!.y);
+    expect(badgeBox!.y + badgeBox!.height).toBeLessThanOrEqual(
+      bannerBox!.y + bannerBox!.height,
+    );
   });
 
   test('renders Vietnamese localized banner on /vi/docs pages', async ({ page }) => {
@@ -29,10 +70,12 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     await expect(banner).toBeVisible();
     await expect(banner.getByText('Mới', { exact: true })).toBeVisible();
     await expect(
-      banner.getByText(
-        '13 bài học mới được bổ sung từ 10/09! (Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.)',
-        { exact: true },
-      ),
+      banner.getByText('13 bài học mới được bổ sung từ 10/09!', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      banner.getByText('Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' }),
