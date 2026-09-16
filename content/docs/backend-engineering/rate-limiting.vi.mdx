@@ -168,16 +168,16 @@ sequenceDiagram
 
   Note over L: bucket có 3 token
   C->>L: request A
-  L-->>C: tiêu token; được phép
+  L-->>C: tiêu token (được phép)
   C->>L: request B
-  L-->>C: tiêu token; được phép
+  L-->>C: tiêu token (được phép)
   C->>L: request C
-  L-->>C: tiêu token; được phép
+  L-->>C: tiêu token (được phép)
   C->>L: request D
-  L-->>C: hết token; bị giới hạn
-  Note over L: thời gian trôi; token được refill
+  L-->>C: hết token (bị giới hạn)
+  Note over L: thời gian trôi - token được refill
   C->>L: request E
-  L-->>C: có token; được phép
+  L-->>C: có token (được phép)
   C->>S: công việc được tiếp nhận
 ```
 

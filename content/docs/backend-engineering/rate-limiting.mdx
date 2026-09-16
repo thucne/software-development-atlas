@@ -168,16 +168,16 @@ sequenceDiagram
 
   Note over L: bucket has 3 tokens
   C->>L: request A
-  L-->>C: consume token; allowed
+  L-->>C: consume token (allowed)
   C->>L: request B
-  L-->>C: consume token; allowed
+  L-->>C: consume token (allowed)
   C->>L: request C
-  L-->>C: consume token; allowed
+  L-->>C: consume token (allowed)
   C->>L: request D
-  L-->>C: no token; limited
-  Note over L: time passes; tokens refill
+  L-->>C: no token (limited)
+  Note over L: time passes - tokens refill
   C->>L: request E
-  L-->>C: token available; allowed
+  L-->>C: token available (allowed)
   C->>S: admitted work
 ```
 

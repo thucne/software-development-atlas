@@ -186,7 +186,7 @@ sequenceDiagram
   participant W1 as Worker 1
   participant W2 as Worker 2
 
-  Q->>W1: deliver M; M becomes in-flight
+  Q->>W1: deliver M (becomes in-flight)
   W1->>W1: processing takes 120s
   Note over Q,W1: visibility/lease expires at 30s
   Q->>W2: redeliver M

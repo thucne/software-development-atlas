@@ -186,7 +186,7 @@ If every time partition might contain tenant 42, partitioning by time alone does
 ```mermaid
 flowchart TD
   Q1[WHERE occurred_at in September] --> P{Bounds prove location?}
-  P -->|yes| S[Scan September partition(s)]
+  P -->|yes| S["Scan September partition(s)"]
   Q2[WHERE tenant_id = 42] --> N{Time bound known?}
   N -->|no| A[Potentially scan many time partitions]
 ```

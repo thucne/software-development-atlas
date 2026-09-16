@@ -129,7 +129,7 @@ sequenceDiagram
   S->>C: Truyền ArticleBody đã render qua children
   C->>B: Ship client code cho interactive shell
   S->>B: Gửi server-rendered result
-  B->>B: Hydrate shell; giữ child content từ server
+  B->>B: Hydrate shell, giữ child content từ server
 ```
 
 Pattern này hữu ích cho modal, tab, cart, provider hay interactive navigation cần bọc server-rendered content.

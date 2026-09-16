@@ -129,7 +129,7 @@ sequenceDiagram
   S->>C: Pass rendered ArticleBody as children
   C->>B: Ship client code for interactive shell
   S->>B: Send rendered server result
-  B->>B: Hydrate shell; keep server-rendered child content
+  B->>B: Hydrate shell and keep server-rendered child content
 ```
 
 This pattern is useful for shells such as modals, tabs, carts, providers, or interactive navigation that wrap server-rendered content.

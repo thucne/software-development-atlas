@@ -186,7 +186,7 @@ sequenceDiagram
   participant W1 as Worker 1
   participant W2 as Worker 2
 
-  Q->>W1: giao M; M trở thành in-flight
+  Q->>W1: giao M (trở thành in-flight)
   W1->>W1: xử lý mất 120s
   Note over Q,W1: visibility/lease hết ở 30s
   Q->>W2: giao lại M

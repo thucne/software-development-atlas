@@ -50,6 +50,7 @@ export function Mermaid({ chart }: { chart: string }) {
     void import('mermaid').then(async ({ default: mermaid }) => {
       mermaid.initialize({
         startOnLoad: false,
+        suppressErrorRendering: true,
         securityLevel: 'strict',
         fontFamily: 'inherit',
         theme: resolvedTheme === 'dark' ? 'dark' : 'default',
