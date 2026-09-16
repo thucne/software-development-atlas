@@ -10,15 +10,15 @@ export function AtlasReleaseBanner({ locale = 'en' }: { locale?: string }) {
     : '/docs/start-here/changelog';
 
   return (
-    <Banner id="atlas-release-2026-09-10" variant="rainbow">
+    <Banner id="atlas-release-2026-09-16" variant="rainbow">
       <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
         <span className="inline-flex items-center rounded-full border border-emerald-700/40 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-300">
           {isVi ? 'Mới' : 'New'}
         </span>
         <span>
           {isVi
-            ? '33 bài học kiến trúc hệ thống mới vừa ra mắt!'
-            : '33 new system architecture lessons added!'}
+            ? '13 bài học mới được bổ sung từ 10/09! (Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.)'
+            : "13 new lessons added since Sep 10! (Following the Sep 10 milestone's 33 new system architecture lessons.)"}
         </span>
         <Link
           href={changelogHref}

@@ -8,9 +8,15 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('renders top release announcement banner on docs pages', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-10');
+    const banner = page.locator('#atlas-release-2026-09-16');
     await expect(banner).toBeVisible();
     await expect(banner.getByText('New', { exact: true })).toBeVisible();
+    await expect(
+      banner.getByText(
+        "13 new lessons added since Sep 10! (Following the Sep 10 milestone's 33 new system architecture lessons.)",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: "Explore What's New →" }),
     ).toBeVisible();
@@ -19,9 +25,15 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('renders Vietnamese localized banner on /vi/docs pages', async ({ page }) => {
     await page.goto(appUrl('/vi/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-10');
+    const banner = page.locator('#atlas-release-2026-09-16');
     await expect(banner).toBeVisible();
     await expect(banner.getByText('Mới', { exact: true })).toBeVisible();
+    await expect(
+      banner.getByText(
+        '13 bài học mới được bổ sung từ 10/09! (Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.)',
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' }),
     ).toBeVisible();
@@ -30,7 +42,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('banner links directly to What\'s New & Changelog page', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-10');
+    const banner = page.locator('#atlas-release-2026-09-16');
     await banner.getByRole('link', { name: "Explore What's New →" }).click();
 
     await expect(page).toHaveURL(/\/docs\/start-here\/changelog/);
@@ -38,7 +50,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
       page.getByRole('heading', { name: "What's New & Changelog", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /September 10, 2026/ }),
+      page.getByRole('heading', { name: /September 16, 2026/ }),
     ).toBeVisible();
   });
 
@@ -49,7 +61,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
       page.getByRole('heading', { name: 'Cập nhật mới & Nhật ký thay đổi', exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /Ngày 10 tháng 09 năm 2026/ }),
+      page.getByRole('heading', { name: /Ngày 16 tháng 09 năm 2026/ }),
     ).toBeVisible();
   });
 
@@ -78,7 +90,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('persists banner dismissal in localStorage', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-10');
+    const banner = page.locator('#atlas-release-2026-09-16');
     await expect(banner).toBeVisible();
 
     const closeButton = banner.getByRole('button', { name: /close banner/i });
