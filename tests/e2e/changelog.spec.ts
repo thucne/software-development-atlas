@@ -12,7 +12,10 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     await expect(banner).toBeVisible();
     await expect(banner.getByText('New', { exact: true })).toBeVisible();
     await expect(
-      banner.getByText('13 new lessons added since Sep 10!', { exact: true }),
+      banner.getByText(
+        "13 new lessons added since Sep 10! (Following the Sep 10 milestone's 33 new system architecture lessons.)",
+        { exact: true },
+      ),
     ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: "Explore What's New →" }),
@@ -26,7 +29,10 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     await expect(banner).toBeVisible();
     await expect(banner.getByText('Mới', { exact: true })).toBeVisible();
     await expect(
-      banner.getByText('13 bài học mới được bổ sung từ ngày 10/09!', { exact: true }),
+      banner.getByText(
+        '13 bài học mới được bổ sung từ 10/09! (Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.)',
+        { exact: true },
+      ),
     ).toBeVisible();
     await expect(
       banner.getByRole('link', { name: 'Xem nhật ký cập nhật →' }),
