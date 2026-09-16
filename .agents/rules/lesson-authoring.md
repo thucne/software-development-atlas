@@ -39,6 +39,12 @@ Whenever writing, editing, or refactoring lesson content (`content/docs/**/*.mdx
    - Bump `atlasLastUpdated` in `lib/site-metadata.ts` when the change should update the docs footer; sync hard-coded footer tests in the same change.
    - Do **not** mass-bump every lesson's `lastVerified` merely because the site footer date moved.
 
-8. **Verification Requirements:**
+8. **Reconcile the rolling changelog:**
+   - When a substantive lesson is newly published in navigation, or a substantive lesson is materially revised and its `lastVerified` date moves forward, reconcile both `content/docs/start-here/changelog.mdx` and `content/docs/start-here/changelog.vi.mdx` in the same pull request.
+   - Keep the English and Vietnamese changelog entries semantically aligned, include the canonical lesson route in both locales, and keep changelog `lastVerified` at least as recent as the newest lesson represented.
+   - Treat the top release banner as a milestone announcement, not as the rolling release ledger; update it only when the milestone message itself changes.
+   - `tests/changelog.test.ts` enforces rolling coverage for substantive lessons verified on or after `2026-09-11`; do not bypass that contract by weakening the test or backdating lesson freshness.
+
+9. **Verification Requirements:**
    - All tests in `vitest run` must pass 100%.
    - `pnpm typecheck` and `pnpm lint` must pass with zero errors.
