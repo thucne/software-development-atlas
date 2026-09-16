@@ -1,4 +1,4 @@
 {
   "title": "Frontend Engineering",
-  "pages": ["csr-ssr-ssg", "hydration", "server-and-client-components", "frontend-state-models", "frontend-data-fetching", "component-boundaries", "frontend-bundle-performance"]
+  "pages": ["csr-ssr-ssg", "hydration", "server-and-client-components", "frontend-state-models", "frontend-data-fetching", "component-boundaries", "frontend-bundle-performance", "web-accessibility"]
 }
