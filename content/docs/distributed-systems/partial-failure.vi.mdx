@@ -157,7 +157,7 @@ Với write có outcome mơ hồ, lưu logical operation ID cùng authoritative 
 
 Checkout gọi payment provider bằng `POST /charges`. Provider đã commit charge nhưng response packet bị mất. Checkout timeout rồi tự retry bằng một request ID mới.
 
-**Hậu quả:** khách hàng bị charge hai lần dù chỉ thực hiện một checkout. Operator thấy một timeout và một success nên incident ban đầu trông như dữ liệu mâu thuẫn.
+**Hậu quả:** khách hàng bị charge hai lần dù chỉ thực hiện một checkout. Operator thấy một timeout và một success nên sự cố ban đầu trông như dữ liệu mâu thuẫn.
 
 **Nguyên nhân cốt lõi:** caller coi timeout là bằng chứng operation thất bại rồi retry side effect không idempotent mà không có logical request identity ổn định. Bên gọi và bên nhận có hai quan sát cục bộ khác nhau về attempt đầu tiên.
 

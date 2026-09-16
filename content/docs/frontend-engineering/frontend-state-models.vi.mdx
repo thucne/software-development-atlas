@@ -1,5 +1,5 @@
 ---
-title: "Mô hình State Frontend: Đặt Từng Loại State Đúng Chỗ"
+title: "Mô hình State Frontend: Đặt từng loại state đúng chỗ"
 description: Suy luận về frontend state theo ownership, lifetime, scope và persistence để local UI, URL state, shared client state, remote data và derived values không trở thành các nguồn sự thật cạnh tranh nhau.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - frontend-state-models
 ---
 
-# Mô hình State Frontend: Đặt Từng Loại State Đúng Chỗ
+# Mô hình State Frontend: Đặt từng loại state đúng chỗ
 
 ## Tóm tắt
 
@@ -198,7 +198,7 @@ Hãy ghi rõ các dimension này khi review thiết kế. Từ “global” mộ
 
 Một catalog page lưu `filter`, `sort` và `page` ở bốn nơi: component state, global store, URL search params và `localStorage`. Mount effects copy value qua lại giữa các nơi. Người dùng đổi filter, mở product, bấm Back rồi chia sẻ URL cho đồng đội.
 
-**Hậu quả:** Back/Forward khôi phục filter khác với URL đang hiển thị, shared link mở với default hoặc local preference cũ, reload phụ thuộc thứ tự effect, và engineer không xác định được layer nào authoritative khi có incident.
+**Hậu quả:** Back/Forward khôi phục filter khác với URL đang hiển thị, shared link mở với default hoặc local preference cũ, reload phụ thuộc thứ tự effect, và engineer không xác định được layer nào authoritative khi có sự cố.
 
 **Nguyên nhân cốt lõi:** team tối ưu cho convenience và persistence trước khi định nghĩa ownership. Bốn writable copy của navigation state trở thành các nguồn sự thật cạnh tranh, còn effect trở thành lớp keo synchronization mong manh.
 
@@ -224,7 +224,7 @@ Với mỗi state variable được đề xuất, hãy hỏi:
 Một search page có `?query=react&page=3` trong URL. Khi mount, component copy hai value vào local state, update URL mỗi khi local state đổi, rồi dùng effect khác để reset local state khi browser navigation đổi URL. Hai chiều synchronization này có nên là default không?
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Thường là không. Nếu query và page có navigation semantics, URL có thể là single source of truth. Component đọc từ URL rồi derive request/view từ đó. Writable local copy riêng tạo thêm timing và synchronization case vốn không tồn tại khi chỉ một owner authoritative. Temporary input draft vẫn có thể local nếu semantics của nó khác committed navigation state.
 

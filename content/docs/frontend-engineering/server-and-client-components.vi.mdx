@@ -1,5 +1,5 @@
 ---
-title: "Server và Client Components: Chọn Ranh giới Thực thi"
+title: "Server và Client Components: Chọn ranh giới thực thi"
 description: Suy luận về React Server và Client Components như ranh giới thực thi và module, cách dữ liệu/JSX đi qua ranh giới, và cách vị trí ranh giới ảnh hưởng JavaScript phía client cùng chi phí hydration.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - server-and-client-components
 ---
 
-# Server và Client Components: Chọn Ranh giới Thực thi
+# Server và Client Components: Chọn ranh giới thực thi
 
 ## Tóm tắt
 
@@ -187,7 +187,7 @@ Khi review component tree, hãy hỏi:
 Một product page được server render để có initial HTML nhanh. `AddToCart` được đánh dấu `'use client'` và xuất hiện trong HTML do server tạo trước hydration. Vậy `AddToCart` có phải Server Component không?
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Vị trí tạo initial HTML và quyền sở hữu thực thi component là hai trục độc lập với SSR/CSR. Một Client Component có thể góp HTML vào initial output do server tạo trong framework kết hợp RSC với SSR, nhưng interactive component code của nó vẫn thuộc client graph và phải có mặt trong browser để hydrate.
 

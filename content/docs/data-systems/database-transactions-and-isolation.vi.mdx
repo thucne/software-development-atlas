@@ -1,5 +1,5 @@
 ---
-title: "Transaction Cơ sở dữ liệu & Isolation: Giữ Invariant đúng khi Có Đồng thời"
+title: "Transaction & Isolation: Đảm bảo tính nhất quán khi có đồng thời"
 description: Học cách ranh giới transaction, snapshot, isolation level, lock và retry phối hợp để giữ workflow database đúng khi nhiều request chạy đồng thời.
 category: data-systems
 level: intermediate
@@ -32,7 +32,7 @@ concepts:
   - transaction-isolation
 ---
 
-# Transaction Cơ sở dữ liệu & Isolation: Giữ Invariant đúng khi Có Đồng thời
+# Transaction & Isolation: Đảm bảo tính nhất quán khi có đồng thời
 
 ## Tóm tắt
 
@@ -264,7 +264,7 @@ Serialization failure làm invalid toàn transaction attempt. Hãy chạy lại 
 
 ### Tăng isolation globally mà không đo contention
 
-Guarantee cao hơn có trade-off vận hành. Chọn guarantee từ invariant và workload, sau đó quan sát retry, lock wait, transaction duration và throughput.
+Guarantee cao hơn có đánh đổi vận hành. Chọn guarantee từ invariant và workload, sau đó quan sát retry, lock wait, transaction duration và throughput.
 
 ### Giữ transaction mở qua remote I/O
 
@@ -281,7 +281,7 @@ Hai transaction concurrent chạy PostgreSQL `Repeatable Read`. Mỗi transactio
 Điều gì còn thiếu nếu hai transaction update hai hàng khác nhau?
 
 <details>
-<summary>Xem reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Snapshot ổn định vẫn chưa đủ. Mỗi transaction có thể ra quyết định hợp lệ trong snapshot riêng và update hàng khác nhau, tạo write-skew outcome phá invariant liên hàng.
 

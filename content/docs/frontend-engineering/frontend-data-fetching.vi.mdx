@@ -1,5 +1,5 @@
 ---
-title: "Frontend Data Fetching: Làm Remote Data Trở nên Tường minh"
+title: "Frontend Data Fetching: Làm dữ liệu từ xa trở nên tường minh"
 description: Suy luận về frontend data fetching như một hệ thống gồm request identity, vị trí fetch, freshness, caching, race, mutation invalidation và các trạng thái async mà người dùng nhìn thấy.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - frontend-data-fetching
 ---
 
-# Frontend Data Fetching: Làm Remote Data Trở nên Tường minh
+# Frontend Data Fetching: Làm dữ liệu từ xa trở nên tường minh
 
 ## Tóm tắt
 
@@ -209,7 +209,7 @@ Sau `updateProduct(42)`, các observation có thể bị ảnh hưởng gồm:
 - search result có ranking/field phụ thuộc value đã đổi;
 - aggregate count hay dashboard derive từ product đó.
 
-Vì vậy mutation handling là một phần của read model. Nếu write path không có invalidation plan, “mutation thành công” vẫn có thể để frontend hiển thị sai.
+Vì vậy, việc xử lý dữ liệu thay đổi (mutation) là một phần không thể tách rời của mô hình đọc (read model). Nếu luồng ghi không có kế hoạch hủy cache rõ ràng, một thao tác "ghi thành công" vẫn có thể khiến giao diện người dùng hiển thị dữ liệu sai lệch.
 
 ## Optimistic update cần recovery story
 
@@ -243,7 +243,7 @@ Một catalog search page fetch data bằng các `useEffect` lồng nhau. Parent
 
 **Hậu quả:** page chậm hơn mức backend latency bắt buộc, duplicate request khuếch đại load, search response cũ đôi lúc ghi đè query mới, loading UI flicker khi remount, và mutation thành công nhưng user vẫn nhìn thấy catalog data stale.
 
-**Nguyên nhân cốt lõi:** request identity, scheduling, cache ownership, race handling và mutation invalidation bị ẩn trong component mount order thay vì được model thành một data-fetching system.
+**Nguyên nhân cốt lõi:** định danh request, lập lịch fetch, quyền sở hữu cache, xử lý race condition và cơ chế hủy cache sau mutation bị ẩn trong thứ tự mount của component thay vì được thiết kế như một hệ thống quản lý dữ liệu hoàn chỉnh.
 
 **Cách khắc phục chuẩn:** định nghĩa stable query key từ URL/domain inputs; khởi động independent work song song tại route/server boundary phù hợp và sớm nhất; dùng client query cache cho interaction-owned refetch cùng deduplication; abort hoặc ignore superseded response; phân biệt initial loading với background refetch; invalidate/revalidate đúng query identity bị ảnh hưởng sau mutation, kèm rollback hoặc reconciliation cho optimistic change.
 
@@ -269,7 +269,7 @@ Với mỗi remote read, hãy hỏi:
 Search route đang hiện kết quả cho `?q=react`. User đổi URL sang `?q=rust`. Request Rust hoàn tất trước, sau đó request React cũ mới xong và ghi vào component state. Cache key của cả hai đều chỉ là `"search"`. Sai ở đâu?
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Có hai bug liên quan. Thứ nhất, request identity thiếu input: query string phải nằm trong key, ví dụ `search | q=rust`. Thứ hai, view accept response mà không chứng minh response vẫn thuộc current identity. Stable query key cùng abort/ignore/current-key check sẽ ngăn response React cũ thay thế observation của Rust.
 

@@ -1,5 +1,5 @@
 ---
-title: "Hydration: Biến HTML Đã Render Thành Ứng Dụng Có Thể Tương Tác"
+title: "Hydration: Biến HTML đã render thành ứng dụng có thể tương tác"
 description: Suy luận về cách client code gắn vào HTML do server render, vì sao initial output phải khớp, nguồn gốc hydration mismatch và cách debug hydration gap.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - hydration
 ---
 
-# Hydration: Biến HTML Đã Render Thành Ứng Dụng Có Thể Tương Tác
+# Hydration: Biến HTML đã render thành ứng dụng có thể tương tác
 
 ## Tóm tắt
 
@@ -161,7 +161,7 @@ Khi hydration fail, hãy debug **first render**, không phải UI cuối cùng s
 Server render `<span>10:00</span>`. Trước hydration trôi qua một phút và client first render ra `<span>10:01</span>`. Giá trị mới hơn về mặt ngữ nghĩa. Mismatch này có vô hại không?
 
 <details>
-<summary>Xem phần giải thích</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Hydration so server snapshot với **initial** render phía client, không so với giá trị nào mới nhất. First client output nên tái tạo `10:00`; sau hydration component có thể cập nhật thành `10:01`. Nếu text thời gian realtime không thể ổn định, hãy cô lập nó sau một chiến lược client update có chủ đích thay vì cho hai tree đầu tiên bất đồng.
 

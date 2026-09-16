@@ -1,6 +1,6 @@
 ---
 title: "Cơ chế hoạt động của Event Loop trong Trình duyệt"
-description: "Hiểu sâu sắc về Task queues, Microtasks, Checkpoints, Rendering pipeline, starvation và sự khác biệt căn bản so với Node.js."
+description: "Hiểu sâu sắc về task queue, microtask, checkpoint, rendering pipeline, đói tài nguyên và sự khác biệt căn bản so với Node.js."
 category: programming
 level: intermediate
 status: evolving
@@ -35,7 +35,7 @@ concepts:
 1. **Trình duyệt không có một hàng đợi FIFO đơn lẻ.** Event Loop của trình duyệt phối hợp nhiều **Task Queues (hàng đợi tác vụ)** riêng biệt được cấp nguồn từ các nguồn khác nhau (timers, user input, network, v.v.).
 2. **Microtasks luôn được ưu tiên vét sạch.** Tại mỗi **Microtask Checkpoint** (ngay sau khi một task hoàn thành hoặc call stack rỗng), trình duyệt sẽ chạy toàn bộ microtask queue cho đến khi trống rỗng 100%, bao gồm cả các microtask mới được sinh ra bên trong checkpoint.
 3. **Vẽ giao diện (Rendering) không diễn ra sau mỗi task.** Trình duyệt chỉ cập nhật giao diện tại các **Rendering Opportunity** (thường là 60Hz hoặc 120Hz), và `requestAnimationFrame()` chạy ngay TRƯỚC các bước tính toán Style và Layout của frame sắp vẽ.
-4. **Tránh nghẽn Main Thread bằng Microtask Starvation:** Vòng lặp đệ quy `queueMicrotask()` sẽ làm "đóng băng" giao diện trình duyệt hoàn toàn dù không có vòng lặp `while(true)` đồng bộ nào.
+4. **Tránh nghẽn Main Thread do đói tài nguyên (Microtask Starvation):** Vòng lặp đệ quy `queueMicrotask()` sẽ làm "đóng băng" giao diện trình duyệt hoàn toàn dù không có vòng lặp `while(true)` đồng bộ nào.
 5. **Event Loop của Trình duyệt khác hoàn toàn Node.js:** Trình duyệt tuân theo đặc tả WHATWG HTML (có chu trình render và task sources), trong khi Node.js vận hành dựa trên kiến trúc libuv với các phases riêng biệt (timers, poll, check/setImmediate).
 
 ---
@@ -105,7 +105,7 @@ Trải nghiệm trực quan cách Event Loop điều phối giữa Call Stack, M
 
 ---
 
-## Hiện tượng Starvation và Đóng băng Main Thread
+## Hiện tượng đói tài nguyên (Starvation) và đóng băng Main Thread
 
 <AtlasIllustration id="main-thread-starvation" />
 

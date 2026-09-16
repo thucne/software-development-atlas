@@ -211,7 +211,7 @@ Một request đi qua Client → Service A → Service B → Database. Ba layer 
 Trước khi mở đáp án, hãy dự đoán số database attempt tối đa mà một original client request có thể tạo ra, rồi xác định lỗi thiết kế.
 
 <details>
-<summary>Xem reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Nếu Client, A và B mỗi nơi đều thực hiện tối đa ba attempt tổng cộng, một original request có thể tạo `3 × 3 × 3 = 27` database attempt.
 

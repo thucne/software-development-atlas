@@ -1,5 +1,5 @@
 ---
-title: "Phân giải DNS & TLS: Từ Hostname tới HTTPS được Xác thực"
+title: "Phân giải DNS & TLS: Từ hostname đến HTTPS được xác thực"
 description: Theo hostname qua DNS có nhận thức cache và TLS 1.3, rồi chẩn đoán cutover và lỗi certificate mà không coi network setup là một hộp đen.
 category: web-platform
 level: intermediate
@@ -32,7 +32,7 @@ concepts:
   - tls-and-https
 ---
 
-# Phân giải DNS & TLS: Từ Hostname tới HTTPS được Xác thực
+# Phân giải DNS & TLS: Từ hostname đến HTTPS được xác thực
 
 ## Tóm tắt
 
@@ -104,7 +104,7 @@ Resolution thật có thể dừng sớm hơn nhiều vì recursive resolver đ�
 
 ### Authoritative data và cached data trả lời hai câu hỏi khác nhau
 
-Khi debug DNS incident, hãy hỏi view nào đang được quan sát:
+Khi debug DNS sự cố, hãy hỏi view nào đang được quan sát:
 
 - **authoritative** server cho biết zone hiện đang publish gì;
 - **recursive resolver** có thể hợp lệ trả record cũ đã cache cho tới khi TTL hết;
@@ -221,7 +221,7 @@ Một team migrate `api.example.com` từ load balancer cũ sang load balancer m
 - certificate của nó hợp lệ cho `new-api.internal.example`, nhưng không hợp lệ cho `api.example.com`;
 - một số recursive resolver vẫn cache address cũ trong khi resolver khác đã lấy address mới.
 
-**Hậu quả:** user thấy incident có vẻ intermittent. Client vẫn dùng old cached address thì thành công, còn client tới new address fail trong TLS certificate/service-identity verification trước khi có HTTP response.
+**Hậu quả:** user thấy sự cố có vẻ intermittent. Client vẫn dùng old cached address thì thành công, còn client tới new address fail trong TLS certificate/service-identity verification trước khi có HTTP response.
 
 **Nguyên nhân cốt lõi:** cutover coi “IP mới healthy” là tương đương “HTTPS service đã sẵn sàng”. Deployment không validate endpoint mới bằng hostname/reference identity thật, và overlap do DNS TTL khiến failure trông không nhất quán giữa user.
 
@@ -236,7 +236,7 @@ Browser báo certificate-name mismatch cho `https://api.example.com`, nhưng `di
 Có thể kết luận gì, và nên inspect gì tiếp theo?
 
 <details>
-<summary>Xem reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 DNS resolution thành công nghĩa là name lookup tạo được address. Client cũng đã đi đủ sâu vào TLS để evaluate certificate được trình bày. Điều đó không có nghĩa HTTPS identity đúng.
 

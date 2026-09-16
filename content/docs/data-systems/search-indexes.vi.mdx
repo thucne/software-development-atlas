@@ -1,5 +1,5 @@
 ---
-title: "Search Indexes: Suy luận về Analysis, Relevance và Freshness"
+title: "Search Indexes: Suy luận về phân tích văn bản, độ liên quan và độ mới"
 description: Suy luận về search index qua inverted index, analyzer, mapping text/keyword, relevance scoring, khả kiến near-real-time, derived document, reindexing và operational freshness.
 category: data-systems
 level: intermediate
@@ -29,7 +29,7 @@ concepts:
   - search-indexes
 ---
 
-# Search Indexes: Suy luận về Analysis, Relevance và Freshness
+# Search Indexes: Suy luận về phân tích văn bản, độ liên quan và độ mới
 
 ## Tóm tắt
 
@@ -143,7 +143,7 @@ Elasticsearch multi-field cho phép một source string được index theo nhi�
 ## 4. Analysis biến language thành searchable term
 
 <TermBox term="Analyzer">
-**Analyzer (bộ phân tích)** chuyển text thành token khi indexing hoặc querying. Nó có thể tokenize input rồi áp dụng normalization như lowercase, stop-word handling, stemming hoặc token filter khác.
+**Analyzer (bộ phân tích)** chuyển text thành token khi indexing hoặc querying. Nó có thể tách từ (tokenize) rồi áp dụng chuẩn hóa như chuyển chữ thường, loại bỏ từ dừng (stop-words), đưa từ về dạng gốc (stemming) hoặc các bộ lọc token khác.
 
 **Vì sao quan trọng:** inverted index chứa output của analyzer, không phải nguyên sentence như một search key opaque. Query analysis phải tạo compatible term nếu ta muốn match.
 </TermBox>
@@ -256,7 +256,7 @@ aggressive stemming      -> có thể join variant, merge meaning khác nhau
 search nhiều field hơn   -> có thể thêm candidate, cũng thêm noise
 ```
 
-Balance đúng phụ thuộc product. Search legal clause, e-commerce product, source code, support ticket và observability log có trade-off rất khác nhau.
+Balance đúng phụ thuộc product. Search legal clause, e-commerce product, source code, support ticket và observability log có đánh đổi rất khác nhau.
 
 ## 9. Search visibility là near real-time, không nhất thiết immediate
 
@@ -296,7 +296,7 @@ bulk backfill -> throughput quan trọng hơn per-document immediate searchabili
 
 Freshness guarantee thuộc product workflow, không tự động thuộc mọi write.
 
-## 11. Segment giải thích refresh-vs-throughput trade-off
+## 11. Segment giải thích sự đánh đổi giữa refresh và throughput
 
 Lucene index được cấu thành từ segment. New data có thể được ghi vào segment mới và trở nên searchable, còn background merge sau đó combine small segment.
 
@@ -446,7 +446,7 @@ Strategy phổ biến:
 
 Elasticsearch index được chia thành shard. Query có thể execute trên nhiều shard rồi merge result.
 
-Trade-off quen thuộc từ bài Partitioning & Sharding:
+Đánh đổi quen thuộc từ bài Partitioning & Sharding:
 
 ```text
 thêm shard

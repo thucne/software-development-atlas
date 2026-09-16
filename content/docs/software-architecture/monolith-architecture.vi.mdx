@@ -1,5 +1,5 @@
 ---
-title: "Kiến trúc Monolith: Một Ranh giới Triển khai, Nhiều Cách Thiết kế"
+title: "Kiến trúc Monolith: Một ranh giới triển khai, nhiều cách thiết kế"
 description: Suy luận về kiến trúc monolith qua ranh giới triển khai, cộng tác trong process, transaction dùng chung, scaling, release coupling, failure blast radius, modularity nội bộ, team ownership và tín hiệu phân rã.
 category: software-architecture
 level: intermediate
@@ -28,7 +28,7 @@ concepts:
   - monolith-architecture
 ---
 
-# Kiến trúc Monolith: Một Ranh giới Triển khai, Nhiều Cách Thiết kế
+# Kiến trúc Monolith: Một ranh giới triển khai, nhiều cách thiết kế
 
 ## Tóm tắt nhanh
 
@@ -58,7 +58,7 @@ flowchart LR
   APP --- note
 ```
 
-Trade-off chính có thể tóm tắt như sau:
+Đánh đổi chính có thể tóm tắt như sau:
 
 ```text
 ít ranh giới distributed-system hơn
@@ -341,7 +341,7 @@ Ví dụ:
 
 - memory leak;
 - CPU runaway;
-- thread/event-loop starvation;
+- hiện tượng đói tài nguyên thread/event-loop (starvation);
 - queue tăng không giới hạn;
 - process crash;
 - deployment regression;
@@ -454,7 +454,7 @@ Nhưng lựa chọn này nên đi kèm một yêu cầu kiến trúc:
 
 > giữ boundary nội bộ đủ mạnh để các lựa chọn tương lai vẫn reversible.
 
-Điều đó nghĩa là tránh global state vô chủ, arbitrary table access, circular module dependency và framework type lan khắp codebase.
+Điều đó nghĩa là tránh global state vô chủ, arbitrary table access, circular module dependency và framework type lan khắp kho mã nguồn.
 
 Một monolith có cấu trúc tốt giữ được option value.
 
@@ -590,14 +590,15 @@ Không. Trước hết hãy đo bottleneck và cân nhắc tối ưu, asynchrono
 - [ ] Horizontal scaling behavior và resource hotspot được đo.
 - [ ] Release coupling được đo như một delivery constraint thay vì mặc định xem là xấu.
 - [ ] Process-level failure blast radius được hiểu và giảm bằng health check, replication và resilience control.
-- [ ] CI và test suite được partition đủ để một codebase không đồng nghĩa một feedback loop chậm.
+- [ ] CI và test suite được partition đủ để một kho mã nguồn duy nhất không đồng nghĩa với một chu kỳ phản hồi (feedback loop) chậm.
 - [ ] Đề xuất decomposition nêu rõ lợi ích cụ thể: independent deployment, scaling, fault isolation, security hoặc ownership.
 - [ ] Không service đề xuất nào phụ thuộc vào direct write sang dữ liệu của capability khác.
 - [ ] Boundary cleanup diễn ra trước extraction thay vì dùng extraction để thay thế boundary cleanup.
+- [ ] Tín hiệu phân rã kiến trúc được đo bằng evidence, không phải sự khó chịu mơ hồ.
 
 ## Quy tắc cho agent
 
-Khi đánh giá một monolith, **hãy tách deployment topology khỏi chất lượng thiết kế nội bộ**. Đừng đề xuất service chỉ vì codebase lớn. Trước tiên hãy xác định ownership, change coupling, data boundary, transaction need, scaling hotspot, release coupling và failure-isolation requirement. Chỉ extract một capability khi operational boundary độc lập tạo ra nhiều giá trị hơn complexity distributed-system mà nó bổ sung.
+Khi đánh giá một monolith, **hãy tách deployment topology khỏi chất lượng thiết kế nội bộ**. Đừng đề xuất tách service chỉ vì kho mã nguồn phình to. Trước tiên hãy xác định ownership, change coupling, data boundary, transaction need, scaling hotspot, release coupling và failure-isolation requirement. Chỉ extract một capability khi operational boundary độc lập tạo ra nhiều giá trị hơn complexity distributed-system mà nó bổ sung.
 
 ## Nguồn tham khảo
 

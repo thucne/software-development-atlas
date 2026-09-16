@@ -1,5 +1,5 @@
 ---
-title: "Khả năng truy cập Web: Vận hành Giao diện Ngoài Happy Path"
+title: "Khả năng truy cập Web: Vận hành giao diện ngoài luồng lý tưởng"
 description: Vận hành giao diện web có khả năng truy cập bằng HTML ngữ nghĩa, accessible name, hành vi bàn phím và focus, biểu mẫu và lỗi, thông báo động, phương án thay thế phi thị giác, layout bền vững và kiểm thử nhiều lớp.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - web-accessibility
 ---
 
-# Khả năng truy cập Web: Vận hành Giao diện Ngoài Happy Path
+# Khả năng truy cập Web: Vận hành giao diện ngoài luồng lý tưởng
 
 ## TL;DR
 
@@ -266,7 +266,7 @@ Mục tiêu không phải test mọi screen reader trên mọi commit. Mục ti�
 
 Một team checkout thay native field và button bằng custom design-system layer. Shipping-address dialog mở đúng về mặt thị giác nhưng opener vẫn giữ focus phía sau overlay. Address suggestion là các `<div>` click được. Field lỗi chỉ có viền đỏ. Sau khi chọn suggestion, success toast xuất hiện trên màn hình nhưng không được announce.
 
-**Hậu quả:** người dùng chuột trên happy path vẫn checkout được, trong khi người dùng bàn phím tab ra sau modal, người dùng screen reader khó nhận diện/chọn suggestion, người dùng low vision bỏ lỡ lỗi chỉ báo bằng màu và async success state hoàn toàn im lặng.
+**Hậu quả:** người dùng chuột trên luồng lý tưởng (happy path) vẫn checkout được, trong khi người dùng bàn phím tab ra sau modal, người dùng screen reader khó nhận diện/chọn suggestion, người dùng low vision bỏ lỡ lỗi chỉ báo bằng màu và async success state hoàn toàn im lặng.
 
 **Nguyên nhân cốt lõi:** component contract chỉ mô hình visual state mà không mô hình semantic role, keyboard behavior, focus ownership, error relationship hoặc non-visual feedback. Accessibility bị coi là late audit thay vì interaction architecture.
 
@@ -306,7 +306,7 @@ Không. ARIA expose semantics và state, nhưng role cũng kéo theo interaction
 - [ ] Giữ DOM order, reading order và keyboard focus order thẳng hàng trừ khi pattern có lý do rõ ràng để khác.
 - [ ] Nối form label, help, invalid state và error programmatically; không phụ thuộc vào proximity hoặc màu đơn lẻ.
 - [ ] Phân biệt focus management với live announcement: di chuyển focus đổi interaction context, còn live region báo thay đổi trong context hiện tại.
-- [ ] Đưa loading, empty, error và success state vào accessibility check, không chỉ happy path.
+- [ ] Đưa loading, empty, error và success state vào accessibility check, không chỉ ở luồng lý tưởng (happy path).
 - [ ] Dùng automated accessibility tool như regression filter, rồi verify keyboard và assistive-technology behavior thủ công cho flow rủi ro cao.
 - [ ] Khi sửa accessibility bug, thêm machine-checkable regression guardrail mạnh nhất có thể mà không giả vờ automation chứng minh usability.
 

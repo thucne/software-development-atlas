@@ -1,5 +1,5 @@
 ---
-title: "Đồng thời phía máy chủ: Giữ bất biến khi các yêu cầu chồng lấn"
+title: "Đồng thời phía máy chủ: Đảm bảo tính đúng đắn khi các request chồng chéo"
 description: Lập luận về công việc phía máy chủ chồng lấn bằng cách xác định bất biến, điều kiện tranh đua, ranh giới nguyên tử, vùng tới hạn, phạm vi phối hợp, chiến lược lạc quan và bi quan, tranh chấp tài nguyên và bế tắc.
 category: backend-engineering
 level: intermediate
@@ -30,7 +30,7 @@ concepts:
   - backend-concurrency
 ---
 
-# Đồng thời phía máy chủ: Giữ bất biến khi các yêu cầu chồng lấn
+# Đồng thời phía máy chủ: Đảm bảo tính đúng đắn khi các request chồng chéo
 
 ## Tóm tắt
 
@@ -412,7 +412,7 @@ Một dịch vụ có bốn bản sao. Mỗi bản sao giữ một `Set` trong b
 Cách sửa mạnh nhất là gì?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 `Set` trong bộ nhớ chỉ bảo vệ một tiến trình nên không thể thực thi tính duy nhất xuyên nhiều bản sao. Bất biến bền vững phải nằm ở kho dữ liệu dùng chung.
 

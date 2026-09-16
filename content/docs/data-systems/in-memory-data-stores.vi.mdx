@@ -1,5 +1,5 @@
 ---
-title: "In-Memory Data Stores: Suy luận về Độ trễ, Bộ nhớ và Durability"
+title: "In-Memory Data Stores: Suy luận về độ trễ, bộ nhớ và độ bền dữ liệu"
 description: Suy luận về in-memory data store qua working set, source-of-truth boundary, eviction, expiration, persistence, replication, hot key, sharding và failure contract.
 category: data-systems
 level: intermediate
@@ -28,7 +28,7 @@ concepts:
   - in-memory-data-stores
 ---
 
-# In-Memory Data Stores: Suy luận về Độ trễ, Bộ nhớ và Durability
+# In-Memory Data Stores: Suy luận về độ trễ, bộ nhớ và độ bền dữ liệu
 
 ## Tóm tắt
 
@@ -267,7 +267,7 @@ Redis mô tả hai cơ chế persistence chính:
 
 RDB tạo point-in-time snapshot của dataset theo interval cấu hình.
 
-Ưu điểm là snapshot compact và bulk restore nhanh. Trade-off là write sau snapshot gần nhất có thể mất nếu process/host chết trước snapshot tiếp theo.
+Ưu điểm là snapshot compact và bulk restore nhanh. Đánh đổi là write sau snapshot gần nhất có thể mất nếu process/host chết trước snapshot tiếp theo.
 
 ### AOF
 
@@ -358,7 +358,7 @@ Thêm shard không tự động split một key qua nhiều shard.
 Response thường gặp:
 
 - redesign key để work partition được an toàn;
-- replicate read-mostly hot data nếu consistency trade-off cho phép;
+- replicate read-mostly hot data nếu consistency đánh đổi cho phép;
 - aggregate write theo local/batch khi không cần global serialization từng event;
 - đưa expensive computation khỏi hot request path;
 - kiểm tra data structure/command có complexity cao ngoài dự tính không.
@@ -421,7 +421,7 @@ vốn race dưới concurrency.
 
 Nhưng khi related key nằm trên shard khác nhau, multi-key operation có thể bị hạn chế hoặc cần coordination. Redis Cluster có hash tag để cố ý co-locate related key vào cùng hash slot khi cần atomic multi-key behavior.
 
-Điều này tăng locality nhưng cũng tập trung các key đó lên một shard. Locality và distribution là trade-off, không phải hai knob độc lập.
+Điều này tăng locality nhưng cũng tập trung các key đó lên một shard. Locality và distribution là đánh đổi, không phải hai knob độc lập.
 
 ## 16. Nếu có thể, tách cache failure khỏi application failure
 
@@ -525,4 +525,4 @@ Khi đề xuất in-memory data store, đừng biện minh chỉ bằng “Redis
 - [Redis Docs — Pipelining](https://redis.io/docs/latest/develop/using-commands/pipelining/)
 - [Redis Docs — Diagnosing latency issues](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)
 
-Bài này được phân loại **evolving** với chu kỳ review 180 ngày vì eviction option, persistence behavior, clustering capability và operational guidance của Redis tiếp tục thay đổi dù các trade-off cốt lõi về memory/durability khá bền vững.
+Bài này được phân loại **evolving** với chu kỳ review 180 ngày vì eviction option, persistence behavior, clustering capability và operational guidance của Redis tiếp tục thay đổi dù các đánh đổi cốt lõi về memory/durability khá bền vững.

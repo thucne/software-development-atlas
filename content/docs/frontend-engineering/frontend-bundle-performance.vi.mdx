@@ -1,5 +1,5 @@
 ---
-title: "Hiệu năng Bundle Frontend: Gửi Ít JavaScript Hơn, Tải Muộn Hơn"
+title: "Hiệu năng Bundle Frontend: Gửi ít JavaScript hơn, tải muộn hơn"
 description: Suy luận về hiệu năng bundle frontend thông qua đồ thị phụ thuộc client, chi phí truyền và thực thi, code splitting, lazy loading, tree shaking, mã bên thứ ba, chunk có thể cache, bundle analysis và budget chống hồi quy.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - frontend-bundle-performance
 ---
 
-# Hiệu năng Bundle Frontend: Gửi Ít JavaScript Hơn, Tải Muộn Hơn
+# Hiệu năng Bundle Frontend: Gửi ít JavaScript hơn, tải muộn hơn
 
 ## TL;DR
 
@@ -290,7 +290,7 @@ Performance regression rất dễ quay lại từng dependency một.
 
 Budget hữu ích phải có scope. Một con số toàn cục kiểu "mọi JS phải dưới X KB" có thể che mất user journey nào thật sự regression.
 
-Hãy dùng budget để kích hoạt investigation, không phải cargo-cult deletion. Nếu một route cố ý lớn hơn vì có capability giá trị, team có thể điều chỉnh budget dựa trên evidence. Điều quan trọng là trade-off trở nên nhìn thấy được.
+Hãy dùng budget để kích hoạt investigation, không phải cargo-cult deletion. Nếu một route cố ý lớn hơn vì có capability giá trị, team có thể điều chỉnh budget dựa trên evidence. Điều quan trọng là đánh đổi trở nên nhìn thấy được.
 
 ## Production scenario
 
@@ -322,7 +322,7 @@ Một commerce dashboard ban đầu chỉ render account summary và recent orde
 Một route có initial client payload 220 KB compressed. Dependency charting 90 KB chỉ được dùng sau khi user mở analytics tab. Data request của tab không phụ thuộc vào chart code. Team có nên chỉ thay chart import bằng lazy import rồi dừng lại không?
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Defer chart là ứng viên mạnh vì capability này tùy chọn, nhưng team phải verify toàn timing graph. Chart chunk và analytics data thường có thể bắt đầu độc lập; nếu chờ lazy component mount rồi mới request data thì lại tạo waterfall. Trước hết trace lý do chart nằm trong initial graph, tạo một cohesive lazy boundary, schedule independent data đúng cách, rồi so sánh cả bundle output lẫn interaction latency mà user nhìn thấy. Nếu tab được mở thường xuyên, preloading cũng có thể hợp lý khi có evidence.
 

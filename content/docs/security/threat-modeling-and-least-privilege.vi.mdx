@@ -1,5 +1,5 @@
 ---
-title: "Threat Modeling & Least Privilege: Thiết kế bảo mật trước khi incident xảy ra"
+title: "Threat Modeling & Least Privilege: Thiết kế bảo mật trước khi sự cố xảy ra"
 description: Biến trust boundaries, threats và authorization rules thành mitigation cụ thể, có thể kiểm chứng và giảm blast radius khi hệ thống thay đổi.
 category: security
 level: intermediate
@@ -29,7 +29,7 @@ concepts:
   - least-privilege
 ---
 
-# Threat Modeling & Least Privilege: Thiết kế bảo mật trước khi incident xảy ra
+# Threat Modeling & Least Privilege: Thiết kế bảo mật trước khi sự cố xảy ra
 
 ## Tóm tắt
 
@@ -177,7 +177,7 @@ flowchart TD
 - policy không parse được;
 - action mới chưa có rule.
 
-Availability có thể có tradeoff riêng, nhưng authorization error không được vô tình trở thành privilege grant.
+Availability có thể có đánh đổi riêng, nhưng authorization error không được vô tình trở thành privilege grant.
 
 ## Least privilege là bài toán scope và lifetime
 
@@ -238,7 +238,7 @@ Một background export job dùng long-lived cloud credential có read access t�
 Thiếu điều gì?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Mitigation chưa xử lý blast radius. Áp dụng least privilege ngay: cấp task-appropriate identity chỉ đọc required reports scope, ưu tiên short-lived credentials. Sau đó biến boundary đó thành testable bằng IAM policy checks hoặc integration tests. Rotation có thể giảm credential lifetime, nhưng không biện minh cho resource/action permissions không cần thiết.
 

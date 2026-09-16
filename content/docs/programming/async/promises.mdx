@@ -236,7 +236,7 @@ B
 promise handler
 ```
 
-For the browser scheduling mechanism that places Promise reactions into microtask processing, see [How the Browser Event Loop Actually Works](./how-the-browser-event-loop-works).
+For the browser scheduling mechanism that places Promise reactions into microtask processing, see [Browser Event Loop: How Tasks, Microtasks, and Rendering Are Scheduled](./how-the-browser-event-loop-works).
 
 ## Every chain method creates a downstream Promise
 
@@ -441,7 +441,7 @@ source 10 ┤
           └─ handler B → b fulfilled with 20
 ```
 
-It is not `source → handler A → handler B` unless you actually chain B from A. This distinction connects directly to [Avoiding Sequential Async Waterfalls](./avoiding-sequential-async-waterfalls): chain shape represents dependency shape.
+It is not `source → handler A → handler B` unless you actually chain B from A. This distinction connects directly to [Async Waterfalls: Overlap Independent Work Without Breaking Dependencies](./avoiding-sequential-async-waterfalls): chain shape represents dependency shape.
 
 ## Promise combinators by intent
 
@@ -680,8 +680,8 @@ When changing Promise-heavy code, verify against this checklist:
 
 ## Related lessons
 
-- [Avoiding Sequential Async Waterfalls](./avoiding-sequential-async-waterfalls)
-- [How the Browser Event Loop Actually Works](./how-the-browser-event-loop-works)
+- [Async Waterfalls: Overlap Independent Work Without Breaking Dependencies](./avoiding-sequential-async-waterfalls)
+- [Browser Event Loop: How Tasks, Microtasks, and Rendering Are Scheduled](./how-the-browser-event-loop-works)
 - **Async / Await** — future lesson on expressing Promise dependencies clearly.
 - **Cancellation** — future lesson on AbortSignal, ownership, propagation, and cleanup.
 - **Bounded Concurrency** — future lesson on controlling resource pressure independently of Promise aggregation.

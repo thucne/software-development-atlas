@@ -107,7 +107,7 @@ Phân loại branch theo mức cần thiết. Dependency bắt buộc có thể 
 
 Khi deadline hết, hãy truyền **cancellation** để downstream dừng work nếu có thể. Nhưng **hủy không rollback**. gRPC cảnh báo rõ rằng thay đổi xảy ra trước cancellation không tự hoàn tác.
 
-Vì vậy một timed-out write vẫn có thể cần idempotency hoặc reconciliation. Timeout handling kiểm soát việc chờ và tiêu thụ tài nguyên; Partial Failure giải thích sự không chắc chắn về side effect.
+Vì vậy một timed-out write vẫn có thể cần idempotency hoặc reconciliation. Việc xử lý timeout kiểm soát việc chờ và tiêu thụ tài nguyên; Partial Failure giải thích sự không chắc chắn về side effect.
 
 ## Quan sát theo giai đoạn timeout và dependency
 
@@ -140,7 +140,7 @@ Một API có user SLO 1 giây. Nó gọi Service A rồi Service B theo chuỗi
 Một request còn 300 ms. Service của bạn cần khoảng 60 ms sau khi dependency trả về để serialize và gửi response. Có nên gọi downstream với timeout mới 500 ms không?
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Downstream budget tối đa chỉ khoảng 240 ms, thường còn thấp hơn sau safety margin. Timeout 500 ms mới sẽ phá parent deadline và giữ tài nguyên cho work mà kết quả đã hết giá trị. Hãy truyền thời gian còn lại và giữ reserve cho local completion.
 

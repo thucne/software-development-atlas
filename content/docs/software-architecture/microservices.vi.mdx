@@ -124,7 +124,7 @@ Dấu hiệu thường gặp: shared writable table, release phải phối hợp
 
 Một nền tảng commerce tách Orders, Billing, Inventory và Notifications thành container riêng. Cả bốn vẫn ghi chung một database, import cùng internal domain package, deploy cùng nhau và checkout phải đi qua một synchronous chain dài.
 
-**Hậu quả:** thay đổi nhỏ cần phối hợp rộng, một dependency chậm làm checkout kẹt, retry khuếch đại tải, schema change làm nhiều service hỏng và incident khó trace.
+**Hậu quả:** thay đổi nhỏ cần phối hợp rộng, một dependency chậm làm checkout kẹt, retry khuếch đại tải, schema change làm nhiều service hỏng và sự cố khó trace.
 
 **Nguyên nhân cốt lõi:** process boundary được tạo trước khi có data ownership, hợp đồng chịu được version lệch nhau, failure semantics và deployment autonomy. Kết quả là monolith phân tán.
 

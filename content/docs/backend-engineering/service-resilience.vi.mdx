@@ -306,11 +306,11 @@ feature configuration: phụ thuộc risk class
 
 Bài caching dạy freshness mechanics; resilience quyết định stale data có còn là sự thật chấp nhận được cho operation đang xét hay không.
 
-## 10. Health check phải mô tả khả năng phục vụ, không che incident
+## 10. Health check phải mô tả khả năng phục vụ, không che sự cố
 
 Readiness và dependency check hữu ích khi chúng trả lời operational question chính xác.
 
-Đừng làm service fail readiness chỉ vì một optional dependency unavailable. Việc đó có thể loại các instance vẫn khỏe khỏi traffic và làm incident tệ hơn.
+Đừng làm service fail readiness chỉ vì một optional dependency unavailable. Việc đó có thể loại các instance vẫn khỏe khỏi traffic và làm sự cố tệ hơn.
 
 Ngược lại, đừng báo “healthy” chỉ vì process còn sống khi mọi capacity cần cho critical dependency đã cạn.
 
@@ -328,7 +328,7 @@ Thiết kế health endpoint cụ thể phụ thuộc platform. Nguyên tắc l�
 
 ## 11. Kịch bản production: recommendations tùy chọn làm checkout sập
 
-Một backend thương mại điện tử dùng chung outbound HTTP pool cho payment, inventory và recommendations. Sau incident downstream, recommendations chậm từ 80 ms lên 8 giây. Mọi product và checkout request vẫn gọi recommendation đồng bộ. Mỗi layer retry hai lần với delay cố định ngắn.
+Một backend thương mại điện tử dùng chung outbound HTTP pool cho payment, inventory và recommendations. Sau sự cố downstream, recommendations chậm từ 80 ms lên 8 giây. Mọi product và checkout request vẫn gọi recommendation đồng bộ. Mỗi layer retry hai lần với delay cố định ngắn.
 
 Shared pool đầy bởi recommendation call chậm. Payment và inventory call phải chờ connection. Caller của chúng timeout rồi retry. Autoscaling thêm app replica, tạo thêm downstream connection và retry load.
 
@@ -373,7 +373,7 @@ Circuit breaker: có; threshold dựa trên rolling failure/latency evidence
 Fallback: bỏ block hoặc cached value <= 10 phút tuổi
 Failure của limiter/breaker store: local fail-safe policy
 Signals: latency, lỗi, saturation, breaker state, degraded count
-Runbook: link incident dependency
+Runbook: đính kèm liên kết tới sự cố và dependency liên quan
 ```
 
 Các giá trị chỉ là ví dụ, không phải default. Điều quan trọng là behavior có chủ đích, review được và test được dưới failure.

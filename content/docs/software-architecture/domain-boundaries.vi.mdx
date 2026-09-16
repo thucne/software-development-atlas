@@ -156,7 +156,7 @@ Diagram không phải architecture guardrail. Chuyển context map thành constr
 3. chặn cross-context write vào private table hoặc repository;
 4. thêm architecture test hoặc import rule cho dependency cấm;
 5. test integration contract độc lập với internal model;
-6. làm ownership hiện rõ trong code review và incident routing.
+6. làm ownership hiện rõ trong code review và sự cố routing.
 
 Trong modular monolith, cách này có thể là package export cộng architecture test. Trong microservices, deployment/network boundary thêm enforcement, nhưng shared database và shared library vẫn có thể bypass domain boundary dự kiến.
 
@@ -167,7 +167,7 @@ Khi hệ thống bị rối, dùng chuỗi sau:
 1. **Map business workflow.** Ghi decision và outcome, không chỉ CRUD screen.
 2. **Thu domain language.** Đánh dấu term đổi nghĩa giữa workflow hoặc expert.
 3. **Cluster rule và invariant.** Giữ behavior phải nhất quán gần một owner.
-4. **Inspect co-change.** Dùng commit, incident và roadmap để xem gì thay đổi cùng nhau.
+4. **Inspect co-change.** Dùng commit, sự cố và roadmap để xem gì thay đổi cùng nhau.
 5. **Assign ownership.** Nêu team và context authoritative cho từng rule và mutation.
 6. **Vẽ candidate bounded context.** Ưu tiên model gắn kết hơn box có kích thước đều nhau.
 7. **Tạo context map.** Định nghĩa upstream/downstream và integration contract.
@@ -183,7 +183,7 @@ Một công ty commerce tạo một table `Customer` toàn cục và một class
 
 Sales thêm `leadScore`, Billing thêm `creditHold`, còn Support đổi `status` để biểu diễn entitlement. Sau đó một lần rename và đổi validation buộc ba application phải release phối hợp. Không ai nói rõ team nào sở hữu meaning của `status`.
 
-**Hậu quả:** thay đổi domain nhỏ kéo theo release coordination nhiều team, validation rule xung đột, schema migration rủi ro, incident không liên quan chia sẻ cùng blast radius và mọi team đều ngại đơn giản hóa model.
+**Hậu quả:** thay đổi domain nhỏ kéo theo release coordination nhiều team, validation rule xung đột, schema migration rủi ro, sự cố không liên quan chia sẻ cùng blast radius và mọi team đều ngại đơn giản hóa model.
 
 **Nguyên nhân cốt lõi:** tổ chức xem shared identity là bằng chứng của một shared domain model. Language seam, rule ownership, transaction invariant và team ownership bị bỏ qua, khiến global schema trở thành integration contract.
 
@@ -202,7 +202,7 @@ Không. Bounded context xác định nơi domain model và language có hiệu l
 - [ ] Ubiquitous language nhất quán trong context và được phép khác ở context khác.
 - [ ] Sở hữu mô hình, sở hữu quy tắc và sở hữu dữ liệu đều rõ.
 - [ ] Ranh giới giao dịch bảo vệ invariant thật thay vì phủ cả hệ thống.
-- [ ] Co-change và incident evidence hỗ trợ candidate boundary.
+- [ ] Co-change và sự cố evidence hỗ trợ candidate boundary.
 - [ ] Một team chịu trách nhiệm cho model và mutation của mỗi context.
 - [ ] Context map ghi hướng tích hợp và contract.
 - [ ] Semantic khác nhau được dịch thay vì giấu trong global shared model.

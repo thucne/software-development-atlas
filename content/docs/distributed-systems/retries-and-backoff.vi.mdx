@@ -1,5 +1,5 @@
 ---
-title: "Retries và Backoff: Phục hồi mà Không Khuếch đại Sự cố"
+title: "Retries và Backoff: Phục hồi mà không làm sự cố lan rộng"
 description: Vận hành retry an toàn với backoff, jitter, ownership và giới hạn tải.
 category: distributed-systems
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - retries-and-backoff
 ---
 
-# Retries và Backoff: Phục hồi mà Không Khuếch đại Sự cố
+# Retries và Backoff: Phục hồi mà không làm sự cố lan rộng
 
 ## Tóm tắt
 
@@ -78,7 +78,7 @@ sequenceDiagram
 Nếu Client, Service A và Service B đều cho ba total attempt, một request gốc có thể tạo `3 × 3 × 3 = 27` attempt. Chọn một **retry owner** có đủ context; tính cả SDK retry.
 
 <TermBox term="Retry Storm">
-**Bão retry** là overload bị retry khuếch đại: recovery traffic trở thành một phần của incident.
+**Bão retry** là overload bị retry khuếch đại: recovery traffic trở thành một phần của sự cố.
 </TermBox>
 
 ## Bảo vệ cả fleet
@@ -100,7 +100,7 @@ Gateway gọi Checkout → Inventory → database. Khi latency tăng, mọi laye
 SDK và service wrapper của bạn đều đã retry. Dependency bắt đầu trả `503`. Có nên thêm retry loop ở gateway không?
 
 <details>
-<summary>Xem reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Trước tiên hãy tìm toàn bộ retry hiện có, chọn một owner và phối hợp total attempt/deadline budget rồi mới đổi policy.
 

@@ -59,7 +59,7 @@ Không phải lúc nào cũng đi theo đúng thứ tự này. Nguyên tắc ổ
 <TermBox term="Observability">
 **Observability** là khả năng hiểu hành vi bên trong của hệ thống thông qua telemetry mà nó phát ra, kể cả khi failure mode chưa được dự đoán trước.
 
-**Tại sao quan trọng:** dashboard chỉ xác nhận các lỗi đã biết là monitoring. Một hệ observability hữu ích còn cho phép kỹ sư đặt câu hỏi mới trong lúc incident đang diễn ra.
+**Tại sao quan trọng:** dashboard chỉ xác nhận các lỗi đã biết là monitoring. Một hệ observability hữu ích còn cho phép kỹ sư đặt câu hỏi mới trong lúc sự cố đang diễn ra.
 </TermBox>
 
 ## Metrics cho biết điều gì đang thay đổi ở quy mô lớn
@@ -207,12 +207,12 @@ Bài học không phải “luôn bắt đầu bằng metrics”. Bài học là
 
 ## Tự kiểm tra
 
-API của bạn expose `request_duration_seconds{user_id, route, status}` và emit logs không có trace context. Trong incident, bạn thấy error-rate spike nhưng không tìm được log cho các request thuộc slow trace.
+API của bạn expose `request_duration_seconds{user_id, route, status}` và emit logs không có trace context. Trong sự cố, bạn thấy error-rate spike nhưng không tìm được log cho các request thuộc slow trace.
 
 Trước khi mở đáp án, hãy chỉ ra hai lỗi thiết kế observability.
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Thứ nhất, `user_id` là metric dimension không bounded và có thể gây cardinality explosion. Metrics thường nên dùng bounded attributes như normalized route, status class, service hoặc region khi các dimension đó phục vụ operational question.
 

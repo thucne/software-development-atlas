@@ -283,7 +283,7 @@ Audit log là bằng chứng, không phải enforcement. Một hành động tr�
 > Một người dùng có phiên hợp lệ với mức mạnh tương đương AAL2 và gọi `DELETE /projects/alpha`. Route chỉ cho user đã đăng nhập có role `member`. Như vậy đã đủ để authorize xóa project chưa?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Chưa. Xác thực mạnh chỉ tạo confidence về ai đang kiểm soát session; role `member` chỉ là coarse entitlement. Service vẫn cần một quyết định resource-level cho hành động xóa.
 

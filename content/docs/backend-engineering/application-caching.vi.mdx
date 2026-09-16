@@ -1,5 +1,5 @@
 ---
-title: "Cache ứng dụng: chủ động đổi độ tươi mới lấy ít công việc hơn"
+title: "Cache ứng dụng: Chấp nhận dữ liệu chưa cập nhật để giảm tải có chủ đích"
 description: Lập luận về cache ứng dụng như trạng thái dẫn xuất với khóa rõ ràng, ngân sách độ cũ, vô hiệu hóa, chống dồn tải, cache kết quả không tồn tại, hành vi khi lỗi và bằng chứng vận hành.
 category: backend-engineering
 level: intermediate
@@ -29,7 +29,7 @@ concepts:
   - application-caching
 ---
 
-# Cache ứng dụng: chủ động đổi độ tươi mới lấy ít công việc hơn
+# Cache ứng dụng: Chấp nhận dữ liệu chưa cập nhật để giảm tải có chủ đích
 
 ## Tóm tắt
 
@@ -332,7 +332,7 @@ Một dịch vụ hồ sơ chạy trên 20 replica. Mỗi replica giữ cache tr
 Cache có “hoạt động” không, và câu hỏi thiết kế nào đã bị bỏ sót?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Cache hoạt động đúng theo cơ chế cục bộ của nó, nhưng yêu cầu độ tươi mới của hệ thống chưa được mã hóa vào thiết kế vô hiệu hóa. Mỗi process sở hữu một cache độc lập, nên xóa entry ở replica 3 không vô hiệu hóa replica khác.
 

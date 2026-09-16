@@ -1,5 +1,5 @@
 ---
-title: "CSR, SSR và SSG: HTML Được Tạo Ở Đâu và Khi Nào"
+title: "CSR, SSR và SSG: HTML được tạo ở đâu và khi nào"
 description: Suy luận về client rendering, request-time server rendering và pre-rendering theo thời điểm tạo HTML, vòng đời dữ liệu, cache, hydration và composition theo route.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - csr-ssr-ssg
 ---
 
-# CSR, SSR và SSG: HTML Được Tạo Ở Đâu và Khi Nào
+# CSR, SSR và SSG: HTML được tạo ở đâu và khi nào
 
 ## Tóm tắt
 
@@ -65,7 +65,7 @@ Vì vậy SSR không đơn giản là "SSG nhưng fresh hơn". Thuộc tính đ�
 
 Với **SSG**, HTML hữu ích được tạo trước một request người dùng cụ thể—thường ở build, publish hoặc regeneration time—rồi được reuse cho các request sau.
 
-Điều này giúp nội dung dùng chung rất dễ cache và có thể loại full page generation khỏi request path thông thường. Trade-off là độ mới: output đã tạo chỉ hợp lệ khi sản phẩm còn chấp nhận tuổi của nó hoặc khi publishing/revalidation refresh đủ nhanh.
+Điều này giúp nội dung dùng chung rất dễ cache và có thể loại full page generation khỏi request path thông thường. Đánh đổi là độ mới: output đã tạo chỉ hợp lệ khi sản phẩm còn chấp nhận tuổi của nó hoặc khi publishing/revalidation refresh đủ nhanh.
 
 Static **không** đồng nghĩa immutable. Revalidation hoặc regeneration có thể thay output đã tạo mà vẫn giữ thuộc tính cốt lõi: delivery thông thường reuse artifact thay vì render toàn bộ route cho mọi request.
 
@@ -146,7 +146,7 @@ Một team e-commerce dùng SSR cho mọi route vì "SSR tốt hơn cho SEO". Ma
 Một product page public giống nhau với mọi visitor, thay đổi mỗi 30 phút và cần HTML hữu ích trước khi application JavaScript chạy. Requirement đó có tự động bắt buộc SSR không?
 
 <details>
-<summary>Xem reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Page này dùng chung và có freshness window hữu hạn, nên SSG với publishing hoặc revalidation có thể thỏa requirement mà không phải render mỗi request. SSR mạnh hơn khi useful HTML cần request-time state không thể share an toàn.
 

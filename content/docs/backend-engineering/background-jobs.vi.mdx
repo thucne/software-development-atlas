@@ -1,5 +1,5 @@
 ---
-title: "Công việc nền: Làm cho công việc bền vững sau vòng đời yêu cầu"
+title: "Tác vụ nền: Xử lý bền vững ngoài vòng đời request"
 description: Lập luận về công việc nền bền vững qua vòng đời rõ ràng, quyền xử lý, xác nhận, giao lại, retry có giới hạn, hiệu ứng lặp lại an toàn, hủy, công việc không thể xử lý và tín hiệu tồn đọng vận hành.
 category: backend-engineering
 level: intermediate
@@ -29,7 +29,7 @@ concepts:
   - background-jobs
 ---
 
-# Công việc nền: Làm cho công việc bền vững sau vòng đời yêu cầu
+# Tác vụ nền: Xử lý bền vững ngoài vòng đời request
 
 ## Tóm tắt
 
@@ -185,7 +185,7 @@ xác nhận sau khi làm việc
   -> có thể thực thi trùng
 ```
 
-Tài liệu Celery hiện tại mô tả rõ trade-off này: cấu hình xác nhận muộn có thể khiến task được thực thi nhiều hơn một lần nếu worker mất giữa chừng. Amazon SQS cũng giữ message trong queue nhưng tạm ẩn nó; nếu message chưa được xóa trước khi visibility timeout hết hạn, nó có thể xuất hiện lại và được nhận lần nữa.
+Tài liệu Celery hiện tại mô tả rõ đánh đổi này: cấu hình xác nhận muộn có thể khiến task được thực thi nhiều hơn một lần nếu worker mất giữa chừng. Amazon SQS cũng giữ message trong queue nhưng tạm ẩn nó; nếu message chưa được xóa trước khi visibility timeout hết hạn, nó có thể xuất hiện lại và được nhận lần nữa.
 
 Đây là các ví dụ cụ thể của nguyên tắc tổng quát: **khả năng hồi phục đáng tin cậy thường đồng nghĩa một job có thể được giao lại hoặc chạy lại**.
 
@@ -448,7 +448,7 @@ Một job gọi API đối tác để trừ tiền rồi cập nhật trạng th
 Worker có nên lập tức gọi lại phép trừ tiền không?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Chưa, nếu kết quả hiệu ứng bên ngoài vẫn mơ hồ. Timeout chỉ nói worker không nhận được response; nó không chứng minh đối tác chưa làm gì.
 

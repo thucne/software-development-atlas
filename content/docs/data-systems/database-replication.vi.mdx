@@ -1,5 +1,5 @@
 ---
-title: "Database Replication: Suy luận về Bản sao, Độ trễ và Failover"
+title: "Database Replication: Suy luận về bản sao, độ trễ và failover"
 description: Suy luận về database replication qua WAL shipping, contract commit bất đồng bộ và đồng bộ, replica lag, read routing, replication slot, xung đột hot standby, failover và fencing.
 category: data-systems
 level: intermediate
@@ -30,7 +30,7 @@ concepts:
   - database-replication
 ---
 
-# Database Replication: Suy luận về Bản sao, Độ trễ và Failover
+# Database Replication: Suy luận về bản sao, độ trễ và failover
 
 ## Tóm tắt
 
@@ -182,7 +182,7 @@ Nếu product cam kết read-after-write ngay lập tức, các chiến lược 
 
 - route correctness-sensitive read tiếp theo của writer về primary trong một khoảng giới hạn;
 - gắn causal/freshness token và chỉ dùng replica sau khi nó đạt replication position yêu cầu;
-- chọn synchronous setting chờ đúng standby progress cần thiết khi latency trade-off là hợp lý;
+- chọn synchronous setting chờ đúng standby progress cần thiết khi latency đánh đổi là hợp lý;
 - không route operation thực thi permission, uniqueness assumption hoặc workflow transition sang replica có freshness không đủ.
 
 Đừng “fix” bằng cách sleep 100 millisecond. Lag phụ thuộc workload và failure.
@@ -223,7 +223,7 @@ Câu không an toàn là:
 
 Nếu synchronous standby bắt buộc bị chậm hoặc unavailable và không có eligible replacement thỏa cấu hình, commit có thể phải chờ.
 
-Trade-off có chủ đích là:
+Đánh đổi có chủ đích là:
 
 ```text
 remote durability / visibility guarantee mạnh hơn
@@ -259,7 +259,7 @@ cho phép standby query chạy lâu
   -> conflicting long query có thể bị cancel
 ```
 
-Không có setting đúng cho mọi hệ thống. Job của replica quyết định trade-off.
+Không có setting đúng cho mọi hệ thống. Job của replica quyết định đánh đổi.
 
 ## 9. hot_standby_feedback đổi ít cleanup conflict hơn lấy nguy cơ primary bloat
 
@@ -267,7 +267,7 @@ Không có setting đúng cho mọi hệ thống. Job của replica quyết đ�
 
 Nhưng protection này không miễn phí: trì hoãn xóa dead row version có thể làm tăng table bloat trên primary với một số workload.
 
-Đây là cùng loại trade-off đã xuất hiện trong bài MVCC:
+Đây là cùng loại đánh đổi đã xuất hiện trong bài MVCC:
 
 ```text
 standby cần old row version lâu hơn
@@ -395,7 +395,7 @@ primary -> regional standby -> downstream reporting standby
 
 Nếu regional standby lag hoặc unavailable, downstream replica kế thừa dependency đó. PostgreSQL physical cascading replication hiện là asynchronous, vì vậy đừng giả định synchronous policy ở primary tự động kéo dài tới downstream cascaded standby.
 
-Khi incident review, hãy vẽ replication graph thật thay vì chỉ nói “chúng ta có ba replica”.
+Khi sự cố review, hãy vẽ replication graph thật thay vì chỉ nói “chúng ta có ba replica”.
 
 ## 16. Tình huống production: write thành công nhưng read kế tiếp nói rằng chưa có
 
@@ -458,7 +458,7 @@ Quy tắc rộng hơn là gọi tên chính xác acknowledgment stage cần thi�
 - [ ] **Lag budget:** mỗi replica-backed read class có freshness bound hoặc fallback behavior chấp nhận được.
 - [ ] **Lag evidence:** monitor receive, flush và replay progress thay vì một flag “replica healthy” chung chung.
 - [ ] **Hot-standby conflict:** quyết định freshness hay long reporting query thắng khi WAL replay conflict.
-- [ ] **Feedback trade-off:** monitor primary bloat nếu `hot_standby_feedback` bảo vệ long standby query.
+- [ ] **Feedback đánh đổi:** monitor primary bloat nếu `hot_standby_feedback` bảo vệ long standby query.
 - [ ] **Slot lifecycle:** replication slot có owner, lag/disk alert và retirement procedure.
 - [ ] **WAL retention:** giới hạn và quan sát rủi ro stalled consumer làm `pg_wal` tăng hoặc mất restart position.
 - [ ] **Failover:** promotion, routing và client reconnection là procedure đã test thay vì assumption.

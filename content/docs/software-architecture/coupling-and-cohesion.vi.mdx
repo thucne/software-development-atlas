@@ -1,5 +1,5 @@
 ---
-title: "Coupling & Cohesion: Giữ Thay đổi Cục bộ"
+title: "Coupling & Cohesion: Giữ thay đổi cục bộ"
 description: Vận hành boundary phần mềm bằng cách đo change propagation, tăng cohesion, giảm coupling không cần thiết, làm rõ ownership, thu hẹp interface, phá cycle và kiểm chứng contract.
 category: software-architecture
 level: intermediate
@@ -27,7 +27,7 @@ concepts:
   - coupling-and-cohesion
 ---
 
-# Coupling & Cohesion: Giữ Thay đổi Cục bộ
+# Coupling & Cohesion: Giữ thay đổi cục bộ
 
 ## Tóm tắt
 
@@ -168,7 +168,7 @@ Boundary tốt tập trung một reason-to-change và chỉ expose thứ neighbo
 <TermBox term="Change coupling">
 **Change coupling** là evidence cho thấy hai phần software thường xuyên phải thay đổi cùng nhau.
 
-Git history, pull-request diff, incident fix và migration plan có thể lộ ra module co-change dù source code không có direct import edge.
+Git history, pull-request diff, sự cố fix và migration plan có thể lộ ra module co-change dù source code không có direct import edge.
 
 **Vì sao quan trọng:** architecture xoay quanh change. Repeated co-change là signal cụ thể cho hidden shared knowledge, shared data hoặc ownership mismatch.
 </TermBox>
@@ -486,7 +486,7 @@ services cần coordinated deployment
 number of schema/contract changed
 cross-team approval per ordinary change
 rollback coordination count
-incident fix cần multi-module patch
+bản vá sự cố cần sửa đổi trên nhiều module
 ```
 
 Các metric này không hoàn hảo, nhưng trend có thể lộ architecture friction.
@@ -633,7 +633,7 @@ Hãy chọn boundary localize future change quanh ownership rõ ràng, không ph
 
 ## Checklist production
 
-- [ ] **Change map:** bắt đầu từ feature/incident thật và list module phải thay đổi cùng nhau.
+- [ ] **Change map:** bắt đầu từ feature/sự cố thật và list module phải thay đổi cùng nhau.
 - [ ] **Ownership:** assign mỗi business rule/invariant cho một owner rõ ràng.
 - [ ] **Cohesion:** giữ behavior/data cùng reason-to-change gần nhau.
 - [ ] **Public contract:** expose business outcome thay vì private orchestration recipe.

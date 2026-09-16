@@ -47,7 +47,7 @@ Trigger điển hình gồm deployment topology, data ownership, integration con
 
 ## Ghi bối cảnh trước khi tuyên bố đáp án
 
-Bối cảnh hữu ích gồm business goal, phạm vi, kiến trúc hiện tại, ràng buộc, quality attribute, giới hạn vận hành, assumption và bằng chứng như incident, metric, benchmark hoặc experiment.
+Bối cảnh hữu ích gồm business goal, phạm vi, kiến trúc hiện tại, ràng buộc, quality attribute, giới hạn vận hành, assumption và bằng chứng như sự cố, metric, benchmark hoặc experiment.
 
 <TermBox term="Decision Context">
 **Decision context** là tập hợp lực tác động, ràng buộc, bằng chứng và giả định khiến một lựa chọn kiến trúc hợp lý tại một thời điểm cụ thể.
@@ -69,7 +69,7 @@ flowchart TB
   C --> C1[Runtime coupling thấp; eventual consistency]
 ```
 
-Với mỗi phương án khả thi, ghi trade-off quan trọng. Khi cần, liên kết bằng chứng: benchmark, incident report, cost estimate, proof-of-concept hoặc capacity data.
+Với mỗi phương án khả thi, ghi đánh đổi quan trọng. Khi cần, liên kết bằng chứng: benchmark, sự cố report, cost estimate, proof-of-concept hoặc capacity data.
 
 ## Nêu quyết định rõ ràng
 
@@ -116,7 +116,7 @@ flowchart LR
   New --> Note[ADR-0012\nSuperseded by ADR-0037]
 ```
 
-ADR cũ có thể giải thích nhiều năm code, schema, infrastructure và incident. Viết lại nó theo kiến trúc hôm nay sẽ phá mất lời giải thích đó. Giữ ADR cũ trong **nhật ký quyết định**.
+ADR cũ có thể giải thích nhiều năm code, schema, infrastructure và sự cố. Viết lại nó theo kiến trúc hôm nay sẽ phá mất lời giải thích đó. Giữ ADR cũ trong **nhật ký quyết định**.
 
 ## Giữ template gọn nhẹ
 
@@ -133,7 +133,7 @@ Scope: Ordering ↔ Billing
 Vấn đề, ràng buộc, bằng chứng, giả định.
 
 ## Options considered
-Các phương án khả thi và trade-off.
+Các phương án khả thi và sự đánh đổi.
 
 ## Decision
 Chúng ta sẽ làm gì.
@@ -142,7 +142,7 @@ Chúng ta sẽ làm gì.
 Lợi ích, chi phí, rủi ro, trách nhiệm.
 
 ## Links
-Experiment, incident, diagram, ticket, ADR liên quan.
+Thử nghiệm, sự cố, sơ đồ, ticket, ADR liên quan.
 ```
 
 Chỉ thêm field khi nó giúp quyết định tốt hơn. Template mất hàng giờ để điền sẽ bị bỏ qua.
@@ -161,9 +161,9 @@ Phạm vi review nên tương xứng blast radius của quyết định; không 
 
 ## Tình huống production
 
-Một commerce platform từng cho Billing đọc bảng dùng chung của Ordering. Sau nhiều incident và xung đột ownership, các đội chuyển sang event contract nhưng không ai ghi rationale hay constraint của thay đổi đó.
+Một commerce platform từng cho Billing đọc bảng dùng chung của Ordering. Sau nhiều sự cố và xung đột ownership, các đội chuyển sang event contract nhưng không ai ghi rationale hay constraint của thay đổi đó.
 
-Hai năm sau, một đội mới thấy event lag và đề xuất “đơn giản hóa” bằng cách cho Billing đọc lại bảng Ordering. Thiết kế cũ trông rẻ hơn vì incident, ownership conflict và consistency trade-off đã chấp nhận đều không còn nhìn thấy.
+Hai năm sau, một đội mới thấy event lag và đề xuất “đơn giản hóa” bằng cách cho Billing đọc lại bảng Ordering. Thiết kế cũ trông rẻ hơn vì sự cố, ownership conflict và consistency đánh đổi đã chấp nhận đều không còn nhìn thấy.
 
 **Hậu quả:** đội lặp lại tranh luận cũ, mất nhiều tuần tìm lại ràng buộc và có nguy cơ tái tạo cross-team data coupling.
 
@@ -182,7 +182,7 @@ Thông thường là không. Hãy giữ ADR accepted như bằng chứng lịch 
 
 - [ ] Quyết định đủ đáng kể về kiến trúc để cần ADR.
 - [ ] Context nêu vấn đề, phạm vi, constraint, assumption và evidence.
-- [ ] Có các phương án thật cùng trade-off có ý nghĩa.
+- [ ] Có các phương án thật cùng đánh đổi có ý nghĩa.
 - [ ] Decision cụ thể, không chỉ là định hướng mơ hồ.
 - [ ] Consequence gồm cả chi phí và trách nhiệm vận hành.
 - [ ] Status cho biết ADR là proposed, accepted, rejected, deprecated hay superseded.

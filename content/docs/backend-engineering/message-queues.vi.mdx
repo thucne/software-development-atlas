@@ -1,5 +1,5 @@
 ---
-title: "Message Queue: làm rõ giao nhận và hoàn tất"
+title: "Message Queue: Đảm bảo delivery và xác nhận hoàn thành tường minh"
 description: Lập luận về broker hàng đợi qua xác nhận publish, trạng thái ready/in-flight, acknowledgement, giao lại, flow control, phạm vi thứ tự, dead letter, effect lặp an toàn và bằng chứng backlog.
 category: backend-engineering
 level: intermediate
@@ -29,7 +29,7 @@ concepts:
   - message-queues
 ---
 
-# Message Queue: làm rõ giao nhận và hoàn tất
+# Message Queue: Đảm bảo delivery và xác nhận hoàn thành tường minh
 
 ## Tóm tắt
 
@@ -334,7 +334,7 @@ Một producer publish billing job. Broker đã nhận, nhưng mạng lỗi trư
 Cơ chế queue nào đã hỏng?
 
 <details>
-<summary>Xem lập luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Broker có thể đã hoạt động hoàn toàn đúng. Publication đầu tiên mơ hồ từ góc nhìn producer nên retry là hợp lý. Delivery và acknowledgement cũng chạy đúng hợp đồng.
 

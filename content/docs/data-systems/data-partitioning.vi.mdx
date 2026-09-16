@@ -1,5 +1,5 @@
 ---
-title: "Partitioning & Sharding: Suy luận về Cách đặt Dữ liệu"
+title: "Partitioning & Sharding: Suy luận về vị trí đặt dữ liệu"
 description: Suy luận về table partitioning và distributed sharding qua data placement, khóa phân vùng và khóa shard, pruning, hotspot, fan-out, công việc liên shard, ranh giới uniqueness và resharding.
 category: data-systems
 level: intermediate
@@ -30,7 +30,7 @@ concepts:
   - data-partitioning
 ---
 
-# Partitioning & Sharding: Suy luận về Cách đặt Dữ liệu
+# Partitioning & Sharding: Suy luận về vị trí đặt dữ liệu
 
 ## Tóm tắt
 
@@ -269,7 +269,7 @@ tạo future partition sớm
   -> archive / transform / drop ngoài hot path
 ```
 
-Đừng để lần đầu thiết kế maintenance xảy ra trong incident khi insert fail vì partition của ngày mai chưa tồn tại.
+Đừng để lần đầu thiết kế maintenance xảy ra trong sự cố khi insert fail vì partition của ngày mai chưa tồn tại.
 
 ## 8. Constraint cho thấy một ranh giới quan trọng của partitioning
 
@@ -414,7 +414,7 @@ Một số hướng:
 
 - redesign ownership để invariant local trong một shard;
 - chấp nhận asynchronous workflow với idempotency và compensation;
-- dùng distributed transaction mechanism khi latency/availability/operational trade-off hợp lý;
+- dùng distributed transaction mechanism khi latency/availability/operational đánh đổi hợp lý;
 - centralize một global invariant nhỏ vào dedicated authority.
 
 Thiết kế nguy hiểm là cross-shard work xảy ra ngầm phía sau repository method vẫn trông như một local transaction.

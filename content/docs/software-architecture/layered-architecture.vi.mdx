@@ -1,6 +1,6 @@
 ---
-title: "Layered Architecture: Làm Hướng Phụ thuộc Trở nên Tường minh"
-description: Suy luận về layered architecture qua responsibility boundary, dependency rule, strict và relaxed layering, bypass risk, transaction boundary, mapping, cross-cutting concern và trade-off với modularity theo feature.
+title: "Layered Architecture: Làm hướng phụ thuộc trở nên tường minh"
+description: Suy luận về layered architecture qua responsibility boundary, dependency rule, strict và relaxed layering, bypass risk, transaction boundary, mapping, cross-cutting concern và sự đánh đổi với modularity theo feature.
 category: software-architecture
 level: intermediate
 status: evolving
@@ -27,7 +27,7 @@ concepts:
   - layered-architecture
 ---
 
-# Layered Architecture: Làm Hướng Phụ thuộc Trở nên Tường minh
+# Layered Architecture: Làm hướng phụ thuộc trở nên tường minh
 
 ## Tóm tắt nhanh
 
@@ -152,7 +152,7 @@ Classic N-tier thường cho upper layer gọi lower layer. Thiết kế dùng d
 
 Không nên trộn hai model này một cách vô thức. Hãy ghi dependency rule ra rõ ràng.
 
-## 4. Strict và relaxed layering giải quyết trade-off khác nhau
+## 4. Strict và relaxed layering giải quyết đánh đổi khác nhau
 
 **Strict layering** nghĩa là layer chỉ gọi layer liền kề được phép tiếp theo.
 

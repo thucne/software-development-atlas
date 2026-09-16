@@ -280,7 +280,7 @@ Nếu cơ sở dữ liệu không thể commit trong ngân sách còn lại, tr�
 
 ## Quy tắc cho agent
 
-Khi thay đổi một đường xử lý yêu cầu phía máy chủ, đừng chỉ suy luận về thân handler ở happy path. Hãy xác định ranh giới hạn chót/hủy toàn yêu cầu, các cổng xác thực và phân quyền, ranh giới giao dịch nguyên tử, thời điểm phản hồi thành công trở thành đúng sự thật, quyền sở hữu công việc sau commit, ánh xạ lỗi rõ ràng và bằng chứng tương quan chứng minh từng ranh giới trong production.
+Khi thay đổi một đường xử lý yêu cầu phía máy chủ, đừng chỉ suy luận về thân handler ở luồng xử lý lý tưởng (happy path). Hãy xác định ranh giới hạn chót/hủy toàn yêu cầu, các cổng xác thực và phân quyền, ranh giới giao dịch nguyên tử, thời điểm phản hồi thành công trở thành đúng sự thật, quyền sở hữu công việc sau commit, ánh xạ lỗi rõ ràng và bằng chứng tương quan chứng minh từng ranh giới trong production.
 
 ## Nguồn tham khảo
 

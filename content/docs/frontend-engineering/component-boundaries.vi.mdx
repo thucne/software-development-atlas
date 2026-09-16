@@ -1,5 +1,5 @@
 ---
-title: "Ranh giới Component: Làm Ownership và Interface Trở nên Tường minh"
+title: "Ranh giới Component: Làm rõ phạm vi sở hữu và giao diện"
 description: Suy luận về ranh giới component frontend qua trách nhiệm gắn kết, ownership của state và data, props và event tường minh, composition, change locality và contract có thể kiểm thử thay vì dựa vào kích thước file.
 category: frontend-engineering
 level: intermediate
@@ -16,7 +16,7 @@ concepts:
   - component-boundaries
 ---
 
-# Ranh giới Component: Làm Ownership và Interface Trở nên Tường minh
+# Ranh giới Component: Làm rõ phạm vi sở hữu và giao diện
 
 ## Tóm tắt
 
@@ -273,7 +273,7 @@ Một `ProductPage` ecommerce đã phình thành một component đọc URL filt
 Một `CheckoutSummary` 45 dòng nhận `subtotal`, `tax`, `onConfirm`, render chúng và emit đúng một confirm intent. Một `CheckoutPage` 220 dòng sở hữu URL state, coupon validation, payment-method selection, analytics, remote mutation, modal state và ba layout mode không liên quan. Nên tách cái nào trước?
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 `CheckoutPage` 220 dòng đáng được review boundary trước — không phải vì 220 là kích thước bị cấm, mà vì nó trộn nhiều responsibility với owner và lý do thay đổi khác nhau. `CheckoutSummary` 45 dòng đã có contract nhỏ, rõ và một công việc cohesive. Tách nó chỉ để giảm số dòng có thể làm thiết kế tệ hơn. Hãy refactor page bằng cách xác định ownership và contract, rồi chỉ extract boundary nào làm thay đổi cục bộ hơn.
 
