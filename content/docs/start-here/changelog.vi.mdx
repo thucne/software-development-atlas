@@ -38,7 +38,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ### Ngày 16 tháng 09 năm 2026 · Kiến trúc, Độ tin cậy & Kỹ thuật Frontend
 
-Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **13 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
+Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **14 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
 
 #### Kiến trúc Phần mềm
 - [Modular Monolith](/vi/docs/software-architecture/modular-monolith): Thiết kế một deployable duy nhất với ranh giới capability có thể enforce, public contract nhỏ, data ownership logic rõ và tín hiệu tách service dựa trên bằng chứng.
@@ -58,6 +58,7 @@ Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **13 bài
 - [Server và Client Components](/vi/docs/frontend-engineering/server-and-client-components): Xem React Server và Client Components như ranh giới execution/module graph với serialization, dữ liệu lộ ra browser, composition và bundle cost tường minh.
 - [Mô hình State Frontend](/vi/docs/frontend-engineering/frontend-state-models): Phân loại state theo owner, lifetime, scope, persistence và source of truth trước khi chọn local state, URL state, shared store, browser persistence hoặc remote cache.
 - [Data Fetching phía Frontend](/vi/docs/frontend-engineering/frontend-data-fetching): Làm remote observation trở nên tường minh bằng request identity ổn định, vị trí fetch có chủ đích, parallelism, freshness, cache ownership, race handling, mutation invalidation và bounded retry.
+- [Ranh giới Component](/vi/docs/frontend-engineering/component-boundaries): Thiết kế boundary UI theo responsibility gắn kết, ownership rõ của state/data/action, contract data-in và intent-out nhỏ, composition, trade-off của context và change locality thay vì kích thước file tùy ý.
 
 ---
 

@@ -1,4 +1,4 @@
 {
   "title": "Kỹ thuật Frontend",
-  "pages": ["csr-ssr-ssg", "hydration", "server-and-client-components", "frontend-state-models", "frontend-data-fetching"]
+  "pages": ["csr-ssr-ssg", "hydration", "server-and-client-components", "frontend-state-models", "frontend-data-fetching", "component-boundaries"]
 }
