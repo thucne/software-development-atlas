@@ -4,7 +4,7 @@ description: Theo dõi các bài học mới, deep dive, architecture walkthroug
 category: start-here
 level: beginner
 status: evergreen
-lastVerified: 2026-09-10
+lastVerified: 2026-09-16
 reviewAfterDays: 365
 topics:
   - atlas
@@ -35,6 +35,31 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 ---
 
 ## Các mốc phát hành quan trọng
+
+### Ngày 16 tháng 09 năm 2026 · Kiến trúc, Độ tin cậy & Kỹ thuật Frontend
+
+Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **13 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
+
+#### Kiến trúc Phần mềm
+- [Modular Monolith](/vi/docs/software-architecture/modular-monolith): Thiết kế một deployable duy nhất với ranh giới capability có thể enforce, public contract nhỏ, data ownership logic rõ và tín hiệu tách service dựa trên bằng chứng.
+- [Microservices](/vi/docs/software-architecture/microservices): Suy luận về service độc lập triển khai theo business capability, data sovereignty, failure semantics qua network, compatibility, eventual consistency và rủi ro distributed monolith.
+- [Event-Driven Architecture](/vi/docs/software-architecture/event-driven-architecture): Mô hình event như sự kiện đã xảy ra và suy luận về pub/sub, durable stream, replay, at-least-once delivery, ordering, schema, outbox, consumer lag và trade-off điều phối.
+- [Domain Boundaries](/vi/docs/software-architecture/domain-boundaries): Khám phá và enforce bounded context dựa trên business capability, ngôn ngữ, invariant, transaction scope, ownership, context map và anti-corruption layer.
+- [Architecture Decision Records](/vi/docs/software-architecture/architecture-decision-records): Ghi lại quyết định kiến trúc quan trọng cùng context, phương án thay thế, bằng chứng, hệ quả, trạng thái vòng đời, review và supersession.
+
+#### Hệ thống Phân tán
+- [Partial Failure](/vi/docs/distributed-systems/partial-failure): Xem timeout và network ambiguity là bằng chứng của partial failure thay vì bằng chứng chắc chắn về remote failure, kèm recovery, idempotency, isolation, observability và reconciliation tường minh.
+- [Timeouts](/vi/docs/distributed-systems/timeouts): Xác định timeout scope, deadline budget, cancellation, phân bổ budget khi fan-out, tuning từ latency evidence và observability theo từng stage.
+- [Retries & Backoff](/vi/docs/distributed-systems/retries-and-backoff): Phân loại lỗi có thể retry và vận hành bounded retry với remaining-deadline budget, exponential backoff, jitter, `Retry-After`, retry ownership và kiểm soát retry storm ở quy mô fleet.
+
+#### Kỹ thuật Frontend
+- [CSR, SSR và SSG](/vi/docs/frontend-engineering/csr-ssr-ssg): Tách vị trí và thời điểm render khỏi freshness, personalization, cacheability, hydration và cách kết hợp route hybrid.
+- [Hydration](/vi/docs/frontend-engineering/hydration): Suy luận về HTML nhìn thấy được so với trạng thái sẵn sàng tương tác, DOM reuse, initial-render consistency, nguyên nhân mismatch, hydration cost và quy trình debug.
+- [Server và Client Components](/vi/docs/frontend-engineering/server-and-client-components): Xem React Server và Client Components như ranh giới execution/module graph với serialization, dữ liệu lộ ra browser, composition và bundle cost tường minh.
+- [Mô hình State Frontend](/vi/docs/frontend-engineering/frontend-state-models): Phân loại state theo owner, lifetime, scope, persistence và source of truth trước khi chọn local state, URL state, shared store, browser persistence hoặc remote cache.
+- [Data Fetching phía Frontend](/vi/docs/frontend-engineering/frontend-data-fetching): Làm remote observation trở nên tường minh bằng request identity ổn định, vị trí fetch có chủ đích, parallelism, freshness, cache ownership, race handling, mutation invalidation và bounded retry.
+
+---
 
 ### Ngày 10 tháng 09 năm 2026 · Kiến trúc Hệ thống & Nền tảng Kỹ thuật
 
