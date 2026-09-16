@@ -38,7 +38,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ### Ngày 16 tháng 09 năm 2026 · Kiến trúc, Độ tin cậy & Kỹ thuật Frontend
 
-Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **16 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
+Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **17 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
 
 #### Kiến trúc Phần mềm
 - [Modular Monolith](/vi/docs/software-architecture/modular-monolith): Thiết kế một deployable duy nhất với ranh giới capability có thể enforce, public contract nhỏ, data ownership logic rõ và tín hiệu tách service dựa trên bằng chứng.
@@ -51,6 +51,7 @@ Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **16 bài
 - [Partial Failure](/vi/docs/distributed-systems/partial-failure): Xem timeout và network ambiguity là bằng chứng của partial failure thay vì bằng chứng chắc chắn về remote failure, kèm recovery, idempotency, isolation, observability và reconciliation tường minh.
 - [Timeouts](/vi/docs/distributed-systems/timeouts): Xác định timeout scope, deadline budget, cancellation, phân bổ budget khi fan-out, tuning từ latency evidence và observability theo từng stage.
 - [Retries & Backoff](/vi/docs/distributed-systems/retries-and-backoff): Phân loại lỗi có thể retry và vận hành bounded retry với remaining-deadline budget, exponential backoff, jitter, `Retry-After`, retry ownership và kiểm soát retry storm ở quy mô fleet.
+- [Ngữ nghĩa giao nhận](/vi/docs/distributed-systems/delivery-semantics): Phân biệt at-most-once, at-least-once và claim exactly-once có scope bằng cách suy luận về thời điểm acknowledgement, crash window, redelivery, idempotent consumer, ordering, poison-message handling và atomic coordination giữa consumed progress với business effect.
 
 #### Kỹ thuật Frontend
 - [CSR, SSR và SSG](/vi/docs/frontend-engineering/csr-ssr-ssg): Tách vị trí và thời điểm render khỏi freshness, personalization, cacheability, hydration và cách kết hợp route hybrid.
