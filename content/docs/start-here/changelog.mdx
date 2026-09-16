@@ -4,7 +4,7 @@ description: Track new lessons, deep dives, architectural walkthroughs, and visu
 category: start-here
 level: beginner
 status: evergreen
-lastVerified: 2026-09-10
+lastVerified: 2026-09-16
 reviewAfterDays: 365
 topics:
   - atlas
@@ -35,6 +35,31 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 ---
 
 ## Releases & Milestones
+
+### September 16, 2026 · Architecture, Reliability & Frontend Engineering Follow-up
+
+Since the September 10 milestone, the Atlas has merged **13 additional canonical deep dives** across software architecture, distributed-systems reliability, and frontend engineering. This entry reconciles the lessons published from September 11 through September 16 so the changelog matches the current `main` branch and production curriculum.
+
+#### Software Architecture
+- [Modular Monolith](/docs/software-architecture/modular-monolith): Design one deployable with enforceable capability boundaries, small public contracts, logical data ownership, and evidence-driven service extraction.
+- [Microservices](/docs/software-architecture/microservices): Reason about independently deployable business-capability services, data sovereignty, network failure semantics, compatibility, eventual consistency, and distributed-monolith risk.
+- [Event-Driven Architecture](/docs/software-architecture/event-driven-architecture): Model events as past facts and reason about pub/sub, durable streams, replay, at-least-once delivery, ordering, schemas, outbox patterns, lag, and coordination trade-offs.
+- [Domain Boundaries](/docs/software-architecture/domain-boundaries): Discover and enforce bounded contexts using business capability, language, invariants, transaction scope, ownership, context maps, and anti-corruption layers.
+- [Architecture Decision Records](/docs/software-architecture/architecture-decision-records): Record architecturally significant decisions with context, alternatives, evidence, explicit consequences, lifecycle status, review, and supersession.
+
+#### Distributed Systems
+- [Partial Failure](/docs/distributed-systems/partial-failure): Treat timeout and network ambiguity as partial-failure evidence rather than proof of remote failure, with explicit recovery, idempotency, isolation, observability, and reconciliation.
+- [Timeouts](/docs/distributed-systems/timeouts): Define timeout scope, deadline budgets, cancellation, fan-out allocation, tuning from latency evidence, and stage-level observability.
+- [Retries & Backoff](/docs/distributed-systems/retries-and-backoff): Classify retryable failures and operate bounded retries with remaining-deadline budgets, exponential backoff, jitter, `Retry-After`, retry ownership, and fleet-level storm control.
+
+#### Frontend Engineering
+- [CSR, SSR, and SSG](/docs/frontend-engineering/csr-ssr-ssg): Separate rendering placement and timing from freshness, personalization, cacheability, hydration, and hybrid route composition.
+- [Hydration](/docs/frontend-engineering/hydration): Reason about visible HTML versus interaction readiness, DOM reuse, initial-render consistency, mismatch causes, hydration cost, and debugging.
+- [Server and Client Components](/docs/frontend-engineering/server-and-client-components): Treat React Server and Client Components as execution and module-graph boundaries with explicit serialization, browser-visible data, composition, and bundle cost.
+- [Frontend State Models](/docs/frontend-engineering/frontend-state-models): Classify state by owner, lifetime, scope, persistence, and source of truth before choosing local state, URL state, shared stores, browser persistence, or remote caches.
+- [Frontend Data Fetching](/docs/frontend-engineering/frontend-data-fetching): Make remote observations explicit through stable request identity, intentional fetch placement, parallelism, freshness, cache ownership, race handling, mutation invalidation, and bounded retry.
+
+---
 
 ### September 10, 2026 · System Architecture & Engineering Foundations
 
