@@ -38,7 +38,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ### September 16, 2026 · Architecture, Reliability & Frontend Engineering Follow-up
 
-Since the September 10 milestone, the Atlas has merged **16 additional canonical deep dives** across software architecture, distributed-systems reliability, and frontend engineering. This entry reconciles the lessons published from September 11 through September 16 so the changelog matches the current `main` branch and production curriculum.
+Since the September 10 milestone, the Atlas has merged **17 additional canonical deep dives** across software architecture, distributed-systems reliability, and frontend engineering. This entry reconciles the lessons published from September 11 through September 16 so the changelog matches the current `main` branch and production curriculum.
 
 #### Software Architecture
 - [Modular Monolith](/docs/software-architecture/modular-monolith): Design one deployable with enforceable capability boundaries, small public contracts, logical data ownership, and evidence-driven service extraction.
@@ -51,6 +51,7 @@ Since the September 10 milestone, the Atlas has merged **16 additional canonical
 - [Partial Failure](/docs/distributed-systems/partial-failure): Treat timeout and network ambiguity as partial-failure evidence rather than proof of remote failure, with explicit recovery, idempotency, isolation, observability, and reconciliation.
 - [Timeouts](/docs/distributed-systems/timeouts): Define timeout scope, deadline budgets, cancellation, fan-out allocation, tuning from latency evidence, and stage-level observability.
 - [Retries & Backoff](/docs/distributed-systems/retries-and-backoff): Classify retryable failures and operate bounded retries with remaining-deadline budgets, exponential backoff, jitter, `Retry-After`, retry ownership, and fleet-level storm control.
+- [Delivery Semantics](/docs/distributed-systems/delivery-semantics): Distinguish at-most-once, at-least-once, and scoped exactly-once claims by reasoning about acknowledgement timing, crash windows, redelivery, idempotent consumers, ordering, poison-message handling, and atomic coordination between consumed progress and business effects.
 
 #### Frontend Engineering
 - [CSR, SSR, and SSG](/docs/frontend-engineering/csr-ssr-ssg): Separate rendering placement and timing from freshness, personalization, cacheability, hydration, and hybrid route composition.
