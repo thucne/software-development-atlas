@@ -38,7 +38,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ### Ngày 16 tháng 09 năm 2026 · Kiến trúc, Độ tin cậy & Kỹ thuật Frontend
 
-Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **15 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
+Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **16 bài deep dive canonical** thuộc kiến trúc phần mềm, độ tin cậy của hệ thống phân tán và kỹ thuật frontend. Mục này reconcile các bài đã phát hành từ ngày 11 đến ngày 16 tháng 09 để nhật ký thay đổi khớp với nhánh `main` và chương trình học đang chạy trên production.
 
 #### Kiến trúc Phần mềm
 - [Modular Monolith](/vi/docs/software-architecture/modular-monolith): Thiết kế một deployable duy nhất với ranh giới capability có thể enforce, public contract nhỏ, data ownership logic rõ và tín hiệu tách service dựa trên bằng chứng.
@@ -60,6 +60,7 @@ Kể từ mốc phát hành ngày 10 tháng 09, Atlas đã merge thêm **15 bài
 - [Data Fetching phía Frontend](/vi/docs/frontend-engineering/frontend-data-fetching): Làm remote observation trở nên tường minh bằng request identity ổn định, vị trí fetch có chủ đích, parallelism, freshness, cache ownership, race handling, mutation invalidation và bounded retry.
 - [Ranh giới Component](/vi/docs/frontend-engineering/component-boundaries): Thiết kế boundary UI theo responsibility gắn kết, ownership rõ của state/data/action, contract data-in và intent-out nhỏ, composition, trade-off của context và change locality thay vì kích thước file tùy ý.
 - [Hiệu năng Bundle Frontend](/vi/docs/frontend-engineering/frontend-bundle-performance): Kiểm soát JavaScript gửi xuống browser bằng cách trace client dependency graph, tách transfer cost khỏi execution cost, defer capability tùy chọn, tree shaking an toàn, audit third-party code, phân tích chunk/import chain và giữ regression budget.
+- [Khả năng truy cập Web](/vi/docs/frontend-engineering/web-accessibility): Vận hành giao diện có thể truy cập bằng HTML ngữ nghĩa, accessible name, keyboard/focus behavior, form và error state bền vững, dynamic announcement, phương án thay thế phi thị giác, zoom/reflow/target check và verification nhiều lớp bằng automation lẫn công nghệ hỗ trợ.
 
 ---
 
