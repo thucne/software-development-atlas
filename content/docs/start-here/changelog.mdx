@@ -36,9 +36,17 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ## Releases & Milestones
 
-### September 17, 2026 · Distributed Systems Completion & Cloud Infrastructure Start
+### September 17, 2026 · Repository-Wide Pedagogical Upgrade & Distributed Systems Completion
 
-The Atlas adds **5 canonical distributed-systems deep dives** that separate replication mechanics, consensus agreement, temporary exclusive ownership, reliable event publication, and long-lived workflow compensation while keeping failover authority, committed history, quorum behavior, leases, fencing, dual-write atomicity, recovery, and reconciliation explicit.
+The Atlas adds **5 canonical distributed-systems deep dives** that separate replication mechanics, consensus agreement, temporary exclusive ownership, reliable event publication, and long-lived workflow compensation while keeping failover authority, committed history, quorum behavior, leases, fencing, dual-write atomicity, recovery, and reconciliation explicit. This release also delivers a sweeping pedagogical upgrade across all 65 canonical lessons:
+
+#### Pedagogical Upgrade: TL;DR 2.0 Across All 65 Lessons
+- **Universal Rollout:** Upgraded all 65 canonical lessons (130 bilingual MDX files) to the **TL;DR 2.0** standard, prioritizing high-velocity learning and concrete production reality.
+- **Real-World Incident Hooks:** Every single lesson now begins with an iconic production outage or post-mortem (such as the 2017 AWS S3 cascading typo outage, Knight Capital's $440M deployment disaster, GitHub's 2018 network partition split-brain, Cloudflare's ReDoS lockup, and Healthcare.gov's launch failure), directly connecting conceptual models to operational stakes.
+- **Rule of Thumb Heuristics:** Embedded instant, high-leverage blockquotes (`> 💡 **Rule of thumb:** ...`) in every lesson header to give engineers an immediate decision compass within seconds of reading.
+- **Fatal Pitfall Warnings:** Made dangerous architectural antipatterns (`Fatal pitfall: ...`) explicitly visible before bad patterns reach production.
+- **Standardized 5-Takeaway Core:** Streamlined every lesson summary into 5 crisp, keyword-bolded takeaways optimized for efficient scanning and retention.
+- **React 19 & Next.js 16 Runtime Optimization:** Re-engineered announcement banner components for clean client hydration without inline script warnings.
 
 #### Distributed Systems
 - [Distributed Replication](/docs/distributed-systems/distributed-replication): Reason about authoritative writers and ordered updates, asynchronous versus synchronous acknowledgment boundaries, replica lag, snapshot-based catch-up, failover fencing, multi-writer reconciliation, replica placement, and the boundary between replication and consensus.

@@ -36,9 +36,17 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 
-### Ngày 17 tháng 09 năm 2026 · Hoàn thiện Hệ thống Phân tán & Khởi đầu Cloud Infrastructure
+### Ngày 17 tháng 09 năm 2026 · Nâng cấp Sư phạm Toàn bộ Kho tri thức & Hoàn thiện Hệ thống Phân tán
 
-Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **5 bài deep dive canonical về hệ thống phân tán**, tách cơ chế replication, agreement của consensus, temporary exclusive ownership, reliable event publication và long-lived workflow compensation đồng thời làm rõ authority khi failover, committed history, quorum behavior, lease, fencing, dual-write atomicity, recovery và reconciliation.
+Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **5 bài deep dive canonical về hệ thống phân tán**, tách cơ chế replication, agreement của consensus, temporary exclusive ownership, reliable event publication và long-lived workflow compensation đồng thời làm rõ authority khi failover, committed history, quorum behavior, lease, fencing, dual-write atomicity, recovery và reconciliation. Đồng thời, đợt phát hành mang đến bước nâng cấp sư phạm toàn diện trên toàn bộ 65 bài học canonical:
+
+#### Nâng cấp Sư phạm Chuẩn hóa: TL;DR 2.0 trên Toàn bộ 65 Bài học
+- **Triển khai đồng bộ:** Nâng cấp toàn diện 65 bài học canonical (130 tệp song ngữ MDX) lên chuẩn **TL;DR 2.0**, ưu tiên tốc độ tiếp cận kiến thức và thực tế vận hành sản xuất.
+- **Khởi đầu bằng Sự cố Sản xuất Thực tế:** Mỗi bài học đều mở màn bằng một sự cố kinh điển (như thảm họa AWS S3 gõ nhầm lệnh năm 2017, Knight Capital bay màu 440 triệu USD do lỗi release, split-brain của GitHub 2018, CPU lockup của Cloudflare, hay sự sụp đổ của Healthcare.gov), kết nối trực tiếp lý thuyết với bài học xương máu trong ngành.
+- **Quy tắc Bỏ túi Thực chiến:** Đặt khối quy tắc cốt lõi (`> 💡 **Quy tắc bỏ túi:** ...`) ngay đầu bài để kỹ sư nắm trọn nguyên tắc ra quyết định chỉ sau vài giây đọc lướt.
+- **Nhận diện Cạm bẫy Chết người:** Làm rõ các phản mẫu kiến trúc nguy hại (`Cạm bẫy chết người: ...`) nhằm phòng tránh rủi ro hỏng dữ liệu hoặc sự cố nghiêm trọng.
+- **Cấu trúc 5 Điểm cốt lõi:** Chuẩn hóa phần tóm tắt thành 5 điểm then chốt với từ khóa in đậm giúp tối ưu hóa việc ghi nhớ và tra cứu.
+- **Tối ưu Runtime React 19 & Next.js 16:** Tái cấu trúc component banner phát hành để hydration client sạch sẽ, không còn cảnh báo script tag.
 
 #### Hệ thống Phân tán
 - [Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication): Suy luận về writer có quyền và thứ tự cập nhật, ranh giới xác nhận bất đồng bộ so với đồng bộ, replica lag, catch-up dựa trên snapshot, fencing khi failover, reconciliation khi có nhiều writer, vị trí replica và ranh giới giữa replication với consensus.
