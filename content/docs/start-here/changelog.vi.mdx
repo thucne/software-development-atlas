@@ -36,13 +36,14 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 
-### Ngày 17 tháng 09 năm 2026 · Sao chép phân tán & Đồng thuận
+### Ngày 17 tháng 09 năm 2026 · Sao chép phân tán, Đồng thuận & Khóa phân tán
 
-Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **2 bài deep dive canonical về hệ thống phân tán**, tách cơ chế replication khỏi agreement của consensus đồng thời làm rõ authority khi failover, committed history, hành vi quorum, recovery và reconciliation.
+Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **3 bài deep dive canonical về hệ thống phân tán**, tách cơ chế replication, agreement của consensus và temporary exclusive ownership đồng thời làm rõ authority khi failover, committed history, hành vi quorum, lease, fencing, recovery và reconciliation.
 
 #### Hệ thống Phân tán
 - [Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication): Suy luận về writer có quyền và thứ tự cập nhật, ranh giới xác nhận bất đồng bộ so với đồng bộ, replica lag, catch-up dựa trên snapshot, fencing khi failover, reconciliation khi có nhiều writer, vị trí replica và ranh giới giữa replication với consensus.
 - [Đồng thuận phân tán](/vi/docs/distributed-systems/consensus): Nhận diện consensus như việc thống nhất một committed history duy nhất thông qua quorum intersection, bầu leader và term, replicated log, commit boundary rõ, hành vi majority/minority khi partition, safety khi mất quorum và chi phí độ trễ của coordination.
+- [Khóa phân tán](/vi/docs/distributed-systems/distributed-locks): Suy luận về ownership dựa trên lease, renewal, unique owner token, fencing stale holder, unlock an toàn, kiểm soát contention, lock granularity và ranh giới giữa coordination, consensus, database lock với idempotency.
 
 ---
 

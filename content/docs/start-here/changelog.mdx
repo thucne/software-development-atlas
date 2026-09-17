@@ -36,13 +36,14 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ## Releases & Milestones
 
-### September 17, 2026 · Distributed Replication & Consensus
+### September 17, 2026 · Distributed Replication, Consensus & Distributed Locks
 
-The Atlas adds **2 canonical distributed-systems deep dives** that separate replication mechanics from consensus agreement while keeping failover authority, committed history, quorum behavior, recovery, and reconciliation explicit.
+The Atlas adds **3 canonical distributed-systems deep dives** that separate replication mechanics, consensus agreement, and temporary exclusive ownership while keeping failover authority, committed history, quorum behavior, leases, fencing, recovery, and reconciliation explicit.
 
 #### Distributed Systems
 - [Distributed Replication](/docs/distributed-systems/distributed-replication): Reason about authoritative writers and ordered updates, asynchronous versus synchronous acknowledgment boundaries, replica lag, snapshot-based catch-up, failover fencing, multi-writer reconciliation, replica placement, and the boundary between replication and consensus.
 - [Consensus](/docs/distributed-systems/consensus): Recognize consensus as agreement on one committed history through quorum intersection, leader election and terms, replicated logs, explicit commit boundaries, majority/minority partition behavior, loss-of-quorum safety, and the latency cost of coordination.
+- [Distributed Locks](/docs/distributed-systems/distributed-locks): Reason about lease-backed ownership, renewal, unique owner tokens, fencing stale holders, safe unlock, contention control, lock granularity, and the boundary between coordination, consensus, database locks, and idempotency.
 
 ---
 
