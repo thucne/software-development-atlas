@@ -1,0 +1,258 @@
+---
+title: "Transactional Outbox: Phát sự kiện mà không tạo khoảng trống dual-write"
+description: Vận hành transactional outbox bằng cách commit trạng thái nghiệp vụ và ý định phát sự kiện một cách nguyên tử, rồi relay với duplicate-safe delivery, ordering, recovery và observability.
+category: distributed-systems
+level: intermediate
+status: evolving
+lastVerified: 2026-09-17
+reviewAfterDays: 180
+topics: [distributed-systems, transactional-outbox, messaging, transactions, reliability]
+prerequisites: [database-transactions, message-queues, delivery-semantics, idempotency]
+related: [sagas, event-driven-architecture, background-jobs, database-transactions]
+technologies: [postgresql, kafka, debezium]
+contentType: deep-dive
+learningDepth: operate
+concepts:
+  - transactional-outbox
+---
+
+# Transactional Outbox: Phát sự kiện mà không tạo khoảng trống dual-write
+
+## TL;DR
+
+Một service thường cần một thao tác nghiệp vụ tạo ra hai thay đổi bền vững: cập nhật database và thông báo cho hệ thống khác biết điều gì đã xảy ra. Ghi database rồi publish lên broker như hai thao tác độc lập tạo ra **khoảng trống dual-write**: một phía có thể thành công trong khi phía còn lại thất bại.
+
+Transactional outbox đóng khoảng trống nguyên tử đó bằng cách ghi business state và một **bản ghi outbox chứa ý định phát sự kiện trong cùng một transaction của database**. Sau đó một relay độc lập publish các bản ghi outbox đã commit lên broker.
+
+Contract hữu ích là:
+
+1. Nếu business transaction rollback, không có event đã commit để phát.
+2. Nếu business transaction commit, ý định publish đã bền vững ngay cả khi process crash tức thì.
+3. Publication vẫn bất đồng bộ và có thể lặp lại, vì vậy consumer vẫn phải idempotent.
+
+```mermaid
+flowchart LR
+  A["Application transaction"] --> B["Business row"]
+  A --> O["Outbox row"]
+  B --> C["COMMIT"]
+  O --> C
+  C --> R["Relay"]
+  R --> M["Broker"]
+  M --> D["Downstream consumer"]
+```
+
+<TermBox term="Transactional Outbox">
+**Transactional outbox** lưu một ý định giao tiếp bền vững cạnh business state trong cùng một local database transaction. Relay publish ý định đó sau commit. Pattern này loại bỏ dual-write atomicity gap giữa database và broker; nó không biến toàn workflow thành exactly-once.
+</TermBox>
+
+## Bắt đầu từ failure matrix của dual-write
+
+Giả sử checkout chuyển một order sang `PAID` và publish `OrderPaid`.
+
+Một implementation ngây thơ có thể làm như sau:
+
+```text
+BEGIN
+UPDATE orders SET status = 'PAID' WHERE id = ?
+COMMIT
+
+publish OrderPaid
+```
+
+Database và broker là hai hệ thống có thể hỏng độc lập. Đổi ngược thứ tự cũng không giải quyết được vấn đề.
+
+```mermaid
+flowchart TD
+  S["Checkout quyết định OrderPaid"] --> D{"Ghi database trước?"}
+  D -->|"có"| DB["Commit order"]
+  DB --> X1["Crash trước publish: state có, event mất"]
+  D -->|"không"| MQ["Publish event"]
+  MQ --> X2["DB rollback sau đó: event mô tả state chưa từng commit"]
+```
+
+Outbox thay đổi boundary. Ứng dụng không cố điều khiển database và broker như một transaction nguyên tử duy nhất. Nó chỉ atomically control các tài nguyên vốn đã nằm trong cùng local transaction: business row và bản ghi outbox.
+
+Một bản ghi outbox điển hình mang đủ dữ liệu cho publication tất định và duplicate handling:
+
+```text
+id             event ID duy nhất toàn cục
+aggregate_id   order-123
+aggregate_type Order
+event_type     OrderPaid
+payload        event body đã serialize
+sequence       sequence tùy chọn theo aggregate
+created_at     timestamp tạo bền vững
+```
+
+`id` trở thành event ID hoặc message ID ổn định để downstream consumer deduplicate.
+
+<TermBox term="Publication Intent">
+**Publication intent** là phát biểu bền vững rằng “sau khi transaction này commit, event này phải được đưa tới messaging boundary.” Nó chưa phải bằng chứng rằng broker đã nhận message.
+</TermBox>
+
+## Commit trước, publish sau
+
+Invariant trung tâm rất đơn giản: **commit trước publish**. Cụ thể hơn, business change và outbox record commit cùng nhau; chỉ record đã commit mới được phép publish.
+
+Pseudo-code:
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.orders.markPaid(orderId);
+  await tx.outbox.insert({
+    id: eventId,
+    aggregateId: orderId,
+    eventType: 'OrderPaid',
+    payload,
+  });
+});
+```
+
+Request có thể hoàn tất sau khi local transaction commit. Publication được tách khỏi request latency và lifetime của process xử lý request.
+
+Nếu process chết ngay sau commit, outbox row vẫn còn. Khi khởi động lại, relay có thể tìm record và tiếp tục publish.
+
+## Relay các record đã commit
+
+Có hai họ implementation phổ biến.
+
+**Polling publisher.** Worker query các outbox row đã commit, nhận quyền xử lý một batch giới hạn, publish chúng, chờ broker acknowledgement rồi mark hoặc delete các row. Khi có nhiều poller, database phải ngăn hai worker cùng claim một row tại cùng thời điểm. Cơ chế kiểu PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`, lease tường minh hoặc atomic status transition đều là các lựa chọn; cách cụ thể phụ thuộc database và workload.
+
+**Change data capture (CDC).** Connector đọc transaction log, quan sát thay đổi đã commit của outbox table rồi chuyển chúng thành broker record. Debezium Outbox Event Router là một implementation cụ thể. CDC loại bỏ application polling, nhưng operational responsibility chuyển sang database-log/connector pipeline.
+
+Dù chọn cách nào, invariant vẫn giống nhau: chỉ outbox state đã commit mới được publish.
+
+```mermaid
+flowchart LR
+  DB["Committed outbox rows"] --> P["Poller claim batch"]
+  DB --> CDC["CDC đọc transaction log"]
+  P --> B["Broker"]
+  CDC --> B
+  B --> ACK["Publish acknowledged"]
+  ACK --> DONE["Mark sent / delete / archive"]
+  B --> C["Idempotent consumer"]
+```
+
+## Duplicate publication là trạng thái bình thường
+
+Relay có ambiguity window riêng:
+
+1. Publish event `E42`.
+2. Broker đã lưu `E42` bền vững.
+3. Relay crash trước khi ghi “published” vào database.
+4. Relay restart và publish `E42` lần nữa.
+
+Đây thường là failure mode đúng. Retry bảo vệ khỏi mất event; duplicate-safe processing bảo vệ business effect khỏi bị lặp.
+
+Đừng claim rằng outbox tạo ra business effect **exactly-once** end-to-end. Nó loại bỏ một dual-write gap. Broker redelivery, relay retry, consumer crash và external side effect vẫn có boundary riêng.
+
+Consumer có thể làm business effect bền vững trở nên idempotent bằng cách ghi event ID atomically cùng effect được bảo vệ:
+
+```text
+BEGIN
+INSERT INTO processed_events(event_id) VALUES ('E42')
+  -- unique constraint chặn replay
+APPLY business change
+COMMIT
+```
+
+Nếu consumer còn gọi một remote system khác, remote effect đó cần idempotency contract hoặc coordination strategy riêng.
+
+## Chỉ giữ ordering thật sự cần thiết
+
+Thứ tự tạo outbox không tự động trở thành thứ tự consumer quan sát. Nhiều relay worker, retry, nhiều broker partition và consumer concurrency đều có thể reorder event.
+
+Nếu domain yêu cầu ordering theo aggregate, hãy biến yêu cầu đó thành explicit contract. Các công cụ thường gặp gồm:
+
+- `sequence` theo aggregate được ghi cùng business transaction;
+- aggregate ID làm partition key của broker;
+- consumer kiểm tra sequence bị thiếu hoặc stale;
+- serialize relay ownership chỉ ở nơi thực sự cần, thay vì serialize toàn bộ outbox.
+
+Global ordering đắt hơn rất nhiều so với per-aggregate ordering và hiếm khi là invariant thật sự.
+
+## Vận hành relay như một production subsystem
+
+Transactional outbox chưa hoàn chỉnh chỉ vì có table. Relay cần bounded work, retry policy, poison-event handling, cleanup và telemetry.
+
+Với polling relay:
+
+- Claim batch nhỏ để một worker không giữ database lock trong lúc publish hàng nghìn record.
+- Ownership phải tường minh. Row đang retry bởi worker A không nên bị worker B lấy ngầm trừ khi claim lease hết hạn hoặc atomic state transition cho phép.
+- Dùng bounded retry với backoff cho broker failure tạm thời.
+- Sau nhiều lần lỗi tất định như serialization sai hoặc schema rejection, hãy cách ly poison record hoặc đẩy qua workflow DLQ có chủ đích thay vì retry vô hạn.
+- Giữ sent row đủ lâu cho audit và reconciliation, sau đó xóa hoặc archive theo retention policy rõ ràng.
+
+Về observability, tối thiểu theo dõi:
+
+- unpublished backlog count;
+- tuổi của event chưa publish cũ nhất;
+- publish latency từ lúc outbox commit tới broker acknowledgement;
+- retry/error rate theo failure class;
+- số event bị quarantine hoặc DLQ;
+- relay throughput so với tốc độ tạo record.
+
+Tuổi của event cũ nhất thường actionable hơn backlog count đơn thuần: mười record bị kẹt hai giờ có thể nghiêm trọng hơn mười nghìn record đang drain bình thường.
+
+## Production micro-scenario: payment đã commit, event biến mất
+
+Checkout service cập nhật `orders.status = 'PAID'`, commit rồi publish `OrderPaid` lên broker. Trong lúc deploy, process bị terminate trong vài millisecond sau database commit nhưng trước khi publish call chạy.
+
+**Hậu quả:** Fulfillment không bao giờ bắt đầu cho một order đã thanh toán. API đã trả success và database đúng ở local state, nhưng downstream không bao giờ quan sát transition đó.
+
+**Nguyên nhân cốt lõi:** Service coi database commit và broker publish như thể chúng tạo thành một thao tác nguyên tử. Thực tế đó là dual-write qua hai failure domain mà không có ý định phát sự kiện bền vững ở giữa.
+
+**Cách khắc phục chuẩn:** Trong cùng một transaction đánh dấu order là paid, insert outbox row với event ID ổn định, aggregate ID, event type, payload và sequence nếu cần. Commit cả hai cùng nhau. Để relay publish sau commit, retry ambiguous failure và yêu cầu consumer idempotent vì duplicate publication vẫn có thể xảy ra.
+
+<details>
+<summary>Xem cách suy luận</summary>
+
+Publish trước database commit chỉ đảo ngược failure. Rollback có thể khiến downstream xử lý một event mà business state chưa từng trở nên bền vững. Outbox hiệu quả vì atomic boundary được thu hẹp về một local database transaction, còn communication trở thành asynchronous work có thể recovery.
+
+</details>
+
+## Polling hay CDC
+
+Chọn relay mechanism theo operational ownership, không theo trào lưu.
+
+Polling publisher thường dễ hơn khi application team đã vận hành worker và cần trực tiếp control batch size, claim policy, retry và cleanup. Đánh đổi là query load và nhu cầu thiết kế concurrent claiming an toàn.
+
+CDC hấp dẫn khi reliable log capture đã là capability của platform. Nó có thể giảm polling và tự nhiên chỉ quan sát committed change, nhưng connector lag, schema evolution, offset, retention và connector recovery trở thành một phần operating model.
+
+Cả hai vẫn cần message identity, ordering rule, monitoring và duplicate-safe consumer.
+
+## Outbox so với các pattern lân cận
+
+**Outbox so với two-phase commit (2PC).** 2PC hoặc distributed transaction protocol khác cố coordinate commit qua nhiều transactional resource. Outbox chủ động tránh bắt database và broker cùng tham gia một giao dịch phân tán. Nó chấp nhận publication bất đồng bộ.
+
+**Outbox so với Saga.** Saga coordinate một business workflow đi qua nhiều local transaction và compensating action. Outbox giải bài toán hẹp hơn: publish đáng tin cậy ý định giao tiếp từ một local transaction. Một Saga step có thể dùng outbox để thông báo local transaction của nó đã commit.
+
+**Outbox so với Event Sourcing.** Event sourcing lấy event làm source of truth để tái tạo state. Outbox thường là delivery bridge từ business state thông thường sang messaging system. Hai pattern có thể cùng tồn tại nhưng trả lời hai câu hỏi khác nhau.
+
+## Checklist vận hành theo failure
+
+- [ ] **Atomic write:** Business change và outbox record có được commit trong cùng một transaction không?
+- [ ] **Stable identity:** Mỗi record có event ID bền vững qua mọi retry không?
+- [ ] **Claiming:** Nhiều relay worker có thể claim work mà không vô tình publish cùng một row song song không?
+- [ ] **Acknowledgement boundary:** Row chỉ được mark sent sau broker durability acknowledgement cần thiết chưa?
+- [ ] **Duplicate safety:** Relay retry hoặc broker redelivery có thể lặp message mà không lặp protected business effect không?
+- [ ] **Ordering:** Scope ordering cần thiết đã rõ chưa, ví dụ per aggregate hoặc partition key?
+- [ ] **Poison handling:** Có bounded retry và quarantine/DLQ path cho deterministic failure chưa?
+- [ ] **Cleanup:** Retention, delete hoặc archive sent record đã rõ và observable chưa?
+- [ ] **Lag:** Dashboard và alert có cả backlog lẫn tuổi event chưa publish cũ nhất chưa?
+
+## Quy tắc cho agent
+
+- [ ] Không sửa database-plus-broker dual-write chỉ bằng cách đổi thứ tự hai operation.
+- [ ] Giữ atomic boundary ở local: business state và publication intent phải nằm trong cùng transaction.
+- [ ] Xem relay publication là at-least-once trừ khi có bằng chứng cho một guarantee hẹp hơn end to end.
+- [ ] Giữ nguyên event ID và aggregate ordering metadata qua mọi retry.
+- [ ] Yêu cầu idempotency ở consumer bảo vệ business effect không thể lặp an toàn.
+- [ ] Làm relay lag, retry, poison record và cleanup observable trước khi gọi pattern là production-ready.
+- [ ] Chỉ dùng 2PC khi thực sự cần semantics của distributed coordination; không coi outbox là từ đồng nghĩa với distributed transaction.
+- [ ] Dùng Saga cho multi-service business workflow coordination; dùng outbox để publish đáng tin cậy committed intent của local transaction.
+
+## Tài liệu chính
+
+- AWS Prescriptive Guidance, **Transactional outbox pattern**: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html
+- Debezium Documentation, **Outbox Event Router**: https://debezium.io/documentation/reference/transformations/outbox-event-router.html
