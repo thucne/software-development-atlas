@@ -36,7 +36,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ## Releases & Milestones
 
-### September 17, 2026 · Distributed Replication, Consensus, Distributed Locks, Transactional Outbox & Sagas
+### September 17, 2026 · Distributed Systems Completion & Cloud Infrastructure Start
 
 The Atlas adds **5 canonical distributed-systems deep dives** that separate replication mechanics, consensus agreement, temporary exclusive ownership, reliable event publication, and long-lived workflow compensation while keeping failover authority, committed history, quorum behavior, leases, fencing, dual-write atomicity, recovery, and reconciliation explicit.
 
@@ -46,6 +46,9 @@ The Atlas adds **5 canonical distributed-systems deep dives** that separate repl
 - [Distributed Locks](/docs/distributed-systems/distributed-locks): Reason about lease-backed ownership, renewal, unique owner tokens, fencing stale holders, safe unlock, contention control, lock granularity, and the boundary between coordination, consensus, database locks, and idempotency.
 - [Transactional Outbox](/docs/distributed-systems/transactional-outbox): Operate reliable event publication by committing business state and publication intent atomically, relaying committed outbox records, tolerating duplicate publication with idempotent consumers, preserving required ordering, and monitoring relay backlog and lag.
 - [Sagas](/docs/distributed-systems/sagas): Reason about long-lived distributed workflows as durable sequences of local transactions with semantic compensation, explicit pivot points, idempotent retry, unknown-outcome reconciliation, choreography versus orchestration, intermediate-state controls, and compensation observability.
+
+#### Cloud & Infrastructure
+- [Cloud Networking](/docs/cloud-infrastructure/cloud-networking): Operate reachability by tracing CIDR addressing, subnet placement, effective routes, gateways, NAT, ingress/egress policy, DNS, private endpoints, return paths, and connected-network boundaries without conflating network access with IAM or application authorization.
 
 ---
 
