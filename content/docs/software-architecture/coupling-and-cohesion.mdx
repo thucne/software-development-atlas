@@ -29,14 +29,18 @@ concepts:
 
 # Coupling & Cohesion: Keep Change Local
 
+It is 4:45 PM on a Friday when a developer commits a "minor refactor": renaming a single column in the `users` table from `status` to `account_status`. Within ten minutes, CI turns into a sea of red across 14 separate services and modules. Background notification workers fail silently, invoice generation halts with missing property exceptions, and the mobile API gateway begins throwing 500 errors. No single engineer touched those 14 services—yet all 14 broke simultaneously.
+
+This is the catastrophic cost of **tight coupling** and **scattered cohesion**. When database tables are shared indiscriminately and business logic is sprayed like spaghetti across repositories, a single localized edit detonates a massive change ripple across the entire system.
+
+> 💡 **Rule of thumb:** Maximize cohesion within boundaries so code changes together for a single business reason; minimize coupling across boundaries so internal implementation details never leak or force ripple effects on callers.
+
 ## TL;DR
 
-Architecture becomes easier to change when two things are true at the same time:
-
-- code that serves the **same reason to change** is close together;
-- code that serves **different reasons to change** knows as little as practical about each other's internals.
-
-Those are the operational goals behind **high cohesion** and **low unnecessary coupling**.
+- **High cohesion groups by reason to change:** Code that enforces the same business invariant and evolves on the same schedule belongs together under a single, well-defined owner. Avoid grabbing unrelated logic into generic utility dumps.
+- **Low coupling minimizes boundary leakage:** Modules should communicate strictly through narrow, stable contracts. A caller must never know another module's internal schema, table structure, caching strategy, or execution sequence.
+- **Change blast radius is the true metric:** The effectiveness of an architectural boundary is measured by how many files, modules, and teams must coordinate when a real-world requirement shifts—not by the beauty of a folder hierarchy.
+- **Fatal pitfall:** **Shared data and schema coupling.** Allowing multiple modules to query and mutate shared database tables bypasses business invariants and creates invisible, suffocating dependencies—turning routine schema migrations into multi-team deployment hazards.
 
 Use this mental model:
 

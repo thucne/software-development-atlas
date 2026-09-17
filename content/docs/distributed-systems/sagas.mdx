@@ -18,11 +18,19 @@ concepts:
 
 # Sagas: Coordinate Distributed Workflows with Compensation
 
+You are booking a vacation package: the flight service successfully charges your credit card and issues a non-refundable airline ticket, but the hotel service suddenly fails because the last available room was just reserved by another traveler. In a monolithic system with a single database, an ACID rollback would seamlessly rewind the entire operation to clean square one. But across independent microservices and external payment gateways, there is no global transaction manager and no Two-Phase Commit (2PC) to turn back the clock. You cannot physically un-swipe a credit card or un-issue a ticket. How do you recover? You execute compensating transactions that semantically unwind the partial commitment.
+
+A Saga coordinates a **sequence of local transactions** that together implement a long-lived business workflow across independently owned services and data stores. Each step commits locally, and failures trigger explicit business compensation.
+
+> 💡 **Rule of thumb:** Distributed workflows cannot turn back time with ACID rollbacks. Structure your workflow around an explicit pivot point: compensate backwards before the point of no return, and push forward with idempotent retries after it.
+
 ## TL;DR
 
-A Saga is a **sequence of local transactions** that together implement a long-lived business workflow across independently owned services or data stores. Each step commits locally. If a later step cannot complete, the workflow runs compensating actions for earlier work when the business semantics allow it.
-
-That is a different contract from one ACID transaction. A Saga does not hide intermediate state, does not provide global isolation, and does not make time run backward. It makes progress and recovery explicit.
+- **A Saga replaces distributed 2PC with a sequence of local transactions:** Instead of locking resources across microservices for seconds or minutes, each participant commits locally, exposes deliberate intermediate business states, and advances the workflow.
+- **Compensation is semantic undo, not a technical database rollback:** Compensating transactions do not magically erase history; they are newly committed transactions (e.g., issuing refunds, releasing inventory reservations) that semantically counteract earlier forward steps in reverse order.
+- **The pivot step defines the boundary between backward and forward recovery:** Before the pivot transaction (the point of no return), failures trigger backward compensation; once the pivot commits, the workflow must guarantee forward progress through idempotent retries and alerting.
+- **Choose coordination based on workflow complexity:** Orchestration uses a central coordinator to manage explicit state machines and timeouts; choreography relies on decentralized domain events, avoiding a single coordinator at the cost of cross-service traceability.
+- **Fatal pitfall:** Treating distributed timeouts as definite failures and triggering immediate compensation. If a payment service times out due to packet loss after successfully capturing funds, immediately dispatching a cancellation or void without verifying the actual provider outcome causes double-refunds or irreconcilable ledger discrepancies.
 
 ```mermaid
 flowchart LR

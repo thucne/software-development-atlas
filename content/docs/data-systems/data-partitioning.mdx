@@ -34,11 +34,15 @@ concepts:
 
 ## TL;DR
 
-Partitioning and sharding both answer a placement question:
+Imagine midnight on Black Friday: customer traffic spikes fifty-fold in seconds. Your database cluster spans 10 sharded nodes, proudly scaled out and partitioned by `created_at`. Suddenly, node 10's CPU pins at 100%, disk write IOPS saturate, connection pools choke, and checkout crashes enterprise-wide—while nodes 1 through 9 sit completely idle at 2% utilization. By choosing a monotonically increasing timestamp as your **shard key**, you created a catastrophic write **hotspot**. To compound the disaster, the customer dashboard query filtering by `customer_id` has no timestamp bound, forcing an expensive **cross-partition scatter-gather query** (fan-out) that hits all 10 shards simultaneously, blowing past timeout budgets and drowning the cluster in distributed coordination.
 
-> Which physical data slice owns this row, and which slices must a query touch?
+> 💡 **Rule of thumb:** Partition tables inside a database instance to enable **partition pruning** and isolate data lifecycle; shard across independent nodes to scale write throughput and memory footprint. Never choose a placement key merely because it seems "evenly distributed"—choose it based on dominant query predicates and transaction boundaries.
 
-But they operate at different boundaries.
+- **Placement dictates routing and locality:** Table partitioning splits one logical table into physical partitions inside a single database engine (enabling query **partition pruning**), whereas sharding distributes ownership across distinct database nodes or clusters.
+- **Pruning transforms layout into speed:** With **range partitioning**, **list partitioning**, or **hash partitioning**, queries containing the **partition key** prune irrelevant slices via **partition pruning**; queries lacking the key trigger costly **fan-out** scans.
+- **Global invariants demand local alignment:** A **unique** or primary key constraint on a partitioned table must include the partition key; across independent shards, local indexes cannot enforce global uniqueness without an external coordinator or deterministic routing.
+- **Resharding must be designed before scaling:** As shards grow unevenly, **reshard** procedures require virtual bucket indirection, live replication cutover, and strict write fencing to move data without downtime.
+- **Fatal pitfall (Monotonic hotspot & blind fan-out):** Sharding by a sequential timestamp or auto-increment ID sends 100% of current writes to a single shard (**hotspot**), while queries missing the **shard key** turn simple lookups into destructive **cross-shard** scatter-gather queries that bottleneck on the slowest node.
 
 ```text
 partitioning
@@ -50,17 +54,6 @@ sharding
   -> split ownership across multiple database nodes or independent data domains
   -> routing becomes an application / middleware / distributed-database concern
   -> cross-shard reads and writes become distributed work
-```
-
-The key design rule is not “partition big tables” or “shard when traffic grows.” It is:
-
-```text
-choose placement key
-  -> predict read/write routing
-  -> identify hotspots and fan-out
-  -> preserve integrity where possible
-  -> define movement / resharding path
-  -> measure whether the placement actually reduces work
 ```
 
 ```mermaid

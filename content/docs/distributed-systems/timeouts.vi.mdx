@@ -20,7 +20,15 @@ concepts:
 
 ## Tóm tắt
 
-Timeout giới hạn thời gian một lần chờ được phép giữ tài nguyên. **Deadline** giới hạn thời điểm toàn bộ thao tác còn hữu ích. Hãy vận hành remote call bằng scope rõ ràng, một ngân sách end-to-end, truyền thời gian còn lại, cancellation và telemetry theo từng giai đoạn.
+3 giờ 15 phút sáng ngày hội mua sắm Mega Sale. Một sự cố chập chờn trên tuyến cáp quang biển khiến độ trễ kết nối tới một microservice gợi ý sản phẩm tăng thêm 400 ms. Ngay lập tức, toàn bộ dàn API Gateway mặt tiền sập nguồn theo hiệu ứng domino. CPU máy chủ chỉ nhàn nhã ở mức 12%, nhưng toàn bộ ứng dụng bị tê liệt, các luồng xử lý (worker threads) đầy nghẹt, connection pool cạn kiệt và load balancer liên tục trả mã lỗi 504 Gateway Timeout. Thủ phạm là gì? Một thiết lập mặc định tưởng chừng vô hại trên từng HTTP client: `timeout = 30s` không cấu hình chi tiết. Thay vì giải phóng tài nguyên tức thì khi phía dưới suy thoái, 5.000 worker thread đã bị giam cầm trong vô vọng để chờ đợi những kết nối không bao giờ có thể hoàn tất trước khi người dùng tắt trình duyệt. Timeout không chỉ là một tham số cấu hình—đó là một bản giao kèo nghiêm ngặt về **tài nguyên hữu hạn của hệ thống**.
+
+> 💡 **Quy tắc bỏ túi:** Đừng bao giờ đặt một con số timeout tĩnh độc lập mà không rõ giai đoạn socket; luôn luôn lan truyền hạn chót (deadline) toàn trình và ngân sách thời gian còn lại qua từng chặng gọi.
+
+- **Phạm vi timeout vs. Hạn chót toàn trình:** **Timeout** giới hạn thời gian một kết nối hoặc giai đoạn socket đơn lẻ được phép chờ; **hạn chót (deadline)** là mốc thời gian tuyệt đối mà sau thời điểm đó, toàn bộ kết quả nghiệp vụ không còn bất kỳ giá trị nào đối với người dùng.
+- **Bóc tách từng giai đoạn socket:** Không có giá trị `timeout` chung chung nào đủ an toàn. Một kết nối trải qua phân giải **DNS**, bắt tay TCP **connect**, thương lượng **TLS**, **ghi** request, chờ **header** phản hồi và **đọc** body. Connect timeout không chặn được lỗi treo khi đọc body; socket read timeout lại có thể tự động reset mỗi khi có một byte dữ liệu mới truyền tới.
+- **Lan truyền ngân sách thời gian còn lại (remaining budget):** Tuyệt đối không cấp lại nguyên vẹn thời gian chờ ban đầu cho các service phía sau. Mỗi hop gọi chỉ được tiêu thụ phần **ngân sách còn lại** sau khi đã trừ hao thời gian xử lý cục bộ và thời gian gửi response.
+- **Hủy bỏ (cancellation) không phải hoàn tác (rollback):** Khi hết hạn chót, phát tín hiệu **hủy** ngay lập tức để downstream ngừng lãng phí tài nguyên tính toán, nhưng luôn ghi nhớ rằng việc hủy không tự động hoàn tác các thay đổi đã ghi bền vững vào cơ sở dữ liệu.
+- **Cạm bẫy chết người:** **Cấp mới toàn bộ hạn mức timeout ở mỗi chặng gọi.** Nếu cam kết SLO với người dùng là 1 giây, nhưng ba microservice nối tiếp nhau đều tự cấp mới 1 giây timeout, tổng thời gian chờ có thể bị kéo dài lên 3 giây—biến một đợt biến động độ trễ đuôi (tail latency) nhỏ thành thảm họa chiếm dụng toàn bộ connection pool của hệ thống.
 
 ```mermaid
 flowchart LR

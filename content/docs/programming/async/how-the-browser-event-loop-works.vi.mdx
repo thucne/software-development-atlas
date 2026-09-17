@@ -32,11 +32,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-1. **Trình duyệt không có một hàng đợi FIFO đơn lẻ.** Event Loop của trình duyệt phối hợp nhiều **Task Queues (hàng đợi tác vụ)** riêng biệt được cấp nguồn từ các nguồn khác nhau (timers, user input, network, v.v.).
-2. **Microtasks luôn được ưu tiên vét sạch.** Tại mỗi **Microtask Checkpoint** (ngay sau khi một task hoàn thành hoặc call stack rỗng), trình duyệt sẽ chạy toàn bộ microtask queue cho đến khi trống rỗng 100%, bao gồm cả các microtask mới được sinh ra bên trong checkpoint.
-3. **Vẽ giao diện (Rendering) không diễn ra sau mỗi task.** Trình duyệt chỉ cập nhật giao diện tại các **Rendering Opportunity** (thường là 60Hz hoặc 120Hz), và `requestAnimationFrame()` chạy ngay TRƯỚC các bước tính toán Style và Layout của frame sắp vẽ.
-4. **Tránh nghẽn Main Thread do đói tài nguyên (Microtask Starvation):** Vòng lặp đệ quy `queueMicrotask()` sẽ làm "đóng băng" giao diện trình duyệt hoàn toàn dù không có vòng lặp `while(true)` đồng bộ nào.
-5. **Event Loop của Trình duyệt khác hoàn toàn Node.js:** Trình duyệt tuân theo đặc tả WHATWG HTML (có chu trình render và task sources), trong khi Node.js vận hành dựa trên kiến trúc libuv với các phases riêng biệt (timers, poll, check/setImmediate).
+Một vòng lặp microtask đệ quy vô tận bằng `Promise.resolve().then(...)` hay `queueMicrotask()` có thể lập tức làm tê liệt toàn bộ tab trình duyệt hoặc đóng băng tiến trình Node.js mà không cần đến bất kỳ vòng lặp `while(true)` đồng bộ nào. Trình duyệt tuyệt đối không nhường quyền cho các tác vụ người dùng, bộ hẹn giờ Macrotask hay chu trình vẽ lại màn hình (Render Queue) chừng nào hàng đợi Microtask chưa được vét sạch 100%. Hiểu rõ cách Call Stack, Microtasks, Tasks/Macrotasks và Rendering Pipeline đan kết vào nhau là ranh giới giữa một ứng dụng mượt mà 60fps và một giao diện "chết đứng".
+
+> 💡 **Quy tắc bỏ túi:** Mã đồng bộ trên Call Stack chạy đến khi cạn kiệt trước tiên, ngay sau đó trình duyệt vét sạch toàn bộ Microtask Queue về con số 0. Chỉ khi hàng đợi Microtask hoàn toàn trống rỗng, trình duyệt mới cân nhắc Cơ hội Kết xuất (Rendering Opportunity) hoặc chọn một Macrotask tiếp theo từ Task Source.
+
+- **Call Stack tuân thủ nguyên tắc Run-to-Completion:** Đoạn mã JavaScript đồng bộ đang chạy trên ngăn xếp sẽ luôn thực thi trọn vẹn đến cùng mà không bị ngắt quãng bởi bất kỳ callback sự kiện nào khác.
+- **Microtask Checkpoint luôn vét cạn 100%:** Các phản hồi Promise (`.then`, `.catch`) và `queueMicrotask()` được xử lý ngay khi Call Stack trống rỗng. Mọi microtask mới phát sinh trong quá trình này cũng sẽ bị hút vào và xử lý dứt điểm ngay trong cùng một checkpoint.
+- **Rendering hoàn toàn tách biệt khỏi chu kỳ Task:** Trình duyệt không vẽ lại sau mỗi callback. Quá trình cập nhật giao diện diễn ra tại các **Rendering Opportunity** đồng bộ theo tần số quét màn hình, và `requestAnimationFrame()` được kích hoạt ngay trước các bước tính toán Style và Layout.
+- **Macrotasks đến từ nhiều nguồn tác vụ (Task Sources) độc lập:** Bộ hẹn giờ (`setTimeout`), tương tác người dùng và sự kiện mạng nằm trong các hàng đợi riêng biệt do bộ điều phối trình duyệt quản lý, không phải một hàng đợi FIFO đơn lẻ.
+- **Cạm bẫy chết người (Đói tài nguyên do Microtask - Microtask Starvation):** Việc gọi đệ quy microtask liên tục sẽ giam cầm luồng chính trong một checkpoint vô tận, bỏ đói hoàn toàn Macrotask Queue và Render Queue. Giao diện người dùng sẽ bị đóng băng cứng ngắc và tê liệt mọi tương tác click chuột.
 
 ---
 
@@ -45,7 +49,7 @@ concepts:
 <AtlasIllustration id="event-loop-architecture" />
 
 <TermBox term="Task source">
-Một **Task source (nguồn tác vụ)** theo đặc tả HTML là một nguồn phát sinh các tác vụ cụ thể, ví dụ như DOM manipulation, user interaction, networking, hoặc timers. Trình duyệt có quyền lựa chọn hàng đợi tác vụ nào để xử lý tiếp theo nhằm tối ưu hóa độ phản hồi của giao diện.
+Một **Task source (nguồn tác vụ)** theo đặc tả HTML là một nguồn phát sinh các tác vụ cụ thể, ví dụ như thao tác DOM, tương tác người dùng, sự kiện mạng hoặc bộ hẹn giờ. Trình duyệt có quyền lựa chọn hàng đợi tác vụ nào để xử lý tiếp theo nhằm tối ưu hóa độ phản hồi của giao diện.
 </TermBox>
 
 ---
@@ -125,11 +129,11 @@ function processMessageBatch(messages: Message[]) {
 }
 ```
 
-- **Hậu quả:** Dù không có một vòng lặp `for` dài gây blocking Call Stack, UI vẫn bị "đóng băng" suốt 1.2 giây! User click vào nút "Gửi" hay thanh input đều hoàn toàn bất động. Chỉ số INP (Interaction to Next Paint) báo đỏ nghiêm trọng (>1000ms).
+- **Hậu quả:** Dù không có một vòng lặp `for` dài gây blocking Call Stack, UI vẫn bị "đóng băng" suốt 1.2 giây! Người dùng nhấp chuột vào nút "Gửi" hay thanh nhập liệu đều hoàn toàn bất động. Chỉ số INP (Interaction to Next Paint) báo đỏ nghiêm trọng (>1000ms).
 - **Nguyên nhân cốt lõi:** Lập trình viên nhầm lẫn giữa `queueMicrotask()` và việc nhường luồng (yielding) cho trình duyệt. `queueMicrotask()` **không bao giờ** nhường quyền điều khiển cho Task Queue hay Rendering Pipeline; nó tiếp tục giữ chặt checkpoint cho đến khi queue rỗng 100%.
 - **Cách khắc phục chuẩn:** Nếu muốn nhường luồng cho trình duyệt vẽ lại UI và nhận input click, phải đẩy công việc ra Macrotask hoặc sử dụng scheduler chuẩn:
   ```ts
-  // Giải pháp hiện đại: scheduler.yield() nếu hỗ trợ, fallback sang setTimeout 0
+  // Giải pháp hiện đại: scheduler.yield() nếu hỗ trợ, dự phòng sang setTimeout 0
   async function processMessageBatch(messages: Message[]) {
     for (const msg of messages) {
       renderMessage(msg);

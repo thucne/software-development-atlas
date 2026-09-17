@@ -16,21 +16,19 @@ concepts:
   - frontend-bundle-performance
 ---
 
-# Frontend Bundle Performance: Ship Less JavaScript, Load It Later
+# Frontend Bundle Performance: Graphs, Timing, and Browser Work
 
 ## TL;DR
 
-Frontend bundle performance is not a contest to produce the smallest single file. It is the discipline of controlling **which JavaScript enters the browser, when it is requested, and how much work the browser must perform before the user can interact**.
+A frontend team ships a "minor release" adding an export-to-PDF button inside an account settings modal. The next day, Google Search Console alerts of catastrophic Core Web Vitals regressions (INP spikes to 650ms, LCP degrades by 2.8s), causing a 35% drop in organic search conversions. A bundle analyzer reveals that a top-level `import { pdfGenerator } from 'heavy-pdf-lib'` in the modal file dragged 1.4MB of un-tree-shaken font metrics and canvas dependencies into the main critical bundle for *every single visitor on every route*. The root cause? Top-level static imports of conditional features that contaminated the client dependency graph.
 
-A useful mental model is:
+> 💡 **Rule of thumb:** **The fastest JavaScript is the code the browser never downloads, parses, or compiles.** Byte transfer over the network is only half the cost—parsing and executing JavaScript on the main thread consumes CPU and blocks user interaction (INP). Keep conditional features behind dynamic imports (`React.lazy`, `import()`) and enforce CI bundle budgets.
 
-1. trace the **client dependency graph**;
-2. keep code out of that graph when it does not need to run in the browser;
-3. split optional capabilities at meaningful route or interaction boundaries;
-4. let static analysis remove genuinely unused code;
-5. measure transfer size **and** parse/compile/execute cost;
-6. verify that splitting did not create a new request waterfall;
-7. protect the result with budgets and regression checks.
+- **Total cost of JavaScript:** Download bytes (brotli/gzip transfer) is only phase one; decompression, AST parsing, bytecode compilation, and main-thread execution on mobile CPUs dominate total user latency.
+- **Client dependency graph discipline:** Track the transitive import graph: a single static import inside a shared utility file can pull massive third-party packages into every entry point.
+- **Strategic code splitting:** Split code at natural route and interaction boundaries (e.g. modals, rich text editors, charts, export tools) using dynamic `import()` rather than arbitrary chunk slicing.
+- **Effective tree-shaking:** Ensure packages support ES module syntax (`sideEffects: false`) and avoid barrel files (`index.ts` re-exporting hundreds of modules) that defeat bundler dead-code elimination.
+- **Fatal pitfall:** Top-level static imports of heavy third-party libraries (e.g. Moment.js, Lodash, PDF engines, Chart.js) inside components that are rarely rendered—poisoning the critical path bundle for 100% of website users.
 
 <TermBox term="Client dependency graph">
 The **client dependency graph** is the transitive set of modules that a browser-facing entry point can reach through imports. A tiny component can still pull a large library into the browser if its import chain crosses into that library.

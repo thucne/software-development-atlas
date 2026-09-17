@@ -32,11 +32,13 @@ concepts:
 
 # Khả năng chống chịu của service: Cô lập lỗi trước khi nó lan truyền
 
-## Tóm tắt nhanh
+## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Một service có resilience không làm dependency ngừng lỗi. Nó ngăn một dependency chậm, hỏng hoặc quá tải tiêu hết thời gian và tài nguyên của caller rồi biến lỗi cục bộ thành outage toàn hệ thống.
+Vào lúc 14:15 ngày Black Friday, service gợi ý sản phẩm cá nhân hóa (recommendations)—một tính năng phụ không bắt buộc—bị nghẽn Garbage Collection, khiến độ trễ phản hồi p99 tăng vọt từ 50 ms lên 12 giây. Tại tầng API Gateway, mọi request xem chi tiết sản phẩm và thanh toán đều đang gọi đồng bộ sang service này. Do gateway sử dụng chung một connection pool duy nhất cho mọi dịch vụ ngoài mà không có vách ngăn cô lập, toàn bộ worker thread của gateway nhanh chóng bị giam cầm trong trạng thái chờ socket. Chỉ sau 90 giây, tất cả 500 thread của API Gateway kẹt cứng hoàn toàn. Gateway không thể nhận thêm bất kỳ kết nối mới nào: trang chủ sập, tìm kiếm tê liệt, và chức năng thanh toán hoàn toàn bất khả dụng. Một tính năng phụ đã kéo sập toàn bộ sàn thương mại điện tử.
 
-Dùng trình tự vận hành này:
+Thảm họa này chính là hiện tượng sập đổ dây chuyền (cascading failure) kinh điển trong kiến trúc phân tán. Khi service gọi phía trên kiên nhẫn chờ đợi vô hạn một dependency đang hấp hối phía dưới, sự chậm trễ cục bộ sẽ nhanh chóng lây nhiễm qua ranh giới mạng, vắt kiệt connection pool, thread pool và bộ nhớ. Thiết kế service có sức chống chịu (service resilience) không phải là ảo tưởng rằng hệ thống phụ trợ sẽ không bao giờ lỗi; mà là đảm bảo rằng khi một dependency gặp sự cố, bán kính thiệt hại (blast radius) phải được khống chế tuyệt đối. Kiến trúc kiên cường sử dụng Circuit Breaker (ngắt mạch) để fail-fast ngừng gọi vô ích, Bulkhead (vách ngăn khoang tàu) để cô lập tài nguyên, và Fallback (phương án dự phòng có kiểm soát) để duy trì nghiệp vụ sống còn.
+
+Trình tự vận hành chuẩn mực:
 
 ```text
 phân loại dependency
@@ -62,6 +64,15 @@ flowchart LR
   Y -->|không| F
   F --> O
 ```
+
+> 💡 **Quy tắc bỏ túi:** Chống chịu service là cô lập bán kính thiệt hại chứ không phải triệt tiêu lỗi—hãy dùng Bulkhead để chia ngăn tài nguyên, Circuit Breaker để ngắt mạch tức thì, và Fallback có kiểm soát để bảo vệ luồng nghiệp vụ cốt lõi trước khi một sự cố phụ kéo sập toàn bộ hệ thống.
+
+### TL;DR 2.0
+- **Phân loại độ quan trọng của dependency:** Rạch ròi ranh giới giữa dịch vụ bắt buộc (critical/required) và dịch vụ phụ (optional enhancement/telemetry). Tuyệt đối không để một dịch vụ gợi ý hay theo dõi phân tích làm gián đoạn luồng thanh toán hoặc xác thực tài khoản cốt lõi.
+- **Bulkhead (Vách ngăn khoang tàu):** Cô lập thread pool, connection pool và hạn mức đồng thời (bounded concurrency) riêng biệt cho từng dependency. Một khoang tàu bị tràn nước không được phép nhấn chìm toàn bộ con tàu.
+- **Circuit Breaker (Ngắt mạch tự động):** Theo dõi sát sao tỷ lệ lỗi và độ trễ. Khi ngưỡng lỗi bị vượt quá, circuit lập tức chuyển sang trạng thái `OPEN` (ngắt mạch) để fail fast ngay lập tức, vừa giải phóng tài nguyên cho caller, vừa cho dependency thời gian hồi phục trước khi thử nghiệm lại (`HALF-OPEN`).
+- **Ngân sách deadline & Giới hạn retry:** Toàn bộ request chia sẻ một deadline budget duy nhất, trừ lùi thời gian qua từng hop mạng. Giới hạn retry bằng retry budget tổng và backoff có jitter để không biến một sự cố nhỏ thành cơn bão retry storm càn quét hạ tầng.
+- **Cạm bẫy chết người:** Để một dependency phụ bị chậm tự do chiếm dụng toàn bộ connection pool dùng chung của API Gateway mà không có Circuit Breaker hay Bulkhead bảo vệ, gây ra thảm họa sập đổ dây chuyền (cascading failure) cuốn phăng toàn bộ hệ thống.
 
 <TermBox term="Service resilience">
 **Service resilience** là khả năng giữ hành vi hữu ích và có giới hạn khi dependency chậm, không khả dụng, quá tải hoặc chỉ lỗi một phần.

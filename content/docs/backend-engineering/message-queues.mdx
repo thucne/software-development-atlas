@@ -31,31 +31,19 @@ concepts:
 
 # Message Queues: Make Delivery and Completion Explicit
 
+At 3:00 PM, a malformed JSON payload containing an unhandled schema defect bypasses an edge service and lands directly in your primary order processing queue. Worker 1 receives the message, throws an unhandled exception, and crashes immediately. Because the delivery was never acknowledged, the message broker detects the lost connection and promptly redelivers the message to the next available worker. Worker 2 claims it, throws the exact same unhandled exception, and terminates. Within minutes, this **poison pill** cycles relentlessly through every worker in the fleet, triggering an infinite crash loop. The competing consumers are completely paralyzed, queue depth explodes to hundreds of thousands of backlogged orders, and the age of the oldest message climbs to hours while processing throughput drops to zero.
+
+This is the nightmare of unmanaged queue failures. Message queues decouple publishers from consumers and enable scalable competing worker pools, but without Dead-Letter Queues (DLQs), retry backoff, and robust publisher confirmation, a single bad message can incapacitate an entire system.
+
 ## TL;DR
 
-A message queue separates the time a **producer** submits work from the time a **consumer** performs it. The broker owns a delivery lifecycle between those two endpoints, but it does not make the business side effect exactly once.
+> 💡 **Rule of thumb:** Transport delivery completion is not business completion. Never acknowledge (ACK) a message before its durable effect is committed, protect consumers with Dead-Letter Queues (DLQ) and exponential backoff against poison pills, and make handlers idempotent to absorb inevitable redeliveries.
 
-A useful mental model is:
-
-```text
-producer -> broker accepts message -> ready -> in-flight -> consumer effect
-                                                    |            |
-                                                    |            +-> ack/delete
-                                                    +--------------> redelivery on failure/timeout
-```
-
-Reason about both sides of the broker boundary:
-
-1. What proves the producer's publish was accepted durably enough?
-2. What happens if the producer loses the connection before it receives that proof?
-3. How does a consumer claim or receive work?
-4. When does the message become in-flight, and for how long?
-5. What exact event acknowledges completion?
-6. Under which failures can the delivery reappear?
-7. Can the business effect tolerate that duplicate delivery?
-8. How much unacknowledged work may one consumer hold?
-9. What ordering scope is actually required?
-10. When does repeatedly failing work stop circulating and become visible to operators?
+- **Decoupled execution with competing consumers:** Message queues allow producers to submit work asynchronously while multiple competing consumers scale horizontally to pull and process deliveries without overwhelming downstream systems.
+- **Acknowledgements and in-flight visibility leases:** In-flight processing is a temporary lease (via SQS visibility timeouts or RabbitMQ prefetch windows). Acknowledging too early causes permanent message loss if the worker crashes; acknowledging after the business effect creates a duplicate redelivery window requiring idempotent consumers.
+- **Publisher confirmations ensure producer durability:** A successful `send()` call only confirms socket writes; true reliability requires publisher confirms or transactional outboxes so the producer knows when the broker durably accepted the message.
+- **Poison pill defense with Dead-Letter Queues (DLQ):** Unprocessable messages must not loop infinitely; bound retry attempts with exponential backoff and jitter, shunting exhausted poison work to a dead-letter queue for operator inspection.
+- **Fatal pitfall:** Enabling automatic acknowledgement (auto-ACK) upon message receipt before business logic completes, or acknowledging before the database commit, resulting in catastrophic and irreversible message loss whenever worker pods crash or restart.
 
 ```mermaid
 flowchart LR

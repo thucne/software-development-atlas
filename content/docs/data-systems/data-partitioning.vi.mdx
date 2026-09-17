@@ -34,33 +34,26 @@ concepts:
 
 ## Tóm tắt
 
-Partitioning và sharding đều trả lời một câu hỏi về placement:
+Hãy tưởng tượng đêm hội mua sắm Black Friday: lưu lượng truy cập tăng vọt gấp 50 lần chỉ trong vài giây. Cụm cơ sở dữ liệu gồm 10 node sharded được mở rộng tự tin với khóa phân vùng theo ngày tạo `created_at`. Bất thình lình, CPU của node 10 chạm ngưỡng 100%, hàng đợi ghi nghẽn nghẹt, connection pool cạn kiệt và toàn bộ hệ thống thanh toán sập hoàn toàn—trong khi 9 node còn lại ngồi chơi xơi nước ở mức 2% tải. Việc chọn mốc thời gian tăng dần làm **khóa shard (shard key)** đã dồn toàn bộ lưu lượng ghi của ngày hôm đó vào đúng 1 node, biến cụm máy chủ đắt đỏ thành một **điểm nóng (hotspot)** thắt cổ chai. Tệ hơn nữa, màn hình lịch sử đơn hàng của người dùng lọc theo `customer_id` mà không kèm mốc thời gian, kích hoạt **truy vấn rải rác đa phân vùng (cross-partition scatter-gather query)** quét qua toàn bộ 10 shard (**fan-out** / quét nhiều shard), thổi bùng tail latency và làm tê liệt cụm cơ sở dữ liệu.
 
-> Physical data slice nào sở hữu row này, và query phải chạm vào những slice nào?
+> 💡 **Quy tắc bỏ túi:** Partitioning trong nội bộ một database instance dùng để loại bỏ partition không liên quan (**partition pruning**) và quản lý vòng đời dữ liệu; sharding qua nhiều node vật lý dùng để mở rộng năng lực ghi và bộ nhớ. Đừng bao giờ chọn placement key chỉ vì cảm giác "chia đều"—hãy chọn dựa trên vị từ lọc (predicate) và ranh giới giao dịch (transaction) chiếm ưu thế.
 
-Nhưng chúng hoạt động ở hai ranh giới khác nhau.
-
-```text
-partitioning
-  -> chia một logical table thành nhiều physical partition
-  -> thường vẫn ở trong một database system / cluster
-  -> optimizer có thể prune partition không liên quan khi predicate khớp partition bound
-
-sharding
-  -> chia ownership qua nhiều database node hoặc data domain độc lập
-  -> routing trở thành trách nhiệm của application / middleware / distributed database
-  -> read và write liên shard trở thành distributed work
-```
-
-Quy tắc thiết kế không phải “table lớn thì partition” hay “traffic tăng thì shard”. Quy tắc là:
+- **Ranh giới giữa partitioning và sharding:** Partitioning chia một bảng logic thành nhiều partition vật lý trên cùng một database engine để tận dụng **partition pruning** (loại bỏ partition thừa khi quét); còn sharding phân tán quyền sở hữu dữ liệu qua nhiều node máy chủ vật lý độc lập.
+- **Khóa phân vùng quyết định tính cục bộ (locality):** Dù dùng **phân vùng theo range**, **phân vùng theo list** hay **phân vùng theo hash**, **khóa phân vùng (partition key)** và **khóa shard (shard key)** quyết định query chỉ chạm đúng một lát cắt vật lý hay phải quét nhiều shard (**fan-out / scatter-gather**) tốn kém.
+- **Ranh giới tính duy nhất (uniqueness):** Ràng buộc **duy nhất** (`UNIQUE` / `PRIMARY KEY`) trong bảng phân vùng bắt buộc phải chứa toàn bộ khóa phân vùng; trên cụm sharding độc lập, index duy nhất cục bộ không thể bảo đảm tính duy nhất toàn cục nếu thiếu bộ điều phối trung tâm.
+- **Tái phân shard (resharding) phải được thiết kế từ ngày đầu:** Chiến lược **tái phân shard** khi dữ liệu phình to đòi hỏi quy trình chuyển giao quyền sở hữu (authority cutover), đồng bộ dữ liệu nền và cơ chế định tuyến không gây downtime.
+- **Cạm bẫy chết người (Điểm nóng đơn node & quét rải rác):** Chọn khóa shard theo cột tăng dần (timestamp, sequence) dồn 100% lưu lượng ghi vào một shard duy nhất gây sập node (**hotspot**), trong khi các truy vấn thiếu khóa định tuyến buộc hệ thống phải quét toàn bộ các node (**cross-shard** scatter-gather fan-out), đẩy độ trễ lên mức không thể kiểm soát.
 
 ```text
-chọn placement key
-  -> dự đoán read/write routing
-  -> nhận diện hotspot và fan-out
-  -> giữ integrity local ở nơi có thể
-  -> định nghĩa đường đi khi move / reshard
-  -> đo xem placement có thật sự giảm work không
+partitioning (phân vùng bảng)
+  -> chia một bảng logic thành nhiều phân vùng vật lý
+  -> thường nằm trong cùng một hệ quản trị / cụm cơ sở dữ liệu
+  -> bộ tối ưu hóa có thể loại bỏ partition không liên quan khi điều kiện lọc khớp với ranh giới phân vùng
+
+sharding (phân mảnh ngang)
+  -> phân chia quyền sở hữu dữ liệu qua nhiều node cơ sở dữ liệu độc lập
+  -> định tuyến trở thành trách nhiệm của ứng dụng / middleware / hệ CSDL phân tán
+  -> thao tác đọc và ghi liên shard biến thành tác vụ phân tán tốn kém
 ```
 
 ```mermaid
@@ -75,20 +68,20 @@ flowchart LR
 ```
 
 <TermBox term="Data placement key">
-**Data placement key** là attribute hoặc derived value dùng để quyết định row thuộc về đâu.
+**Data placement key (Khóa đặt dữ liệu)** là thuộc tính hoặc giá trị phái sinh được dùng để quyết định một hàng dữ liệu (row) thuộc về phân vùng hay shard nào.
 
-Trong declarative partitioning của PostgreSQL, đó là **khóa phân vùng**. Trong kiến trúc sharded, khái niệm routing tương đương thường được gọi là **khóa shard**.
+Trong phân vùng khai báo (declarative partitioning) của PostgreSQL, đó chính là **khóa phân vùng**. Trong kiến trúc sharded phân tán, khái niệm định tuyến tương đương được gọi là **khóa shard**.
 
-**Vì sao quan trọng:** placement key quyết định locality. Query align với key có thể chỉ chạm một phần nhỏ dữ liệu; query không liên quan tới key có thể phải fan-out rộng.
+**Vì sao quan trọng:** Khóa đặt dữ liệu quyết định tính cục bộ (locality). Truy vấn khớp với khóa chỉ cần chạm vào một tập dữ liệu nhỏ; ngược lại, truy vấn không chứa khóa có thể phải quét rải rác trên diện rộng (**fan-out**).
 </TermBox>
 
 ## 1. Partitioning là tổ chức vật lý phía sau một logical table
 
-Declarative partitioning của PostgreSQL cho phép một logical table route row vào các child partition theo partition bound.
+Phân vùng khai báo (declarative partitioning) của PostgreSQL cho phép một bảng logic tự động định tuyến các hàng vào các bảng con (child partition) dựa theo ranh giới phân vùng (partition bounds).
 
-Partitioned parent là virtual: row thật được lưu trong các partition.
+Bảng cha được phân vùng thực chất chỉ là cấu trúc ảo: dữ liệu thực tế được lưu trữ hoàn toàn bên trong các partition con.
 
-Ví dụ table event partition theo thời gian:
+Ví dụ về một bảng sự kiện được phân vùng theo thời gian:
 
 ```sql
 CREATE TABLE events (
@@ -103,17 +96,17 @@ CREATE TABLE events_2026_09
   FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
 ```
 
-Insert vào parent sẽ được route theo khóa phân vùng. Nếu không partition nào nhận key đó và cũng không có default partition phù hợp, insert sẽ fail.
+Thao tác INSERT vào bảng cha sẽ được tự động định tuyến theo **khóa phân vùng**. Nếu không có partition nào tiếp nhận giá trị đó và cũng không có partition mặc định (DEFAULT), lệnh INSERT sẽ thất bại.
 
-Partitioning thay đổi physical placement mà không bắt ordinary query phải gọi tên từng child table.
+Partitioning tổ chức lại dữ liệu vật lý mà không bắt các truy vấn thông thường phải chỉ định trực tiếp tên của từng bảng con.
 
 ## 2. Range, list và hash partitioning mã hóa các giả định locality khác nhau
 
-PostgreSQL declarative partitioning hỗ trợ ba strategy chính.
+PostgreSQL hỗ trợ ba chiến lược phân vùng khai báo chính:
 
 ### Phân vùng theo range
 
-**Phân vùng theo range** chia các range không overlap của partition key.
+**Phân vùng theo range** gán các khoảng giá trị không chồng lấn của khóa phân vùng vào từng partition cụ thể.
 
 ```text
 2026-07 -> partition A
@@ -121,18 +114,18 @@ PostgreSQL declarative partitioning hỗ trợ ba strategy chính.
 2026-09 -> partition C
 ```
 
-Nó phù hợp khi dữ liệu có trật tự tự nhiên và lifecycle boundary rõ, như timestamp hoặc numeric range.
+Chiến lược này rất phù hợp khi dữ liệu có trật tự tự nhiên và ranh giới vòng đời rõ ràng, chẳng hạn như mốc thời gian (timestamp) hoặc dải số tăng dần.
 
-Lý do thường gặp:
+Các lý do áp dụng phổ biến:
 
-- query hay filter theo time window;
-- dữ liệu cũ được retire theo chunk;
-- dữ liệu mới có access intensity khác dữ liệu cũ;
-- maintenance hưởng lợi từ slice có time bound rõ.
+- Truy vấn thường xuyên lọc theo khoảng thời gian (time window);
+- Dữ liệu cũ được thu hồi hoặc lưu trữ lạnh theo từng khối định kỳ;
+- Dữ liệu mới phát sinh có cường độ truy cập cao hơn hẳn dữ liệu lịch sử;
+- Công tác bảo trì và dọn dẹp hệ thống hưởng lợi từ các phân vùng có giới hạn thời gian rõ ràng.
 
 ### Phân vùng theo list
 
-**Phân vùng theo list** map explicit key value vào partition.
+**Phân vùng theo list** ánh xạ các giá trị cụ thể, tường minh của khóa vào từng partition.
 
 ```text
 region = 'apac' -> partition APAC
@@ -140,29 +133,29 @@ region = 'emea' -> partition EMEA
 region = 'amer' -> partition AMER
 ```
 
-Nó hữu ích khi value group đã biết và có ý nghĩa nghiệp vụ, nhưng complexity tăng nếu category set thay đổi liên tục.
+Chiến lược này đặc biệt hữu ích khi các nhóm giá trị đã được xác định trước và mang ý nghĩa nghiệp vụ cố định. Tuy nhiên, độ phức tạp vận hành sẽ tăng vọt nếu danh mục phân loại thay đổi liên tục.
 
 ### Phân vùng theo hash
 
-**Phân vùng theo hash** map row theo modulus/remainder rule sinh từ partition key.
+**Phân vùng theo hash** ánh xạ các hàng dữ liệu dựa trên phép chia lấy dư (modulus/remainder) từ giá trị băm của khóa phân vùng.
 
-Nó có thể dàn row đều hơn khi ordered range không hữu ích, nhưng mất lifecycle boundary trực quan của range partitioning.
+Cách này giúp dàn đều các hàng khi không thể tận dụng khoảng giá trị có thứ tự, nhưng lại đánh đổi ranh giới vòng đời trực quan vốn có của range partitioning.
 
-Tên strategy ít quan trọng hơn câu hỏi workload:
+Tên gọi chiến lược không quan trọng bằng câu hỏi then chốt về khối lượng công việc:
 
-> Predicate và maintenance operation nào cần xác định được chỉ một subset nhỏ physical data?
+> Điều kiện lọc (predicate) và tác vụ bảo trì nào có thể giúp hệ thống chỉ cần xử lý một tập hợp con nhỏ của dữ liệu vật lý?
 
 ## 3. Partition pruning là nơi placement có thể biến thành query saving
 
 <TermBox term="Partition pruning">
-**Partition pruning** là optimization nơi planner/executor chứng minh một số partition không thể chứa row thỏa query và loại chúng khỏi scan.
+**Partition pruning (loại bỏ partition thừa)** là cơ chế tối ưu hóa mà tại đó bộ lập kế hoạch hoặc bộ thực thi (planner/executor) chứng minh được một số partition chắc chắn không chứa dữ liệu thỏa mãn truy vấn, từ đó loại bỏ hoàn toàn chúng khỏi phạm vi quét.
 
-**Vì sao quan trọng:** partitioning không tự động làm query nhanh hơn. Query chỉ hưởng lợi khi predicate giúp PostgreSQL loại bỏ partition không liên quan, hoặc khi physical structure nhỏ hơn làm phần work còn lại rẻ hơn.
+**Vì sao quan trọng:** Partitioning không tự động làm câu lệnh chạy nhanh hơn. Truy vấn chỉ tăng tốc khi điều kiện lọc giúp cơ sở dữ liệu loại bỏ partition không liên quan, hoặc khi cấu trúc vật lý nhỏ hơn giúp giảm tải I/O và chi phí duyệt index.
 </TermBox>
 
-Giả sử `events` partition theo `occurred_at`.
+Giả sử bảng `events` được phân vùng theo trường `occurred_at`.
 
-Query này align với partition key:
+Truy vấn sau đây ăn khớp hoàn toàn với **khóa phân vùng**:
 
 ```sql
 SELECT count(*)

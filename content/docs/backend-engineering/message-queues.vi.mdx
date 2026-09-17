@@ -31,31 +31,19 @@ concepts:
 
 # Message Queue: Đảm bảo delivery và xác nhận hoàn thành tường minh
 
-## Tóm tắt
+3 giờ chiều, một payload JSON lỗi chứa trường dữ liệu null bất thường vượt qua lớp kiểm tra lỏng lẻo ở tầng ngoài và được đẩy thẳng vào hàng đợi xử lý đơn hàng chính. Worker 1 nhặt message, vấp phải ngoại lệ (exception) chưa được bắt và sập (crash) ngay lập tức. Vì tiến trình bị ngắt đột ngột nên message chưa từng được gửi xác nhận hoàn tất (ACK), message broker phát hiện kết nối đứt và lập tức giao lại (redeliver) message đó cho worker tiếp theo. Worker 2 nhận việc, gặp đúng ngoại lệ đó và tiếp tục crash. Chỉ trong vài phút ngắn ngủi, **tin nhắn độc (poison pill)** này quay vòng qua toàn bộ cụm worker, đánh sập từng tiến trình một trong một vòng lặp tử thần (infinite crash loop). Toàn bộ nhóm worker cạnh tranh (competing consumers) bị tê liệt hoàn toàn, độ sâu hàng đợi (queue depth / backlog) tăng vọt lên hàng trăm nghìn đơn hàng ùn ứ, tuổi của message lâu nhất kéo dài hàng giờ và thông lượng xử lý của hệ thống rơi tự do về con số 0.
 
-Message queue tách thời điểm **bên gửi** đưa công việc vào hệ thống khỏi thời điểm **worker/bên xử lý** thực hiện nó. Broker sở hữu một vòng đời giao nhận giữa hai đầu đó, nhưng broker không tự biến effect nghiệp vụ thành exactly-once.
+Đó chính là cơn ác mộng kinh điển của lỗi hàng đợi không được kiểm soát. Message queue phân tách bên gửi (producer) khỏi bên xử lý (consumer) và hỗ trợ mở rộng các nhóm worker cạnh tranh, nhưng nếu thiếu hàng đợi thư chết (Dead-Letter Queue - DLQ), chiến lược giãn cách thử lại (retry backoff) và xác nhận gửi (publisher confirmation), một tin nhắn lỗi duy nhất cũng đủ sức quật ngã toàn bộ hệ thống xử lý bất đồng bộ của bạn.
 
-Một mental model hữu ích là:
+## TL;DR
 
-```text
-bên gửi -> broker nhận message -> ready -> in-flight -> worker tạo effect
-                                             |               |
-                                             |               +-> ack/xóa
-                                             +------------------> giao lại khi lỗi/hết lease
-```
+> 💡 **Quy tắc bỏ túi:** Hoàn tất ở tầng truyền tải (transport) không đồng nghĩa với hoàn tất nghiệp vụ. Tuyệt đối không gửi xác nhận (ACK) trước khi hiệu ứng bền vững được ghi nhận an toàn, luôn bảo vệ worker bằng hàng đợi thư chết (DLQ) kết hợp retry backoff để cô lập tin nhắn độc, và thiết kế consumer có tính lũy đẳng để hấp thụ an toàn các đợt phát lại (redelivery).
 
-Hãy lập luận cả hai phía của ranh giới broker:
-
-1. Bằng chứng nào cho thấy publish của bên gửi đã được broker nhận đủ bền vững?
-2. Nếu kết nối mất trước khi bên gửi nhận bằng chứng đó thì sao?
-3. Worker nhận hoặc claim message như thế nào?
-4. Khi nào message trở thành in-flight và quyền sở hữu đó kéo dài bao lâu?
-5. Sự kiện nào chính xác được coi là xác nhận hoàn tất?
-6. Failure nào khiến message được giao lại?
-7. Effect nghiệp vụ có chịu được lần giao trùng đó không?
-8. Một worker được giữ bao nhiêu message chưa xác nhận?
-9. Phạm vi thứ tự thật sự cần bảo toàn là gì?
-10. Khi nào công việc lỗi lặp lại phải dừng vòng quay bình thường và trở nên nhìn thấy được với operator?
+- **Tách rời xử lý và worker cạnh tranh (competing consumers):** Message queue cho phép bên gửi (producer) giải phóng công việc bất đồng bộ tới nhiều worker cùng cạnh tranh xử lý, giúp hấp thụ lưu lượng đột biến và san phẳng áp lực lên hạ tầng.
+- **Xác nhận (ACK) định nghĩa quyền sở hữu giao nhận:** Gửi ACK quá sớm sẽ làm mất trắng dữ liệu nếu worker sập giữa chừng; ngược lại, ACK sau khi thực thi nghiệp vụ sẽ mở ra cửa sổ phát lại (redelivery) đòi hỏi bên nhận phải có tính lũy đẳng (idempotent).
+- **Trạng thái in-flight và thời hạn ẩn (visibility timeout):** Quyền xử lý một message bản chất là một hợp đồng thuê (lease) có thời hạn (như visibility timeout trong Amazon SQS hay prefetch trong RabbitMQ); các tác vụ chạy lâu bắt buộc phải gia hạn lease trước khi hết hạn để tránh việc worker khác tưởng nhầm tin nhắn bị bỏ rơi và lao vào xử lý trùng.
+- **Cô lập tin nhắn độc bằng Dead-Letter Queue (DLQ):** Các message lỗi lặp lại phải được ngắt khỏi vòng lặp sau khi cạn ngân sách retry kèm backoff và jitter, chuyển hướng vào hàng đợi thư chết (DLQ) để kỹ sư điều tra thay vì để nó làm sập toàn bộ dàn worker.
+- **Cạm bẫy chết người:** Bật chế độ tự động xác nhận (auto-ACK) ngay khi vừa nhận tin nhắn trước khi bắt đầu xử lý, hoặc gửi ACK trước khi commit cơ sở dữ liệu, khiến dữ liệu bị mất vĩnh viễn không thể cứu vãn mỗi khi worker pod bị Kubernetes dừng đột ngột hoặc sập nguồn.
 
 ```mermaid
 flowchart LR

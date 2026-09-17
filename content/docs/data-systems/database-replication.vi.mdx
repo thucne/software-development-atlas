@@ -32,9 +32,22 @@ concepts:
 
 # Database Replication: Suy luận về bản sao, độ trễ và failover
 
+Khách hàng vừa đổi mật khẩu tài khoản hoặc hoàn tất giao dịch chuyển tiền trị giá 10 triệu đồng. Ứng dụng nhận phản hồi 200 OK từ primary database và ngay lập tức redirect khách sang trang cài đặt hoặc hóa đơn chi tiết. Nhưng bộ định tuyến phía backend lại điều hướng câu truy vấn `GET` này sang một read replica bất đồng bộ đang chịu đỉnh điểm `replica lag` tới 800ms dưới tải cao.
+
+Replica này vẫn chưa kịp nhận hoặc replay bản ghi write-ahead log (`WAL`) tương ứng từ primary. Trang web hiển thị mật khẩu cũ hoặc báo trạng thái giao dịch "Chưa thanh toán / Thất bại". Khách hàng hoang mang tột độ, tưởng rằng tiền trong tài khoản đã bốc hơi, liên tục tải lại trang và gọi điện khiếu nại khiến tổng đài chăm sóc khách hàng rơi vào tình trạng quá tải.
+
+Trong kiến trúc cơ sở dữ liệu phân tán, việc sao chép byte dữ liệu qua cơ chế streaming `WAL` là phần việc đơn giản nhất. Thách thức kỹ thuật thực sự nằm ở việc kiểm soát các bản hợp đồng nhất quán: thấu hiểu rằng replica bất đồng bộ về bản chất là mô hình *nhất quán sau cùng (eventual consistency)*, bảo đảm tính nhất quán nhân quả đọc ngay sau ghi (`read-after-write`), cân nhắc giữa chi phí độ trễ và độ an toàn của replication đồng bộ (`synchronous_commit = on` so với `remote_apply`), ngăn chặn nguy cơ cạn kiệt ổ cứng `pg_wal` do replication slot bị treo, và điều phối quy trình `failover` có cơ chế cô lập triệt để (split-brain fencing / STONITH) nhằm không bao giờ để hai node cùng nhận quyền ghi (hai primary).
+
+> 💡 **Quy tắc bỏ túi:** Read replica bất đồng bộ không phải là bản sao tức thời—nó là một luồng dữ liệu nhất quán sau cùng (eventual consistency) luôn có độ trễ (replica lag) so với WAL của primary. Tuyệt đối không điều hướng luồng đọc ngay sau khi ghi (read-after-write) hoặc kiểm tra phân quyền nhạy cảm sang replica mà không có token nhân quả hoặc route thẳng về primary; và tuyệt đối không bao giờ kích hoạt failover mà thiếu cơ chế cô lập triệt để (fencing / STONITH) nhằm triệt tiêu thảm họa split-brain.
+
 ## Tóm tắt
 
-Replication tạo thêm các bản sao database để tăng availability, khả năng chịu thảm họa và read capacity. Phần khó không phải copy byte. Phần khó là xác định **khi nào một bản sao được phép stale, một commit thành công cam kết điều gì, node nào được phép ghi, và failover tránh hai primary bằng cách nào**.
+- **Streaming WAL là một pipeline nhiều giai đoạn:** WAL record trải qua các mốc tiến độ độc lập: tạo trên primary, gửi qua mạng, standby nhận, flush xuống ổ cứng và replay vào bộ nhớ/đĩa. Một transaction commit xong trên primary hoàn toàn không có nghĩa dữ liệu đã lập tức visible trên standby.
+- **Durability khác biệt với Visibility trong commit đồng bộ:** `synchronous_commit = on` chỉ cam kết standby đã flush WAL an toàn xuống đĩa; truy vấn trên standby vẫn chưa thể thấy dữ liệu mới nếu chưa replay. Chỉ `synchronous_commit = remote_apply` mới cam kết truy vấn đọc trên standby thấy ngay dữ liệu vừa commit.
+- **Đọc-ngay-sau-khi-ghi (read-after-write) đòi hỏi chiến lược routing có chủ đích:** Do replica bất đồng bộ luôn có `replica lag`, ứng dụng chuẩn xác phải route các truy vấn đọc quan trọng về primary trong một khoảng thời gian, dùng causal token, hoặc kiểm tra offset trước khi phục vụ request kế tiếp của user.
+- **Replication slot bảo vệ standby nhưng đe dọa đĩa cứng primary:** Slot đảm bảo primary giữ lại toàn bộ WAL cho tới khi replica đọc xong. Nếu standby bị ngắt kết nối hoặc treo, thư mục `pg_wal` trên primary sẽ phình to không giới hạn và làm sập database trừ khi được giám sát và cấu hình hạn mức retention.
+- **Failover là việc chuyển giao quyền lực đòi hỏi kỹ thuật Fencing:** Promote một standby lên làm primary mà không cô lập primary cũ (fencing) sẽ dẫn tới thảm họa split-brain, khiến cả hai node cùng nhận ghi và làm phân rã dữ liệu vĩnh viễn. Cơ chế STONITH (Shoot The Other Node In The Head) là bắt buộc trong môi trường high-availability.
+- **Cạm bẫy chết người:** Xem read replica bất đồng bộ như bản sao tức thời cho các trang redirect ngay sau khi ghi dữ liệu. Nếu không có cơ chế điều hướng dính (sticky routing) về primary hoặc kiểm tra checkpoint nhân quả, người dùng sẽ đọc phải dữ liệu cũ, hoang mang nộp đơn khiếu nại hoặc bấm thanh toán trùng lặp.
 
 Với physical streaming replication của PostgreSQL, hãy dùng mental model này:
 

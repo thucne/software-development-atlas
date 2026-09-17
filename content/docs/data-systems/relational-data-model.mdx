@@ -31,9 +31,19 @@ concepts:
 
 # Relational Data Model: Put Business Facts Under Constraints
 
+At 2:00 AM on a high-volume shopping weekend, an incident alert fires across the platform: customer records are silently dropping project memberships, billing exports report hundreds of phantom charges, and the database CPU is pinned at 100%. An investigation reveals three compounding failures. First, engineers attempted to store a many-to-many relationship inside an unconstrained JSON array column (`user_ids`), allowing concurrent API workers to overwrite each other's updates and corrupt membership state without a trace. Second, when parent organization records were deleted, millions of child resources remained as orphaned records because no foreign keys guarded referential integrity. Finally, an engineer attempted a live emergency migration using `ALTER TABLE orders ADD COLUMN status text NOT NULL DEFAULT 'pending';`, acquiring an `AccessExclusiveLock` that blocked all incoming read and write transactions, exhausted the connection pool, and caused a complete cascading outage.
+
+These failures share one root cause: treating a relational database as a dumb JSON storage engine and relying on application code discipline rather than database-enforced invariants.
+
 ## TL;DR
 
-A relational schema is not just a collection of tables. It is a model of **business facts, identities, relationships, and invariants** that the database can keep consistent even when many callers write concurrently.
+> 💡 **Rule of thumb:** Model authoritative business facts and strict invariants at the database level before designing API payloads or UI screens. Let the database engine reject invalid state so application bugs, retries, and concurrent writers cannot commit corrupt data.
+
+- **A schema models facts, not views:** A relational schema is not a passive JSON document store—it is a formal model of **business facts, identities, relationships, and invariants** enforced at the storage engine level.
+- **Candidate keys define business identity:** Surrogate primary keys (`id`) provide join convenience, but natural candidate keys (`tenant_id`, `external_id`) must remain guarded by strict `UNIQUE` constraints to prevent duplicate facts.
+- **Foreign keys enforce referential integrity:** Foreign keys prevent orphaned records and cascading inconsistency across concurrent writers; application-level validation alone is never sufficient under race conditions.
+- **Normalization eliminates write anomalies:** Model each distinct fact in exactly one authoritative location; distinguish authoritative current facts from deliberate historical snapshots (such as checkout price).
+- **Fatal pitfall:** Shoving relational many-to-many entities into untyped JSON arrays or running synchronous `ALTER TABLE ... NOT NULL DEFAULT` migrations on high-traffic tables without an expand-and-contract strategy, causing full-table write locks and catastrophic production downtime.
 
 Use this reasoning sequence:
 

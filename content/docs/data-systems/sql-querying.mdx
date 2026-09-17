@@ -32,9 +32,19 @@ concepts:
 
 # SQL Querying: Ask Precise Questions of Relational Data
 
+On the first morning of quarterly financial reconciliation, the finance dashboard triggered alarms: reported gross merchandise value had surged by \$4.2 million overnight. An emergency audit traced the phantom revenue to a developer adding a `LEFT JOIN payment_attempts` onto the core order reporting query to fetch payment gateway timestamps. Because retry attempts and webhooks produced multiple payment records for refunded and settled transactions, the join quietly multiplied order rows—triggering a partial Cartesian product that duplicated revenue figures in `SUM(total_cents)` calculations. To make matters worse, customer portal latency spiked past 15 seconds because feed pagination relied on `OFFSET 50000`, forcing the database to scan and discard millions of rows on disk while concurrent writes caused page drift. In the same deployment, critical dispute records vanished from compliance feeds because a developer filtered with `WHERE resolution_status != 'rejected'`, oblivious to SQL's three-valued logic silently discarding all rows where `resolution_status` was `NULL`.
+
+These production disasters highlight a universal truth: writing SQL is not about assembling clauses until data appears. It is about defining relational semantics with mathematical precision before touching query optimization.
+
 ## TL;DR
 
-A correct SQL query starts by defining the **result grain**: what one output row means. Only then decide how to join source relations, filter rows, aggregate groups, project columns, order results, and take a subset.
+> 💡 **Rule of thumb:** Define the exact grain of one output row before writing a single SQL clause. Ensure joins preserve or deliberately aggregate that grain, handle three-valued logic with explicit `NULL` checks, use keyset pagination for deep traversal, and verify query semantics with adversarial test fixtures before running `EXPLAIN ANALYZE`.
+
+- **State the result grain before typing code:** Every valid query begins with an explicit contract of what one output row represents (e.g., one customer, one order, or one billing interval). Every join, filter, and aggregation must preserve or consciously transform that grain.
+- **Guard against Cartesian product row explosions:** Inspect relationship cardinality on both sides of every `JOIN`. Joining a one-to-many relationship without pre-aggregating multiplies rows; never mask an accidental multiplying join with a lazy `SELECT DISTINCT`.
+- **Master three-valued logic and `NULL` semantics:** In SQL, comparisons with `NULL` evaluate to `unknown`, not `false`. A filter like `WHERE status != 'closed'` drops `NULL` rows automatically; use `IS NULL`, `IS NOT DISTINCT FROM`, or `NOT EXISTS` for leak-proof absence checks.
+- **Replace deep `OFFSET` with keyset pagination:** Deep `OFFSET` pagination wastes CPU scanning and throwing away millions of rows while concurrent inserts create duplicate or skipped records. Use deterministic keyset pagination (cursor-based) anchored by unique ordering columns.
+- **Fatal pitfall:** Performing a `LEFT JOIN` against a table with multiple matching rows without pre-grouping or an existence check, triggering a Cartesian product that silently multiplies financial metrics, then slapping `SELECT DISTINCT` on the query to hide the duplicate rows instead of fixing the broken join cardinality.
 
 Use this reasoning sequence:
 

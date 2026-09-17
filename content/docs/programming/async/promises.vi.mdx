@@ -33,11 +33,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-1. **Một Promise mô hình hóa một kết quả trong tương lai, không phải một tác vụ đang chạy.** Promise là một giá trị đại diện (placeholder) cho kết quả của một phép tính không đồng bộ.
-2. **`resolved` không đồng nghĩa với `fulfilled`.** Một Promise đã "resolved" có thể vẫn đang ở trạng thái `pending` nếu nó đang "nhận nuôi" (adopt) số phận của một Promise con chưa hoàn tất.
-3. **Mỗi mắt xích `.then()`, `.catch()`, `.finally()` đều sinh ra một Promise hoàn toàn mới.** Chúng không hề thay đổi Promise ban đầu.
-4. **Hàm `.catch()` mặc định là một trạm khôi phục (recovery).** Nếu bạn không chủ động `throw` lỗi trong `.catch()`, Promise downstream tiếp theo sẽ chuyển thành **fulfilled** với giá trị `undefined`, dễ tạo ra lỗi nghiệp vụ nghiêm trọng.
-5. **Chọn đúng combinator theo mục đích:** `Promise.all()` cho điều kiện tất cả thành công (fail-fast), `Promise.allSettled()` khi cần ghi nhận toàn bộ kết quả, `Promise.any()` lấy thành công đầu tiên, và `Promise.race()` lấy phản hồi sớm nhất bất kể thành bại.
+Promise không phải là tiến trình đang chạy ngầm trong hệ thống—nó chỉ là một **chiếc vé hẹn (claim ticket)** đại diện cho kết quả trong tương lai. Nhầm lẫn tai hại này, kết hợp với việc xem nhẹ cơ chế sinh Promise mới của chuỗi handler, từng tạo nên những sự cố production kinh hoàng: một dịch vụ thanh toán bắt lỗi thẻ từ chối trong `.catch()`, chỉ ghi log rồi kết thúc mà không ném lại lỗi, khiến hàm ngầm trả về `undefined`. Promise downstream lập tức chuyển sang trạng thái Fulfilled, kích hoạt bước tiếp theo và xuất kho gửi hàng cho khách dù giao dịch bị từ chối 100%.
+
+> 💡 **Quy tắc bỏ túi:** Mỗi lệnh `.then()`, `.catch()` hay `.finally()` đều tạo ra một Promise downstream hoàn toàn mới. Số phận của nó do giá trị trả về (`return`) hoặc ngoại lệ (`throw`) trong handler quyết định. Muốn bắt bệnh chuỗi bất đồng bộ, hãy truy vết Promise downstream, tuyệt đối không nhìn vào Promise gốc ban đầu.
+
+- **Promise là chiếc vé hẹn lấy kết quả, không phải tác vụ đang chạy:** Reject hay bỏ rơi Promise không hề tự động hủy bỏ socket mạng, câu truy vấn database hay worker thread đang thực thi dưới nền.
+- **Resolved không đồng nghĩa với Fulfilled:** Một Promise được xem là "resolved" khi số phận của nó đã được niêm phong. Nó hoàn toàn có thể ở trạng thái **pending nhưng đã resolved** nếu đang nhận nuôi (adopt) một Promise con chưa settled.
+- **Mỗi mắt xích sinh ra một Promise downstream độc lập:** Trả về giá trị thường sẽ làm downstream fulfilled; ném lỗi (`throw`) sẽ làm downstream rejected; trả về một Promise/thenable sẽ kích hoạt cơ chế nhận nuôi (adoption).
+- **Lựa chọn đúng combinator theo nghiệp vụ:** `Promise.all()` dừng ngay khi có lỗi (fail-fast); `Promise.allSettled()` quan sát trọn vẹn 100% kết quả; `Promise.any()` lấy thành công đầu tiên; `Promise.race()` lấy kết quả sớm nhất bất kể thành bại.
+- **Cạm bẫy chết người (Lỗi bị nuốt trọn - Swallowed Error):** Handler `.catch()` là một trạm khôi phục. Nếu chỉ ghi log mà không chủ động `throw err`, downstream Promise sẽ được giải quyết ở trạng thái **fulfilled** với giá trị `undefined`, âm thầm cho phép các nghiệp vụ nguy hiểm phía sau chạy tiếp như thể không hề có sự cố.
 
 ---
 
@@ -117,14 +121,14 @@ const p1 = p0.then((user) => {
 });
 ```
 
-Giả sử `loadProfile()` trả về một Promise fulfill với object profile.
+Giả sử `loadProfile()` trả về một Promise fulfill với đối tượng hồ sơ người dùng.
 
 <details>
 <summary>Xem giải thích chi tiết</summary>
 
-- Handler `return user.id` (`7`) nên `p1` **fulfill** với `7`.
-- `loadProfile(user.id)` vẫn chạy, nhưng Promise của nó **không** được adopt vì không được `return`.
-- Code phía sau `await p1` tiếp tục với `7` trong khi profile có thể vẫn chưa xong—lỗi thứ tự trông như “đã async” nhưng thực ra không được nối chuỗi.
+- Handler `return user.id` (`7`) nên `p1` **fulfill** với giá trị `7`.
+- `loadProfile(user.id)` vẫn được kích hoạt, nhưng Promise của nó **không** được adopt vì không được `return`.
+- Đoạn mã phía sau `await p1` sẽ tiếp tục chạy với giá trị `7` trong khi hồ sơ người dùng có thể vẫn chưa tải xong—lỗi thứ tự này tạo cảm giác mã "đã bất đồng bộ" nhưng thực chất mắt xích xử lý đã bị đứt gãy hoàn toàn.
 
 </details>
 
@@ -209,7 +213,7 @@ Một hệ thống thương mại điện tử xử lý thanh toán đơn hàng 
 function processOrderPayment(orderId: string) {
   return chargeCustomer(orderId)
     .catch((err) => {
-      // DEV chỉ ghi log lỗi trừ thẻ nhưng quên rethrow:
+      // Lập trình viên chỉ ghi log lỗi trừ thẻ nhưng quên ném lại lỗi (rethrow):
       logger.error('Failed to charge card', { orderId, err });
     })
     .then(() => {

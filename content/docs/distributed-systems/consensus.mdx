@@ -18,17 +18,19 @@ concepts:
 
 # Consensus: Agree on One Committed History Through Failure
 
+Picture a 5-node distributed cluster powering a critical ledger. Without warning, two nodes lose power completely in a datacenter blackout. The surviving three nodes continue getting hammered with write requests from frantic clients. How do these nodes guarantee they consistently agree on one committed history—without deadlocking, without splitting into rival factions, and without ever committing contradictory states? This is the fundamental challenge of consensus: establishing agreement on an authoritative sequence of state transitions across asynchronous, partition-prone networks where participants can crash at any instant.
+
+Consensus ensures that independent nodes **agree on one value or ordered history even when messages are delayed and some nodes fail**. Replicating raw bytes is not enough; the cluster needs a mathematical guarantee of agreement.
+
+> 💡 **Rule of thumb:** Replication distributes copies, but consensus establishes truth. If your cluster loses its majority quorum, fail closed immediately—never invent local bypasses to serve writes from an isolated minority.
+
 ## TL;DR
 
-Consensus is the problem of making independent nodes **agree on one value or ordered history even when messages are delayed and some nodes fail**.
-
-At recognition depth, keep five ideas straight:
-
-- **replication is not consensus**: having copies does not prove that nodes agreed on which history is authoritative;
-- a consensus group normally requires a **quorum**, commonly a majority, before a decision becomes committed;
-- leader-based protocols such as Raft use **leader election**, terms, and a replicated log to organize agreement;
-- a network partition may leave one side with enough votes to continue while the minority must stop committing new work;
-- if the group loses quorum, preserving safety means giving up progress until enough members can communicate again.
+- **Consensus is agreement on committed history; replication is not consensus:** Merely shipping log entries to followers does not mean nodes agreed on which history is authoritative; consensus protocols establish an undeniable commit boundary.
+- **Quorum intersection guarantees safety across terms:** An $N$-node cluster requires a majority quorum ($\lfloor N/2 \rfloor + 1$) to elect a leader or commit log entries. Because any two majorities overlap by at least one node, the newest term is guaranteed to inherit all previously committed entries.
+- **Leader election organizes time into epochs:** Protocols like Raft use leader election and monotonic terms to ensure only one authoritative coordinator sequences the replicated log at any given time.
+- **Safety always trumps liveness under partition:** When a network partition divides a 5-member cluster into a majority (3 nodes) and a minority (2 nodes), the majority continues making progress while the minority must reject writes to prevent split-brain history.
+- **Fatal pitfall:** Treating uncommitted entries as durable state. If a leader appends an entry to its local log and crashes before replicating it to a quorum, that entry is uncommitted and will be irrevocably overwritten by the next elected leader.
 
 ```mermaid
 flowchart LR

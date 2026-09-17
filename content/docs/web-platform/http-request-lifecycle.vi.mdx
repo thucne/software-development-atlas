@@ -35,11 +35,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-Một HTTP request bản chất là một phiên trao đổi request/response theo ngữ nghĩa, **không nhất thiết đồng nghĩa với việc mở mới một kết nối mạng**. Khi gỡ lỗi một request thực tế, hãy lần theo chuỗi các thực thể tham gia: tầng cache nào, kết nối nào được tái sử dụng, trung gian nào đã can thiệp, và máy chủ gốc có thực sự được gọi hay không.
+Vào ngày cao điểm mua sắm, trang thanh toán ghi nhận độ trễ tăng vọt lên tới 1,2 giây đối với người dùng mới truy cập lần đầu, trong khi khách hàng thân thiết thao tác mượt mà chỉ mất 80ms. Đội ngũ kỹ thuật đổ lỗi cho cơ sở dữ liệu chậm, nhưng dữ liệu APM cho thấy câu lệnh database chỉ tốn chưa đầy 15ms. Thủ phạm thực sự chính là cơn bão cold request: phân giải DNS đệ quy, bắt tay 3 bước TCP, thương lượng TLS 1.3, trượt cache CDN và khởi tạo kết nối mới trên từng lời gọi fetch do thiếu cơ chế connection pooling.
 
-**Đừng mặc định** rằng mỗi request đều phải lặp lại toàn bộ chuỗi: Phân giải DNS, bắt tay TCP, thiết lập TLS và xử lý mã nguồn tại backend. Một mục cache còn tươi mới (fresh) có thể phản hồi ngay lập tức trước khi chạm vào card mạng, một kết nối đang mở có thể gánh thêm request mới, và một CDN cache trung gian có thể trả kết quả trước khi ứng dụng backend kịp nhận tín hiệu.
+> 💡 **Quy tắc bỏ túi:** **Một HTTP request là một phiên hội thoại ngữ nghĩa, không đồng nghĩa với một kết nối mạng.** Một request có thể hoàn thành trọn vẹn ngay trong bộ nhớ client (cache hit), đi qua socket mở sẵn chỉ trong 1-RTT, hoặc phải trả giá bằng hàng loạt round-trip đắt đỏ qua DNS, TCP và TLS nếu kết nối không được tái sử dụng.
 
-HTTP/1.1, HTTP/2, và HTTP/3 chia sẻ chung ngữ nghĩa HTTP chuẩn hóa (RFC 9110). Chúng chỉ khác nhau ở cách thức truyền tải các ngữ nghĩa đó qua dây mạng.
+- **Hợp đồng ngữ nghĩa đối chiếu với đường ống truyền tải:** HTTP chuẩn hóa ngữ nghĩa trao đổi request/response (RFC 9110); các tầng transport (TCP, TLS, QUIC/UDP) cung cấp luồng byte vật lý bên dưới.
+- **Bốn hành trình phân nhánh sớm:** Khởi tạo request rẽ nhánh rất sớm: trúng cache client (không tốn mạng), tái sử dụng kết nối ấm (không tốn bắt tay), trúng CDN trung gian (không tốn tài nguyên máy chủ gốc), hoặc thiết lập lạnh toàn phần.
+- **Ghép kênh qua các thế hệ giao thức:** HTTP/1.1 giới thiệu tái sử dụng kết nối keep-alive; HTTP/2 bổ sung ghép kênh nhị phân trên một luồng TCP duy nhất; HTTP/3 xóa bỏ tắc nghẽn đầu hàng (head-of-line blocking) bằng QUIC trên nền UDP.
+- **Tái xác thực bộ nhớ đệm:** Proxy và CDN trung gian kiểm tra các tiêu đề `Cache-Control`, `ETag` và `304 Not Modified` trước khi chuyển tiếp dữ liệu đến mã nguồn backend.
+- **Cạm bẫy chết người:** Coi mỗi lời gọi `fetch()` như một thao tác độc lập mà không bật keep-alive hoặc cơ chế quản lý pool kết nối—buộc client hoặc máy chủ backend phải đóng mở bắt tay TCP/TLS liên tục trên từng chặng mạng.
 
 ## Bốn hành trình phổ biến của một Request
 

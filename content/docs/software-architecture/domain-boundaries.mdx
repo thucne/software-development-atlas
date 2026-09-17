@@ -18,9 +18,19 @@ concepts:
 
 # Domain Boundaries: Keep Meaning and Change Local
 
+Picture a monolithic `User` table that has swelled to over 120 columns. The Billing team frantically adds tax identification numbers, payment terms, and invoicing addresses. The Security team bolts on salted password hashes, failed login counters, and MFA device tokens. The Marketing team crams in browsing affinity scores, campaign attribution tags, and behavioral tracking flags. All three teams fight for control of this single model under the naive illusion that "a user is just a user."
+
+The inevitable result? A marketing schema migration locks the entire table during peak traffic, taking down checkout. Worse, no engineer dares touch a single column out of sheer terror of breaking another department's production workflow. When domain boundaries dissolve, a single overloaded entity becomes a catastrophic bottleneck for organizational velocity and system stability.
+
+> 💡 **Rule of thumb:** Never confuse a real-world identity with a single software model. The same human being is an Account in Sales, a Payer in Billing, and an Entitled Contact in Support. Carve explicit Bounded Contexts around business capabilities and translate at the seams—forcing them into a global schema produces toxic coupling.
+
 ## TL;DR
 
-A **domain boundary** marks where one coherent business model, language, rules, and ownership apply. In Domain-Driven Design, that semantic boundary is a **bounded context**.
+- **Bounded contexts enforce semantic integrity**: A domain boundary marks where a coherent business model, vocabulary, and invariant rules remain internally consistent. Beyond that boundary, the exact same words often carry completely different meanings.
+- **Model, data, and rule ownership must be unambiguous**: Every entity, database table, and business invariant must be owned by exactly one team and context. External contexts consume published contracts, never private database tables.
+- **Shared identity is not a shared data model**: Multiple contexts can safely reference the same external ID (such as `user_id`) without coupling their schemas, state lifecycles, or release schedules.
+- **Translate models at boundaries**: Protect core domain models using an Anti-Corruption Layer (ACL) rather than allowing upstream data structures or legacy systems to contaminate local business logic.
+- **Fatal pitfall:** **The God-Object Trap**—Attempting to construct a single "canonical enterprise customer model" that serves every team. It turns the database into a bottleneck of cross-team coordination where every schema change risks enterprise-wide outages.
 
 ```mermaid
 flowchart LR

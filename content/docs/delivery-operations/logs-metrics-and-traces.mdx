@@ -32,15 +32,15 @@ concepts:
 
 ## TL;DR
 
-Observability is not “collect every signal.” It is the ability to move from a user-visible symptom to evidence that explains **where, when, and why** the system behaved that way.
+During a severe checkout outage, five on-call engineers stare at a wall of 40 disjointed Grafana dashboards while customer transactions silently fail. The logs are a deafening firehose of 200,000 unindexed text lines per second; aggregate metrics show a 5xx error spike but cannot identify which tenant or downstream microservice is failing; and distributed tracing was left unconfigured. The team spends two hours guessing in Slack instead of diagnosing from correlated telemetry evidence.
 
-Use the three core telemetry signals for different jobs:
+> 💡 **Rule of thumb:** **Metrics detect symptoms, traces isolate causality, and logs reveal local truth.** Telemetry is ineffective without correlation: a metric spike triggers the alarm, a distributed `trace_id` pinpoints the offending network hop or database call, and structured logs explain exactly what the component decided at that instant.
 
-- **Metrics** answer aggregate questions such as “Did error rate rise?” and “Which service is slow?”
-- **Traces** reconstruct request causality across boundaries: “Where did this request spend time?”
-- **Logs** provide event detail: “What did this component know when it made this decision?”
-
-The signals become much more useful when they share stable resource attributes and correlation identifiers such as `trace_id`. Treat metric cardinality and trace sampling as explicit budgets, not accidental defaults.
+- **Complementary telemetry triad:** Metrics track aggregate numerical health (RED method); distributed traces reconstruct request causality across microservice boundaries; structured logs capture contextual event details.
+- **Correlation via shared context:** Propagate a uniform `trace_id` and `span_id` across process boundaries, logging frameworks, and OpenTelemetry contexts.
+- **Cardinality control:** Keep high-cardinality values (`user_id`, UUIDs, email addresses) out of metric labels to avoid catastrophic timeseries database bloat and explosive cloud bills.
+- **Sampling economics:** Head-sample happy-path traffic at low rates (1–5%) while tail-sampling 100% of errors and high-latency outlier requests.
+- **Fatal pitfall:** Emitting unstructured string logs (`console.log("error: " + err)`) without standardized JSON fields or correlation IDs—rendering distributed log searches and automated alerting useless during production fires.
 
 ## Start from a question, not a dashboard
 

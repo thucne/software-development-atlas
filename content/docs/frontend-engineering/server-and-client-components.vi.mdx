@@ -16,13 +16,19 @@ concepts:
   - server-and-client-components
 ---
 
-# Server và Client Components: Chọn ranh giới thực thi
+# Server và Client Components: Ranh giới thực thi và mã nguồn phân phối
 
 ## Tóm tắt
 
-Server và Client Components trả lời một câu hỏi khác với SSR và CSR.
+Một lập trình viên đặt chỉ thị `'use client'` lên đầu file layout gốc chỉ để bật/tắt một nút gạt dark mode nhỏ. Ngay lập tức, 45 thư viện truy vấn cơ sở dữ liệu, bộ phân tích markdown và các tiện ích nội bộ bị cuốn vào đồ thị bundle JavaScript của trình duyệt, làm dung lượng tải trang tăng vọt thêm 1.8MB và làm lộ cả chuỗi kết nối database trong devtools! Lập trình viên ngỡ ngàng: "Tôi tưởng Client Component chỉ có nghĩa là render SSR như bình thường!". Sai lầm chí mạng ở đây là hiểu nhầm `'use client'` là chế độ render trang, trong khi nó thực chất là một ranh giới thực thi module có tính bắc cầu.
 
-**SSR/CSR mô tả HTML được tạo ở đâu. Server/Client Components mô tả component code được phép chạy ở đâu và module nào phải trở thành JavaScript phía trình duyệt.** Hai trục này có thể kết hợp: một Client Component vẫn có thể góp HTML vào initial response do server render rồi hydrate trong browser, còn bản thân Server Component không được ship xuống browser như component runtime.
+> 💡 **Quy tắc bỏ túi:** **Đẩy ranh giới client xuống thấp nhất và nhỏ nhất có thể; giữ Server Component ở tầng trên và truyền Client Component qua `children`.** Server Component đối chiếu với Client Component là một trục độc lập hoàn toàn với SSR/CSR: nó quyết định *mã nguồn nào phải tải xuống trình duyệt*, không phải là HTML có được tạo sẵn trên server hay không. Tuyệt đối không đặt `'use client'` ở các layout cấp cao.
+
+- **Độc lập hoàn toàn với SSR vs. CSR:** SSR/CSR quyết định HTML được sinh ra ở đâu; Server/Client Component quyết định mã nguồn component và thư viện phụ thuộc có bị đóng gói vào bundle JavaScript trình duyệt hay không.
+- **Ranh giới module client có tính bắc cầu:** Chỉ thị `'use client'` đánh dấu một ranh giới: file đó và toàn bộ các module được import trực tiếp hay gián tiếp đều trở thành một phần của đồ thị phụ thuộc client.
+- **Ranh giới tuần tự hóa (Serialization):** Props truyền qua ranh giới từ Server Component sang Client Component bắt buộc phải tuần tự hóa được (các kiểu dữ liệu JSON, JSX children; không truyền instance class, function hay kết nối DB).
+- **Mô hình kết hợp (Composition):** Lồng ghép Server Component vào bên trong Client Component bằng cách truyền qua prop `children`, cho phép lấy dữ liệu độc quyền trên server bên trong một wrapper client có tính tương tác.
+- **Cạm bẫy chết người:** Đặt `'use client'` ở các layout dùng chung hoặc component cấp cao—lôi kéo toàn bộ thư viện backend, database client và thông tin nhạy cảm vào thẳng bundle của trình duyệt.
 
 <TermBox term="Ranh giới thực thi">
 **Ranh giới thực thi** tách phần công việc component ở lại môi trường server khỏi phần phải có mặt trong browser. Nó ảnh hưởng capability, quyền truy cập dữ liệu, serialization và lượng JavaScript được ship.

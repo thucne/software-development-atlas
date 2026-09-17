@@ -18,17 +18,19 @@ concepts:
 
 # Tính nhất quán phân tán: Suy luận về điều các reader có thể quan sát
 
-## Tóm tắt
+Khách hàng vừa đổi địa chỉ giao hàng của đơn hàng vừa đặt và bấm "Lưu thay đổi". API ghi thành công vào database PostgreSQL primary, phản hồi mã `200 OK`, rồi chuyển hướng trình duyệt sang trang tóm tắt đơn hàng. Thế nhưng, request tải trang ngay sau đó lại được bộ cân bằng tải điều phối vào một read replica đang bị trễ sao chép (replica lag) 900 mili-giây. Màn hình hiện ra địa chỉ *cũ mèm*! Khách hàng hoang mang tột độ tưởng hệ thống bị lỗi, cuống cuồng sửa lại và bấm lưu liên tiếp ba lần. Bộ phận kho vận nhận một loạt cập nhật xung đột, còn đội ngũ hỗ trợ khách hàng nhận được email khiếu nại gay gắt: *"Website làm mất địa chỉ giao hàng của tôi!"* Thực tế không hề có byte dữ liệu nào bị mất hay hỏng trên đĩa—hệ thống chỉ vừa vi phạm hợp đồng nhất quán đọc-sau-khi-ghi (read-your-writes).
 
-Distributed consistency là một **contract quan sát được** về write nào một reader được phép thấy, theo thứ tự nào và view đó có thể cũ đến mức nào khi nhiều bản sao state nằm trên các máy khác nhau.
+Tính nhất quán phân tán không phải là một ô checkbox tiếp thị hay thuộc tính phần cứng của ổ đĩa. Nó xác định ranh giới về mặt thời gian và quan hệ nhân quả đối với những gì người quan sát (reader) được phép thấy khi dữ liệu được nhân bản trên nhiều máy chủ khác nhau.
 
-Câu hỏi hữu ích không phải “database này có strong consistency không?” mà là:
+## TL;DR
 
-- sau một write thành công, reader nào phải thấy nó ngay?
-- một client có thể quay lại phiên bản cũ hơn không?
-- các write có quan hệ nhân quả có phải được quan sát theo đúng thứ tự không?
-- read có được chủ động trả về snapshot cũ hơn không?
-- chuyện gì xảy ra khi replica không liên lạc được với nhau?
+> 💡 **Quy tắc bỏ túi:** Tính nhất quán không phải là dữ liệu có an toàn trên đĩa hay không (đó là tính bền vững - durability), mà là người đọc được phép thấy trạng thái nào xuyên suốt không gian và thời gian. Hãy luôn thiết kế dựa trên hợp đồng quan sát (observable contract) rõ ràng thay vì những nhãn mác tiếp thị mơ hồ như "nhất quán mạnh" hay "nhất quán cuối cùng".
+
+- **Nhất quán là một hợp đồng quan sát (Observable contract):** Quy định rõ người đọc được phép thấy những thao tác ghi đã commit nào, theo thứ tự nhân quả ra sao và độ cũ (staleness) tối đa cho phép giữa các bản sao dữ liệu.
+- **Nhất quán cuối cùng (Eventual consistency) không đồng nghĩa với dữ liệu mới tức thì:** Các replica chắc chắn sẽ hội tụ khi ngừng ghi, nhưng nếu thiếu cam kết theo phiên (session guarantees), người dùng hoàn toàn có thể đọc phải dữ liệu cũ hoặc thấy dữ liệu nhảy ngược về quá khứ.
+- **Session guarantee giải quyết ức chế thực tế của người dùng:** Các mô hình như **read-your-writes** (đọc được chính thay đổi mình vừa ghi) và **monotonic reads** (đọc đơn điệu, không bao giờ thụt lùi về phiên bản cũ hơn) dẹp bỏ trải nghiệm quái đản mà không phải đánh đổi độ trễ và tính sẵn sàng của linearizability toàn cục.
+- **Linearizability (tính tuyến tính):** Cam kết nghiêm ngặt theo thời gian thực; mọi thao tác đọc/ghi đều có hiệu lực nguyên tử tại một thời điểm duy nhất trên đồng hồ chuẩn, hành xử như thể toàn hệ thống chỉ có một bản sao duy nhất.
+- **Cạm bẫy chết người:** Xem nhẹ độ trễ replica lag như một chi tiết hạ tầng vô hại thay vì gắn session token hoặc version fence để route lượt đọc sau ghi, dẫn đến việc người dùng tưởng mất dữ liệu và liên tục thao tác lặp lại gây nghẽn hệ thống.
 
 ```mermaid
 flowchart LR
@@ -214,40 +216,40 @@ Khi không có partition, hệ thống vẫn đánh đổi latency, coordination
 
 Guarantee mạnh hơn có thể tốn latency hoặc coordination hơn. Guarantee yếu hơn có thể đẩy complexity sang reconciliation và UX của application.
 
-## Kịch bản production: update thành công nhưng confirmation vẫn cũ
+## Kịch bản production thực chiến: Cập nhật thành công, trang xác nhận vẫn hiện dữ liệu cũ
 
-User đổi shipping address của order. API write vào primary database và trả success. Browser lập tức load confirmation page, nhưng GET đó được route sang read replica đang chậm 900 ms.
+Người dùng đổi địa chỉ giao hàng trên đơn hàng vừa đặt. API ghi vào database PostgreSQL primary và trả về phản hồi thành công. Trình duyệt lập tức tải trang xác nhận, nhưng request GET đó bị bộ cân bằng tải điều hướng sang một read replica đang bị trễ sao chép (replica lag) 900 ms.
 
-Trang vẫn hiện address cũ. User retry update. Downstream workflow giờ thấy hai write hợp lệ và support nhận ticket “site làm mất thay đổi của tôi” dù không có committed write nào bị mất.
+Trang web vẫn hiển thị địa chỉ cũ. Người dùng hoang mang bấm cập nhật lại lần nữa. Workflow hạ nguồn giờ đây ghi nhận hai lượt ghi hợp lệ và đội ngũ chăm sóc khách hàng nhận được ticket khiếu nại "website làm mất dữ liệu của tôi" dù không hề có lượt ghi đã commit nào bị mất mát.
 
-**Hậu quả:** user thấy state đi ngược sau một action thành công, lặp operation không cần thiết và mất niềm tin vào confirmation path.
+**Hậu quả:** Người dùng thấy trạng thái hệ thống đi lùi về quá khứ sau một thao tác thành công, dẫn đến việc lặp lại thao tác không cần thiết và đánh mất niềm tin vào hệ thống.
 
-**Nguyên nhân cốt lõi:** team xem asynchronous replica lag là chi tiết infrastructure thay vì định nghĩa read-your-writes consistency contract cho journey ngay sau update.
+**Nguyên nhân cốt lõi:** Đội ngũ phát triển xem nhẹ độ trễ sao chép bất đồng bộ (asynchronous replica lag) như một chi tiết hạ tầng vô hại thay vì thiết lập một hợp đồng nhất quán đọc-sau-khi-ghi (read-your-writes) cho hành trình người dùng ngay sau thao tác cập nhật.
 
-**Cách khắc phục chuẩn:** gắn committed version hoặc replication position vào session, rồi route immediate follow-up read về primary hoặc replica đã catch up tới fence đó. Giữ browse traffic bình thường trên eventually consistent replica nếu stale data chấp nhận được. Đo replica lag và tỷ lệ fallback-to-primary để stronger path vẫn có observability.
+**Cách khắc phục chuẩn:** Gắn phiên bản đã commit hoặc vị trí replication log vào session của người dùng, rồi định tuyến (route) lượt đọc kế tiếp về thẳng primary hoặc về replica đã đuổi kịp mốc version fence đó. Giữ lưu lượng duyệt xem thông thường trên các replica nhất quán cuối cùng (eventual consistency) nếu việc đọc dữ liệu cũ trong vài giây là chấp nhận được. Đồng thời đo lường độ trễ replica lag và tỷ lệ fallback về primary để duy trì khả năng quan sát (observability) cho hệ thống.
 
-## Consistency failure thường là routing failure
+## Sự cố nhất quán thường bắt nguồn từ lỗi định tuyến
 
-Khi debug stale hoặc contradictory read, hãy inspect toàn bộ observation path:
+Khi điều tra các trường hợp đọc dữ liệu cũ hoặc mâu thuẫn, hãy kiểm tra toàn bộ đường dẫn quan sát (observation path):
 
-- replica nào serve read;
-- nó đang ở version hoặc log position nào;
-- client trước đó đã thấy version nào;
-- session token hoặc version fence có sống qua proxy/retry không;
-- failover có đổi writer hoặc replica set không;
-- cache có tạo thêm một stale layer không;
-- application có âm thầm trộn strong read API với eventual read API không.
+- Replica nào đã phục vụ yêu cầu đọc;
+- Replica đó đang ở phiên bản hoặc vị trí log nào;
+- Client trước đó đã quan sát thấy phiên bản nào;
+- Session token hoặc version fence có sống sót qua proxy và các lượt retry không;
+- Quá trình failover có thay đổi node writer hoặc tập hợp replica không;
+- Tầng cache (Redis, CDN) có tạo thêm một lớp dữ liệu cũ không;
+- Ứng dụng có đang âm thầm trộn lẫn API đọc mạnh (strong read) với API đọc nhất quán cuối cùng (eventual read) không.
 
-Storage engine có thể thỏa documented contract trong khi application vẫn vi phạm user-visible contract vì route không cẩn thận.
+Hệ thống lưu trữ bên dưới có thể tuân thủ 100% hợp đồng cam kết trong tài liệu, trong khi ứng dụng phía trên vẫn vi phạm hợp đồng mà người dùng nhìn thấy chỉ vì cơ chế định tuyến bất cẩn.
 
 ## Tự kiểm tra
 
-User write `status=PAID`, nhận success, rồi lập tức read từ region khác và thấy `status=PENDING`. Năm giây sau cùng read đó trả `PAID`. Durability có nhất thiết bị vi phạm không?
+Một người dùng cập nhật `status=PAID`, nhận được thông báo thành công, rồi lập tức gửi yêu cầu đọc từ một region khác và thấy `status=PENDING`. Năm giây sau, cùng yêu cầu đọc đó lại trả về `PAID`. Liệu tính bền vững (durability) của hệ thống có nhất thiết bị vi phạm không?
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
-Không. Write có thể đã commit bền vững trong khi remote read path vẫn được phép stale. Câu hỏi đầu tiên là consistency contract nào áp dụng cho cross-region read. Nếu product yêu cầu read-your-writes, application cần stronger read path, session token, version fence hoặc routing rule. Nếu eventual consistency là đủ, stale observation tạm thời có thể vẫn đúng contract.
+Hoàn toàn không. Lượt ghi có thể đã được lưu trữ bền vững trên đĩa ngay từ đầu, trong khi đường dẫn đọc liên vùng (cross-region) được thiết kế cho phép có độ trễ nhất định. Câu hỏi đầu tiên cần làm rõ là: Hợp đồng nhất quán nào đang chi phối lượt đọc liên vùng này? Nếu nghiệp vụ bắt buộc phải đạt được read-your-writes, ứng dụng cần thiết lập kênh đọc mạnh hơn, mang theo session token, version fence hoặc quy tắc định tuyến phù hợp. Nếu hệ thống chỉ cam kết nhất quán cuối cùng (eventual consistency), thì việc quan sát thấy dữ liệu cũ tạm thời là hoàn toàn hợp lệ theo đúng hợp đồng thiết kế.
 
 </details>
 

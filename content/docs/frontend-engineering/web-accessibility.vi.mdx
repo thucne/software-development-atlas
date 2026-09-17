@@ -16,23 +16,19 @@ concepts:
   - web-accessibility
 ---
 
-# Khả năng truy cập Web: Vận hành giao diện ngoài luồng lý tưởng
+# Khả năng truy cập Web: Vận hành giao diện vượt qua phạm vi màn hình
 
 ## TL;DR
 
-Khả năng truy cập Web không phải bước đánh bóng sau khi pixel đã hoàn tất. Đây là kỷ luật vận hành để cùng một tác vụ người dùng vẫn hoạt động qua nhiều cách nhập liệu, cách nhận đầu ra, mức thị lực/thính lực/vận động/nhận thức, cài đặt trình duyệt và công nghệ hỗ trợ khác nhau.
+Một công ty dịch vụ tài chính thiết kế lại trang thanh toán bằng các dropdown tùy biến làm hoàn toàn bằng thẻ `<div>` và sự kiện `onClick`. Tháng sau, công ty đối mặt với đơn kiện vi phạm quyền tiếp cận thông tin: người dùng khiếm thị dùng trình đọc màn hình không thể tìm thấy nút thanh toán, người dùng điều hướng bằng bàn phím bị kẹt cứng trong modal không thể thoát ra, còn thông báo lỗi form chỉ đổi viền đỏ nhạt mà không hề có nhãn chữ hay thông báo động (live region). Chỉ mười phút kiểm thử thủ công bằng phím `Tab` và VoiceOver đã có thể ngăn chặn rủi ro pháp lý kéo dài nhiều tháng.
 
-Một workflow thực tế:
+> 💡 **Quy tắc bỏ túi:** **Ưu tiên HTML ngữ nghĩa trước tiên; ARIA chỉ là phần bổ trợ, không thể thay thế control gốc.** Nếu phần tử HTML gốc (`<button>`, `<input>`, `<dialog>`) đã hỗ trợ, hãy dùng nó. Thẻ HTML gốc cung cấp miễn phí khả năng điều hướng bàn phím (`Space`, `Enter`, phím mũi tên), tên truy cập, quản lý focus và tương thích hoàn hảo với trình đọc màn hình mà không cần giả lập ARIA phức tạp.
 
-1. bắt đầu từ **tác vụ người dùng**, không phải screenshot;
-2. ưu tiên HTML ngữ nghĩa và control gốc trước khi tự xây widget;
-3. kiểm tra name, role, state, relationship và reading order;
-4. vận hành toàn bộ tác vụ chỉ bằng bàn phím, đồng thời giữ focus hiển thị rõ và có thể dự đoán;
-5. làm cho biểu mẫu, lỗi, loading và success state có thể nhận biết mà không phụ thuộc riêng vào màu hoặc thị giác;
-6. cung cấp văn bản thay thế cho nội dung phi văn bản có ý nghĩa;
-7. kiểm tra phóng to, tái bố cục, kích thước mục tiêu và độ bền của layout;
-8. kết hợp kiểm tra tự động với keyboard test và kiểm thử bằng công nghệ hỗ trợ;
-9. giữ regression accessibility trong cùng release loop với lỗi chức năng khác.
+- **Nền tảng HTML ngữ nghĩa:** Các phần tử gốc cung cấp sẵn khả năng focus, sự kiện bàn phím và vai trò trợ năng chuẩn hóa mà không cần viết thêm JavaScript hay sự kiện giả lập.
+- **Tên và mô tả truy cập (Accessible Name & Description):** Đảm bảo mọi control tương tác đều có tên truy cập rõ ràng qua văn bản hiển thị, `<label for>`, hoặc thuộc tính `aria-label`/`aria-labelledby`.
+- **Khả năng vận hành bằng bàn phím & hiển thị focus:** Đảm bảo toàn bộ luồng tác vụ có thể thực hiện chỉ bằng bàn phím (`Tab`, `Shift+Tab`, `Enter`, `Escape`), giữ chỉ báo focus rõ ràng và bẫy focus trong modal.
+- **Biểu mẫu dễ cảm nhận & vùng live region:** Gắn kết thông báo lỗi với ô nhập liệu bằng `aria-describedby` và `aria-invalid`; thông báo các cập nhật dữ liệu động bằng `aria-live="polite"` hoặc `role="status"`.
+- **Cạm bẫy chết người:** Xây dựng các nút bấm hay menu bằng thẻ phi ngữ nghĩa (`<div onClick={...}>`) mà không có `tabIndex="0"`, thiếu lắng nghe phím bấm và nhãn trợ năng—khiến tính năng hoàn toàn vô hình và tê liệt đối với người dùng công nghệ hỗ trợ.
 
 <TermBox term="Accessible name">
 **Accessible name** là tên mà công nghệ hỗ trợ dùng để nhận diện control hoặc region. Nó có thể đến từ text hiển thị, `<label>`, `aria-labelledby` hoặc trong trường hợp hẹp hơn là `aria-label`. Một control nhìn rất rõ bằng mắt vẫn có thể không dùng được nếu tên có thể truy cập bị thiếu hoặc sai intent.

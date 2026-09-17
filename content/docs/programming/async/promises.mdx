@@ -33,19 +33,15 @@ concepts:
 
 ## TL;DR
 
-A Promise represents an eventual outcome. The most useful way to read a chain is **from one Promise to the next**: every standard `then()`, `catch()`, or `finally()` call returns a separate downstream Promise.
+A Promise is not the background operation running on the runtime thread—it is a **claim ticket** (like an order buzzer handed to you at a counter) representing an eventual outcome. Conflating the ticket with the background engine or misunderstanding how chain handlers shape downstream Promises causes catastrophic production outages. In one notable incident, an error handler inside a `.catch()` block merely logged a declined credit card and returned cleanly (`undefined`), silently fulfilling the downstream Promise and prompting the warehouse to dispatch goods to a customer whose payment had completely failed.
 
-Three rules explain most chains:
+> 💡 **Rule of thumb:** Every call to `.then()`, `.catch()`, or `.finally()` creates a brand-new downstream Promise whose fate is determined solely by what its handler returns or throws. When diagnosing an async pipeline, always trace forward through downstream Promises rather than assuming the source Promise mutates.
 
-1. return a plain value → the downstream Promise fulfills with that value;
-2. throw → the downstream Promise rejects with the thrown reason;
-3. return a Promise or thenable → the downstream Promise adopts that eventual outcome.
-
-The terminology that prevents many mistakes is:
-
-> **Resolved does not necessarily mean fulfilled.**
-
-A Promise can already be resolved to another still-pending Promise or thenable while remaining pending itself. Also, a Promise represents the result of work; rejecting it does **not** inherently cancel network I/O, a timer, filesystem work, or another underlying operation.
+- **A Promise is a receipt for a future value, not the running task:** Rejecting or abandoning a Promise does not cancel in-flight network sockets, database queries, or OS threads.
+- **Resolved does not mean fulfilled:** A Promise is *resolved* when its eventual fate is locked. It can be **pending yet resolved** if it has adopted another still-pending Promise.
+- **Chain methods allocate separate downstream Promises:** Returning a plain value fulfills downstream; throwing rejects downstream; returning a Promise/thenable adopts that eventual outcome.
+- **Combinators enforce strict contracts:** Choose `Promise.all()` for fail-fast dependencies, `Promise.allSettled()` for complete observation, `Promise.any()` for first successful result, and `Promise.race()` for raw settlement timers.
+- **Fatal pitfall (Swallowed Errors):** An error-handling `.catch()` that merely logs an exception without rethrowing returns `undefined`, which silently **fulfills** the downstream Promise. Downstream `.then()` steps—such as order fulfillment or database commits—will execute as if the payment succeeded.
 
 ## Start with one small chain
 

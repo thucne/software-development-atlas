@@ -18,17 +18,19 @@ concepts:
 
 # Đồng thuận phân tán: Thống nhất một lịch sử đã commit khi có lỗi
 
+Trong một cụm phân tán gồm 5 node gánh vác sổ cái dữ liệu trọng yếu, 2 node bất ngờ sập nguồn hoàn toàn sau một sự cố điện lưới trung tâm dữ liệu. 3 node còn lại vẫn liên tục nhận các lệnh ghi dồn dập từ client. Làm thế nào để 3 node này luôn đạt được sự đồng thuận tuyệt đối về một sự thật duy nhất của dữ liệu—không bế tắc (deadlock), không chia rẽ bè phái, và không bao giờ đánh mất một giao dịch đã chốt? Đó chính là bài toán cốt lõi của đồng thuận phân tán (consensus): xác lập sự thống nhất về một chuỗi trạng thái có thứ tự qua mạng bất đồng bộ, nơi các thành viên có thể chậm trễ hoặc lăn ra chết bất kỳ lúc nào.
+
+Đồng thuận bảo đảm các node độc lập **thống nhất một giá trị hoặc một lịch sử có thứ tự dù message bị trễ và một số node gặp lỗi**. Việc sao chép dữ liệu thô chỉ là điều kiện cần; hệ thống cần một bảo chứng toán học để khẳng định chân lý.
+
+> 💡 **Quy tắc bỏ túi:** Sao chép giúp phân tán dữ liệu, nhưng đồng thuận mới là thứ xác lập chân lý. Khi cụm mất quorum đa số, hãy chủ động dừng ghi (fail closed) ngay lập tức—tuyệt đối không bao giờ phá vỡ ranh giới commit để phục vụ các lệnh ghi ở nhánh thiểu số bị cô lập.
+
 ## Tóm tắt
 
-Đồng thuận phân tán là bài toán làm cho các node độc lập **thống nhất một giá trị hoặc một lịch sử có thứ tự dù message bị trễ và một số node gặp lỗi**.
-
-Ở mức độ nhận diện, hãy giữ rõ năm ý:
-
-- **replication không tự động là consensus**: có nhiều bản sao không chứng minh rằng các node đã thống nhất lịch sử nào là authoritative;
-- một consensus group thường cần **quorum**, phổ biến là đa số, trước khi một quyết định được xem là committed;
-- protocol dựa trên leader như Raft dùng **bầu leader**, term và replicated log để tổ chức agreement;
-- network partition có thể để một phía còn đủ vote tiếp tục, còn phía thiểu số phải dừng commit công việc mới;
-- nếu group mất quorum, giữ safety đồng nghĩa phải từ bỏ tiến triển cho đến khi đủ member giao tiếp lại được.
+- **Đồng thuận là thống nhất lịch sử đã commit; sao chép không tự động là đồng thuận:** Việc gửi các entry nhật ký sang follower chỉ là sao chép; giao thức đồng thuận (consensus) bắt buộc các node phải thống nhất xem lịch sử nào có thẩm quyền tối cao và thiết lập ranh giới commit không thể chối cãi.
+- **Giao thoa Quorum bảo đảm tính an toàn qua các nhiệm kỳ:** Cụm $N$ node cần một quorum đa số ($\lfloor N/2 \rfloor + 1$) để bầu leader hoặc chốt lệnh ghi. Vì hai tập đa số bất kỳ luôn giao nhau ít nhất một node, nhiệm kỳ mới luôn kế thừa trọn vẹn toàn bộ các mục log đã được commit trước đó.
+- **Bầu leader phân định quyền lực theo nhiệm kỳ logic (term/epoch):** Các giao thức như Raft dùng quy trình bầu cử leader và số nhiệm kỳ tăng đơn điệu để bảo đảm chỉ có một coordinator duy nhất được phép xếp thứ tự nhật ký sao chép tại một thời điểm.
+- **An toàn (Safety) luôn xếp trên tiến triển (Liveness) khi phân vùng mạng:** Khi đứt mạng chia cắt cụm 5 node thành nhánh đa số (3 node) và nhánh thiểu số (2 node), nhánh đa số tiếp tục tiến triển còn nhánh thiểu số bắt buộc phải từ chối ghi để ngăn chặn phân kỳ lịch sử.
+- **Cạm bẫy chết người:** Đánh đồng một mục log vừa ghi đĩa cục bộ với một trạng thái đã commit. Nếu leader vừa append một entry vào log của mình rồi crash trước khi kịp đạt quorum xác nhận, entry đó chưa hề được commit và chắc chắn sẽ bị leader nhiệm kỳ mới đè bẹp và xóa sạch.
 
 ```mermaid
 flowchart LR
@@ -222,18 +224,18 @@ Một control-plane service lưu routing configuration trong consensus group 5 m
 
 Phía ba member elect leader mới và tiếp tục commit thay đổi configuration. Leader cũ bị cô lập vẫn reachable từ một internal admin tool, và một “availability fallback” tự chế cho phép tool đó write trực tiếp vào local store của leader cũ mà không có quorum.
 
-**Hậu quả:** operator thấy hai routing configuration không tương thích. Khi connectivity trở lại, local write từ phía thiểu số không thể trở thành một phần của committed consensus history, nhưng downstream system có thể đã hành động theo chúng.
+**Hậu quả:** các kỹ sư vận hành chứng kiến hai cấu hình định tuyến hoàn toàn xung đột nhau. Khi kết nối mạng thông suốt trở lại, các lệnh ghi cục bộ từ phía thiểu số vĩnh viễn không thể trở thành một phần của lịch sử đồng thuận đã chốt, dù các hệ thống downstream có thể đã lỡ thực thi các hành động dựa trên dữ liệu sai lệch đó.
 
-**Nguyên nhân cốt lõi:** fallback xem last-known leader là authoritative ngay cả sau khi nó mất quorum. Team nhầm process liveness với consensus authority và bypass commit boundary.
+**Nguyên nhân cốt lõi:** cơ chế fallback tự chế mặc định xem leader đã biết gần nhất là có thẩm quyền kể cả sau khi nó đã mất quorum. Đội ngũ kỹ thuật đánh đồng tính còn sống của tiến trình với thẩm quyền đồng thuận và tự ý vượt qua ranh giới commit.
 
-**Cách khắc phục chuẩn:** yêu cầu write được consensus bảo vệ phải có authority do quorum hiện tại xác lập, reject hoặc fail closed ở phía thiểu số, expose mất quorum như một trạng thái vận hành rõ ràng, và chỉ gắn external side effect với committed state thay vì local observation chưa commit. Nếu quorum mất vĩnh viễn, dùng disaster-recovery procedure được tài liệu hóa thay vì tự tạo một lịch sử thứ hai.
+**Cách khắc phục chuẩn:** bắt buộc mọi thao tác ghi được đồng thuận bảo vệ phải có thẩm quyền do quorum hiện tại xác lập, kiên quyết từ chối hoặc chặn ghi (fail closed) ở nhánh thiểu số, định danh việc mất quorum như một trạng thái vận hành rõ ràng, và chỉ kích hoạt các side effect bên ngoài dựa trên dữ liệu đã chốt (committed) thay vì quan sát cục bộ chưa commit. Nếu quorum mất vĩnh viễn, phải kích hoạt quy trình khắc phục thảm họa theo tài liệu chuẩn thay vì tự tạo ra một lịch sử dữ liệu thứ hai tại chỗ.
 
 ## Tự kiểm tra
 
 Một group kiểu Raft có 5 member bị partition thành phía 2 member chứa leader trước đó và phía 3 member. Leader cũ vẫn reachable từ client nhưng không reach được ba member kia. Nó có thể an toàn tiếp tục commit entry mới chỉ vì trước partition nó là leader không?
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Vai trò leader trước đó không thay thế quorum requirement hiện tại. Phía thiểu số 2 member không thể tạo majority của năm, nên không được commit lịch sử mới. Phía 3 member có thể elect leader hiện tại và tiếp tục tiến triển. Giữ safety yêu cầu phía thiểu số dừng consensus write dù điều đó làm giảm availability cho client vẫn bị route tới nó.
 

@@ -16,20 +16,19 @@ concepts:
   - frontend-state-models
 ---
 
-# Mô hình State Frontend: Đặt từng loại state đúng chỗ
+# Các mô hình Frontend State: Sở hữu, dẫn xuất hoặc lưu bền
 
 ## Tóm tắt
 
-Frontend state không phải một cái thùng duy nhất. Trước khi chọn `useState`, Context, global store, URL, `localStorage` hay data cache, hãy phân loại thông tin trước.
+Một người dùng lọc danh mục phòng khách sạn theo tiêu chí "Giá < 1 triệu" và "Gần biển", tìm thấy phòng ưng ý và sao chép link trình duyệt gửi cho bạn. Khi người bạn mở link, trang web lại hiển thị danh sách phòng ngẫu nhiên không có bộ lọc. Cùng lúc đó tại tab gốc, một lập trình viên sao chép dữ liệu API từ server vào cả store toàn cục lẫn local state component, gây ra vòng lặp `useEffect` đồng bộ vô tận làm đóng băng trình duyệt. Nguyên nhân gốc rễ? Đặt nhầm trạng thái URL vào local state và tạo ra các bản sao có thể ghi cạnh tranh nhau từ dữ liệu thuộc sở hữu của máy chủ.
 
-Hãy hỏi bốn câu:
+> 💡 **Quy tắc bỏ túi:** **Mỗi sự thật trạng thái chỉ được có một chủ sở hữu duy nhất—tất cả những thứ còn lại hãy tính toán dẫn xuất (derive).** Nếu trạng thái mang ý nghĩa điều hướng (bộ lọc, tab, từ khóa), hãy lưu vào URL để người dùng có thể chia sẻ và bookmark; nếu là dữ liệu từ API, hãy coi đó là cache tạm thời thuộc sở hữu của máy chủ; không bao giờ sao chép dữ liệu từ server hay props vào local state rồi dùng `useEffect` để đồng bộ thủ công.
 
-1. **Ai sở hữu nó?** Phần nào của sản phẩm có quyền quyết định thay đổi nó?
-2. **Nó nên sống bao lâu?** Một interaction, một lần ở route, một browser session hay qua nhiều session?
-3. **Phạm vi của nó rộng đến đâu?** Một component, một subtree, toàn app hay nhiều thiết bị/người dùng?
-4. **Có cần lưu bền không?** Refresh, chia sẻ URL hay mở lại app có cần khôi phục nó không?
-
-Mô hình state tốt thường có **một owner canonical cho mỗi fact**, giữ state gần owner đó và derive phần còn lại khi có thể.
+- **Phân loại trạng thái theo 4 chiều:** Luôn phân loại thông tin theo: chủ sở hữu có thẩm quyền (local UI, URL, server cache, workflow dùng chung), thời gian sống, phạm vi ảnh hưởng và nhu cầu lưu bền.
+- **URL là chủ sở hữu trạng thái:** Đưa các tham số tìm kiếm, view đang kích hoạt, bộ lọc và phân trang vào URL search params để lịch sử trình duyệt (back/forward) và chia sẻ link hoạt động hoàn hảo.
+- **Một nguồn sự thật duy nhất & trạng thái dẫn xuất:** Tính toán giá trị trực tiếp trong quá trình render (ví dụ: `const visibleItems = items.filter(...)`) thay vì lưu bản sao phụ đòi hỏi phải cập nhật đồng bộ thủ công.
+- **Dữ liệu server thuộc sở hữu của server:** Coi dữ liệu API là bản cache bất đồng bộ của máy chủ; dùng công cụ quản lý cache chuyên dụng (TanStack Query, SWR, RSC) thay vì nạp dữ liệu thô vào global store client.
+- **Cạm bẫy chết người:** Sao chép dữ liệu server hoặc props vào local `useState` rồi cố gắng duy trì đồng bộ hai chiều bằng `useEffect`—chắc chắn sẽ gây ra giao diện lỗi thời, race condition và các vòng lặp re-render vô tận.
 
 <TermBox term="Chủ sở hữu state">
 **Chủ sở hữu state** là component, URL, store, cache, server hoặc persistence layer có quyền quyết định một fact cụ thể. Consumer có thể đọc hay derive từ nó, nhưng không nên âm thầm tạo thêm bản writable cạnh tranh.

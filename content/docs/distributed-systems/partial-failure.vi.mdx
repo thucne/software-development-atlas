@@ -20,7 +20,15 @@ concepts:
 
 ## Tóm tắt nhanh
 
-Trong chương trình cục bộ, kết quả thường khá rõ: hàm trả về hoặc process crash. Với hệ thống phân tán, có thể xảy ra **lỗi một phần**: một component đã commit nhưng component khác timeout, request tới nơi nhưng response bị mất, hoặc một observer cho rằng call thất bại trong khi observer khác thấy thành công.
+Hãy tưởng tượng bạn đang đứng tại quầy thanh toán một quán cà phê đông đúc. Bạn quẹt thẻ thanh toán lên máy POS. Thiết bị xoay tròn một lúc lâu rồi hiện lên cảnh báo đỏ chót: *"Giao dịch thất bại — Hết thời gian chờ mạng"*. Nhưng trước khi bạn kịp rút ví để quẹt lại lần hai, điện thoại trong túi bỗng rung lên: thông báo từ ngân hàng báo tài khoản của bạn vừa bị trừ 45.000 VNĐ. Nhân viên thu ngân quả quyết máy chưa nhận được tiền; sổ cái ngân hàng lại khẳng định giao dịch đã tất toán xong xuôi. Không bên nào gian dối—cả hai đều ghi nhận những dữ kiện hoàn toàn chính xác từ góc nhìn cục bộ của riêng mình qua một sợi cáp mạng chập chờn. Đó chính là thực tế khắc nghiệt và đặc trưng nhất của hệ thống phân tán: **lỗi một phần (partial failure)**.
+
+> 💡 **Quy tắc bỏ túi:** Trong hệ thống phân tán, timeout chỉ là một quan sát cục bộ, không phải phán quyết cuối cùng. Tuyệt đối không bao giờ đồng nhất "chưa nhận được phản hồi" với "thao tác chưa xảy ra" đối với các tác vụ ghi dữ liệu.
+
+- **Thực tại cục bộ vs. sự bất định phân tán:** Trong một tiến trình đơn lẻ, hàm thực thi cho kết quả dứt khoát—hoặc trả về dữ liệu, hoặc ném ngoại lệ làm sập luồng. Qua kết nối mạng, thao tác có thể gặp **lỗi một phần**: một service ghi dữ liệu thành công nhưng service khác bị timeout, request đến nơi nhưng phản hồi thất lạc, hoặc bên gọi (caller) cho rằng lệnh đã hỏng trong khi bên nhận (callee) đã hoàn tất trọn vẹn.
+- **Quan sát độc lập giữa bên gọi và bên nhận:** Client và server đưa ra các **kết luận cục bộ độc lập** về cùng một RPC; bên gọi thấy `DEADLINE_EXCEEDED` nhưng bên nhận đã commit xong vào cơ sở dữ liệu.
+- **Thử lại an toàn đòi hỏi định danh yêu cầu:** Khi kết quả chưa rõ, mọi nỗ lực thử lại (retry) mù quáng đều có thể gây trùng lặp tác dụng phụ; tác vụ ghi dữ liệu bắt buộc phải mang theo **định danh yêu cầu** (idempotency key) ổn định để máy chủ nhận diện nhiều lần gửi là cùng một thao tác logic duy nhất.
+- **Khoanh vùng phạm vi ảnh hưởng (blast radius):** Việc chờ đợi vô hạn các dependency chậm sẽ ngốn sạch worker thread, connection pool và bộ nhớ; hệ thống bắt buộc phải đặt **hạn chót (deadline)**, truyền tín hiệu **hủy (cancellation)**, và chủ động **fail-fast**, fallback hoặc suy giảm chức năng.
+- **Cạm bẫy chết người:** **Coi timeout là thao tác chưa thực thi.** Giả định rằng gọi timeout nghĩa là server chưa làm gì rồi kích hoạt retry một thao tác ghi không có idempotency là nguyên nhân số một gây trừ tiền hai lần, tạo đơn trùng lặp và làm sai lệch nghiêm trọng dữ liệu sổ cái tài chính.
 
 ```mermaid
 flowchart LR
@@ -31,7 +39,7 @@ flowchart LR
   N -. timeout .-> C
 ```
 
-Khó khăn cốt lõi không chỉ là failure. Đó là **không chắc điều gì đã xảy ra ở phía xa**.
+Khó khăn cốt lõi không chỉ là sự cố kỹ thuật. Đó là **sự không chắc chắn về những gì đã thực sự diễn ra ở đầu bên kia**.
 
 <TermBox term="Partial Failure">
 **Partial failure** là tình huống một số participant hoặc đường truyền lỗi trong khi các phần khác của thao tác phân tán vẫn tiếp tục hoặc đã hoàn tất.

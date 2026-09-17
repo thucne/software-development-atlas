@@ -33,16 +33,15 @@ concepts:
 
 ## TL;DR
 
-Threat modeling is a repeatable engineering loop for answering four questions: **what are we building, what can go wrong, what will we do about it, and did we do enough?** Least privilege turns part of that analysis into an enforceable rule: every human, service, process, and token gets only the resources and actions needed for its current function.
+A customer support contractor clicks a phishing link, compromising their session credentials. Within twenty minutes, the attacker downloads the company's entire 10-million-user database from S3 and wipes the production backups. Why? Because the internal support application ran under a single god-mode IAM role with `s3:*` and `rds:*` wildcard permissions, and the system assumed anyone authenticated behind the VPN was automatically trusted without per-resource authorization.
 
-A useful threat model is not a document that says “use authentication.” It exposes **data flows and trust boundaries**, names plausible abuse paths, assigns concrete mitigations, and creates checks that can fail when the design drifts.
+> 💡 **Rule of thumb:** **Authentication proves who you are; authorization and least privilege determine what you can touch.** Security collapses when trust is inherited transitively. Enforce deny-by-default, validate authorization on every request for specific resources, and constrain blast radiuses so the compromise of a single token cannot compromise the entire system.
 
-For authorization, two invariants matter repeatedly:
-
-- **deny-by-default**: access requires an explicit reason to allow it;
-- validate authorization on **every request** and for the specific action and resource being requested.
-
-Authentication proves or establishes identity. **Authorization** decides what that identity may do. Confusing the two is a common path to broken access control.
+- **Continuous threat-modeling loop:** Systematically answer four questions: What are we building, what can go wrong, what will we do about it, and did we verify our mitigations?
+- **Explicit trust boundaries:** Map data flows across network, process, and organizational boundaries where trust levels change; never treat internal network traffic as implicitly safe.
+- **Deny-by-default & continuous evaluation:** Grant zero access unless an explicit rule permits it, and re-evaluate authorization on **every request** rather than assuming a valid login grants global object access.
+- **Blast radius containment:** Enforce least privilege for both humans and machines (services, serverless functions, CI/CD runners) by scoping IAM roles and database permissions strictly to needed operations.
+- **Fatal pitfall:** Relying on perimeter security (VPNs/firewalls) and granting wildcard permissions (`*` in IAM policies) for developer convenience—allowing any single compromised entry point to escalate into total infrastructure compromise.
 
 ## Model the system before listing threats
 

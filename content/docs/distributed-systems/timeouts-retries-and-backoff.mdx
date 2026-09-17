@@ -34,17 +34,15 @@ concepts:
 
 ## TL;DR
 
-A timeout does not tell you that the remote operation failed. It tells you that **you stopped waiting**. The downstream system may have failed, may still be working, or may already have committed a side effect whose response was lost.
+Picture an undersea fiber-optic cable experiencing intermittent packet loss under deep-sea tidal friction. A payment gateway issues a \$1,000 settlement request to an acquiring bank. After waiting 2.5 seconds, the caller's socket times out with an error. Frustrated, an unconfigured automated retry loop immediately fires again, and again, and again. Behind the scenes, the acquiring bank had actually authorized the initial charge on disk—only the outbound acknowledgment packet was dropped by the degraded fiber. Within ten seconds, four duplicate charges post to the customer's credit card, while thousands of identical automated retries swamp the acquiring bank's connection queues until its database collapses into complete gridlock. A timeout never proves that an operation failed; it simply proves that **you ran out of patience**.
 
-A safe retry policy therefore needs more than “try again”:
+> 💡 **Rule of thumb:** In distributed systems, timeouts bound waiting time while idempotency bounds correctness risk; never retry across layers without an end-to-end deadline, exponential backoff, and randomized jitter.
 
-1. carry an end-to-end **deadline** or budget, not an independent full timeout at every hop;
-2. retry only failures that can plausibly improve on another attempt;
-3. retry only when the operation is idempotent or otherwise safe to repeat;
-4. bound attempts and total retry time;
-5. use exponential backoff with jitter so callers do not synchronize;
-6. choose one retry owner when multiple layers could retry;
-7. observe attempts, exhausted budgets, downstream saturation, and duplicate-prevention outcomes.
+- **A timeout is a local boundary, not a remote verdict:** When a timeout expires, the downstream dependency may have crashed before starting, may still be actively executing, or may have committed durable side effects whose response was lost in transit.
+- **End-to-end deadlines over naive timeouts:** Propagate a unified **deadline** across the entire call tree; subtracting elapsed upstream time prevents downstream tiers from burning precious compute on work whose caller has already timed out.
+- **Strict safety classification:** Only retry **transient** errors on operations guaranteed to be **idempotent**; deterministic client errors, authentication failures, and unverified mutations must never be retried blindly.
+- **Exponential backoff with jitter & single ownership:** Back off exponentially to give dependencies breathing room, inject randomized **jitter** to prevent thundering herds, and assign **retry ownership** to a single tier to avoid multiplicative load cascades (`3 × 3 × 3 = 27`).
+- **Fatal pitfall:** **Blindly retrying non-idempotent mutations upon timeout.** Assuming that an unanswered call never took effect and firing rapid retries without a stable idempotency key is the premier recipe for duplicated financial charges, corrupted inventory, and self-inflicted denial-of-service outages.
 
 ## Partial failure changes what an error means
 

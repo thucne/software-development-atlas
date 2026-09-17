@@ -28,14 +28,23 @@ concepts:
 
 # Modularity: Xây ranh giới chịu được thay đổi
 
-## Tóm tắt nhanh
+Bạn bắt tay vào tách một module A ra khỏi monolith với hy vọng tăng tốc độ build, để rồi cay đắng nhận ra A gọi sang B, B phụ thuộc C, và C lại chọc ngược về các hàm nội bộ của A. Bạn không thể biên dịch độc lập, không thể viết unit test riêng lẻ, và mọi nỗ lực tách ranh giới đều tan vỡ. Bạn vừa sập bẫy **vòng lặp phụ thuộc (circular dependency)**. Những gì trông có vẻ ngăn nắp trên cấu trúc thư mục thực chất là một mớ bòng bong không thể tháo gỡ, phá vỡ hoàn toàn tính đóng gói.
 
-Một module hữu ích khi nó cung cấp cho phần còn lại của hệ thống một **hợp đồng nhỏ và ổn định**, đồng thời giữ kiến thức triển khai dễ biến động ở bên trong.
+Bản chất của thiết kế module hóa (modularity) không nằm ở việc phân chia file hay đặt tên thư mục cho đẹp mắt. Cốt lõi của nó là **khoanh vùng thay đổi**, **che giấu thông tin triệt để**, và **kiểm soát hướng phụ thuộc một chiều**.
+
+> 💡 **Quy tắc bỏ túi:** Ranh giới module sinh ra để khoanh vùng thay đổi; khi một chi tiết triển khai bên trong biến động, chỉ duy nhất module sở hữu nó phải sửa đổi và kiểm thử lại, giữ cho toàn bộ phần còn lại của hệ thống hoàn toàn bình an vô sự.
+
+## Tóm tắt nhanh (TL;DR)
+
+- **Module là ranh giới thay đổi, không phải chỉ là thư mục:** Cấu trúc package hay thư mục chỉ có ý nghĩa khi nó công khai một **hợp đồng (public contract/API) nhỏ và ổn định**, đồng thời khóa chặt mọi quyết định triển khai dễ biến động ở bên trong.
+- **Che giấu thông tin (Information Hiding) bảo vệ các quyết định dễ vỡ:** Giấu kín cấu trúc bảng database, SDK của bên thứ ba, thuật toán hay chi tiết workflow để caller bên ngoài không thể bám víu và bị ảnh hưởng khi có thay đổi nội bộ.
+- **Kiểm soát đồ thị phụ thuộc (Dependency Graph) một chiều:** Sự phụ thuộc phải có hướng rõ ràng, trỏ về phía các module ổn định hơn. Giữ public API tối giản và cấm tuyệt đối việc "chọc sâu" (deep import) vào các file nội bộ.
+- **Cạm bẫy chết người:** **Vòng lặp phụ thuộc (Circular Dependency).** Khi module A gọi B, B gọi C, và C gọi ngược lại A, tính đóng gói bị xóa sổ hoàn toàn. Hệ thống biến thành một "monolith phân tán" nơi không một module nào có thể được kiểm thử, biên dịch hay tái sử dụng độc lập.
 
 Dùng vòng vận hành này:
 
 ```text
-change pattern
+change pattern (mẫu hình thay đổi)
   -> xác định responsibility + owner nhất quán
   -> chọn ranh giới module
   -> chỉ công khai capability caller cần

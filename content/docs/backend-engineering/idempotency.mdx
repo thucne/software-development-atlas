@@ -31,32 +31,19 @@ concepts:
 
 # Idempotency: Make Retries Safe Across Ambiguous Outcomes
 
+A customer standing inside an elevator with an unstable cellular connection taps the "Pay Now" button for a \$200 order. The initial request reaches the checkout service, charges the card through the payment provider, and prepares a response—but a sudden cellular tower handover drops the connection before the 200 OK reaches the phone. The client app observes a network timeout after 5 seconds and automatically retries. The nervous customer also taps the button two more times in rapid succession. Within 10 seconds, three identical payment requests land on your API. Without an explicit idempotency architecture, the customer is billed three separate times (\$600 total), resulting in three duplicate bank alerts, an angry dispute, and hours of customer support remediation.
+
+In distributed networks, network timeouts are fundamentally ambiguous: you cannot infer whether the connection severed before the server received the command, during execution, or on the response path. **Idempotency** is the foundational distributed systems contract that makes retrying safe across this uncertainty.
+
 ## TL;DR
 
-Idempotency means that repeating the **same logical operation** does not apply the intended business effect more than once.
+> 💡 **Rule of thumb:** Safe operations (like `GET`) never modify server state, whereas idempotent operations (like `PUT` or a protected `POST`) may mutate state on the first execution and safely return identical logical outcomes on every replay. Always reserve an Idempotency Key atomically with a unique constraint and payload fingerprint before executing irreversible side effects.
 
-The operational problem appears when a caller cannot tell whether the first attempt succeeded:
-
-```text
-client sends command
-  -> server commits effect
-  -> connection dies before response arrives
-  -> client sees timeout
-  -> client must decide whether to retry
-```
-
-Without an idempotency boundary, availability and correctness fight each other. Retry and you may duplicate the effect. Do not retry and you may leave the user with an operation that succeeded but appears failed.
-
-A practical model is:
-
-```text
-logical-operation identity
-  + payload fingerprint
-  + atomic reservation
-  + durable outcome
-  + explicit retention window
-  + duplicate-safe downstream effects
-```
+- **Safe vs Idempotent operations:** Safe methods (`GET`, `HEAD`) never mutate resources. Idempotent operations (`PUT`, `DELETE`, or custom `POST` endpoints) can alter state on the initial execution, but guarantee that repeating the identical command produces no additional business side effects.
+- **Stable logical-operation identity:** The client must generate the `Idempotency-Key` exactly once when the business command is initiated and reuse that identical key across all retries; generating a new random UUID per network retry completely bypasses deduplication.
+- **Atomic reservation with fingerprinting:** Atomically reserve the scoped key in the datastore using a unique constraint (`INSERT ... ON CONFLICT`) along with a cryptographic SHA-256 fingerprint of the normalized request payload; reject any request presenting the same key with a different payload to prevent key collisions or malicious payload tampering.
+- **External side-effect boundaries:** A local database transaction cannot roll back an external payment gateway, SMS dispatch, or third-party webhook; propagate downstream idempotency keys or record durable intents before executing remote calls.
+- **Fatal pitfall:** Using a naive check-then-charge implementation (`if key not found -> charge card -> insert key`), allowing concurrent retries from unstable clients to both observe "not found", execute duplicate credit card charges, and defeat the idempotency key completely.
 
 ```mermaid
 sequenceDiagram

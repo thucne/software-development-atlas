@@ -32,9 +32,19 @@ concepts:
 
 # Truy vấn SQL: Đặt câu hỏi chính xác cho dữ liệu quan hệ
 
+8 giờ sáng đầu tháng đối soát tài chính quý, phòng điều hành nhận cảnh báo khẩn cấp: tổng giá trị giao dịch hiển thị trên dashboard tăng vọt thêm 4,2 triệu đô la chỉ sau một đêm. Cuộc điều tra khẩn cấp truy vết nguyên nhân về một thay đổi code tưởng chừng vô hại: một kỹ sư vừa thêm `LEFT JOIN payment_attempts` vào query báo cáo đơn hàng để lấy mốc thời gian qua cổng thanh toán. Vì mỗi đơn hàng có thể có nhiều bản ghi thanh toán thử lại (do webhook hoặc retry sau thất bại), câu lệnh join đã âm thầm nhân bản số dòng đơn hàng—gây ra hiện tượng tích Đề-các một phần (partial Cartesian product) làm nhân đôi doanh thu khi tính `SUM(total_cents)`. Chưa dừng lại ở đó, trang tra cứu lịch sử đơn hàng của người dùng bị nghẽn tới hơn 15 giây vì phân trang dựa vào `OFFSET 50000`, buộc database phải quét và loại bỏ hàng triệu bản ghi trên đĩa trong khi dữ liệu chèn đồng thời làm lệch boundary giữa các trang. Trong cùng đợt deploy đó, hàng trăm khiếu nại khách hàng biến mất khỏi danh sách kiểm duyệt chỉ vì câu điều kiện `WHERE resolution_status != 'rejected'`, do kỹ sư không lường trước được logic ba giá trị (three-valued logic) của SQL sẽ âm thầm loại bỏ tất cả các dòng có `resolution_status` mang giá trị `NULL`.
+
+Những thảm họa production này phản ánh một thực tế hiển nhiên: viết SQL không phải là việc chắp vá các mệnh đề cho tới khi dữ liệu chịu hiện ra. Đó là bài toán định nghĩa ngữ nghĩa quan hệ với độ chính xác toán học trước khi nghĩ tới chuyện tối ưu hóa hiệu năng.
+
 ## Tóm tắt
 
-Một truy vấn SQL đúng bắt đầu bằng việc xác định **result grain**: một row đầu ra đại diện cho điều gì. Sau đó mới quyết định cách nối các relation nguồn, lọc row, gom nhóm, chọn cột, sắp xếp kết quả và lấy một phần dữ liệu.
+> 💡 **Quy tắc bỏ túi:** Luôn xác định tường minh ý nghĩa của một dòng kết quả (result grain) trước khi viết bất kỳ mệnh đề SQL nào. Bảo đảm các phép join bảo toàn hoặc chuyển đổi grain có chủ đích, xử lý rốt ráo logic ba giá trị với các phép kiểm tra NULL tường minh, dùng keyset pagination cho các tập dữ liệu lớn, và kiểm chứng ngữ nghĩa bằng test fixture bất lợi trước khi dùng EXPLAIN ANALYZE.
+
+- **Xác định rõ result grain trước khi gõ code:** Mọi truy vấn đúng đắn đều bắt đầu bằng một cam kết rõ ràng: một row đầu ra đại diện cho thực thể nào (ví dụ: một khách hàng, một đơn hàng hay một chu kỳ thanh toán). Mọi phép join, bộ lọc và gom nhóm đều phải bảo toàn hoặc biến đổi grain đó một cách có chủ đích.
+- **Phòng chống bùng nổ dòng do tích Đề-các (Cartesian product):** Kiểm tra kỹ quan hệ cardinality ở cả hai phía của mỗi mệnh đề `JOIN`. Phép join quan hệ một-nhiều nếu không được gom nhóm trước sẽ nhân bản số dòng; tuyệt đối không dùng `SELECT DISTINCT` như một chiếc băng cá nhân tạm bợ để che đậy phép join làm sai lệch grain.
+- **Làm chủ logic ba giá trị và ngữ nghĩa `NULL`:** Trong SQL, các phép so sánh với `NULL` cho ra kết quả `unknown`, không phải `false`. Điều kiện lọc `WHERE status != 'closed'` sẽ tự động loại bỏ mọi dòng chứa `NULL`; hãy sử dụng `IS NULL`, `IS NOT DISTINCT FROM`, hoặc `NOT EXISTS` để kiểm tra sự vắng mặt một cách an toàn.
+- **Thay thế phân trang `OFFSET` sâu bằng keyset pagination:** Phân trang truyền thống với `OFFSET` lớn làm lãng phí tài nguyên CPU và I/O khi phải quét rồi bỏ qua hàng triệu dòng, đồng thời khiến dữ liệu bị nhảy trang khi có bản ghi mới. Hãy chuyển sang keyset pagination (phân trang bằng con trỏ) dựa trên các cột sắp xếp có giá trị duy nhất.
+- **Cạm bẫy chết người:** Thực hiện `LEFT JOIN` với bảng phụ có nhiều dòng trùng khớp mà không gom nhóm trước hoặc không dùng existence check, kích hoạt Cartesian product thổi phồng số liệu tài chính, rồi vội vã đắp `SELECT DISTINCT` lên câu truy vấn để giấu các dòng trùng thay vì xử lý đúng quan hệ cardinality.
 
 Hãy suy luận theo thứ tự:
 

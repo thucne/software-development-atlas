@@ -18,19 +18,19 @@ concepts:
 
 # Distributed Replication: Keep Copies Correct Through Failure and Failover
 
+A user changes their password, receives an immediate "Success" confirmation, and logs in again seconds later—only to be rejected with an "Invalid credentials" error because their read hit a replica lagging 800 milliseconds behind. In another cluster, an automated failover promotes a standby after a transient network spike, while an isolated application pool continues dispatching mutations to the old primary. The result: an operational nightmare of split-brain divergence where two leaders concurrently accept writes, fracturing customer state into conflicting histories.
+
+Distributed replication keeps **copies of state on multiple nodes**, but moving bytes across network cards is the easy part. The real engineering challenge is defining who has authority to sequence writes, when an update is safe to acknowledge, and how to prevent divergent timelines when failures strike.
+
+> 💡 **Rule of thumb:** Treat replication as an authority and ordering protocol with explicit failure boundaries, not merely background data copying. Never assume that having $N$ replicas guarantees $N$ up-to-date copies, and never promote a new leader without fencing the old writer.
+
 ## TL;DR
 
-Distributed replication keeps **copies of state on multiple nodes**, but the engineering problem is not merely moving bytes. A replication protocol must define:
-
-- which node or rule is authoritative for each update;
-- how updates receive an order that replicas can apply;
-- when a write may be acknowledged;
-- how far a replica may lag;
-- how a new or returning replica catches up;
-- how authority changes during failover without creating two active writers;
-- how conflicting writes are reconciled when the topology intentionally allows more than one writer.
-
-The practical rule is: **treat replication as a copy-and-authority protocol with explicit failure semantics**. Do not assume that “three replicas” automatically means three current copies, zero data loss, or one agreed history.
+- **Replication establishes authority and update order, not just raw storage:** A replication protocol must determine which node or rule is authoritative for each update, how mutations are sequenced in an ordered replication log, and how followers deterministically apply them.
+- **The acknowledgment boundary governs your write contract:** Asynchronous replication returns success before followers store the update, prioritizing write throughput and availability at the risk of losing acknowledged writes on leader crash; synchronous replication waits for remote durable acknowledgments, trading latency for durability.
+- **Replication lag is multi-stage:** Followers can lag across multiple distinct boundaries—network receipt (received), disk persistence (durable), state-machine execution (applied), or client query visibility (visible).
+- **Failover demands strict fencing to avert split-brain:** Transferring authority without an epoch-based fencing token allows an isolated leader to continue accepting writes, silently corrupting downstream state into split-brain divergence.
+- **Fatal pitfall:** Assuming a replication factor of 3 ($N=3$) prevents data loss. If your acknowledgment boundary is satisfied locally on the primary and that node suffers unrecoverable hardware failure before streaming writes to standbys, all acknowledged transactions in that window are permanently lost.
 
 ```mermaid
 flowchart LR

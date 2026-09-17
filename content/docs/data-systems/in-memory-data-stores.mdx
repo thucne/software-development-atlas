@@ -32,13 +32,15 @@ concepts:
 
 ## TL;DR
 
-An in-memory data store keeps its active data primarily in RAM so reads and writes can avoid much of the latency of disk-oriented storage paths. The useful engineering question is not “is RAM fast?” It is:
+At 8:00 PM during peak evening traffic, API p99 latency spikes from 4ms to 35,000ms before triggering cascading gateway timeouts across your infrastructure. The post-mortem reveals a catastrophic trifecta: first, a debugging engineer ran `KEYS *` on the primary Redis instance, blocking its single-threaded event loop for 10 full seconds. Second, because cache keys were created without a **TTL** and `maxmemory-policy` was left without eviction headroom, memory hit 100% and Linux invoked the OOM killer to terminate the Redis process. Finally, when the instance rebooted cold, an un-cached **hot key** for the homepage catalog expired, triggering a brutal **cache stampede** (thundering herd) where 40,000 concurrent requests bypassed the empty cache and pounded the backing relational database, crashing your primary **source of truth**.
 
-> **What correctness and failure contract are you buying with that fast access path?**
+> 💡 **Rule of thumb:** RAM is a finite capacity budget, not an infinite speed cheat code. Treat an in-memory data store either as a disposable **cache** backed by an authoritative **source of truth**, or as an authoritative primary with strict **persistence** and **replication** guarantees—never mix disposable and mission-critical state in the same instance under eviction pressure.
 
-A durable relational database, an evictable cache, an in-memory primary with persistence, and a replicated ephemeral counter service can all expose key/value APIs while making very different promises.
-
-Use this mental model:
+- **Placement vs. durability contract:** In-memory stores keep the active **working set** in **RAM** to eliminate disk I/O latency, but durable survival requires explicit **persistence** (**RDB** snapshots and **AOF** logs) paired with asynchronous or synchronous **replication**.
+- **Eviction is a correctness decision:** When memory hits **maxmemory**, an **eviction** policy (such as LRU or LFU) purges entries; while a disposable **cache** recovers via the database, evicting idempotency records or rate-limit counters breaks core application correctness.
+- **TTL governs lifecycle, not memory sizing:** A **TTL** defines time-based expiration; pairing TTLs with randomized jitter prevents coordinated expiration waves and defends against sudden **cache stampede** spikes.
+- **Sharding scales capacity, not single-key hotspots:** Redis Cluster spreads keys across 16,384 **hash slots** across multiple **shards**, but a massively accessed **hot key** still concentrates 100% of its load on a single shard.
+- **Fatal pitfall (Unbounded OOM & blocking operations):** Storing keys without a **TTL** or running blocking $O(N)$ commands like `KEYS *` freezes Redis's single thread, while hitting memory limits without a sound **maxmemory** eviction policy turns high traffic into fatal out-of-memory crashes.
 
 ```text
 request

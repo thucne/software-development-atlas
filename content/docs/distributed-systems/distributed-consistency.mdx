@@ -18,17 +18,19 @@ concepts:
 
 # Distributed Consistency: Reason About What Different Readers Can Observe
 
+A customer edits their shipping address on an e-commerce order and clicks "Save Changes". The API commits the update to the primary PostgreSQL database, responds with `200 OK`, and immediately redirects the user to the order summary page. But the browser's subsequent `GET` request is routed by an unsuspecting load balancer to a read replica trailing with 900 milliseconds of replication lag. The screen renders the customer's *old* address. In a panic, assuming the site glitched, the user re-enters the address and submits the form three more times. Downstream logistics receives multiple conflicting updates, and customer support gets an irate ticket: *"Your website lost my shipping details!"* No data was actually dropped or corrupted on disk—the architecture simply broke its observable read contract.
+
+Distributed consistency is not a marketing checkbox or a property of disk storage. It defines the temporal and causal boundaries of what different observers are allowed to see when state is replicated across multiple machines.
+
 ## TL;DR
 
-Distributed consistency is an **observable contract** about which writes a reader may see, in what order, and how stale that view may be when copies of state live on different machines.
+> 💡 **Rule of thumb:** Consistency is not whether data is safely written to disk (that is durability), but what an observer is permitted to see across space, time, and replicas. Always design around observable read contracts rather than vague vendor marketing labels like "strong" or "eventual".
 
-The useful question is not “is this database strongly consistent?” It is:
-
-- after a successful write, which readers must see it immediately?
-- can one client move backward to an older version?
-- must causally related writes be observed in order?
-- can a read intentionally return an older snapshot?
-- what happens when replicas cannot communicate?
+- **Consistency is an observable read contract:** It governs which committed writes a reader can observe, in what causal order, and how much staleness is permissible across replicated nodes.
+- **Eventual consistency is not timely consistency:** Dispersed replicas will converge eventually once writes cease, but without explicit session guarantees, individual users can observe stale reads or see state travel backward in time.
+- **Session guarantees eliminate user-facing anomalies:** Contracts like **read-your-writes** (guaranteeing clients see their own mutations) and **monotonic reads** (preventing users from observing older versions after seeing newer ones) resolve core UX pain without the crushing latency and availability penalty of global linearizability.
+- **Linearizability is a strict real-time contract:** It guarantees that all read and write operations appear to execute atomically at a single instant on a universal clock, emulating a single-copy system across the cluster.
+- **Fatal pitfall:** Treating asynchronous replication lag as a harmless internal infrastructure detail instead of pinning post-write reads with session tokens or version fences, triggering phantom rollbacks and duplicate user submissions.
 
 ```mermaid
 flowchart LR

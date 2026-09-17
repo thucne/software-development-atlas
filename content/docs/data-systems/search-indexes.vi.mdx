@@ -33,19 +33,27 @@ concepts:
 
 ## Tóm tắt
 
-Search index là retrieval structure tối ưu cho câu hỏi kiểu “document nào chứa những concept này, thỏa filter này, và nên xếp hạng cao nhất cho query này?”. Nó không giống relational database index, và trong nhiều kiến trúc nó là **derived projection chứ không phải source of truth authoritative**.
+Một nhóm kỹ sư quyết định tinh giản kiến trúc bằng cách chọn luôn Elasticsearch làm cơ sở dữ liệu chính—tự tin biến nó thành **nguồn sự thật (source of truth)** duy nhất của toàn hệ thống. Vài tháng sau, một sự cố mất điện kèm lỗi phân mảnh ổ đĩa xảy ra; các giao dịch đang xử lý dở dang bốc hơi hoàn toàn do thiếu cơ chế write-ahead log với ràng buộc giao dịch nghiêm ngặt, dẫn tới mất mát dữ liệu vĩnh viễn không thể cứu vãn. Trước đó, bộ phận hỗ trợ khách hàng đã liên tục tiếp nhận khiếu nại: "Tôi vừa bấm tạo bài viết xong mà tìm kiếm ngay lại không thấy!". Đội ngũ phát triển đã vấp phải đặc tính cốt lõi của kiến trúc **gần thời gian thực (near-real-time - NRT)**: chu kỳ **refresh interval** mặc định 1 giây tạo ra một khoảng trễ (staleness) rõ rệt khiến tài liệu vừa ghi chưa thể hiển thị ngay trong kết quả tìm kiếm. Đỉnh điểm của thảm họa xảy ra khi hệ thống cho phép index tùy tiện các payload JSON lồng nhau từ người dùng mà không có schema kiểm soát, kích hoạt **thảm họa Mapping Explosion** sinh ra hàng chục nghìn trường mới, làm nghẽn heap bộ nhớ của master node và đánh sập hoàn toàn cụm tìm kiếm.
+
+> 💡 **Quy tắc bỏ túi:** Hãy luôn coi search index là một hình chiếu phái sinh (derived projection) chuyên trách truy xuất từ khóa, xếp hạng và lọc dữ liệu—tuyệt đối không dùng làm **nguồn sự thật (source of truth)** lưu trữ giao dịch gốc. Luôn thiết lập mapping tường minh giữa **trường text** và **trường keyword**, làm chủ độ trễ làm mới **NRT (gần thời gian thực)**, và kiểm soát chặt chẽ cấu trúc schema để tránh thảm họa bùng nổ mapping.
+
+- **Chỉ mục đảo (inverted index) đảo ngược chiều truy vấn:** Thay vì quét tuyến tính từng tài liệu, **inverted index (chỉ mục đảo)** map các từ khóa chuẩn hóa tới danh sách tài liệu tương ứng; **bộ phân tích (analyzer)** chịu trách nhiệm tách từ, chuẩn hóa và sinh ra chuỗi **token** quyết định độ khớp của truy vấn.
+- **Phân định rõ ràng trường text và trường keyword:** Áp dụng **trường text (`text` field)** cho ngôn ngữ tự nhiên (truy vấn bằng **`match` query** và xếp hạng bằng thuật toán tương đồng **BM25**), và dùng **trường keyword (`keyword` field)** cho các mã định danh, trạng thái cần lọc chính xác, sắp xếp hoặc gom nhóm (aggregation).
+- **Khả năng hiển thị là gần thời gian thực (near-real-time - NRT):** Dữ liệu ghi mới được đệm trên RAM và chỉ hiển thị trong kết quả tìm kiếm sau thao tác **refresh** tạo segment mới; đừng lạm dụng ép refresh đồng bộ trên từng thao tác ghi nếu không muốn bóp nghẹt thông lượng ghi.
+- **Tiến hóa schema an toàn bằng reindex và alias:** Cấu trúc phân tích từ khóa một khi đã lưu vào segment thì không thể sửa đổi tại chỗ; việc nâng cấp analyzer hay đổi kiểu dữ liệu bắt buộc phải chạy qua quy trình **reindex** sang index mới và hoán đổi con trỏ **alias** một cách nguyên tử để ngăn chặn độ trễ (stale).
+- **Cạm bẫy chết người (Ảo tưởng CSDL chính & thảm họa bùng nổ mapping):** Coi search index là database chính khiến hệ thống đối mặt với nguy cơ mất dữ liệu khi crash, trong khi việc để ứng dụng tự động sinh trường JSON không kiểm soát sẽ gây ra **thảm họa Mapping Explosion**, làm nghẽn heap bộ nhớ của master node và tê liệt toàn bộ cụm máy chủ.
 
 Mental model:
 
 ```text
-source document
-  -> mapping chọn semantic của field
-  -> analyzer biến text thành normalized token
-  -> inverted index map term sang document phù hợp
-  -> query text được analyze
-  -> candidate document được retrieve và filter
-  -> relevance scoring xếp hạng candidate còn lại
-  -> refresh quyết định indexing work mới khi nào searchable
+tài liệu gốc (source document)
+  -> mapping quyết định ngữ nghĩa của từng trường dữ liệu
+  -> analyzer chuyển đổi văn bản thành các token chuẩn hóa
+  -> inverted index ánh xạ từng từ khóa (term) tới các tài liệu phù hợp
+  -> chuỗi truy vấn được phân tích tương thích
+  -> lọc và truy xuất các tài liệu ứng viên
+  -> tính điểm tương đồng (relevance scoring) để xếp hạng kết quả
+  -> cơ chế refresh quyết định khi nào dữ liệu mới ghi có thể tìm kiếm được
 ```
 
 ```mermaid
@@ -71,28 +79,28 @@ Relational B-tree index thường giúp database tìm authoritative row hiệu q
 Search index thường xây retrieval representation trên document field để user tìm human language, kết hợp filter và rank match theo relevance.
 
 ```text
-relational index
-  row value -> ordered/searchable access path tới authoritative table row
+relational index (chỉ mục quan hệ)
+  giá trị cột -> đường dẫn truy cập có thứ tự tới các hàng dữ liệu gốc (authoritative rows)
 
-search index
-  analyzed term + structured field -> candidate document ID + relevance signal
+search index (chỉ mục tìm kiếm)
+  từ khóa đã phân tích + trường có cấu trúc -> danh sách ID tài liệu ứng viên + điểm số tương đồng
 ```
 
-Từ **index** xuất hiện trong cả hai, nhưng data model và correctness question khác nhau.
+Thuật ngữ **index (chỉ mục)** xuất hiện trong cả hai hệ thống, nhưng mô hình dữ liệu và bài toán về tính đúng đắn lại hoàn toàn khác nhau.
 
-Database index thường được database engine maintain transactionally cùng table. Một search engine riêng có thể được update bất đồng bộ từ source of truth khác, tạo ra freshness boundary rõ ràng.
+Index trong cơ sở dữ liệu quan hệ được công cụ cơ sở dữ liệu duy trì một cách đồng bộ và đảm bảo tính giao dịch (ACID) cùng với bảng dữ liệu. Trong khi đó, một search engine độc lập thường được cập nhật bất đồng bộ từ nguồn sự thật khác, tạo ra một ranh giới rõ ràng về độ trễ dữ liệu (freshness boundary).
 
 ## 2. Inverted index đảo chiều lookup
 
 <TermBox term="Inverted index">
-**Inverted index (chỉ mục đảo)** map searchable term sang những document chứa term đó, thường kèm thêm metadata như term frequency hoặc position.
+**Inverted index (chỉ mục đảo)** là cấu trúc ánh xạ các từ khóa tìm kiếm (term) tới danh sách các tài liệu chứa từ khóa đó, thường đi kèm các siêu dữ liệu bổ trợ như tần suất xuất hiện (term frequency) hoặc vị trí của từ trong văn bản.
 
-Thay vì scan mọi document để hỏi “document này có `database` không?”, search có thể lookup term `database` rồi lấy posting list các document phù hợp.
+Thay vì phải duyệt tuần tự qua mọi tài liệu để hỏi “tài liệu này có chứa từ `database` không?”, công cụ tìm kiếm chỉ việc tra cứu từ khóa `database` rồi lập tức lấy về posting list các tài liệu phù hợp.
 
-**Vì sao quan trọng:** text search nhanh nhờ precompute reverse lookup này, nhưng thứ được đưa vào structure phụ thuộc analysis và mapping ở index time.
+**Vì sao quan trọng:** Tốc độ vượt trội của tìm kiếm toàn văn bắt nguồn từ việc tính toán sẵn cấu trúc tra cứu ngược này. Tuy nhiên, những gì được đưa vào cấu trúc phụ thuộc hoàn toàn vào các quyết định phân tích từ khóa (**analyzer**) và thiết lập mapping ngay tại thời điểm lập chỉ mục.
 </TermBox>
 
-Giả sử ba document chứa:
+Giả sử ba document chứa nội dung sau:
 
 ```text
 d1: "distributed database systems"
@@ -100,7 +108,7 @@ d2: "database indexing"
 d3: "distributed tracing"
 ```
 
-Một inverted index đơn giản có thể là:
+Một inverted index đơn giản có dạng:
 
 ```text
 distributed -> d1, d3
@@ -110,21 +118,21 @@ indexing    -> d2
 tracing     -> d3
 ```
 
-Search engine thật lưu metadata phong phú hơn nhiều, nhưng mental model này đủ để giải thích vì sao analysis sai có thể làm một document gần như vô hình với query.
+Các search engine thực tế lưu trữ siêu dữ liệu phong phú hơn nhiều, nhưng mô hình tư duy này đủ để giải thích vì sao một sai lầm trong khâu phân tích từ khóa có thể khiến tài liệu trở nên vô hình đối với truy vấn của người dùng.
 
 ## 3. Mapping quyết định một field có ý nghĩa gì
 
-Trong Elasticsearch, mapping định nghĩa field type và vì vậy quyết định value được index/query như thế nào.
+Trong Elasticsearch, mapping định nghĩa kiểu dữ liệu của trường (`field type`) và quyết định cách giá trị được lập chỉ mục cũng như cách truy vấn.
 
-Hai string-like field type gặp liên tục:
+Hai kiểu trường dạng chuỗi xuất hiện liên tục:
 
 ### `text`
 
-Một **text field (trường text)** được analyze cho full-text search. Human-readable content như product title hoặc article body thường được tokenize và normalize để query match theo word thay vì chỉ exact original string.
+Một **trường text (`text` field)** được phân tích qua bộ analyzer để phục vụ tìm kiếm toàn văn (full-text search). Nội dung ngôn ngữ tự nhiên như tiêu đề sản phẩm hay bài viết sẽ được tách từ và chuẩn hóa để truy vấn có thể khớp theo từng từ riêng lẻ thay vì bắt buộc phải khớp chính xác 100% toàn bộ chuỗi ban đầu.
 
 ### `keyword`
 
-Một **keyword field (trường keyword)** giữ structured value cho exact-style operation như term-level filter, sort và aggregation.
+Một **trường keyword (`keyword` field)** giữ nguyên vẹn giá trị chuỗi có cấu trúc để phục vụ các thao tác khớp chính xác tuyệt đối, chẳng hạn như bộ lọc (filter), sắp xếp (sort) và tổng hợp thống kê (aggregation).
 
 Ví dụ:
 
@@ -133,7 +141,7 @@ title:       text
 category_id: keyword
 status:      keyword
 sku:         keyword
-brand_name:  text + keyword multi-field khi vừa cần search vừa cần exact aggregation
+brand_name:  text + keyword (multi-field khi vừa cần tìm kiếm vừa cần gom nhóm chính xác)
 ```
 
 Failure phổ biến là map mọi thứ thành `text` vì “user sẽ search”, rồi exact filter/aggregation trở nên awkward. Failure ngược lại là map human-language content chỉ thành `keyword`, rồi mong natural full-text matching.

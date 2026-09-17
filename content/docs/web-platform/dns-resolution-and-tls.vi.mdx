@@ -36,14 +36,15 @@ concepts:
 
 ## Tóm tắt
 
-Với một kết nối HTTPS **mới**, hai câu hỏi phải được trả lời trước khi HTTP application data có thể chạy:
+Vào 09:15 sáng ngày chuyển giao hệ thống, đội ngũ kỹ thuật trỏ tên miền `api.example.com` sang cụm máy chủ đám mây mới với địa chỉ IP mới. Vài giây sau, ứng dụng di động trên toàn cầu đồng loạt báo lỗi `ERR_CERT_COMMON_NAME_INVALID`, trong khi hàng ngàn mạng nội bộ doanh nghiệp vẫn tiếp tục dội lưu lượng vào máy chủ cũ đã ngừng hoạt động trong suốt 48 giờ tiếp theo. Nguyên nhân cốt lõi? Nhầm lẫn giữa định vị mạng và danh tính mật mã học, đồng thời phớt lờ chuỗi bộ nhớ đệm TTL của DNS ở các tầng trung gian.
 
-1. **Hostname này nên được truy cập ở đâu?** DNS resolution biến tên như `api.example.com` thành thông tin định tuyến, thường là một IP address.
-2. **Peer mà tôi vừa tới có thực sự được phép đại diện cho service name đó không?** TLS thiết lập cryptographic key và xác thực service identity mà server trình bày.
+> 💡 **Quy tắc bỏ túi:** **DNS chỉ đường; TLS chứng thực.** Phân giải DNS chỉ cho bạn biết *gửi gói tin IP đến đâu*—nó hoàn toàn không chứng minh danh tính của máy chủ. Xác thực chứng chỉ TLS mới là rào chắn độc lập chứng minh đối tác thực sự được ủy quyền phục vụ hostname đó trước khi một byte dữ liệu ứng dụng nào được truyền tải.
 
-Đừng gộp hai câu hỏi thành một. DNS answer có thể đưa bạn tới một address nhưng không chứng minh server ở address đó là `api.example.com` đúng. TLS certificate và service-identity verification tạo một authentication boundary riêng.
-
-Cũng đừng giả định mọi HTTP request đều lặp DNS và TLS. Browser, OS và recursive resolver có cache; HTTP connection có thể reuse; TLS session có thể resume. Bài này giải thích **fresh-setup path** để bạn nhận ra khi stage nào thực sự có mặt hoặc bị bỏ qua.
+- **Hai ranh giới độc lập:** DNS phân giải hostname thành danh sách địa chỉ IP ứng viên; TLS thiết lập khóa phiên làm việc và xác thực danh tính chứng chỉ số (SAN) của dịch vụ đối chiếu với tên miền định hướng.
+- **Thứ bậc phân giải ưu tiên cache:** Truy vấn đi từ cache trình duyệt → resolver hệ điều hành → recursive resolver của ISP/hạ tầng → máy chủ authoritative, bị ràng buộc bởi chỉ số DNS TTL.
+- **Tối ưu hóa TLS 1.3:** Bắt tay mã hóa hoàn tất bảo mật chuyển tiếp chỉ trong 1 lượt truyền tải (1-RTT) qua `ClientHello` kèm ECDHE key share và xác thực chứng chỉ máy chủ; TLS 1.2 cần tới 2-RTT.
+- **Tái sử dụng kết nối:** Hệ thống production duy trì kết nối HTTP keep-alive hoặc cơ chế resume session, bỏ qua hoàn toàn chi phí DNS và TLS trên các request kế tiếp.
+- **Cạm bẫy chết người:** Hạ thấp DNS TTL *trong lúc* hoặc *sau khi* chuyển đổi hạ tầng thay vì chuẩn bị trước nhiều ngày—các resolver trung gian vẫn lưu cache TTL cũ, tiếp tục điều hướng người dùng vào hạ tầng đã sập trong khi chứng chỉ không khớp bẻ gãy phiên làm việc.
 
 ## Một mental model: định vị trước, xác thực sau
 

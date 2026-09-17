@@ -18,17 +18,19 @@ concepts:
 
 # Transactional Outbox: Publish Events Without a Dual-Write Gap
 
+During a high-traffic flash sale, an e-commerce checkout handler processes a customer's payment webhook. The application marks the order as `PAID` in PostgreSQL, commits the transaction, and prepares to call `messageBroker.publish('OrderPaid')`. But right in the 3-millisecond window between the database commit and the network call, the container runtime kills the pod due to an out-of-memory (OOM) eviction. The database durably records the customer's payment, but the event vanishes into thin air. Fulfillment never packs the order, inventory counts drift, and furious customers bombard support demanding their merchandise. The system state has been torn in half by a **dual-write gap**.
+
+When an operation must both update internal database state and notify the outside world, executing them as two independent calls across network boundaries makes partial failure inevitable.
+
 ## TL;DR
 
-A service often needs one business operation to do two durable things: update its database and tell another system what happened. Writing the database and publishing to a broker as two independent operations creates a **dual-write gap**: either side can succeed while the other fails.
+> 💡 **Rule of thumb:** You cannot achieve atomicity across two independent storage engines without distributed transactions. Instead of reaching for fragile 2PC coordination, commit the business state and the publication intent into the same local database transaction, and let an asynchronous relay handle message dispatch.
 
-The transactional outbox pattern closes that atomicity gap by writing the business change and an **outbox row that records the publication intent in the same database transaction**. A separate relay later publishes committed outbox records to the broker.
-
-The useful contract is:
-
-1. If the business transaction rolls back, there is no committed event to publish.
-2. If the business transaction commits, the publication intent is durable even if the process crashes immediately afterward.
-3. Publishing still happens asynchronously and can happen more than once, so consumers must remain idempotent.
+- **The dual-write gap** is an inevitable failure mode whenever an application attempts two uncoordinated writes (e.g., database commit and message broker publish); one can always succeed while the other fails.
+- **Transactional outbox guarantees atomicity locally:** By persisting business data mutations and an **outbox record containing the publication intent in the same database transaction**, both succeed or roll back together.
+- **Asynchronous relaying decouples latency:** A dedicated background worker—either a database poller leveraging `SELECT ... FOR UPDATE SKIP LOCKED` or a Change Data Capture (CDC) engine like Debezium—relays committed outbox rows to the broker outside the user request lifecycle.
+- **At-least-once delivery requires idempotency:** Because relay retries and network hiccups can cause duplicate publications, downstream message consumers must enforce idempotency using stable event IDs.
+- **Fatal pitfall:** Reversing the write sequence—publishing to the broker *before* committing the database transaction—creates disastrous "phantom events", causing downstream systems to ship goods or charge money for orders whose database transactions ultimately roll back.
 
 ```mermaid
 flowchart LR

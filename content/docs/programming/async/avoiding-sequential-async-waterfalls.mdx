@@ -31,11 +31,15 @@ concepts:
 
 ## TL;DR
 
-**Start independent asynchronous work as early as possible. Await only when later work actually depends on an earlier result or when ordering is intentional.**
+Imagine a dashboard page loader that fetches four independent pieces of data: user profile, feature flags, permissions, and notifications. Each API responds in 100ms. Placed behind sequential `await` statements, those four calls form a 400ms waterfall—quadrupling server response times and tanking Core Web Vitals (LCP and TTFB). None of those requests needed data from the others, yet control flow forced them into a single file line. Initiating independent work concurrently via `Promise.all()` or separating promise instantiation from awaiting collapses total latency back to the single slowest request: ~100ms.
 
-`await` suspends the continuation of the surrounding async function until the awaited value is ready. It does not block the JavaScript thread. A waterfall appears when code waits before it has started another operation that could have been running independently.
+> 💡 **Rule of thumb:** Decouple promise creation from promise awaiting. Trigger all independent asynchronous operations as early as possible, and only `await` at the exact point where subsequent code genuinely consumes that specific result.
 
-Do not mechanically replace sequential `await`s with `Promise.all()`. First identify which operations actually depend on earlier results, overlap independent operations, and bound concurrency when resource pressure requires it.
+- **`await` pauses function continuation, not the thread:** Placing `await` on an independent promise idles the caller function while network and CPU resources sit unused instead of running concurrent work.
+- **Decouple invocation from awaiting:** Invoking `const p = fetch(...)` dispatches the network request immediately; awaiting `p` later retrieves the outcome. Always fire independent operations upfront before awaiting.
+- **Overlapping collapses latency to the critical path:** Concurrent execution reduces total duration from `sum(durations)` to approximately `max(durations)`, eliminating artificial sequential delays.
+- **`Promise.all` fails fast without canceling siblings:** When one input rejects, `Promise.all` rejects immediately, but already-initiated sibling operations keep running in the background unless aborted via `AbortSignal`.
+- **Fatal pitfall (Unbounded Fan-out Outage):** Replacing sequential loops with `await Promise.all(items.map(fn))` across large batches triggers massive concurrent connection bursts that saturate sockets, exhaust database pools, and trigger cascading microservice outages. Always bound concurrency when fan-out is large or dynamic.
 
 <TermBox term="Async waterfall">
 An **async waterfall** happens when asynchronous operations that could overlap are started one after another because the code waits too early.
@@ -248,7 +252,23 @@ Use `Promise.all()` when its aggregation and failure semantics match the work. D
 
 ## Production considerations
 
-> **Production scenario:** An analytics reporting service had to fetch user history for 2,000 active members. A developer replaced a slow sequential loop with `await Promise.all(members.map(fetchHistory))`. In staging with 10 test users, the code ran in 45ms. But in production with 2,000 users, it fired 2,000 simultaneous socket connections, instantly crashed the internal auth microservice with `ECONNRESET`, and caused an outage across all dependent company services.
+### Production scenario: The unbounded fan-out outage
+
+An analytics reporting service needed to fetch transaction history for 2,000 active team members. Noticing that a sequential `for...await` loop was sluggish, a developer replaced it with `await Promise.all(members.map(fetchHistory))`.
+
+In staging with 10 test users, the batch completed in a blistering 45ms. But in production with 2,000 active users, it instantly opened 2,000 simultaneous TCP sockets, exhausted the database connection pool, and knocked out the internal authentication microservice with `ECONNRESET`, cascading outages across all dependent platform services.
+
+- **Impact:** Widespread internal service crash and an immediate 5xx error spike on customer-facing APIs.
+- **Root cause:** The developer conflated minimizing single-request latency with aggregate system capacity, trading a slow sequential loop for unbounded fan-out that overwhelmed downstream infrastructure.
+- **Correct pattern:** Enforce **bounded concurrency** using a worker pool, batching, or a concurrency limiter (such as `p-limit`):
+  ```ts
+  import pLimit from 'p-limit';
+  const limit = pLimit(15);
+
+  const results = await Promise.all(
+    members.map((member) => limit(() => fetchHistory(member)))
+  );
+  ```
 
 Concurrency has costs. Removing a waterfall can make one request faster while placing more simultaneous pressure on other resources.
 

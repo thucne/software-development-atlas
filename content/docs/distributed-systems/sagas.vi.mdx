@@ -18,11 +18,19 @@ concepts:
 
 # Sagas: Điều phối workflow phân tán bằng bù trừ
 
-## TL;DR
+Bạn đang xây dựng luồng đặt combo du lịch: dịch vụ chuyến bay đã trừ tiền trên thẻ tín dụng và xuất vé máy bay thành công, nhưng dịch vụ phòng khách sạn ngay sau đó lại báo lỗi vì hết phòng vào phút chót. Trong kiến trúc nguyên khối với một cơ sở dữ liệu duy nhất, một lệnh rollback ACID sẽ âm thầm xóa sạch mọi thay đổi để đưa dữ liệu về vạch xuất phát ban đầu. Nhưng trong thế giới microservices với các database độc lập và cổng thanh toán bên thứ ba, giao thức Two-Phase Commit (2PC) vừa nặng nề, vừa dễ bế tắc, và bạn cũng không thể ép dòng thời gian quay ngược để "xóa sổ" một khoản tiền đã trừ trên thẻ khách. Làm thế nào để xử lý chuỗi thao tác dở dang này một cách an toàn? Câu trả lời nằm ở mô hình Saga và cơ chế bồi hoàn ngữ nghĩa (semantic compensation).
 
-Saga là một **chuỗi local transaction** cùng nhau triển khai một business workflow dài hạn qua các service hoặc data store có quyền sở hữu độc lập. Mỗi bước commit cục bộ. Nếu một bước phía sau không thể hoàn tất, workflow chạy các hành động bù trừ cho phần việc đã commit trước đó khi business semantics cho phép.
+Saga là một **chuỗi local transaction** cùng nhau triển khai một business workflow dài hạn qua các service hoặc data store có quyền sở hữu độc lập. Mỗi bước commit cục bộ trên database của mình, và khi có sự cố, workflow sẽ kích hoạt các hành động bồi hoàn tương ứng.
 
-Đây là contract khác với một transaction ACID duy nhất. Saga không che giấu trạng thái trung gian, không cung cấp isolation toàn cục và không làm thời gian quay ngược. Nó làm progress cùng recovery trở nên tường minh.
+> 💡 **Quy tắc bỏ túi:** Hệ thống phân tán không thể quay ngược thời gian bằng ACID rollback. Hãy cấu trúc workflow quanh một điểm pivot rõ ràng: bồi hoàn lùi (backward compensation) trước điểm không quay lại, và kiên trì retry tiến về phía trước (forward recovery) sau khi điểm pivot đã hoàn tất.
+
+## Tóm tắt
+
+- **Saga thay thế 2PC phân tán bằng một chuỗi local transaction:** Thay vì giữ các distributed lock qua mạng nhiều giây hoặc nhiều phút gây tắc nghẽn, mỗi service tự commit transaction cục bộ trên database của mình, để lộ trạng thái trung gian nghiệp vụ có chủ đích và đẩy workflow tiến lên.
+- **Bồi hoàn là đảo ngược ngữ nghĩa, không phải database rollback:** Giao dịch bồi hoàn (compensating transaction) không thể xóa bỏ lịch sử; chúng là các transaction mới đã commit (như hoàn lại tiền, giải phóng giữ chỗ tồn kho) nhằm vô hiệu hóa về mặt nghiệp vụ cho các bước đã hoàn thành trước đó theo chiều ngược lại.
+- **Bước Pivot là ranh giới giữa bồi hoàn lùi và phục hồi tiến:** Trước bước giao dịch pivot (điểm không quay lại), lỗi sẽ kích hoạt bồi hoàn lùi; một khi bước pivot đã commit thành công, workflow bắt buộc phải bảo đảm phục hồi tiến bằng các bước thử lại bất biến (idempotent retry) và cảnh báo vận hành.
+- **Lựa chọn điều phối dựa trên độ phức tạp của luồng nghiệp vụ:** Điều phối tập trung (Orchestration) dùng một coordinator quản lý tường minh state machine và timeout; Phối hợp phi tập trung (Choreography) dựa trên các domain event bắn qua lại giữa các service, giảm phụ thuộc trung tâm nhưng khó truy vết luồng chạy khi hệ thống lớn dần.
+- **Cạm bẫy chết người:** Xem timeout qua mạng như một lỗi thất bại tuyệt đối rồi vội vã kích hoạt bù trừ. Nếu lệnh thanh toán bị timeout do rớt gói tin nhưng phía ngân hàng thực tế đã trừ tiền thành công, việc gửi ngay lệnh hoàn tiền mà không đối soát trạng thái sẽ dẫn đến thảm họa lệch sổ sách hoặc hoàn tiền kép.
 
 ```mermaid
 flowchart LR
@@ -175,16 +183,16 @@ Checkout tạo order `o-731` dưới Saga `saga-8841`.
 4. Saga chuyển sang bù trừ: void payment rồi release inventory.
 5. Call void payment timeout sau khi provider có thể đã chấp nhận request.
 
-**Hậu quả:** Order mắc kẹt ở `COMPENSATING`. Inventory vẫn unavailable, support thấy một authorization còn mở và retry ngây thơ có thể gửi void/refund lần hai hoặc release resource trước khi biết payment thật sự ở trạng thái nào.
+**Hậu quả:** Đơn hàng mắc kẹt vô thời hạn ở trạng thái `COMPENSATING`. Kho hàng không thể mở bán lại sản phẩm, đội ngũ hỗ trợ thấy tiền vẫn bị phong tỏa trên cổng thanh toán, còn thao tác retry ngây thơ có nguy cơ gửi lệnh hoàn tiền lần hai hoặc giải phóng tài nguyên khi chưa rõ kết quả trừ tiền thực tế.
 
-**Nguyên nhân cốt lõi:** Workflow coi compensation như synchronous rollback và coi timeout là bằng chứng chắc chắn của failure. Nó không lưu trạng thái compensation bền vững và không tái sử dụng stable operation identity để reconciliation.
+**Nguyên nhân cốt lõi:** Workflow ngộ nhận cơ chế bù trừ (compensation) giống như một lệnh rollback đồng bộ của database và vội vã kết luận timeout đồng nghĩa với thất bại. Hệ thống không lưu trạng thái bồi hoàn bền vững và không tái sử dụng mã định danh thao tác ổn định (idempotency key) để đối soát.
 
-**Cách khắc phục chuẩn:** Persist Saga cùng outcome của từng bước. Giữ payment compensation ở trạng thái unknown, query hoặc retry bằng cùng idempotency key tới khi biết chắc kết quả provider, rồi chỉ release inventory theo compensation order tường minh của workflow. Alert theo tuổi Saga và compensation failure để case chưa giải quyết được tới tay operator thay vì biến mất trong log.
+**Cách khắc phục chuẩn:** Lưu bền vững toàn bộ tiến trình Saga cùng kết quả của từng bước. Giữ bước bồi hoàn thanh toán ở trạng thái chưa rõ kết quả (unknown), truy vấn đối soát hoặc thử lại bằng chính idempotency key đó cho đến khi có phản hồi chắc chắn từ phía cổng thanh toán, rồi mới tiến hành giải phóng tồn kho theo đúng thứ tự bồi hoàn đã định. Thiết lập cảnh báo theo tuổi thọ Saga (Saga age) và tỷ lệ lỗi bồi hoàn để chuyển các ca ngoại lệ tới kỹ sư vận hành kịp thời.
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
-Forward payment step và compensation step đều đi qua cùng một unreliable network boundary. Cả hai đều có thể commit ở remote trong khi response bị mất. Vì vậy mô hình an toàn là đối xứng: timeout tạo ra uncertainty, stable identity làm retry/reconciliation an toàn và durable workflow state ngăn process crash xóa mất việc còn phải làm.
+Cả bước thanh toán tiến và bước bồi hoàn lùi đều phải đi qua cùng một ranh giới mạng không đáng tin cậy. Cả hai đều có thể đã commit thành công ở phía remote trong khi response phản hồi bị rơi rụng trên đường truyền. Vì vậy mô hình an toàn phải có tính đối xứng: timeout tạo ra sự không chắc chắn (uncertainty), mã định danh ổn định (stable identity) giúp retry và đối soát an toàn, và trạng thái workflow bền vững ngăn việc tiến trình crash làm xóa sạch những việc còn dang dở.
 
 </details>
 

@@ -32,42 +32,46 @@ concepts:
 
 ## Tóm tắt
 
-In-memory data store giữ phần dữ liệu đang phục vụ chủ yếu trong RAM để read/write tránh phần lớn latency của storage path thiên về disk. Câu hỏi kỹ thuật có ích không phải “RAM có nhanh không?” mà là:
+Đúng 20:00 giờ cao điểm, độ trễ API toàn hệ thống bất ngờ vọt từ 5ms lên 35.000ms rồi trả về lỗi 500 hàng loạt. Báo cáo phân tích nguyên nhân gốc rễ (post-mortem) chỉ ra chuỗi thảm họa dây chuyền: đầu tiên, một kỹ sư tiện tay gõ lệnh `KEYS *` trên production để điều tra lỗi, lập tức khóa chặt luồng xử lý đơn (single thread) của Redis suốt 10 giây. Cùng thời điểm đó, vì hàng triệu bản ghi cache không hề được gắn thời gian sống (**TTL**) và `maxmemory-policy` cấu hình thiếu ranh giới giải phóng bộ nhớ, RAM chạm ngưỡng 100% khiến hệ điều hành kích hoạt OOM killer tiêu diệt ngay tiến trình Redis. Khi node được khởi động lại nguội ngắt, một khóa truy cập cực lớn (**hot key**) của trang chủ vừa hết hạn, tạo ra cơn bão **cache stampede (thundering herd)** với 40.000 request ập thẳng xuống cơ sở dữ liệu quan hệ, đánh sập luôn **nguồn sự thật (source of truth)** chính của doanh nghiệp.
 
-> **Bạn đang mua correctness và failure contract nào bằng fast access path đó?**
+> 💡 **Quy tắc bỏ túi:** RAM là một ngân sách dung lượng hữu hạn và đắt đỏ, không phải chiếc đũa thần tốc độ vô tận. Hãy phân định rạch ròi: in-memory store là lớp **cache** có thể giải phóng bất cứ lúc nào (dựa vào **nguồn sự thật** phía sau), hay là nguồn lưu trữ chính có cam kết **bền vững (persistence)** và **sao chép (replication)**—tuyệt đối không trộn lẫn hai vai trò này trong cùng một bộ nhớ chịu áp lực giải phóng (eviction).
 
-Một relational database bền vững, một cache được phép evict, một in-memory primary có persistence, và một replicated ephemeral counter service đều có thể trông giống key/value store nhưng hứa những điều rất khác nhau.
+- **RAM quyết định vị trí đặt, không quyết định độ bền:** In-memory data store giữ **tập dữ liệu nóng (working set)** trong **RAM** để đạt độ trễ cực thấp, nhưng độ bền vững đòi hỏi chiến lược lưu trữ bền vững (**persistence**) qua snapshot **RDB** và ghi log **AOF**, song song với cơ chế **replication** bất đồng bộ hoặc đồng bộ.
+- **Eviction là cam kết về tính đúng đắn:** Khi chạm ngưỡng **maxmemory**, chính sách giải phóng bộ nhớ (**eviction**) sẽ loại bỏ key; nếu lưu token xác thực, bộ đếm giới hạn tốc độ hoặc khóa bất biến (idempotency key) chung với **cache** thông thường, hệ thống sẽ gánh chịu lỗi sai lệch logic nghiêm trọng khi bị evict sớm.
+- **TTL quản lý vòng đời, không thay thế cho quản lý dung lượng:** **TTL** ấn định thời điểm bản ghi hết hạn; kết hợp TTL với độ lệch ngẫu nhiên (jitter) giúp triệt tiêu các đợt hết hạn đồng loạt và ngăn chặn thảm họa **cache stampede** (hiệu ứng dồn dập / thundering herd).
+- **Sharding mở rộng thông lượng, không cứu được hot key:** Redis Cluster phân chia dữ liệu qua 16.384 **hash slot** trên nhiều **shard**, nhưng một **hot key** có lưu lượng đột biến vẫn dồn 100% tải vào đúng một shard duy nhất.
+- **Cạm bẫy chết người (Khóa đơn luồng & sập nguồn OOM):** Lưu trữ dữ liệu vô tội vạ không cài đặt **TTL**, dùng sai `maxmemory-policy` dẫn đến crash OOM vào giờ cao điểm, hoặc vô tình chạy các lệnh duyệt quét chặn luồng như `KEYS *` làm nghẽn toàn bộ luồng xử lý đơn của Redis.
 
 Mental model:
 
 ```text
-request
-  -> chọn key + data structure
-  -> truy cập RAM-resident working set
-  -> có thể expire hoặc evict dưới policy
-  -> có thể persist write xuống durable storage
-  -> có thể replicate sang node khác
-  -> có thể route/shard key qua cluster
+yêu cầu gửi đến
+  -> chọn khóa + cấu trúc dữ liệu phù hợp
+  -> truy cập tập dữ liệu nóng nằm sẵn trên RAM
+  -> có thể hết hạn hoặc bị giải phóng theo chính sách
+  -> có thể ghi bền vững xuống ổ đĩa lưu trữ
+  -> có thể sao chép sang node khác
+  -> có thể định tuyến / phân mảnh qua cụm cluster
 ```
 
-Mỗi chữ “có thể” ở trên là một contract decision, không phải chi tiết implementation phụ.
+Mỗi chữ “có thể” ở trên là một quyết định về cam kết dịch vụ (contract decision), không phải chi tiết triển khai phụ.
 
 ```mermaid
 flowchart LR
-  C[Client operation] --> K[Key + data structure]
-  K --> M[RAM-resident state]
-  M --> E{Memory pressure?}
-  E -->|có| V[Eviction policy]
-  M --> T[TTL / expiration]
-  M --> P[Persistence policy]
-  M --> R[Replication policy]
-  M --> S[Shard / key placement]
+  C[Thao tác từ client] --> K[Key + cấu trúc dữ liệu]
+  K --> M[Dữ liệu thường trú trên RAM]
+  M --> E{Áp lực bộ nhớ?}
+  E -->|có| V[Chính sách eviction]
+  M --> T[TTL / hết hạn]
+  M --> P[Chính sách persistence]
+  M --> R[Chính sách replication]
+  M --> S[Vị trí đặt shard / key]
 ```
 
 <TermBox term="Working set">
-**Working set** là phần dữ liệu workload đang cần tích cực trong một khoảng thời gian có ý nghĩa.
+**Working set (Tập dữ liệu nóng)** là phần dữ liệu mà khối lượng công việc (workload) cần truy cập liên tục trong một khoảng thời gian xác định.
 
-**Vì sao quan trọng:** thiết kế in-memory hợp lý khi working set quan trọng vừa trong memory budget. Nếu workload liên tục chạm nhiều dữ liệu hơn RAM có thể giữ, eviction, cache miss, remote fetch hoặc tiering sẽ chi phối latency.
+**Vì sao quan trọng:** Thiết kế in-memory chỉ đạt hiệu quả kinh tế khi tập dữ liệu nóng nằm vừa vặn trong ngân sách bộ nhớ (RAM). Nếu ứng dụng liên tục chạm vào lượng dữ liệu lớn hơn dung lượng RAM sẵn có, hiện tượng giải phóng bộ nhớ (eviction), trượt cache (cache miss) và đọc dữ liệu từ xa sẽ chi phối toàn bộ độ trễ hệ thống.
 </TermBox>
 
 ## 1. “In memory” nói về placement, không nói về correctness
@@ -140,36 +144,36 @@ Hai outcome này có hậu quả application hoàn toàn khác nhau.
 
 Hãy đo workload thật thay vì giả định “10 GB JSON” bằng “10 GB RAM”.
 
-## 4. Eviction là correctness policy
+## 4. Eviction là cam kết về tính đúng đắn của hệ thống
 
 <TermBox term="Eviction">
-**Eviction** là việc chủ động loại stored entry để giữ hệ thống trong memory limit.
+**Eviction (Giải phóng bộ nhớ cưỡng bức)** là thao tác máy chủ chủ động loại bỏ bớt các bản ghi để giữ mức tiêu thụ bộ nhớ không vượt quá giới hạn cho phép (`maxmemory`).
 
-Redis hỗ trợ các policy như `allkeys-lru`, `allkeys-lfu`, các volatile-key variant, random policy hoặc `noeviction`.
+Redis hỗ trợ nhiều chính sách như `allkeys-lru`, `allkeys-lfu`, các biến thể chỉ áp dụng trên key có gắn thời hạn (`volatile-*`), chọn ngẫu nhiên hoặc `noeviction` (từ chối mọi lệnh ghi mới khi bộ nhớ đầy).
 
-**Vì sao quan trọng:** khi bật eviction, application correctness phải chịu được việc mọi key đủ điều kiện theo policy có thể biến mất trước khi application chủ động xóa.
+**Vì sao quan trọng:** Một khi đã bật eviction, tầng ứng dụng phải chấp nhận một tiền đề: bất kỳ bản ghi nào đủ điều kiện đều có thể bốc hơi trước khi code chủ động xóa. Nếu dữ liệu đó mang tính sống còn đối với logic nghiệp vụ, việc bị evict sớm sẽ gây sai lệch trạng thái nghiêm trọng.
 </TermBox>
 
-Với pure cache, eviction là behavior mong đợi: miss thì load lại từ source of truth.
+Với một **cache** thuần túy (disposable cache), eviction là hành vi hoàn toàn bình thường: trượt cache thì chỉ việc tải lại từ **nguồn sự thật (source of truth)**.
 
-Với correctness-bearing state, eviction có thể nguy hiểm:
+Nhưng với trạng thái ảnh hưởng đến tính đúng đắn (correctness-bearing state), eviction có thể trở thành thảm họa:
 
 ```text
-idempotency record bị evict sớm -> duplicate logical operation có thể chạy
-rate-limit counter bị evict       -> caller có thể lấy lại burst capacity
-session state bị evict            -> user có thể logout hoặc mất workflow state
-lease metadata bị evict           -> coordination assumption có thể hỏng
+idempotency record bị evict sớm -> yêu cầu gửi lại có thể bị thực thi lần 2 (trùng lặp thanh toán)
+bộ đếm rate-limit bị evict       -> client có thể spam vượt quá hạn mức cho phép
+session state bị evict            -> người dùng bị văng phiên đăng nhập giữa chừng
+lease metadata bị evict           -> các tiến trình phân tán tranh chấp tài nguyên lẫn nhau
 ```
 
-Đừng đặt correctness state vào cùng evictable pool với disposable cache entry trừ khi contract chấp nhận việc mất đó.
+Tuyệt đối không đặt các trạng thái quan trọng này vào chung một cụm bộ nhớ có bật eviction với các dữ liệu cache thông thường.
 
-### LRU và LFU là policy, không phải business oracle
+### LRU và LFU là thuật toán gần đúng, không thấu hiểu giá trị nghiệp vụ
 
-Redis mô tả LRU/LFU eviction là approximation tối ưu cho hiệu quả, không phải hiểu biết về business value.
+Redis tài liệu hóa rõ ràng rằng các giải thuật LRU và LFU trong bộ nhớ là các phép xấp xỉ tối ưu hóa hiệu năng, chứ Redis không thể tự hiểu giá trị nghiệp vụ của từng bản ghi.
 
-Một idempotency key ít được read có thể quan trọng hơn một product-page cache entry được đọc liên tục. Access frequency không diễn đạt được semantic difference đó.
+Một bản ghi idempotency ít khi được đọc lại có thể quan trọng gấp trăm lần một bản ghi cache thông tin sản phẩm được truy vấn hàng nghìn lần mỗi giây. Tần suất truy cập đơn thuần không thể phản ánh được mức độ quan trọng sống còn của dữ liệu.
 
-Hãy tách workload khi ý nghĩa eviction khác nhau.
+Hãy tách biệt các khối lượng công việc (workload) khi ý nghĩa nghiệp vụ và khả năng chấp nhận rủi ro mất mát khác nhau.
 
 ## 5. TTL và eviction giải hai bài toán khác nhau
 

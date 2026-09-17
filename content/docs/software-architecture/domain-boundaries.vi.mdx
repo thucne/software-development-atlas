@@ -18,9 +18,19 @@ concepts:
 
 # Domain Boundaries: Giữ ý nghĩa và thay đổi cục bộ
 
+Hãy hình dung một bảng `users` khổng lồ trong cơ sở dữ liệu production đã phình to hơn 120 cột. Đội Billing liên tục đòi nhồi thêm mã số thuế, kỳ hạn thanh toán và hạn mức tín dụng; đội Security chèn thêm mật khẩu băm, số lần đăng nhập sai và cờ trạng thái xác thực hai lớp (MFA); còn đội Marketing lại gắn vào sở thích mua sắm, hành vi click và phân khúc chiến dịch. Tất cả bị nhồi nhét vào một bảng `users` duy nhất dưới ảo tưởng ngây thơ rằng "người dùng thì ở đâu chẳng là một con người".
+
+Hậu quả là: một đợt migration schema của đội Marketing khóa chặt bảng dữ liệu, kéo sập toàn bộ luồng thanh toán ngay trong giờ cao điểm; không một kỹ sư nào dám sửa một cột vì sợ làm gãy hệ thống của đội khác. Khi ranh giới domain bị xóa nhòa, một thực thể quá tải sẽ biến thành thảm họa thắt cổ chai kìm hãm toàn bộ tốc độ phát triển và độ ổn định của hệ thống.
+
+> 💡 **Quy tắc bỏ túi:** Đừng bao giờ đồng nhất một danh tính ngoài đời thực với một mô hình phần mềm duy nhất. Cùng một con người nhưng đối với Sales họ là Account, đối với Billing họ là Payer (người thanh toán), còn đối với Support họ là Contact (người liên hệ). Hãy phân định ranh giới ngữ cảnh (Bounded Context) rõ ràng theo năng lực nghiệp vụ và dịch nghĩa tại ranh giới, tuyệt đối không nhồi chung vào một bảng dữ liệu toàn cục.
+
 ## Tóm tắt nhanh
 
-Một **ranh giới domain** đánh dấu nơi một mô hình nghiệp vụ, ngôn ngữ, quy tắc và ownership nhất quán có hiệu lực. Trong Domain-Driven Design, ranh giới semantics đó là một **bounded context**.
+- **Bounded context xác lập tính toàn vẹn ngữ nghĩa**: Ranh giới domain đánh dấu phạm vi mà trong đó một mô hình nghiệp vụ, ngôn ngữ chung (ubiquitous language) và các quy tắc bất biến có ý nghĩa nhất quán tuyệt đối. Ra khỏi ranh giới đó, cùng một từ ngữ sẽ mang ý nghĩa và mô hình hoàn toàn khác.
+- **Quyền sở hữu mô hình, quy tắc và dữ liệu phải tường minh**: Mỗi thực thể, bảng dữ liệu và quy tắc nghiệp vụ phải có đúng một đội và một context chịu trách nhiệm sở hữu. Các context khác giao tiếp qua hợp đồng tích hợp (contract), không bao giờ được truy cập trực tiếp vào database nội bộ.
+- **Trùng danh tính không đồng nghĩa với trùng mô hình**: Nhiều context có thể dùng chung một mã định danh ổn định (như `user_id`), nhưng thuộc tính, vòng đời và bảng lưu trữ dữ liệu của từng context phải hoàn toàn độc lập.
+- **Dịch nghĩa tại biên giới**: Dùng lớp chống tha hóa (Anti-Corruption Layer - ACL) để chuyển đổi dữ liệu từ bên ngoài thành mô hình nội bộ, bảo vệ logic nghiệp vụ không bị méo mó bởi hệ thống đối tác hoặc cấu trúc dữ liệu cũ.
+- **Cạm bẫy chết người:** **Bẫy đối tượng toàn năng (God-Object Trap)**—Cố xây dựng một mô hình hoặc bảng dữ liệu "Customer" dùng chung cho toàn bộ doanh nghiệp. Điều này biến schema thành nút thắt cổ chai, buộc các đội phải họp phối hợp phát hành và khiến một sự cố nhỏ cũng có thể làm tê liệt toàn hệ thống.
 
 ```mermaid
 flowchart LR
@@ -37,19 +47,19 @@ Cùng một con người ngoài đời có thể hợp lệ khi được mô hì
 Một **bounded context** là ranh giới mà bên trong đó một domain model và vocabulary có nghĩa nhất quán. Bên ngoài ranh giới, cùng identity hoặc cùng thuật ngữ có thể mang mô hình và ý nghĩa khác.
 </TermBox>
 
-Bounded context trước hết là **ranh giới ý nghĩa và ownership**. Nó không tự động là process, repository, database hay microservice boundary. Một context có thể nằm trong modular monolith, và một context lớn đôi khi có thể gồm nhiều component deploy riêng.
+Bounded context trước hết là **ranh giới ý nghĩa và quyền sở hữu (ownership)**. Nó không tự động đồng nghĩa với một tiến trình (process), một repository, một database hay một microservice riêng biệt. Một context hoàn toàn có thể nằm gọn trong một modular monolith, và ngược lại, một context quy mô lớn đôi khi có thể bao gồm nhiều thành phần triển khai độc lập.
 
-## Bắt đầu từ language seam
+## Bắt đầu từ ranh giới ngôn ngữ (Language Seams)
 
-Một ranh giới hữu ích thường xuất hiện nơi domain expert không còn dùng cùng từ theo cùng nghĩa.
+Một ranh giới kiến trúc hữu ích thường lộ diện rõ nhất tại nơi mà các chuyên gia nghiệp vụ (domain experts) bắt đầu dùng cùng một từ ngữ nhưng với hai ý nghĩa hoàn toàn khác nhau.
 
-Trong Sales, `Customer status` có thể là prospect, active hoặc churn-risk. Trong Billing, `status` có thể là current, delinquent hoặc suspended. Trong Support, vấn đề lại là entitlement và SLA chứ không phải cùng khái niệm status.
+Trong đội ngũ Sales, `Customer status` có thể là khách hàng tiềm năng (prospect), đang hoạt động (active) hoặc có nguy cơ rời bỏ (churn-risk). Trong đội ngũ Billing, `status` lại mang nghĩa là đúng hạn (current), nợ khó đòi (delinquent) hoặc bị tạm ngưng (suspended). Đối với đội ngũ Support, mối quan tâm hàng đầu lại là quyền lợi sử dụng (entitlement) và cam kết dịch vụ (SLA) chứ không phải cùng một trạng thái khách hàng.
 
 <TermBox term="Ubiquitous Language">
-**Ubiquitous language** là ngôn ngữ domain chính xác mà domain expert và developer cùng dùng bên trong một context. Code, hội thoại, ví dụ, test và tài liệu nên dùng cùng thuật ngữ và cùng meaning.
+**Ubiquitous language (ngôn ngữ chung)** là ngôn ngữ domain chính xác được các chuyên gia nghiệp vụ và kỹ sư phần mềm thống nhất sử dụng bên trong một context. Mã nguồn, hội thoại trao đổi, ví dụ kiểm thử, test cases và tài liệu kỹ thuật đều phải dùng chung các thuật ngữ và ngữ nghĩa này.
 </TermBox>
 
-Khi **cùng thuật ngữ nhưng khác nghĩa** giữa các workflow, đừng vội tạo một enum chuẩn cho toàn hệ thống. Hãy xem bất đồng đó là evidence rằng có nhiều mô hình khác nhau.
+Khi phát hiện **cùng thuật ngữ nhưng khác nghĩa** giữa các luồng nghiệp vụ khác nhau, đừng vội vàng tạo một enum dùng chung cho toàn bộ hệ thống. Hãy xem sự bất đồng đó là bằng chứng thực tế cho thấy đang tồn tại nhiều mô hình khác nhau.
 
 ```mermaid
 flowchart TB
@@ -58,43 +68,43 @@ flowchart TB
   Word --> SupportMeaning[Support: entitled contact]
 ```
 
-Mô hình khác nhau không có nghĩa identity khác nhau. Các context có thể chia sẻ một external ID ổn định nhưng vẫn sở hữu attribute, rule và lifecycle state riêng.
+Sự khác biệt về mô hình không đồng nghĩa với khác biệt về danh tính thực thể. Các context hoàn toàn có thể chia sẻ chung một mã định danh đối ngoại (external ID) ổn định nhưng vẫn sở hữu trọn vẹn các thuộc tính, quy tắc và trạng thái vòng đời riêng của mình.
 
-## Khám phá ranh giới từ nhiều tín hiệu
+## Khám phá ranh giới từ nhiều tín hiệu thực tế
 
-Đừng chia chỉ dựa trên noun trong sơ đồ tổ chức. Hãy ghép nhiều signal.
+Đừng phân chia ranh giới hệ thống chỉ dựa vào danh từ trên sơ đồ tổ chức công ty. Hãy kết hợp nhiều tín hiệu thực chiến:
 
 ### 1. Năng lực nghiệp vụ
 
-Nhóm behavior quanh một **năng lực nghiệp vụ** hoặc trách nhiệm nghiệp vụ gắn kết: pricing order, thu payment, lên lịch fulfillment, xử lý support case.
+Hãy nhóm các hành vi xoay quanh một **năng lực nghiệp vụ** hoặc trách nhiệm nghiệp vụ gắn kết: định giá đơn hàng, thu tiền thanh toán, lên lịch giao vận, hay xử lý phiếu hỗ trợ.
 
-Ranh giới mạnh hơn khi nhóm đó có thể nói rõ outcome mình sở hữu mà không cần biết internal rule của context khác.
+Ranh giới sẽ vững chắc hơn rất nhiều khi đội ngũ phụ trách có thể nêu rõ kết quả đầu ra mà mình sở hữu mà không cần phụ thuộc vào các quy tắc nội bộ của context khác.
 
 ### 2. Quy tắc và bất biến
 
-Hỏi quy tắc nào phải đúng cùng nhau. Nếu nhiều thay đổi dữ liệu phải giữ một **bất biến** và thường commit trong cùng **ranh giới giao dịch**, đó là evidence chúng nên ở gần cùng một owner mô hình.
+Hãy đặt câu hỏi: những quy tắc nào bắt buộc phải đúng cùng nhau tại mọi thời điểm? Nếu nhiều thay đổi dữ liệu phải cùng bảo đảm một điều kiện **bất biến** và thường được commit trọn vẹn trong một **ranh giới giao dịch** cục bộ, đó là bằng chứng rõ ràng cho thấy chúng nên thuộc về cùng một chủ sở hữu mô hình.
 
-Đừng kéo một transaction phủ mọi concept liên quan chỉ vì database cho phép. Transactional consistency nên bảo vệ business invariant thật, không dùng để xóa mọi boundary.
+Đừng cố kéo dài một transaction bao trùm mọi khái niệm chỉ vì cơ sở dữ liệu kỹ thuật cho phép làm điều đó. Tính nhất quán giao dịch sinh ra để bảo vệ các bất biến nghiệp vụ thực tế, không phải công cụ để xóa nhòa mọi ranh giới kiến trúc.
 
-### 3. Change coupling
+### 3. Coupling thay đổi (Change Coupling)
 
-Nhìn version history và planning data. Các concept thường xuyên **thay đổi cùng nhau** có thể thuộc cùng context. Các concept chỉ dùng chung table name nhưng thay đổi vì lý do khác nhau có thể cần tách.
+Hãy quan sát lịch sử commit trong Git và dữ liệu kế hoạch phát triển sản phẩm. Những khái niệm thường xuyên **thay đổi cùng nhau** trong các đợt phát hành có khả năng cao thuộc về cùng một context. Ngược lại, những khái niệm chỉ tình cờ dùng chung một tên bảng nhưng luôn biến đổi vì các lý do hoàn toàn khác biệt thì nhất thiết cần được tách rời.
 
-Co-change là evidence, không phải proof. Một migration có thể tạm thời làm vùng không liên quan đổi cùng lúc; boundary kém cũng có thể tạo change coupling giả.
+Hiện tượng thay đổi đồng thời (co-change) là bằng chứng tham khảo có giá trị, nhưng không phải chân lý tuyệt đối. Một dự án di chuyển dữ liệu lớn có thể tạm thời khiến các vùng không liên quan bị sửa đổi cùng lúc; ngược lại, ranh giới thiết kế yếu kém cũng có thể tạo ra coupling thay đổi giả tạo.
 
-### 4. Team ownership
+### 4. Ranh giới đội (Team Ownership)
 
-Một ranh giới cần owner chịu trách nhiệm rõ. Nếu ba team đều có thể tự đổi cùng rule hoặc ghi cùng table, semantic boundary đó chưa enforce được.
+Một ranh giới chỉ thực sự tồn tại khi có một đội ngũ chịu trách nhiệm rõ ràng. Nếu ba đội khác nhau đều có thể tùy ý sửa đổi cùng một quy tắc hoặc ghi đè vào cùng một bảng dữ liệu, ranh giới ngữ nghĩa đó coi như vô hiệu trên thực tế.
 
-**Ranh giới đội** nên bám đủ gần capability để team có thể phát triển model, contract và behavior vận hành mà không liên tục xin phép team khác.
+**Ranh giới đội** (team boundary) cần bám sát năng lực nghiệp vụ để đội ngũ có thể chủ động tiến hóa mô hình, hợp đồng tích hợp và hành vi vận hành mà không phải liên tục xin phê duyệt hay chờ đợi sự đồng thuận từ các đội khác.
 
-## Gán ownership cho mô hình, quy tắc và dữ liệu
+## Gán quyền sở hữu cho mô hình, quy tắc và dữ liệu
 
-Với mỗi candidate context, viết một ownership statement:
+Với mỗi context tiềm năng, hãy viết một bản tuyên bố sở hữu ngắn gọn và dứt khoát:
 
-> Billing sở hữu invoice state, payment terms, credit decision và mọi mutation của billing record. Context khác consume contract của Billing; không ghi trực tiếp private table của Billing.
+> Billing sở hữu toàn bộ trạng thái hóa đơn, kỳ hạn thanh toán, quyết định hạn mức tín dụng và mọi thao tác thay đổi dữ liệu thanh toán. Các context khác tương tác thông qua hợp đồng do Billing công bố; tuyệt đối không ghi trực tiếp vào các bảng nội bộ của Billing.
 
-Statement đó nên chỉ rõ **sở hữu mô hình**, **sở hữu quy tắc** và **sở hữu dữ liệu**.
+Bản tuyên bố đó bắt buộc phải phân định rõ ràng ba yếu tố: **sở hữu mô hình**, **sở hữu quy tắc** và **sở hữu dữ liệu**.
 
 ```mermaid
 flowchart LR
@@ -104,32 +114,32 @@ flowchart LR
   X[Context khác] -. không ghi trực tiếp .-> PDB
 ```
 
-Hạ tầng vật lý vẫn có thể dùng chung. Hai context có thể dùng cùng database server hoặc repository nhưng ownership logic và access rule phải rõ.
+Hạ tầng vật lý vẫn hoàn toàn có thể dùng chung. Hai context có thể dùng chung một cụm database server hoặc một repository, nhưng quyền sở hữu logic và quy tắc truy cập dữ liệu bắt buộc phải minh bạch.
 
-## Vẽ context map trước khi vẽ service
+## Vẽ bản đồ ngữ cảnh (Context Map) trước khi thiết kế dịch vụ
 
-Một **bản đồ ngữ cảnh (context map)** ghi các bounded context và quan hệ giữa chúng: ai upstream, ai phụ thuộc ai, chỗ nào dịch semantics, và **hợp đồng tích hợp** nào đi qua boundary.
+Một **bản đồ ngữ cảnh (context map)** ghi lại trực quan các bounded context và mối quan hệ giữa các context: bên nào là upstream (cung cấp), bên nào là downstream (tiêu thụ), vị trí nào cần dịch ngữ nghĩa, và **hợp đồng tích hợp** nào được phép đi qua ranh giới.
 
 <TermBox term="Context Map">
-**Context map** là bản đồ tường minh của bounded context và quan hệ tích hợp giữa chúng. Nó làm semantic dependency lộ ra trước khi trở thành hidden code, schema hoặc release coupling.
+**Context map** là bản đồ tường minh ghi lại các bounded context cùng các mối quan hệ tích hợp giữa chúng. Nó phơi bày các phụ thuộc ngữ nghĩa ra ánh sáng trước khi chúng biến thành những phụ thuộc ngầm trong mã nguồn, schema cơ sở dữ liệu hoặc lịch phát hành.
 </TermBox>
 
-Với mỗi relation, ghi rõ:
+Với mỗi mối quan hệ giữa các context, hãy xác định rõ:
 
-- authoritative owner của thông tin,
-- contract được expose qua boundary,
-- hướng dependency,
-- kỳ vọng freshness và consistency,
-- failure và compatibility behavior,
-- ai chịu trách nhiệm dịch khi hai model bất đồng.
+- Đội ngũ hoặc context sở hữu có thẩm quyền đối với thông tin;
+- Hợp đồng tích hợp được công bố qua ranh giới;
+- Chiều hướng phụ thuộc trực tiếp;
+- Kỳ vọng về độ tươi mới của dữ liệu và tính nhất quán;
+- Hành vi xử lý lỗi và tính tương thích ngược;
+- Đơn vị nào chịu trách nhiệm dịch đổi khi hai mô hình ngữ nghĩa bất đồng.
 
-Contract nên expose đúng thứ downstream cần, không leak toàn bộ entity graph nội bộ của upstream.
+Hợp đồng tích hợp chỉ nên phơi bày đúng những gì mà context downstream thực sự cần, tuyệt đối không rò rỉ toàn bộ cấu trúc thực thể nội bộ của upstream ra bên ngoài.
 
-## Dịch model thay vì vô tình share model
+## Dịch mô hình thay vì vô tình dùng chung mô hình
 
-Khi context dùng semantics khác nhau, hãy dịch tại boundary.
+Khi các context sở hữu các tầng ngữ nghĩa khác nhau, hãy thực hiện chuyển dịch ngay tại ranh giới tiếp giáp.
 
-**Anti-corruption layer**, hay **lớp dịch chống tha hóa**, chuyển API, event hoặc legacy model của context khác thành concept phù hợp với context nhận. Nó bảo vệ language và rule cục bộ khỏi bị model bên ngoài làm méo.
+**Lớp chống tha hóa (anti-corruption layer - ACL)** là lớp dịch chuyên trách chuyển đổi API, sự kiện hoặc mô hình dữ liệu cũ (legacy) từ context bên ngoài thành các khái niệm thuần khiết phù hợp với context tiếp nhận. Nó bảo vệ ngôn ngữ chung và quy tắc nghiệp vụ nội bộ không bị biến dạng bởi mô hình ngoại lai.
 
 ```mermaid
 flowchart LR
@@ -137,45 +147,45 @@ flowchart LR
   ACL --> Risk[Risk context\nApplicant + Exposure]
 ```
 
-Anti-corruption layer nên dịch protocol và meaning. Đừng để nó biến thành một business domain thứ hai chứa orchestration không liên quan.
+Lớp chống tha hóa chỉ nên tập trung làm nhiệm vụ dịch đổi giao thức và ngữ nghĩa dữ liệu. Tuyệt đối không biến nó thành một domain nghiệp vụ thứ hai chứa các logic điều phối rườm rà.
 
-## Xem shared kernel là coupling contract có chủ đích
+## Xem nhân dùng chung (Shared Kernel) là hợp đồng phụ thuộc có chủ đích
 
-Một **shared kernel**, hay **nhân dùng chung**, là phần nhỏ của model được nhiều context cố ý chia sẻ. Ví dụ có thể là money type được đồng quản trị, country-code vocabulary hoặc identity primitive.
+Một **nhân dùng chung (shared kernel)** là một phần mô hình rất nhỏ được nhiều context chủ động dùng chung. Ví dụ điển hình bao gồm: kiểu dữ liệu tiền tệ (Money type) được quản trị chung, bảng mã quốc gia chuẩn hóa, hoặc cấu trúc định danh người dùng cơ bản.
 
-Shared kernel không phải common folder cho tiện. Mỗi shared type tạo coordinated change. Giữ surface nhỏ, nêu rõ joint owner, yêu cầu compatibility review và loại bỏ item không còn shared meaning thật sự.
+Nhân dùng chung không phải là một thư mục "common" hay "shared" được tạo ra vì sự tiện tay của lập trình viên. Mỗi kiểu dữ liệu đưa vào shared kernel đều tạo ra sự ràng buộc thay đổi đồng thời giữa các đội. Hãy giữ bề mặt của nó thật nhỏ, chỉ định rõ ràng các bên cùng đồng sở hữu, bắt buộc quy trình review tính tương thích và kiên quyết loại bỏ những thành phần không còn mang ý nghĩa dùng chung thực sự.
 
-Nếu context bất đồng về lifecycle, validation hoặc semantics, nên duplicate rồi translate thay vì ép concept vào shared kernel.
+Nếu các context bắt đầu bất đồng về vòng đời, quy tắc kiểm tra dữ liệu (validation) hoặc ngữ nghĩa, hãy chủ động sao chép mã nguồn và thực hiện dịch nghĩa thay vì cố ép khái niệm đó vào shared kernel.
 
-## Enforce boundary trong code và data access
+## Áp đặt ranh giới trong mã nguồn và truy cập dữ liệu
 
-Diagram không phải architecture guardrail. Chuyển context map thành constraint có thể kiểm tra khi phù hợp:
+Sơ đồ vẽ trên bảng trắng không thể thay thế cho các rào chắn kỹ thuật. Hãy chuyển hóa bản đồ ngữ cảnh thành các ràng buộc có thể kiểm tra tự động:
 
-1. expose public package, module facade, API hoặc event contract nhỏ;
-2. giữ context internals private, không cho deep import;
-3. chặn cross-context write vào private table hoặc repository;
-4. thêm architecture test hoặc import rule cho dependency cấm;
-5. test integration contract độc lập với internal model;
-6. làm ownership hiện rõ trong code review và sự cố routing.
+1. Công bố một package public, module facade, API hoặc hợp đồng sự kiện nhỏ gọn;
+2. Giữ các thành phần nội bộ của context ở trạng thái private, ngăn chặn hoàn toàn việc import sâu từ bên ngoài;
+3. Chặn đứng các truy vấn ghi từ context khác vào các bảng dữ liệu hoặc repository nội bộ;
+4. Thiết lập các bài kiểm tra kiến trúc (architecture tests) hoặc quy tắc linter để phát hiện và làm fail build khi xuất hiện import trái phép;
+5. Kiểm thử hợp đồng tích hợp độc lập với các mô hình thực thể bên trong;
+6. Thể hiện rõ ràng ranh giới sở hữu trong quy trình code review và điều phối sự cố production.
 
-Trong modular monolith, cách này có thể là package export cộng architecture test. Trong microservices, deployment/network boundary thêm enforcement, nhưng shared database và shared library vẫn có thể bypass domain boundary dự kiến.
+Trong một kiến trúc modular monolith, việc thực thi này có thể dựa vào cấu hình export package và các test kiến trúc tự động. Trong hệ thống microservices, ranh giới tiến trình và mạng bổ sung thêm khả năng cô lập vật lý, nhưng việc dùng chung cơ sở dữ liệu hoặc thư viện mã nguồn dùng chung thiếu kiểm soát vẫn có thể phá vỡ ranh giới domain dự kiến.
 
-## Workflow thực hành để khám phá boundary
+## Quy trình thực chiến để khám phá ranh giới
 
-Khi hệ thống bị rối, dùng chuỗi sau:
+Khi bước vào một hệ thống phức tạp và rối rắm, hãy áp dụng quy trình khám phá bài bản sau:
 
-1. **Map business workflow.** Ghi decision và outcome, không chỉ CRUD screen.
-2. **Thu domain language.** Đánh dấu term đổi nghĩa giữa workflow hoặc expert.
-3. **Cluster rule và invariant.** Giữ behavior phải nhất quán gần một owner.
-4. **Inspect co-change.** Dùng commit, sự cố và roadmap để xem gì thay đổi cùng nhau.
-5. **Assign ownership.** Nêu team và context authoritative cho từng rule và mutation.
-6. **Vẽ candidate bounded context.** Ưu tiên model gắn kết hơn box có kích thước đều nhau.
-7. **Tạo context map.** Định nghĩa upstream/downstream và integration contract.
-8. **Chọn translation hoặc shared kernel thật nhỏ.** Không share model mặc định.
-9. **Thêm enforcement.** Chặn deep import và cross-context write.
-10. **Đo và xem lại.** Ranh giới phải tiến hóa khi hiểu domain và evidence vận hành thay đổi.
+1. **Vẽ sơ đồ luồng công việc nghiệp vụ:** Ghi lại các quyết định và kết quả nghiệp vụ, không chỉ dừng lại ở các màn hình CRUD thông thường.
+2. **Thu thập ngôn ngữ domain:** Đánh dấu những thuật ngữ bị thay đổi ý nghĩa giữa các luồng công việc hoặc giữa các chuyên gia khác nhau.
+3. **Gom cụm quy tắc và bất biến:** Giữ những hành vi bắt buộc phải nhất quán tuyệt đối về dữ liệu nằm cạnh cùng một chủ sở hữu.
+4. **Phân tích hiện tượng co-change:** Soi xét lịch sử commit, các sự cố vận hành và roadmap tính năng để nhận diện những gì thường xuyên thay đổi cùng nhau.
+5. **Phân định quyền sở hữu:** Nêu đích danh đội ngũ và context có toàn quyền quyết định đối với từng quy tắc và thay đổi dữ liệu.
+6. **Phác thảo các candidate bounded context:** Ưu tiên các mô hình có tính gắn kết logic cao hơn là cố chia thành các khối hộp có kích thước bằng nhau.
+7. **Xây dựng context map:** Định rõ mối quan hệ upstream/downstream và các hợp đồng tích hợp chính thức giữa các bên.
+8. **Chọn phương án dịch nghĩa hoặc shared kernel thật nhỏ:** Không bao giờ cho phép chia sẻ mô hình dữ liệu theo mặc định.
+9. **Thiết lập rào chắn kỹ thuật:** Ngăn chặn triệt để deep import và các truy vấn ghi chéo giữa các context.
+10. **Đo lường và điều chỉnh liên tục:** Ranh giới kiến trúc phải tiến hóa linh hoạt khi hiểu biết về domain sâu sắc hơn và bằng chứng vận hành thực tế thay đổi.
 
-Một boundary đang hoạt động tốt khi phần lớn change ở lại cục bộ, language trong context nhất quán, ownership rõ và workflow bình thường không phải chọc vào nhiều private model.
+Một ranh giới domain chỉ thực sự phát huy hiệu quả khi phần lớn các thay đổi mã nguồn nằm gọn trong nội bộ context, ngôn ngữ sử dụng bên trong đạt tính nhất quán cao, trách nhiệm sở hữu minh bạch và các luồng công việc hằng ngày không cần phải chọc sâu vào mô hình nội bộ của các context lân cận.
 
 ## Tình huống production
 

@@ -28,9 +28,18 @@ concepts:
 
 # Modularity: Build Boundaries That Survive Change
 
+You attempt to split a monolith by extracting Module A, only to discover it imports Module B. You pull in Module B, but B cannot compile without Module C. When you inspect Module C, you find it reaches straight back to invoke internal functions in Module A. You haven't designed modular boundaries—you have stumbled into a **deadly circular dependency loop**. What looks like clean directories on disk is actually a tangled ball of mud where no piece can be tested, compiled, or reasoned about in isolation.
+
+True modularity is not an exercise in organizing files or following folder naming conventions. It is the discipline of **strict information hiding**, **directed acyclic dependencies**, and **change containment**.
+
+> 💡 **Rule of thumb:** A module is a change containment boundary; if an internal detail changes, only the owning module should recompile, re-test, and deploy, leaving callers completely undisturbed.
+
 ## TL;DR
 
-A module is useful when it gives the rest of the system a **small stable contract** while keeping volatile implementation knowledge private.
+- **Modules are change boundaries, not just folders:** A directory structure or package boundary is meaningless unless it establishes a **small, stable public contract** while locking volatile implementation decisions behind private doors.
+- **Information hiding shields volatile decisions:** Protect storage schemas, third-party vendor SDKs, retry mechanics, and complex algorithms from leaking outward so external callers remain insulated from internal churn.
+- **Enforce directed dependency graphs:** Dependencies must flow unidirectionally toward stable, high-level abstractions. Keep public APIs minimal and strictly forbid deep imports into internal files.
+- **Fatal pitfall:** **Circular dependencies.** Allowing Module A to call B, B to call C, and C to call back into A demolishes encapsulation and turns your codebase into an inseparable, uncompilable distributed monolith where testing a single module requires booting the entire universe.
 
 Use this operating loop:
 

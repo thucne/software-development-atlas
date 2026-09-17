@@ -33,7 +33,15 @@ concepts:
 
 ## TL;DR
 
-A search index is a retrieval structure optimized for answering questions such as “which documents mention these concepts, satisfy these filters, and rank best for this query?” It is not the same thing as a relational database index, and in many architectures it is a **derived projection rather than the authoritative source of truth**.
+A high-growth team attempted to simplify their architecture by treating Elasticsearch as their primary database—declaring it the system's sole **source of truth**. Months later, during a sudden disk failure and cluster partition, in-flight writes that had not been durably synced evaporated, resulting in silent, unrecoverable data loss. Meanwhile, the support desk had already been besieged by confused users complaining: "I just created a product, but search says it does not exist!" The engineers had run headfirst into Elasticsearch's **near-real-time (NRT)** engine, where a default 1-second **refresh interval** creates a window where newly indexed documents are physically in memory but completely invisible to search queries. To seal the disaster, developers dynamically indexed arbitrary third-party JSON payloads without strict mappings, triggering a catastrophic **Mapping Explosion** that generated tens of thousands of dynamic fields, bloated the cluster state, crushed master node heap memory, and froze the entire search infrastructure.
+
+> 💡 **Rule of thumb:** Treat a search index as a derived projection optimized for lexical relevance, filtering, and scoring—never as your primary transactional source of truth. Always define explicit mappings distinguishing text from keyword fields, design around near-real-time refresh staleness, and strictly constrain dynamic schemas to prevent mapping explosion.
+
+- **Inverted index powers lexical retrieval:** Instead of scanning whole documents, an **inverted index** maps pre-processed terms to posting lists of matching document IDs; an **analyzer** splits text into normalized **token** streams that govern whether a query can match.
+- **Mapping determines field semantics:** Assign human language to a `text` field (queried via full-text `match` query and scored by **BM25** similarity) and structured identifiers/codes to a `keyword` field for exact filtering, sorting, and aggregations.
+- **Search visibility is near-real-time (NRT):** Writes are buffered in memory and become searchable only after a **refresh** flushes them into a new segment; never force `refresh=true` on every write unless you are prepared to destroy indexing throughput.
+- **Evolution requires reindexing and aliases:** Because tokenized segment structures cannot be transformed in place, modifying analyzers or mappings requires a **reindex** to a new versioned index and an atomic **alias** swap to eliminate query staleness without downtime.
+- **Fatal pitfall (Primary database delusion & mapping explosion):** Using a search engine as an authoritative database invites unrecoverable data loss on crash, while accepting untrusted dynamic JSON schemas triggers a **mapping explosion** that permanently destabilizes cluster master nodes.
 
 Use this mental model:
 

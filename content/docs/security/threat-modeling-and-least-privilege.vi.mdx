@@ -33,16 +33,15 @@ concepts:
 
 ## Tóm tắt
 
-Threat modeling là một engineering loop lặp lại để trả lời bốn câu hỏi: **chúng ta đang xây gì, điều gì có thể sai, chúng ta sẽ làm gì với nó, và đã làm đủ tốt chưa?** Least privilege biến một phần phân tích đó thành invariant có thể enforce: mỗi người, service, process và token chỉ có đúng tài nguyên và hành động cần cho chức năng hiện tại.
+Một nhân viên hỗ trợ khách hàng vô tình bấm vào liên kết độc hại trong email lừa đảo, làm lộ token phiên làm việc nội bộ. Chỉ trong vòng hai mươi phút, kẻ tấn công đã tải về toàn bộ cơ sở dữ liệu 10 triệu khách hàng từ S3 và xóa sạch các bản sao lưu production. Nguyên nhân? Ứng dụng hỗ trợ nội bộ được cấp một IAM role toàn quyền với cấu hình wildcard `s3:*` và `rds:*`, cùng với giả định rằng bất kỳ ai truy cập từ mạng VPN nội bộ đều mặc định đáng tin cậy mà không cần kiểm tra quyền trên từng đối tượng.
 
-Một threat model hữu ích không phải tài liệu ghi “hãy dùng authentication”. Nó phơi bày **data flow và trust boundary**, chỉ ra abuse path hợp lý, gắn mitigation cụ thể và tạo evidence có thể fail khi thiết kế drift.
+> 💡 **Quy tắc bỏ túi:** **Authentication chứng thực bạn là ai; Authorization và Least Privilege quyết định bạn được phép chạm vào cái gì.** Bảo mật sẽ sụp đổ khi sự tin tưởng được trao quyền mù quáng. Luôn áp dụng deny-by-default (chặn theo mặc định), thẩm định quyền hạn trên mỗi request đối với từng tài nguyên cụ thể, và cô lập phạm vi thiệt hại (blast radius) để sự cố của một token đơn lẻ không kéo sập toàn bộ hạ tầng.
 
-Với authorization, hai invariant xuất hiện liên tục:
-
-- **deny-by-default**: muốn được truy cập phải có lý do allow rõ ràng;
-- kiểm tra authorization trên **mỗi request** và cho đúng action/resource đang được yêu cầu.
-
-Authentication xác lập identity. **Authorization** quyết định identity đó được phép làm gì. Nhầm hai khái niệm này là một con đường phổ biến dẫn đến broken access control.
+- **Vòng lặp mô hình hóa hiểm họa:** Trả lời có hệ thống bốn câu hỏi: Chúng ta đang xây gì, điều gì có thể sai, chúng ta sẽ phòng ngừa thế nào, và đã làm đủ tốt chưa?
+- **Ranh giới tin cậy rõ ràng:** Vẽ rõ luồng dữ liệu xuyên qua các ranh giới mạng, ranh giới tiến trình và ranh giới tổ chức nơi mức độ tin cậy thay đổi; không bao giờ coi lưu lượng nội bộ là mặc định an toàn.
+- **Chặn theo mặc định (Deny-by-default) & kiểm tra liên tục:** Không cấp quyền trừ khi có quy tắc cho phép rõ ràng, và kiểm tra authorization trên **mỗi request** thay vì chỉ kiểm tra một lần lúc đăng nhập.
+- **Thu hẹp bán kính thiệt hại (Blast Radius):** Áp dụng quyền tối thiểu cho cả con người lẫn dịch vụ tự động (microservice, hàm serverless, CI runner) bằng cách giới hạn phạm vi IAM role và quyền database vào đúng công việc cần làm.
+- **Cạm bẫy chết người:** Tin tưởng tuyệt đối vào tường rào ngoại vi (VPN/firewall) và gán quyền wildcard (`*` trong policy) để dev cho tiện—tạo điều kiện cho kẻ xâm nhập leo thang đặc quyền từ một lỗ hổng nhỏ nhất thành thảm họa đánh cắp toàn bộ hệ thống.
 
 ## Model hệ thống trước khi liệt kê threat
 

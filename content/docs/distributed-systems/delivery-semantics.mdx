@@ -18,20 +18,26 @@ concepts:
 
 # Delivery Semantics: Reason About Loss, Duplicates, and Effects
 
+At 2:00 AM, an intermittent network glitch drops a single TCP acknowledgement packet between your consumer and the message broker. The broker assumes the message was never processed and immediately schedules a redelivery. Seconds later, your payment consumer ingests the same event a second time, charging a customer's credit card twice and dispatching duplicate confirmation emails. During the subsequent post-mortem, an engineer protests: *"Why did this happen? Our message broker documentation claims guaranteed delivery!"*
+
+Distributed systems do not operate on magic; they operate over unreliable networks. When network partitions, crashes, or timeouts occur, the fundamental mechanics of message handoff dictate what can and cannot be guaranteed.
+
 ## TL;DR
 
-Delivery semantics describe what can happen when a producer, broker, consumer, or network fails around a message handoff. The useful question is not “does the queue guarantee exactly once?” but **what is the scope of the guarantee, where can failure happen, and what business effect can repeat?**
+> 💡 **Rule of thumb:** Delivery guarantees belong to the network transport, but deduplication belongs to the business entity. Never rely on a message broker to guarantee "exactly-once" business side effects without an idempotent consumer.
 
-- **At-most-once:** a message may be lost, but the delivery path does not intentionally redeliver it.
-- **At-least-once:** the system retries or redelivers until success is observed, so duplicates are possible.
-- **Exactly-once:** only meaningful with a precise scope. A broker or stream may provide transactional or deduplicated processing inside its boundary, while an external database, payment API, email, or other side effect still needs coordination.
+- **At-most-once:** Prioritizes throughput and zero duplicate risk over durability. Messages are dispatched without retries; if a crash occurs during transit or handling, the message is permanently lost.
+- **At-least-once:** The pragmatic production default for reliable messaging. The broker retransmits messages until an explicit acknowledgement (ACK) is received, meaning **duplicate deliveries are inevitable** under real-world network turbulence.
+- **"Exactly-once" processing:** A strictly bounded abstraction (such as Apache Kafka's transactional stream processing), never a universal guarantee covering external databases, third-party payment APIs, or email providers.
+- **Ordering is decoupled from delivery:** At-least-once retries frequently disrupt message arrival sequences; partition-level or key-level serialization and monotonic versioning must be handled explicitly.
+- **Fatal pitfall:** Acknowledging an event before the database commit drops messages forever if the process crashes; acknowledging after the commit without an idempotent consumer or inbox table causes duplicate financial or operational side effects upon redelivery.
 
 ```mermaid
 flowchart LR
-  P["Producer"] --> B["Broker or log"]
+  P["Producer"] --> B["Message broker"]
   B --> C["Consumer"]
   C --> E["Business effect"]
-  C --> A["Acknowledgement"]
+  C --> A["Acknowledgement (ACK)"]
   A --> B
 ```
 

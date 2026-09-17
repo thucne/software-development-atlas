@@ -31,11 +31,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-**Hãy khởi chạy các tác vụ bất đồng bộ độc lập càng sớm càng tốt. Chỉ sử dụng `await` khi công việc phía sau thực sự phụ thuộc vào kết quả của tác vụ phía trước, hoặc khi thứ tự thực thi có chủ đích nghiệp vụ rõ ràng.**
+Hãy tưởng tượng một trang bảng điều khiển (dashboard) cần tải 4 khối dữ liệu độc lập: hồ sơ người dùng, cờ tính năng (feature flags), phân quyền và thông báo hệ thống. Mỗi API phản hồi trong 100ms. Nếu viết bằng một chuỗi `await` tuần tự nối đuôi nhau, 4 lời gọi 100ms sẽ biến thành một "thác nước" kéo dài 400ms—làm chậm ứng dụng gấp 4 lần và hủy hoại trải nghiệm người dùng cùng các chỉ số Core Web Vitals (LCP và TTFB). Bốn tác vụ này hoàn toàn không phụ thuộc dữ liệu của nhau, nhưng luồng điều khiển lại bắt chúng xếp hàng như những quân cờ domino. Khởi chạy song song bằng `Promise.all()` hoặc tách biệt thời điểm khởi tạo Promise khỏi thời điểm await sẽ co tổng thời gian chờ về đúng bằng request chậm nhất: ~100ms.
 
-Từ khóa `await` tạm dừng hàm async bao quanh nó cho đến khi Promise được giải quyết; nó **không hề chặn Main Thread** của JavaScript. Một "thác nước bất đồng bộ" (async waterfall) hình thành khi mã nguồn chờ đợi một thao tác hoàn tất trước khi kích hoạt một thao tác khác vốn có thể chạy hoàn toàn song hành và độc lập.
+> 💡 **Quy tắc bỏ túi:** Tách biệt thời điểm khởi tạo Promise khỏi thời điểm await kết quả. Hãy kích hoạt mọi tác vụ bất đồng bộ độc lập càng sớm càng tốt, và chỉ `await` tại đúng vị trí mà công việc phía sau thực sự cần đến dữ liệu đầu ra của tác vụ đó.
 
-Đừng thay thế một cách máy móc mọi chuỗi `await` tuần tự bằng `Promise.all()`. Trước tiên, hãy phân tích đồ thị phụ thuộc dữ liệu (dependency graph), cho phép các tác vụ độc lập chạy gối đầu nhau, và luôn giới hạn mức độ đồng thời (bounded concurrency) khi chịu áp lực tài nguyên hệ thống.
+- **`await` chỉ tạm dừng hàm hiện tại, không chặn Main Thread:** Đặt `await` trước một Promise độc lập sẽ khiến hàm hiện tại đứng chờ vô ích, bỏ lỡ cơ hội kích hoạt các tác vụ khác vốn có thể chạy ngầm đồng thời.
+- **Tách biệt thời điểm gọi hàm và thời điểm await:** Gọi `const p = fetch(...)` là lệnh mạng đã lập tức được bắn đi; `await p` sau đó chỉ để thu nhận kết quả. Hãy kích hoạt sớm toàn bộ tác vụ độc lập rồi mới thu hoạch kết quả.
+- **Chạy gối đầu co độ trễ về đường găng (Critical Path):** Các tác vụ độc lập chạy đồng thời sẽ rút ngắn thời gian xử lý từ tổng số `sum(thời_lượng)` xuống xấp xỉ bằng `max(thời_lượng)`, xóa bỏ thời gian chờ nhân tạo.
+- **`Promise.all` không tự động hủy tác vụ nền:** Khi một Promise con thất bại, `Promise.all` lập tức reject (fail-fast), nhưng các tác vụ anh em đã khởi chạy vẫn âm thầm tiếp tục trừ khi được hủy chủ động bằng `AbortSignal`.
+- **Cạm bẫy chết người (Cơn bão Fan-out không giới hạn):** Vội vã thay thế vòng lặp bằng `await Promise.all(items.map(...))` khi xử lý hàng nghìn phần tử sẽ tạo ra cơn bão kết nối đồng thời, làm cạn kiệt connection pool của cơ sở dữ liệu, tràn socket mạng và đánh sập hạ tầng nội bộ. Luôn phải giới hạn mức độ đồng thời (bounded concurrency) khi độ bung tỏa lớn.
 
 <TermBox term="Async waterfall">
 **Async waterfall (Thác nước bất đồng bộ)** là hiện tượng các thao tác bất đồng bộ có thể chạy gối đầu thời gian nhưng lại bị bắt buộc chạy nối đuôi nhau do mã nguồn đặt `await` quá sớm.

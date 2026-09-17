@@ -25,15 +25,17 @@ concepts:
   - delivery-semantics
 ---
 
-## Tóm tắt
+## Tóm tắt nhanh (TL;DR)
 
-**Hàng đợi công việc** và **luồng sự kiện** đều có thể chuyển bản ghi theo cách bất đồng bộ, nhưng chúng trả lời hai câu hỏi sở hữu khác nhau.
+Hãy tưởng tượng bảng ghim order trong một gian bếp nhà hàng: một phiếu order "Bàn số 4: Bò bít tết vừa chín tới" được ghim lên thanh ray. Người đầu bếp nào rảnh tay đầu tiên sẽ giật phiếu xuống, chế biến món ăn và vứt phiếu vào thùng rác—nhiệm vụ kết thúc và biến mất vĩnh viễn. Đó chính là **Hàng đợi công việc (Worker Queue)**. Giờ hãy tưởng tượng cuốn sổ cái kế toán của doanh nghiệp: từng giao dịch thu chi được ghi chép bất biến theo thứ tự thời gian vào cuốn nhật ký nối tiếp. Kiểm toán viên, kế toán trưởng và hệ thống phân tích thuế đều có thể độc lập lật từng trang sổ cái theo tốc độ của riêng mình, đọc đi đọc lại qua nhiều năm mà không làm mất đi một dòng nhật ký nào. Đó chính là **Luồng sự kiện phân vùng (Partitioned Log Stream)**. Thảm họa sản xuất nổ ra khi kỹ sư nhầm lẫn hai mô hình này: đưa sự kiện nghiệp vụ cốt lõi vào hàng đợi cạnh tranh khiến các service tranh nhau cướp mất dữ liệu của nhau, hoặc vác Kafka cồng kềnh về chỉ để làm tác vụ resize ảnh đại diện rồi chìm trong mớ bòng bong rebalance và cạn kiệt ổ cứng.
 
-Dùng hàng đợi khi câu hỏi trung tâm là **bộ xử lý nào nên thực hiện đơn vị công việc này?** Nhiều bộ xử lý có thể tranh nhau xử lý cùng một hàng đợi để mỗi lần chuyển giao được một bộ xử lý nhận, còn cơ chế xác nhận và chuyển giao lại quyết định khi nào công việc được xem là hoàn tất.
+> 💡 **Quy tắc bỏ túi:** Hãy xác định bản ghi là một nhiệm vụ (Job) cần một người hoàn thành rồi xóa, hay là một sự thật (Fact) mà nhiều hệ thống độc lập cần cùng theo dõi. Dùng Hàng đợi công việc (như RabbitMQ, Amazon SQS) khi cần chia việc cho các worker tranh nhau xử lý với cơ chế xác nhận (Ack) và thử lại từng tin nhắn qua hàng đợi thư chết (Dead-letter queue); dùng Luồng sự kiện (như Apache Kafka, Redpanda) khi nhiều nhóm consumer độc lập cần đọc, duy trì thứ tự và phát lại (Replay) chuỗi sự kiện bất biến theo thời gian.
 
-Dùng luồng sự kiện khi câu hỏi trung tâm là **những nhóm độc lập nào cần quan sát sự kiện này, ngay bây giờ hoặc về sau?** Nhật ký chỉ nối thêm và được lưu giữ cho phép nhiều nhóm theo dõi vị trí riêng, đồng thời phát lại phần lịch sử còn được lưu giữ mà không làm bản ghi biến mất đối với các nhóm khác.
-
-Không chọn dựa trên khẩu hiệu về thông lượng. Quyết định thay đổi theo **nhu cầu phân phối tới nhiều bên, phát lại, thời gian lưu giữ, phạm vi thứ tự, ngữ nghĩa chuyển giao, áp lực ngược và trách nhiệm vận hành**. Hệ thống hàng đợi có thể phân phối một lần xuất bản sang nhiều hàng đợi, còn hệ thống luồng có thể dùng các nhóm đọc để chia công việc. Điều quan trọng là hành vi hệ thống cần, không phải nhãn sản phẩm.
+- **Hàng đợi công việc chuyên chia nhỏ đơn vị công việc:** Nhiều worker cùng tranh nhau xử lý một hàng đợi; khi worker xác nhận (ACK) thành công, tin nhắn sẽ bị xóa. Lựa chọn tối ưu cho tác vụ nền, xử lý hàng loạt và gửi email/gọi webhook.
+- **Luồng sự kiện lưu giữ nhật ký sự thật bất biến:** Dữ liệu được ghi nối tiếp vào log và lưu giữ theo thời gian. Các nhóm consumer độc lập tự quản lý vị trí đọc (offset) và có thể phát lại lịch sử tùy ý mà không làm ảnh hưởng đến bên khác.
+- **Thứ tự được đảm bảo theo phân vùng, không phải toàn cục:** Luồng sự kiện chỉ đảm bảo thứ tự FIFO tuyệt đối bên trong cùng một khóa phân vùng (partition key); hàng đợi có nhiều worker song song sẽ hoàn thành công việc không theo thứ tự đưa vào.
+- **Ngữ nghĩa xác nhận và rủi ro trùng lặp:** Hàng đợi tự động gửi lại tin nhắn chưa được xác nhận; luồng sự kiện commit vị trí đọc sau khi xử lý. Cả hai đều không tự động đem lại "chính xác một lần" (exactly-once)—bên nhận bắt buộc phải có cơ chế **idempotency** (tính lặp an toàn).
+- **Cạm bẫy chết người:** **Dùng nhầm một hàng đợi công việc duy nhất để phát tán sự kiện (Fan-out).** Gắn cả service gửi mail, kế toán và phân tích dữ liệu vào chung một hàng đợi cạnh tranh sẽ khiến mỗi sự kiện chỉ rơi ngẫu nhiên vào một service duy nhất, làm mất trắng dữ liệu ở các service còn lại. Bắt buộc phải tách hàng đợi riêng cho từng subscriber hoặc xuất bản vào một luồng sự kiện phân vùng.
 
 ## Khung quyết định
 

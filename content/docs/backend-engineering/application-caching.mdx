@@ -31,20 +31,19 @@ concepts:
 
 # Application Caching: Trade Freshness for Less Work Deliberately
 
+At 8:00 PM on Black Friday, your e-commerce platform's flagship product page is serving 50,000 requests per second with a seemingly flawless 99.8% cache hit rate. Suddenly, the cache key for that flash-deal item reaches its TTL and expires. In a split second, 10,000 concurrent requests punch straight through the empty cache like a tidal wave and slam simultaneously into the primary relational database. Connection pools instantly choke, database CPU hits 100%, query latency spirals from 5 milliseconds to 30 seconds, and cascading timeouts trigger a total platform outage. The database caught fire not because traffic doubled, but because the cache evaporated for a single key at the worst possible moment.
+
+This is the catastrophic **Cache Stampede** (also known as the *thundering herd* problem). Application caches are not magic shields; without explicit cache topologies (such as Cache-Aside and Write-Through), TTL jitter, and mutex locks when computing cache misses, an uncoordinated cache can weaponize normal traffic into sudden infrastructure destruction.
+
 ## TL;DR
 
-An application cache is **derived state**. The authoritative database, service, or durable record remains the **source of truth**; the cache exists to avoid repeating expensive reads or computation when serving a slightly older or reusable answer is acceptable.
+> 💡 **Rule of thumb:** An application cache is derived, volatile state—never the authoritative source of truth. Guard hot keys against cache stampedes with single-flight mutex locks and randomized TTL jitter, and always invalidate keys *after* the authoritative database commit succeeds.
 
-A useful reasoning loop is:
-
-1. identify the expensive work you want to avoid;
-2. define the exact input dimensions that make two answers equivalent;
-3. build a cache key from those dimensions;
-4. state the allowed staleness budget before choosing a TTL;
-5. decide how writes invalidate or supersede cached values;
-6. protect hot misses from becoming a cache stampede;
-7. decide whether misses and cache failures fall back safely;
-8. measure hit rate, miss rate, cache latency, origin latency, evictions, and origin load.
+- **Authoritative source of truth:** Caches exist solely to avoid repeated expensive computation or I/O. Losing or evicting the cache should only degrade latency and performance—it must never corrupt or lose business reality.
+- **Topologies define consistency:** **Cache-Aside** (lazy loading) reads the cache, fetches from the database on a miss, and populates the cache; **Write-Through** updates the cache and database synchronously; **Write-Behind** queues asynchronous database updates for extreme write throughput at the cost of durability risk.
+- **Cache key is a correctness boundary:** Every dimension that influences the computed response (tenant identity, user permissions, currency, localization, schema version) must be explicitly represented in the key; missing dimensions cause devastating cross-tenant data leaks.
+- **Stampede protection is mandatory:** Protect hot keys against thundering herds using single-flight mutexes (collapsing thousands of concurrent misses into a single origin read), proactive refresh-ahead, and TTL jitter (randomized expiry variations).
+- **Fatal pitfall:** Deleting or invalidating cache entries *before* committing the database transaction, opening a race window where a concurrent reader fetches pre-commit stale data from the database, writes it back into the cache, and leaves stale data trapped until TTL expires.
 
 ```mermaid
 flowchart LR

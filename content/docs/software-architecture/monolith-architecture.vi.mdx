@@ -30,21 +30,19 @@ concepts:
 
 # Kiến trúc Monolith: Một ranh giới triển khai, nhiều cách thiết kế
 
+Đúng 2 giờ chiều ngày siêu sale Black Friday, lưu lượng truy cập đổ về chạm đỉnh kỷ lục. Đột nhiên, một tính năng phụ trợ vừa mới phát hành—tính năng xuất file báo cáo thuế định dạng PDF theo tháng—kích hoạt một lỗi rò rỉ bộ nhớ (memory leak) do không giải phóng buffer. Chỉ trong vòng vài phút, bộ nhớ heap bị vắt kiệt, bộ gom rác (Garbage Collector) quá tải đẩy CPU lên 100%, các tiến trình ứng dụng chết chìm và toàn bộ cổng thanh toán tê liệt hoàn toàn. Vì toàn bộ hệ thống được đóng gói thành một đơn vị triển khai (deployment unit) duy nhất, sự cố ở một tính năng phụ trợ không quan trọng đã kéo sập toàn bộ cỗ máy kiếm tiền cốt lõi của doanh nghiệp.
+
+Sự cố kinh hoàng này phơi bày sự đánh đổi căn bản nhất của kiến trúc monolith: sự tiện lợi tuyệt đối của các lời gọi hàm in-memory và giao dịch ACID cục bộ, được đánh đổi bằng một phạm vi ảnh hưởng lỗi (blast radius) dùng chung không có vách ngăn cô lập.
+
+> 💡 **Quy tắc bỏ túi:** Monolith là một cấu trúc triển khai, không phải cái cớ cho sự buông lỏng ranh giới. Hãy tận dụng tối đa sự đơn giản của lời gọi hàm trong cùng tiến trình và giao dịch ACID cục bộ, nhưng phải luôn duy trì tính mô-đun nghiêm ngặt và chủ động cô lập các tác vụ nặng tài nguyên trước khi chúng kéo sập luồng nghiệp vụ sống còn.
+
 ## Tóm tắt nhanh
 
-**Monolith** trước hết là một topology triển khai: phần lớn hành vi ứng dụng được đóng gói, phát hành và scale như **một đơn vị triển khai** thay vì nhiều service có thể deploy độc lập.
-
-Điều đó **không** đồng nghĩa với:
-
-- một file nguồn duy nhất;
-- một module duy nhất;
-- một tầng kiến trúc duy nhất;
-- không có background job;
-- không có database bên ngoài;
-- không có boundary nội bộ;
-- mặc định là thiết kế tệ.
-
-Một monolith có thể có module rõ, dependency rule tốt, ownership gắn kết và interface được kiểm thử kỹ. Nó cũng có thể trở thành một khối rối phụ thuộc chằng chịt. Khác biệt nằm ở **cấu trúc nội bộ và kỷ luật thay đổi**, không nằm ở chữ “monolith”.
+- **Đóng gói và triển khai như một đơn vị duy nhất**: Hầu hết mọi chức năng nghiệp vụ được build, phát hành và scale trong cùng một tiến trình ứng dụng như **một đơn vị triển khai**. Sự tương tác giữa các thành phần diễn ra tức thì qua lời gọi hàm nội bộ (in-process) thay vì phụ thuộc vào độ trễ và độ tin cậy của mạng.
+- **Giao dịch ACID cục bộ loại bỏ gánh nặng phân tán**: Các thao tác biến đổi dữ liệu liên quan có thể hoàn tất nguyên tử trong một database transaction duy nhất, không cần đến sự phức tạp của saga, giao dịch hai pha hay đối soát nhất quán cuối cùng.
+- **Phạm vi ảnh hưởng lỗi (blast radius) dùng chung là cái giá lớn nhất**: Một lỗi tràn bộ nhớ, ngoại lệ chưa bắt được hoặc luồng ngốn CPU ở một tính năng phụ có thể kéo sập toàn bộ tiến trình ứng dụng và mọi chức năng quan trọng khác.
+- **Chất lượng kiến trúc do cấu trúc nội bộ quyết định**: Monolith có thể được phân tầng sạch sẽ, phân định quyền sở hữu module rõ ràng và bảo vệ bằng architecture test—hoặc có thể thoái hóa thành một mớ bòng bong (big ball of mud). Cấu trúc triển khai không quyết định độ sạch của mã nguồn.
+- **Cạm bẫy chết người:** **Không cô lập phạm vi ảnh hưởng (Unbounded Blast Radius)**—Để các tác vụ nền ngốn tài nguyên (như xuất PDF, xử lý hình ảnh, tổng hợp báo cáo lớn) chạy chung bộ nhớ heap và pool kết nối database với các luồng thanh toán và đăng nhập cốt lõi mà không có cơ chế giới hạn tài nguyên hoặc tiến trình worker tách biệt.
 
 ```mermaid
 flowchart LR

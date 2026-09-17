@@ -29,9 +29,18 @@ concepts:
 
 # Layered Architecture: Làm hướng phụ thuộc trở nên tường minh
 
-## Tóm tắt nhanh
+Mọi sự cố mục ruỗng kiến trúc thường bắt đầu bằng một lý do rất thực tế: "làm thế này cho nhanh". Một kỹ sư cần hiển thị trạng thái gói thuê bao của người dùng lên dashboard. Việc phải đi qua đầy đủ Domain Policy, Application Service rồi mới xuống Database bị coi là "thừa thãi và tốn thời gian đối với một câu truy vấn SELECT đơn giản". Anh ta quyết định viết thẳng một câu SQL ngay trong HTTP Controller. Mọi thứ hoạt động hoàn hảo cho đến hai tháng sau, khi một endpoint kích hoạt lại tài khoản cũng "đi tắt đón đầu" (layer skipping / bypass) gọi thẳng xuống database để cập nhật cột `status = ACTIVE`. Vì đã qua mặt hoàn toàn tầng nghiệp vụ, toàn bộ các quy tắc kiểm tra gian lận, điều kiện thẻ thanh toán và ghi nhận audit log đã bị bỏ qua, dẫn tới việc hệ thống trừ tiền oan hàng nghìn tài khoản bị khóa.
 
-Layered architecture tổ chức responsibility thành các **layer logic** và quy định dependency được phép đi theo hướng nào.
+Đây là cạm bẫy kinh điển của việc **phá vỡ phân tầng (layer skipping)**. Khi tầng trình bày (presentation layer) chọc thẳng xuống tầng hạ tầng (infrastructure layer) để thao tác dữ liệu, các ràng buộc nghiệp vụ bị phân tán vô tội vạ, bảo mật bị rò rỉ, và toàn bộ kiến trúc phân tầng sụp đổ thành một đống mã nguồn hỗn loạn.
+
+> 💡 **Quy tắc bỏ túi:** Phân tầng thiết lập ranh giới trách nhiệm logic và quy tắc phụ thuộc một chiều; khoảnh khắc tầng trình bày đi tắt đón đầu qua mặt tầng nghiệp vụ để thao tác dữ liệu, kiến trúc đã hoàn toàn mục ruỗng.
+
+## Tóm tắt nhanh (TL;DR)
+
+- **Phân định rõ trách nhiệm kỹ thuật giữa các tầng:** **Tầng trình bày (presentation layer)** tiếp nhận và xử lý giao thức; **tầng ứng dụng (application layer)** điều phối use case và ranh giới transaction; **tầng domain (domain layer)** nắm giữ các quy tắc và bất biến nghiệp vụ; **tầng hạ tầng (infrastructure layer)** xử lý kết nối database, message queue và external API.
+- **Thực thi nghiêm ngặt quy tắc phụ thuộc (dependency rule) một chiều:** Mã nguồn chỉ được phép phụ thuộc xuôi dòng (hoặc hướng vào trong theo nguyên lý đảo ngược phụ thuộc). Tầng dưới tuyệt đối không được biết tới sự tồn tại hay import bất kỳ định dạng nào của tầng trên.
+- **Phân biệt rạch ròi giữa layer và tier:** **Layer (tầng logic)** là cách tổ chức mã nguồn bên trong một đơn vị triển khai; **tier (tầng vật lý)** là ranh giới phân tách máy chủ, tiến trình hoặc mạng. Đừng tự chuốc lấy độ trễ mạng và rủi ro phân tán chỉ để biến mỗi folder thành một tier riêng biệt.
+- **Cạm bẫy chết người:** **Đi tắt đón đầu (layer skipping / bypass).** Cho phép controller hay background worker gọi thẳng xuống cơ sở dữ liệu để "tiết kiệm thời gian" sẽ làm phân tán validation, rò rỉ lỗ hổng bảo mật, và phá vỡ tính toàn vẹn dữ liệu khi các business invariant ở tầng domain bị bỏ qua hoàn toàn.
 
 Một cấu trúc phổ biến:
 

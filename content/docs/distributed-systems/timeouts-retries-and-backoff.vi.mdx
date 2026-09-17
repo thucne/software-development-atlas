@@ -34,17 +34,15 @@ concepts:
 
 ## Tóm tắt
 
-Timeout không chứng minh operation ở remote đã thất bại. Nó chỉ cho biết **phía gọi đã ngừng chờ**. Downstream có thể đã fail, vẫn đang chạy, hoặc đã commit side effect nhưng response bị mất.
+Hãy tưởng tượng một tuyến cáp quang biển quốc tế bất ngờ bị đứt một phần, gây ra tình trạng mất gói tin bất đối xứng trên diện rộng. Một cổng thanh toán gửi lệnh trừ 10 triệu đồng tới hệ thống ngân hàng đối tác. Chờ quá 2,5 giây không thấy phản hồi, socket phía client báo lỗi timeout. Ngay lập tức, mã nguồn tự động kích hoạt vòng lặp retry thêm ba lần liên tiếp mà không hề có độ trễ nghỉ. Trong thực tế, máy chủ ngân hàng đã nhận được lệnh đầu tiên và trừ tiền thành công trên đĩa cứng—chỉ có gói tin xác nhận chiều về bị rơi trên đường truyền biển chập chờn. Trong vòng chưa đầy mười giây, tài khoản khách hàng bị trừ tiền 4 lần liên tiếp, trong khi hàng chục nghìn client khác cũng đồng loạt retry khiến toàn bộ hàng đợi kết nối của ngân hàng tê liệt vì nghẽn cổ chai. Timeout không có nghĩa là thao tác phía xa đã thất bại; nó chỉ có nghĩa là **bạn đã hết kiên nhẫn để tiếp tục chờ đợi**.
 
-Vì vậy một retry policy an toàn cần nhiều hơn “thử lại”:
+> 💡 **Quy tắc bỏ túi:** Trong kiến trúc phân tán, timeout giới hạn thời gian chờ còn idempotency bảo đảm tính đúng đắn; tuyệt đối không bao giờ retry đa tầng nếu thiếu deadline toàn trình, exponential backoff và jitter.
 
-1. mang theo **deadline** hoặc budget end-to-end, không cấp lại full timeout độc lập ở mỗi hop;
-2. chỉ retry failure mà attempt mới có khả năng cải thiện;
-3. chỉ retry khi operation idempotent hoặc có cơ chế khác giúp lặp an toàn;
-4. giới hạn số attempt và tổng thời gian retry;
-5. dùng exponential backoff có jitter để caller không đồng bộ với nhau;
-6. chọn một retry owner khi nhiều layer đều có thể retry;
-7. quan sát attempt, budget cạn, downstream saturation và duplicate-prevention outcome.
+- **Timeout là ranh giới bất định cục bộ, không phải phán quyết từ xa:** Khi timeout xảy ra, downstream có thể đã gặp sự cố trước khi xử lý, vẫn đang miệt mài tính toán, hoặc đã commit dữ liệu thành công nhưng gói tin phản hồi bị thất lạc giữa đường truyền.
+- **Lan truyền hạn chót (deadline) thay vì timeout ngây thơ:** Luôn mang theo một **deadline** thống nhất xuyên suốt toàn bộ cây gọi dịch vụ; trừ dần thời gian đã tiêu tốn ở các tầng trên để ngăn các service cấp dưới tiếp tục đốt CPU vô ích khi caller đã bỏ cuộc.
+- **Phân loại an toàn nghiêm ngặt:** Chỉ retry các lỗi mang tính **tạm thời** trên các thao tác có bảo chứng **idempotent**; tuyệt đối không retry các lỗi xác thực, sai logic nghiệp vụ hay các tác vụ ghi dữ liệu chưa được định danh an toàn.
+- **Giãn cách lũy thừa kèm jitter & một chủ sở hữu duy nhất:** Áp dụng **exponential backoff** để cho downstream khoảng thở, kết hợp **jitter** ngẫu nhiên nhằm triệt tiêu hiện tượng thundering herd, và chỉ định duy nhất một tầng sở hữu retry để tránh thảm họa nhân tải cấp số nhân (`3 × 3 × 3 = 27`).
+- **Cạm bẫy chết người:** **Mù quáng retry các thao tác ghi không có tính idempotent sau khi bị timeout.** Tự suy diễn rằng "không nhận được phản hồi nghĩa là hệ thống chưa làm gì" rồi phát lệnh retry tức thì là căn nguyên dẫn tới trừ tiền nhiều lần, sai lệch tồn kho và sự cố tự làm tê liệt dịch vụ (self-inflicted DoS).
 
 ## Partial failure làm thay đổi ý nghĩa của lỗi
 

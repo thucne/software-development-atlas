@@ -37,17 +37,33 @@ concepts:
   - least-privilege
 ---
 
+## Tình huống thực chiến & TL;DR
+
+Một người dùng tải lên tệp video 4K dung lượng 2.5 GB. Máy chủ API ứng dụng tiếp nhận request dạng `multipart/form-data` và cố gắng nạp (buffer) toàn bộ luồng byte vào bộ nhớ RAM của tiến trình. Cùng lúc đó, chỉ cần thêm 2-3 người dùng khác thực hiện thao tác tương tự, mức tiêu thụ bộ nhớ chạm đỉnh trần. Bộ điều phối Out-Of-Memory (OOM Killer) của hệ điều hành ngay lập tức can thiệp và cưỡng chế tắt tiến trình API. Toàn bộ container rơi vào vòng xoáy crash loop, hàng loạt kết nối HTTP đang phục vụ người dùng khác bị ngắt đột ngột, kéo theo sự cố gián đoạn dịch vụ diện rộng (cascading outage). Trong khi đó, các mảnh dữ liệu tải dở dang bị bỏ rơi âm thầm tích lũy trong kho lưu trữ, đẩy chi phí hạ tầng tăng vọt.
+
+Biến máy chủ ứng dụng thành trạm trung chuyển byte thô (byte relay) cho các tệp khổng lồ là một sai lầm kiến trúc nghiêm trọng. Một pipeline xử lý tệp chuẩn production bắt buộc phải chuyển hướng luồng tải trực tiếp lên kho đối tượng (như Amazon S3) qua presigned URL có phạm vi hẹp, xử lý tệp theo dạng luồng (streaming) hoặc chia chunk bất đồng bộ trong ngân sách RAM hữu hạn, điều phối worker qua hàng đợi bền vững kèm Dead-Letter Queue (DLQ), và áp dụng cơ chế khử trùng lặp (idempotency) gắn chặt với phiên bản đối tượng bất biến.
+
+> 💡 **Quy tắc bỏ túi:** Tuyệt đối không để dữ liệu tệp thô đi qua máy chủ API ứng dụng. Hãy cấp quyền tải lên trực tiếp thông qua presigned URL có phạm vi hẹp lên kho đối tượng (S3), xử lý tệp theo dạng luồng (streaming) trong ngân sách RAM giới hạn, và điều phối các worker xử lý nền thông qua hàng đợi bền vững có Dead-Letter Queue (DLQ) kèm cơ chế khử trùng lặp (idempotency) dựa trên phiên bản đối tượng bất biến.
+
+### TL;DR
+
+- **Bỏ qua máy chủ API bằng tải lên trực tiếp có phạm vi hẹp:** Cấp đường dẫn đã ký sẵn (presigned URL) hoặc capability token ngắn hạn để máy khách tải byte trực tiếp lên kho đối tượng (như Amazon S3), giữ mức tiêu thụ RAM và băng thông của tầng API ở mức tối thiểu.
+- **Ràng buộc công việc xử lý vào phiên bản đối tượng bất biến:** Liên kết job của worker nền với `asset_id`, định danh thế hệ/phiên bản đối tượng và mã băm kiểm tra (checksum) thay vì khóa lưu trữ có thể bị ghi đè, loại bỏ hoàn toàn tình huống chạy nhầm dữ liệu do thông báo sự kiện đến chậm.
+- **Xử lý dạng luồng (streaming) và cô lập tệp trong vùng cách ly:** Đặt ngân sách RAM và đĩa tạm chặt chẽ cho từng worker bằng cách đọc luồng thay vì nạp toàn bộ gigabyte vào bộ nhớ; giữ tệp mới tải trong vùng cách ly (quarantine) cho đến khi vượt qua khâu kiểm tra kích thước, chữ ký tệp và quét mã độc.
+- **Kiểm soát áp lực hệ thống bằng giới hạn song song (bounded concurrency):** Điều chỉnh quy mô cụm worker dựa trên tuổi của công việc trong hàng đợi (queue age), thông lượng và mức bão hòa tài nguyên thay vì chỉ đếm số lượng việc tồn đọng, ngăn chặn nguy cơ làm sập cơ sở dữ liệu và các dịch vụ chuyển đổi phía sau.
+- **Cạm bẫy chết người:** Nạp toàn bộ tệp nhiều gigabyte vào bộ nhớ RAM của web worker hoặc dùng chung một đường dẫn lưu trữ có thể thay đổi (`uploads/current.file`) làm định danh xử lý — cách làm này dẫn đến lỗi sập tiến trình do cạn RAM (OOM) và làm sai lệch dữ liệu âm thầm khi thông báo sự kiện đến muộn xử lý đè lên dữ liệu của tệp mới hơn.
+
 ## Mục tiêu hệ thống và các ràng buộc
 
-Giả sử sản phẩm cho phép người dùng tải lên ảnh, video, tệp nén hoặc tài liệu cần xử lý bất đồng bộ. Hệ thống cần nhận tệp qua mạng không ổn định, tránh biến máy chủ ứng dụng thành nơi chuyển tiếp toàn bộ dữ liệu, kiểm tra nội dung không đáng tin, chạy biến đổi tốn tài nguyên ngoài đường xử lý yêu cầu, sống sót qua thông báo trùng và bộ xử lý bị dừng, hiển thị tiến độ, đồng thời ngăn một đợt tệp lớn làm quá tải năng lực phía sau.
+Giả sử sản phẩm cho phép người dùng tải lên ảnh, video, tệp nén hoặc tài liệu cần xử lý bất đồng bộ. Hệ thống cần tiếp nhận tệp qua mạng không ổn định, tránh biến máy chủ ứng dụng thành trạm trung chuyển dữ liệu (byte relay), kiểm định nghiêm ngặt nội dung không đáng tin cậy, chạy các tác vụ biến đổi tốn tài nguyên ngoài đường xử lý yêu cầu đồng bộ, sống sót an toàn qua các thông báo sự kiện bị trùng hoặc sự cố worker bị crash, hiển thị tiến độ thời gian thực, đồng thời ngăn chặn một đợt tải tệp lớn làm tê liệt toàn bộ hạ tầng phía sau.
 
-Một hình dạng tham chiếu bền vững tách ba thứ rất dễ bị nhập làm một:
+Một mô hình kiến trúc tham chiếu chuẩn mực tách bạch rõ ràng ba thành phần cốt lõi:
 
-1. **Dữ liệu tệp** nằm trong kho đối tượng.
+1. **Dữ liệu tệp thô (bytes)** nằm trong kho đối tượng (Object Storage).
 2. **Siêu dữ liệu nghiệp vụ và trạng thái xử lý** nằm trong cơ sở dữ liệu ứng dụng hoặc kho siêu dữ liệu bền vững tương đương.
-3. **Quyền sở hữu công việc** nằm trong cơ chế công việc nền bền vững như hàng đợi.
+3. **Quyền sở hữu và điều phối công việc** nằm trong cơ chế xử lý nền bền vững như hàng đợi thông điệp (Message Queue).
 
-Kiến trúc dưới đây là hình dạng tham chiếu, không phải cấu trúc đám mây bắt buộc. Hệ thống nhỏ có thể dùng bảng công việc trong cơ sở dữ liệu. Hệ thống lớn hơn có thể dùng kho đối tượng được quản lý, hệ thống trung gian truyền tin, các bộ xử lý tự điều chỉnh quy mô, quét mã độc và nhiều giai đoạn tạo kết quả dẫn xuất. Các bất biến quan trọng hơn tên nhà cung cấp.
+Kiến trúc dưới đây là mô hình tham chiếu, không phải cấu trúc đám mây bắt buộc duy nhất. Hệ thống nhỏ hoàn toàn có thể dùng bảng công việc trong cơ sở dữ liệu quan hệ. Hệ thống quy mô lớn hơn có thể dùng kho đối tượng được quản lý, hệ thống message broker chuyên dụng, các worker tự điều chỉnh quy mô (autoscaling), công đoạn quét mã độc và nhiều tầng sinh dữ liệu dẫn xuất. Các nguyên lý bất biến quan trọng hơn tên gọi của từng dịch vụ đám mây.
 
 ## Luồng tổng thể
 
@@ -65,9 +81,9 @@ graph LR
   META -->|5. trạng thái| C
 ```
 
-Ranh giới quan trọng là giao diện ứng dụng cho phép và điều phối lần tải lên, nhưng dữ liệu tệp thông thường không cần đi qua tiến trình giao diện. Nhờ vậy bộ nhớ, thời gian yêu cầu và băng thông của giao diện không tăng trực tiếp theo kích thước tệp.
+Ranh giới quan trọng nhất là máy chủ API chỉ đóng vai trò phân quyền và điều phối phiên tải lên, dữ liệu byte thô của tệp hoàn toàn không đi qua tiến trình API. Nhờ đó, bộ nhớ RAM, thời lượng request và băng thông mạng của tầng API không bị tỷ lệ thuận theo kích thước tệp tải lên.
 
-Một vòng đời thực dụng có thể là:
+Một vòng đời trạng thái thực dụng có thể là:
 
 ```text
 CREATED -> UPLOADING -> UPLOADED -> QUEUED -> PROCESSING -> SUCCEEDED
@@ -75,11 +91,11 @@ CREATED -> UPLOADING -> UPLOADED -> QUEUED -> PROCESSING -> SUCCEEDED
                          \-> REJECTED
 ```
 
-Hãy lưu vòng đời như trạng thái ứng dụng. Không suy ra toàn bộ trạng thái nghiệp vụ chỉ từ việc một đối tượng có tồn tại trong vùng lưu trữ hay không.
+Hãy lưu trữ vòng đời này dưới dạng trạng thái nghiệp vụ trong cơ sở dữ liệu ứng dụng. Tuyệt đối không suy diễn trạng thái đơn hàng/tài sản chỉ bằng việc kiểm tra xem một tệp có tồn tại trong bucket lưu trữ hay không.
 
 ## 1. Tạo định danh ứng dụng trước khi dữ liệu đến
 
-Bắt đầu với một định danh ổn định ở mức ứng dụng như `asset_id`. Giao diện có thể tạo siêu dữ liệu như:
+Bắt đầu bằng một định danh ổn định ở cấp ứng dụng như `asset_id`. Máy chủ API có thể khởi tạo siêu dữ liệu:
 
 ```text
 asset_id: ast_7f91...
@@ -89,7 +105,7 @@ expected_max_bytes: 2_000_000_000
 state: UPLOADING
 ```
 
-Tên tệp ban đầu do người dùng cung cấp chỉ là siêu dữ liệu hiển thị, không phải định danh lưu trữ và không phải ranh giới phân quyền. Hãy tạo khóa lưu trữ từ định danh do ứng dụng kiểm soát để một người dùng không thể chọn đường dẫn va chạm với tài sản của người khác.
+Tên tệp gốc do người dùng tải lên chỉ là siêu dữ liệu hiển thị (display metadata), không phải là định danh lưu trữ và không phải là ranh giới phân quyền. Hãy luôn sinh khóa lưu trữ (storage key) từ định danh do ứng dụng kiểm soát để người dùng độc hại không thể can thiệp đường dẫn gây xung đột hoặc ghi đè tài nguyên của người khác.
 
 <TermBox term="Quyền tải lên có phạm vi hẹp">
 **Quyền tải lên có phạm vi hẹp** là thông tin xác thực hoặc yêu cầu đã ký chỉ cho phép máy khách thực hiện một thao tác lưu trữ cụ thể trong phạm vi và thời gian giới hạn.
@@ -103,7 +119,7 @@ Tên tệp ban đầu do người dùng cung cấp chỉ là siêu dữ liệu h
 - ràng buộc vào đúng khóa đối tượng hoặc tiền tố rất hẹp;
 - giữ thời hạn đủ ngắn cho quy trình tải lên;
 - ràng buộc kích thước, tổng kiểm, tiêu đề nội dung hoặc trường chính sách khi cơ chế lưu trữ hỗ trợ;
-- xem quyền này như bí mật dạng mang theo cho đến khi hết hạn.
+- xem quyền này như một bí mật dạng mang theo (bearer secret) cho đến khi hết hạn.
 
 Không cấp cho trình duyệt thông tin xác thực có thể liệt kê toàn bộ vùng lưu trữ, đọc đối tượng của người khác, xóa đầu vào tùy ý hoặc ghi vào vùng kết quả dẫn xuất.
 
@@ -224,7 +240,7 @@ Nếu bộ xử lý dừng sau bước 5 nhưng trước bước 7, lần chuy�
 
 Không để tệp dẫn xuất chưa hoàn tất xuất hiện dưới khóa công khai cuối cùng nếu bên đọc có thể nhìn thấy nó trước khi xử lý xong. Ưu tiên định danh kết quả duy nhất hoặc có phiên bản và một con trỏ siêu dữ liệu ứng dụng chỉ đổi sau khi kết quả đã bền vững.
 
-Chỉ thử lại lỗi tạm thời. Định dạng không hỗ trợ, nội dung độc hại, lỗi phân tích xác định hoặc tệp vượt giới hạn sản phẩm không nên chạy vô hạn qua cơ chế giãn cách thử lại. Hãy chuyển lỗi kết thúc sang trạng thái thất bại hoặc cách ly nhìn thấy được và dùng thư chết hoặc quy trình xem xét thủ công khi có giá trị vận hành.
+Chỉ thử lại lỗi tạm thời. Định dạng không hỗ trợ, nội dung độc hại, lỗi phân tích xác định hoặc tệp vượt giới hạn sản phẩm không nên chạy vô hạn qua cơ chế giãn cách thử lại. Hãy chuyển lỗi kết thúc sang trạng thái thất bại hoặc cách ly nhìn thấy được và dùng hàng đợi thư chết (Dead-Letter Queue / DLQ) hoặc quy trình xem xét thủ công khi có giá trị vận hành.
 
 ## 7. Kiểm soát áp lực trước khi tự điều chỉnh quy mô thành một đợt tràn
 
@@ -233,14 +249,14 @@ Tự tăng số bộ xử lý có thể giúp phục hồi sau đợt tải lớ
 Một bộ xử lý tệp có thể tiêu thụ:
 
 - băng thông đọc/ghi kho đối tượng;
-- bộ xử lý trung tâm cho nén, chuyển mã, nhận dạng ký tự hoặc quét;
+- CPU (bộ xử lý trung tâm) cho nén, chuyển mã, nhận dạng ký tự hoặc quét;
 - bộ nhớ và đĩa tạm;
 - kết nối cơ sở dữ liệu để cập nhật siêu dữ liệu;
 - lời gọi tới dịch vụ quét mã độc, mô hình, xử lý đa phương tiện hoặc tài liệu.
 
 Điều chỉnh quy mô dựa trên bằng chứng công việc như **tuổi của công việc lâu nhất trong hàng đợi**, độ sâu tồn đọng, tốc độ tạo việc, thông lượng xử lý và mức bão hòa bộ xử lý. Chỉ nhìn độ sâu hàng đợi có thể gây hiểu nhầm khi kích thước công việc khác nhau rất lớn.
 
-Dùng **giới hạn mức song song** bên trong từng bộ xử lý và trên toàn đội. Một đội lập tức khởi chạy 1.000 lần biến đổi tệp 2 GB có thể tệ hơn đội xả tồn đọng đều đặn trong giới hạn băng thông lưu trữ, cơ sở dữ liệu, bộ xử lý trung tâm và dịch vụ phía sau.
+Dùng **giới hạn mức song song** bên trong từng bộ xử lý và trên toàn cụm worker. Một cụm worker lập tức khởi chạy 1.000 lần biến đổi tệp 2 GB có thể gây hại lớn hơn nhiều so với một cụm xả tồn đọng đều đặn trong giới hạn băng thông lưu trữ, cơ sở dữ liệu, CPU và dịch vụ phía sau.
 
 ```mermaid
 graph LR
@@ -256,14 +272,14 @@ graph LR
   D -->|giới hạn kết nối / ghi| G
 ```
 
-Áp lực ngược phải làm hành vi thay đổi. Tùy sản phẩm, hệ thống có thể giới hạn lần tải mới, giảm biến đổi tùy chọn, trì hoãn việc ưu tiên thấp, chủ động tăng năng lực hoặc báo cho người dùng rằng xử lý đang chậm. Bảng theo dõi chỉ cho thấy tồn đọng tăng không phải cơ chế kiểm soát áp lực.
+Cơ chế áp lực ngược (backpressure) phải dẫn đến sự thay đổi hành vi thực tế của hệ thống. Tùy theo yêu cầu sản phẩm, hệ thống có thể tạm thời giới hạn lần tải mới, giảm bớt các bước biến đổi tùy chọn, trì hoãn việc có độ ưu tiên thấp, chủ động tăng năng lực xử lý hoặc thông báo trung thực cho người dùng rằng tác vụ đang bị trễ. Một bảng theo dõi chỉ thụ động hiển thị số việc tồn đọng tăng cao mà không có cơ chế can thiệp thì không phải là giải pháp kiểm soát áp lực.
 
 ## 8. Cấp định danh đám mây theo đặc quyền tối thiểu cho từng ranh giới
 
 Phân quyền đám mây nên phản ánh trách nhiệm, không phản ánh sự tiện lợi:
 
 - **Quyền tải lên của trình duyệt:** chỉ ghi đúng đối tượng đầu vào trong thời gian giới hạn; không có thông tin xác thực rộng cho cả vùng lưu trữ.
-- **Giao diện tải lên:** tạo siêu dữ liệu tài sản và phát hành quyền tải hẹp; không cần đọc mọi kết quả dẫn xuất chỉ vì nó tạo phiên tải.
+- **Máy chủ API tải lên:** tạo siêu dữ liệu tài sản và phát hành quyền tải hẹp; không cần đọc mọi kết quả dẫn xuất chỉ vì nó tạo phiên tải.
 - **Bộ nhận sự kiện/tạo công việc:** đọc lượng siêu dữ liệu đối tượng và trạng thái ứng dụng tối thiểu cần thiết rồi tạo công việc.
 - **Bộ xử lý:** đọc đúng đầu vào cách ly và ghi vào vùng kết quả dẫn xuất dự kiến; tránh quyền quản trị vùng lưu trữ.
 - **Đường phục vụ:** chỉ đọc kết quả đã được chấp thuận sau khi ứng dụng phân quyền; không công khai vùng cách ly.

@@ -29,15 +29,15 @@ concepts:
 
 ## TL;DR
 
-Do not choose CSR, SSR, or SSG by asking which one is "modern." Ask **when useful HTML must exist, whether that HTML depends on request-time state, how much staleness the product allows, how much client JavaScript is required, and which work you are prepared to operate at build time, request time, and in the browser**.
+A fast-growing e-commerce brand migrated its storefront to a pure Client-Side Rendered (CSR) Single Page Application to give developers a unified React workflow. The migration triggered a business disaster: organic search rankings plummeted 60% within weeks because search engine crawlers deferred or dropped the empty initial HTML shell. Worse, mobile shoppers on average 3G connections stared at a blank white screen for 4 full seconds before the massive JavaScript bundle finished downloading and parsing—sending bounce rates through the roof. Choosing a web rendering model is not about framework fashion; it is an engineering calculation balancing Time to First Byte (TTFB), First Contentful Paint (FCP), the interactive hydration gap, and server infrastructure overhead.
 
-A practical starting rule is:
+> 💡 **Rule of thumb:** Choose rendering strategies by route and data lifecycle, not by application-wide dogmatism. Prefer static generation (SSG/ISR) when the same generated representation can be reused across many requests and its freshness can be maintained by publishing or revalidation; use request-time server rendering (SSR) when useful initial HTML must include request-time state that cannot safely or acceptably be represented by a shared static response; and center client-side rendering (CSR) for private, authenticated workspaces where the initial document shell is generic and value unfolds in a rich client session.
 
-- prefer static generation when the same generated representation can be reused across many requests and its freshness can be maintained by publishing or revalidation;
-- use request-time server rendering when useful initial HTML must include request-time state that cannot safely or acceptably be represented by a shared static response;
-- center client-side rendering when the initial document can be a generic shell and most product value appears after client code and data have loaded.
-
-These are not mutually exclusive product identities. Modern applications commonly mix them by route, component, and data dependency.
+- **SSG delivers edge cacheability and instant first paint:** Pre-generating HTML at build time or via background revalidation achieves sub-50ms TTFB worldwide, shielding database clusters from request-time traffic surges.
+- **SSR embeds request-time state on the initial network hop:** Server-rendering delivers fully populated semantic HTML for immediate crawler indexing and human perception, but places rendering CPU and database queries directly onto the critical request path.
+- **CSR offloads page-generation work to the browser:** Serving a static shell reduces server compute costs, but forces users to pay a heavy upfront download, parse, and execution tax for client JavaScript bundles before seeing useful content.
+- **Mind the interactive hydration gap:** SSR and SSG deliver early visual content (FCP), but complex applications can trap users in an "uncanny valley" where buttons look clickable but remain completely unresponsive until client hydration finishes.
+- **Fatal pitfall:** **Defaulting to SSR for high-traffic public catalog routes without caching.** Hitting un-memoized database queries on every incoming page render turns your web servers into an instant scalability bottleneck under traffic spikes. Always decouple public layouts into cached static shells (SSG/ISR) and fetch personalized, volatile fragments asynchronously via client APIs.
 
 <TermBox term="CSR / SSR / SSG">
 These labels describe **where and when useful HTML is produced**.

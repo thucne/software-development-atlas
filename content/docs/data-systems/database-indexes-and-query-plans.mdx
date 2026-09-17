@@ -32,9 +32,19 @@ concepts:
 
 # Database Indexes & Query Plans: Choose Access Paths with Evidence
 
+At midnight during a major flash sale, the on-call pager screams: database CPU utilization hits 100%, disk read IOPS saturate, and API response times skyrocket from 15 milliseconds to 50 seconds. The on-call engineer scrambles to investigate, confident that indexing was already solved: "We added a composite index yesterday: `CREATE INDEX idx_orders_status_created ON orders (status, created_at);`!" But an emergency query trace exposes the catastrophe. The customer feed query filtered exclusively on `WHERE created_at >= NOW() - INTERVAL '1 day'`, omitting the leading `status` column entirely. Because the query violated the **leftmost prefix rule** of B-tree composite indexes, the PostgreSQL cost-based optimizer bypassed the index and triggered a brutal sequential scan (`Seq Scan`) across 80 million rows on spinning disks. Compounding the damage, another developer pushed a search endpoint using `WHERE email LIKE '%@gmail.com'`; the leading wildcard rendered B-tree binary traversal impossible, forcing another full-table scan on every keystroke and knocking the database completely offline.
+
+These outages reveal a crucial truth: adding indexes without understanding query plans and access paths is just guessing under pressure.
+
 ## TL;DR
 
-An index does not make a query fast by itself. It gives the database another **access path**. The query planner compares available paths using table statistics and a cost model, then chooses the plan it expects to be cheapest.
+> 💡 **Rule of thumb:** An index is not an automatic speed button; it is merely an access path. The database cost-based planner will choose a sequential scan whenever reading table pages directly is estimated to be cheaper. Shape indexes around the leftmost prefix rule, check predicate selectivity, and verify execution reality with `EXPLAIN (ANALYZE, BUFFERS)` before and after every schema change.
+
+- **Indexes offer access paths, not guaranteed speed:** An index is simply an alternative navigation route. The query planner evaluates candidate paths against table statistics and selectivity, preferring a `Seq Scan` whenever filtering touches a large percentage of heap pages.
+- **B-tree composite indexes demand the leftmost prefix:** A multicolumn index on `(status, created_at)` only narrows search space if leading columns are restricted. Filtering by `created_at` alone or applying non-sargable expressions (like `LIKE '%text'` or `DATE(created_at)`) prevents the optimizer from walking B-tree index branches.
+- **Differentiate physical scan mechanics:** Distinguish between a `Seq Scan` (reading raw heap blocks), an `Index Scan` (navigating B-tree leaves then fetching tuples from the heap), an `Index Only Scan` (retrieving required columns directly from index pages when visibility maps allow), and a `Bitmap Index Scan` (gathering tuple pointers and sorting heap page reads).
+- **Audit cardinality estimate discrepancies:** In `EXPLAIN ANALYZE`, the gap between estimated rows and actual rows is the most critical diagnostic signal. If the optimizer projects 10 rows but encounters 500,000, it selects catastrophic nested loops or memory-spilling sorts based on false assumptions.
+- **Fatal pitfall:** Creating a composite index `(status, created_at)` while queries filter only by `created_at` or use leading wildcards (`LIKE '%text'`), assuming the index will automatically accelerate searches, only for the optimizer to fall back to a full `Seq Scan` that exhausts disk I/O and crashes the database during peak traffic.
 
 Operate with three habits:
 

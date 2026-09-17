@@ -18,9 +18,19 @@ concepts:
 
 # Modular Monolith: Ranh giới module trong một deployable
 
+Rất nhiều đội ngũ kỹ thuật mắc phải một ảo tưởng chí mạng: họ tin rằng cách duy nhất để cứu vãn mã nguồn hỗn độn (spaghetti code) và lập lại trật tự ranh giới là phải xé nhỏ hệ thống thành hàng chục microservices. Họ vội vã đưa hệ thống lên cụm Kubernetes, cấu hình distributed tracing và rồi lập tức chìm nghỉm trong ma trận độ trễ mạng, giao dịch phân tán và lỗi sập dây chuyền. Nhưng một sự thật tàn nhẫn không bao giờ thay đổi: nếu các kỹ sư không thể duy trì được tính kỷ luật và ranh giới sạch sẽ ngay trong cùng một tiến trình ứng dụng, thì việc ném các ranh giới đó qua đường truyền mạng chỉ tạo ra một thảm họa phân tán—cơn ác mộng "distributed monolith".
+
+Kiến trúc **Modular Monolith** chính là điểm ngọt ngào (sweet spot) lý tưởng. Nó giữ trọn vẹn sự tinh gọn trong vận hành và tốc độ phát hành của **một deployable duy nhất**, đồng thời áp đặt kỷ luật thép về ranh giới module thông qua public contract và quyền sở hữu dữ liệu (data ownership) tuyệt đối.
+
+> 💡 **Quy tắc bỏ túi:** Nếu bạn không thể giữ vững ranh giới module trong một tiến trình bằng trình biên dịch và architecture test, bạn không bao giờ giữ nổi ranh giới đó qua mạng lưới microservices. Hãy làm chủ quyền sở hữu dữ liệu logic và public contract nghiêm ngặt trong một deployable duy nhất trước; việc tách microservice chỉ trở nên dễ dàng khi ranh giới nội bộ đã hoàn toàn kín kẽ.
+
 ## Tóm tắt nhanh
 
-Modular monolith giữ **một đơn vị triển khai** nhưng chia ứng dụng thành module có ownership, public contract và guardrail rõ.
+- **Một deployable duy nhất với ranh giới module thép**: Giữ trọn sự đơn giản khi triển khai và vận hành của **một đơn vị triển khai**, nhưng phân chia ứng dụng thành các module độc lập tương tác nghiêm ngặt qua public contract.
+- **Chủ quyền dữ liệu logic trong database dùng chung**: Dù các module có thể dùng chung một database vật lý, mỗi module phải toàn quyền sở hữu bảng và schema của mình. Tuyệt đối cấm đoán việc query chéo module hoặc ghi đè dữ liệu trực tiếp.
+- **Tương tác nội bộ không độ trễ mạng**: Các module cộng tác qua **lời gọi hàm trong process (in-process function call)** hoặc sự kiện domain nội bộ, tránh hoàn toàn chi phí serialize dữ liệu và bài toán giao dịch phân tán.
+- **Bảo vệ bằng test kiến trúc tự động**: Dùng các công cụ kiểm tra kiến trúc (như ArchUnit, dependency-cruiser) để biến ranh giới thành rào chắn code, chặn đứng hoàn toàn việc deep-import vào implementation detail nội bộ.
+- **Cạm bẫy chết người:** **Đi cửa sau qua Database (Database Backdoor)**—Biến cơ sở dữ liệu dùng chung thành nơi tích hợp tự do, nơi Module A thản nhiên viết câu lệnh SQL JOIN hoặc ghi đè trực tiếp vào bảng nội bộ của Module B. Lỗi này xóa sổ mọi ranh giới module ngay lập tức và biến mọi nỗ lực tái cấu trúc trong tương lai thành nhiệm vụ bất khả thi.
 
 ```mermaid
 flowchart LR

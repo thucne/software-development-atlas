@@ -20,7 +20,15 @@ concepts:
 
 ## Tóm tắt
 
-Chỉ retry khi attempt mới có khả năng giúp **và** việc lặp là an toàn. Retry cũng tăng tải lên dependency có thể đang lỗi.
+Hãy hình dung một lối thoát hiểm trên đường cao tốc đang xảy ra ùn tắc nhẹ vào giờ cao điểm. Thay vì kiên nhẫn giảm tốc độ và nhường nhau từng làn, hàng trăm tài xế phía sau đồng loạt nhấn ga, lạng lách và liên tục lao thẳng vào điểm nghẽn cùng một nhịp cứ mỗi hai giây một lần. Hậu quả tức thì là tê liệt toàn diện: một sự cố va chạm nhỏ ban đầu bị biến thành một bãi đỗ xe bất đắc dĩ kéo dài hàng cây số. Trong kiến trúc hệ thống phân tán, kịch bản kinh hoàng này lặp lại y hệt dưới cái tên **cơn bão thử lại (retry storm)**—nơi các đoạn mã retry tự động với ý đồ tốt vô tình biến chính lưu lượng của hệ thống thành một đợt tấn công từ chối dịch vụ (DDoS) đánh sập hoàn toàn service phía sau đang thoi thóp.
+
+> 💡 **Quy tắc bỏ túi:** Chỉ thử lại các lỗi tạm thời trên thao tác idempotent trong giới hạn deadline còn lại; bắt buộc dùng exponential backoff kèm jitter và chỉ định duy nhất một tầng sở hữu retry.
+
+- **Phân loại lỗi trước khi retry:** Chỉ retry các lỗi đường truyền mạng **tạm thời (transient)**, phản hồi chạm giới hạn tần suất (`429`), hoặc máy chủ quá tải nhất thời (`503`). Tuyệt đối không retry các lỗi có tính xác định (deterministic) như sai định dạng dữ liệu, sai quyền truy cập hay vi phạm logic nghiệp vụ vì chúng sẽ **không tự hết**.
+- **Tính idempotent là bắt buộc đối với thao tác ghi:** Một lần retry qua mạng là một nỗ lực mới, không phải cỗ máy quay ngược thời gian. Với các thao tác ghi dữ liệu, bắt buộc phải có **định danh yêu cầu (idempotency key)** hoặc cơ chế **đối soát (reconciliation)** để ngăn chặn việc trừ tiền lặp hoặc đặt trùng chỗ khi request đầu tiên đã commit thành công.
+- **Giãn cách lũy thừa kèm độ lệch ngẫu nhiên (jitter):** Không bao giờ retry ngay tức khắc. Bắt buộc áp dụng **exponential backoff** để kéo giãn thời gian chờ, đồng thời chèn thêm **jitter** ngẫu nhiên nhằm phân tán lưu lượng, ngăn chặn việc cả một cụm client cùng thức dậy và dội tải vào hệ thống cùng một giây.
+- **Chỉ định duy nhất một chủ sở hữu retry (retry owner):** Xác lập rõ quyền sở hữu retry tại một tầng duy nhất trong kiến trúc. Nếu Client, API Gateway và Service trung gian đều độc lập retry 3 lần, một request lỗi từ người dùng sẽ bị khuếch đại thành `3 × 3 × 3 = 27` lượt gọi dồn dập vào tầng database sâu nhất.
+- **Cạm bẫy chết người:** **Retry mù quáng ở nhiều tầng với khoảng thời gian cố định.** Việc lồng ghép các vòng lặp retry thiếu jitter qua các tầng microservice sẽ tạo ra vòng lặp khuếch đại phản hồi, biến một biến động độ trễ 200 ms của downstream thành sự cố sập nguồn toàn diện của toàn bộ hạ tầng.
 
 ```mermaid
 flowchart LR

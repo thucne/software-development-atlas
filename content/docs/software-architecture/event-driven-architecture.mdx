@@ -20,7 +20,15 @@ concepts:
 
 ## TL;DR
 
-An **event is a fact that already happened**. In event-driven architecture, producers publish facts without needing to know every consumer, and consumers react independently through an event channel or durable stream.
+Imagine a news agency broadcasting that a flight has landed safely. The anchor does not telephone each passenger's family individually—they broadcast the verified fact to the world, letting schools, taxi drivers, and relatives react on their own terms. But in distributed systems, treating events as casual "news" without rigorous contracts leads to midnight production emergencies: an upstream service emits `OrderPlaced` as an empty broadcast, yet downstream payments expects instantaneous customer credit data; an unversioned schema update silently severs the billing pipeline; and a transient network retry duplicates the event, charging a customer three times.
+
+> 💡 **Rule of thumb:** An event is an immutable statement of fact that has already occurred, not an imperative command in disguise. If your publisher expects an immediate synchronous response or dictates what the subscriber must do next, you have built distributed RPC over an expensive message broker, not an event-driven architecture.
+
+- **Events represent past facts, not future intentions:** Name events in the past tense (`OrderPlaced`, `InvoiceIssued`) and decouple producers from downstream subscriber side effects.
+- **Pub/sub fan-out differs fundamentally from work queues:** Publish/subscribe delivers a distinct logical copy to every subscriber domain; competing consumers divide a pool of jobs among worker instances.
+- **Replayable log streams decouple temporal timelines:** Durable append-only partitions allow consumers to independently advance offsets and replay historical facts after bug fixes or model updates.
+- **Delivery is at-least-once across network boundaries:** Network timeouts and crash-recovery cycles inevitably cause duplicate deliveries; consumers must enforce domain-level **idempotency**.
+- **Fatal pitfall:** **Dual-write inconsistency.** Writing to a local database and subsequently publishing to a message broker in separate steps guarantees eventual data divergence when one step fails. Always bridge state changes and event publication atomically using the **Transactional Outbox pattern**.
 
 ```mermaid
 flowchart LR

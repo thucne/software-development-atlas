@@ -31,16 +31,19 @@ concepts:
 
 # Tác vụ nền: Xử lý bền vững ngoài vòng đời request
 
-## Tóm tắt
+9 giờ sáng, một tác vụ nền tự động hóa tiếp thị được kích hoạt để gửi email chiến dịch quan trọng tới tệp 100.000 khách hàng. Tiến trình worker tuần tự lặp qua mảng danh sách người nhận được lưu trong bộ nhớ RAM. Sau 45 phút chạy miệt mài và gửi trót lọt 60.000 email, tiến trình worker làm cạn kiệt bộ nhớ cho phép. Kubernetes node lập tức bắn tín hiệu `OOMKilled` và thu hồi tài nguyên (eviction) làm pod worker chết tức tưởi. Vì tác vụ nền không được thiết kế điểm kiểm tra tiến độ (checkpointing) và thiếu cơ chế gửi email lũy đẳng, bộ điều phối job xem sự cố worker dừng đột ngột này là lỗi tạm thời và tự động giao lại toàn bộ công việc từ đầu cho một worker mới. Worker mới bắt đầu quét lại ngây thơ từ người nhận số 0 — khiến 60.000 khách hàng bàng hoàng nhận tiếp email thứ hai, thậm chí có người nhận tới 3 email dồn dập trước khi kỹ sư trực chiến hốt hoảng can thiệp tắt khẩn cấp hệ thống.
 
-Đưa việc xử lý thành **công việc nền** giúp tách nó khỏi đường đi của yêu cầu, nhưng bản thân việc “chạy ở worker” chưa tạo ra độ tin cậy. Độ tin cậy đến từ **vòng đời bền vững** và một giao thức worker trả lời được bốn câu hỏi:
+Một tác vụ nền không bao giờ chỉ đơn giản là "ném một hàm bất đồng bộ chạy ngầm phía sau". Việc tách công việc ra khỏi luồng HTTP request kéo theo hàng loạt trách nhiệm phức tạp của hệ thống phân tán: lưu trữ trạng thái bền vững, cơ chế cấp quyền xử lý (lease), timeout xử lý job, lưu checkpoint tiến độ và bảo đảm hiệu ứng nghiệp vụ có tính lũy đẳng (idempotent).
 
-1. Bản ghi bền vững nào chứng minh công việc tồn tại?
-2. Worker nào hiện có quyền xử lý, và quyền đó kéo dài bao lâu?
-3. Khi nào delivery được xác nhận là đã hoàn tất?
-4. Điều gì xảy ra khi timeout, worker crash, lỗi tạm thời, lỗi vĩnh viễn, retry, hủy hoặc giao lặp?
+## TL;DR
 
-Một máy trạng thái hữu ích là:
+> 💡 **Quy tắc bỏ túi:** Hãy coi công việc nền là một máy trạng thái (state machine) bền vững thay vì một hàm chạy ngầm trong RAM. Luôn lưu ý định công việc bền vững trước khi báo thành công cho client, lưu checkpoint tiến độ tại các mốc có tính lũy đẳng, và thiết kế mọi hiệu ứng bên ngoài sao cho việc worker crash rồi chạy lại không bao giờ lặp lại các hành động không thể đảo ngược.
+
+- **Máy trạng thái vòng đời bền vững:** Công việc nền bắt buộc phải được mô hình hóa qua các trạng thái rõ ràng (`queued`, `running`, `succeeded`, `failed`, `cancelled`); sự tồn tại và tính đúng đắn của job phải nằm trong kho lưu trữ bền vững sống sót qua mọi sự cố worker crash hay pod bị khởi động lại.
+- **Tách biệt định danh job logic khỏi từng attempt:** Phân biệt rõ định danh nghiệp vụ duy nhất của job với số lần thử lại (attempt); nhiều lần retry hoặc giao lại sau sự cố phải cùng hội tụ về một kết quả logic thay vì sinh ra nhiều hiệu ứng thừa thãi.
+- **Quyền sở hữu theo lease và cơ chế gia hạn:** Worker nhận quyền xử lý thông qua một hợp đồng thuê (lease) có thời hạn; công việc chạy dài phải định kỳ gửi heartbeat hoặc gia hạn quyền xử lý để worker chết không giam lỏng tài nguyên mãi mãi.
+- **Lưu checkpoint tiến độ và hủy hợp tác:** Các batch job khối lượng lớn bắt buộc phải ghi nhận mốc tiến độ (checkpoint) bền vững tại các ranh giới an toàn; việc hủy công việc phải mang tính hợp tác thay vì cưỡng ép ngắt tiến trình giữa chừng làm hỏng trạng thái dở dang.
+- **Cạm bẫy chết người:** Lưu hàng đợi trong bộ nhớ RAM hoặc xác nhận hoàn tất trước khi commit dữ liệu bền vững, dẫn đến việc mất trắng công việc khi máy chủ khởi động lại; hoặc chạy lại từ đầu một batch job dở dang sau khi bị Kubernetes thu hồi pod (OOM/eviction) khiến khách hàng nhận thông báo hoặc email trùng lặp dồn dập.
 
 ```mermaid
 stateDiagram-v2

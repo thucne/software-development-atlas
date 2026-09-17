@@ -36,11 +36,15 @@ concepts:
 
 ## TL;DR
 
-In ordinary browser code, **the JavaScript that is already running finishes first**. After that work finishes, the browser runs queued microtasks such as fulfilled-Promise reactions and `queueMicrotask()` callbacks before it moves on to later regular task work such as a timer callback.
+A single innocent recursive `Promise.resolve().then(...)` chain or runaway `queueMicrotask()` loop can completely freeze an entire browser tab or stall a Node.js process—without executing a single synchronous `while(true)` statement. Because the JavaScript runtime refuses to yield to the Macrotask Queue or the browser's Rendering Pipeline until the Microtask Queue is completely drained, continuous microtask creation starves user input, timers, and screen redraws. Mastering how the Call Stack, Microtasks, Tasks/Macrotasks, and `requestAnimationFrame` interleave is the key to preventing UI lockups and debugging complex async ordering.
 
-So `setTimeout(fn, 0)` means “make `fn` eligible for later timer work,” not “interrupt what is running now.” Rendering is controlled separately by the browser; a paint is not guaranteed between arbitrary callbacks.
+> 💡 **Rule of thumb:** Synchronous code executes on the Call Stack to completion first, followed immediately by draining the entire Microtask Queue down to zero. Only then can the browser consider a Rendering Opportunity or dispatch the next Macrotask from a Task Source.
 
-This page describes **browser** scheduling. Node.js also runs JavaScript and Promise microtasks, but Node has its own event-loop rules and no browser rendering pipeline.
+- **Call Stack runs to completion:** The currently executing JavaScript frame cannot be interrupted by queued event-loop callbacks. Synchronous statements finish completely before any asynchronous callback runs.
+- **Microtasks drain completely at checkpoints:** Fulfilled Promise reactions and `queueMicrotask()` callbacks execute as soon as the Call Stack empties. Any new microtasks enqueued during the checkpoint run in the same cycle before yielding.
+- **Rendering is decoupled from task execution:** Browsers do not paint after every callback. Visual updates occur only during **Rendering Opportunities** synced to the display refresh rate (e.g., 60Hz/120Hz), with `requestAnimationFrame()` callbacks firing immediately prior to style recalculation and layout.
+- **Macrotasks dispatch from independent Task Sources:** Timers (`setTimeout`), user input, and network I/O reside in separate queues prioritized by the browser scheduler, rather than a single flat FIFO queue.
+- **Fatal pitfall (Microtask Starvation):** Generating microtasks recursively traps the engine in an endless microtask checkpoint, starving macrotasks, user clicks, and the rendering pipeline entirely. Even though the call stack unwinds periodically, the tab freezes solid.
 
 ## Start with one concrete example
 

@@ -35,9 +35,25 @@ concepts:
   - threat-modeling
 ---
 
+## Tình huống thực chiến & TL;DR
+
+Đêm Mega Sale 11/11 lúc 00:01. Một khách hàng bấm nút **Đặt hàng** trên kết nối mạng 4G chập chờn. Máy chủ API gửi yêu cầu trừ tiền 500.000đ sang cổng thanh toán (Stripe/VNPAY). Cổng thanh toán trừ tiền thành công và phản hồi HTTP 200 OK. Nhưng chỉ 15 mili-giây trước khi gói tin phản hồi kịp bay về tới máy chủ ứng dụng, kết nối socket bị đứt đoạn. Ứng dụng bắt lỗi `ETIMEDOUT`, lập tức rollback giao dịch nội bộ và trả về màn hình báo lỗi đỏ rực. Trong cơn hoảng loạn, khách hàng bấm **Đặt hàng** lần thứ hai — cổng thanh toán tiếp tục trừ thêm 500.000đ nữa!
+
+Hệ thống của bạn lập tức rơi vào thảm họa **cửa sổ bất định (payment ambiguity window)** và **khoảng trống dual-write (dual-write gap)**: tiền thật trong tài khoản ngân hàng của khách hàng đã bị trừ hai lần, nhưng cơ sở dữ liệu nội bộ lại không hề có bất kỳ bản ghi đơn hàng thành công nào. Xây dựng một luồng thanh toán đáng tin cậy đòi hỏi kỹ sư phải làm chủ việc điều phối các hệ thống phân tán vốn không thể dùng chung một giao dịch ACID duy nhất: cơ sở dữ liệu ứng dụng, cổng thanh toán bên thứ ba, hàng đợi tin nhắn (Message Broker) và các worker xử lý đơn hàng bất đồng bộ.
+
+> 💡 **Quy tắc bỏ túi:** Tuyệt đối không bao giờ gọi API mạng bên ngoài bên trong một transaction cơ sở dữ liệu, và không bao giờ coi timeout mạng là giao dịch đã thất bại. Hãy xem timeout là một trạng thái bất định (ambiguous) và giải quyết triệt để thông qua Idempotency Key, bảng Transactional Outbox nguyên tử, cùng quy trình đối soát webhook bất đồng bộ.
+
+### TL;DR
+
+- **Tách biệt giao dịch database khỏi I/O mạng bên ngoài:** Tạo và commit đơn hàng ở trạng thái `PAYMENT_PENDING` trong giao dịch cục bộ siêu nhanh (dưới 5ms) trước khi gọi cổng thanh toán bên thứ ba.
+- **Phân định ranh giới giữa Idempotency API và Idempotency Thanh toán:** Dùng `Idempotency-Key` từ client để chặn trùng lặp lệnh đặt hàng, đồng thời sinh khóa idempotency riêng biệt, ổn định cho từng lượt thử thanh toán gửi sang cổng ngoại vi.
+- **Khép kín khoảng trống dual-write bằng Transactional Outbox:** Ghi nhận sự thay đổi trạng thái đơn hàng và sự kiện cần phát hành (outbox event) trong cùng một commit ACID nội bộ duy nhất, triệt tiêu nguy cơ sập tiến trình giữa lúc lưu DB và bắn message.
+- **Thiết kế worker tiêu thụ theo cơ chế At-least-once:** Luôn giả định Message Broker có thể phân phát một thông điệp nhiều lần; bảo vệ các worker giao vận và email bằng bảng `processed_events` để đảm bảo tính bất biến (idempotent consumer).
+- **Cạm bẫy chết người:** Bọc lệnh gọi API thanh toán bên ngoài vào trong `db.transaction()` vì ảo tưởng "rollback phân tán" — thiết kế này khóa chặt tài nguyên, làm cạn kiệt connection pool khi mạng trễ, và chắc chắn gây ra sự cố trừ tiền oan khi timeout khiến database rollback trong khi tiền của khách đã bị trừ ở ngân hàng.
+
 ## Mục tiêu hệ thống và Ràng buộc kỹ thuật
 
-Giả sử một khách hàng nhấn nút **Đặt hàng (Place order)**. Hệ thống cần tạo đúng một đơn hàng logic duy nhất, chỉ trừ tiền tối đa một lần cho một lần thanh toán, sống sót an toàn qua các lần retry mạng hoặc sự cố sập tiến trình (process crash), kích hoạt các tác vụ giao vận/gửi email thông báo, và lưu trữ đầy đủ bằng chứng kiểm toán (audit log) để kỹ sư có thể giải trình mọi sự cố phát sinh.
+Giả sử một khách hàng nhấn nút **Đặt hàng**. Hệ thống cần tạo đúng một đơn hàng logic duy nhất, chỉ trừ tiền tối đa một lần cho một lần thanh toán, sống sót an toàn qua các lần thử lại mạng hoặc sự cố sập tiến trình, kích hoạt các tác vụ giao vận và gửi email thông báo, đồng thời lưu trữ đầy đủ bằng chứng kiểm toán để kỹ sư có thể giải trình mọi sự cố phát sinh.
 
 Điểm phức tạp cốt lõi là luồng thanh toán phải vắt qua nhiều hệ thống **không thể chia sẻ chung một transaction ACID**:
 

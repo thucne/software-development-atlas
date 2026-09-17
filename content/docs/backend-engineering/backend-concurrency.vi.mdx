@@ -32,19 +32,19 @@ concepts:
 
 # Đồng thời phía máy chủ: Đảm bảo tính đúng đắn khi các request chồng chéo
 
-## Tóm tắt
+Trong một đợt mở bán flash sale lúc nửa đêm, tài khoản khách hàng có số dư 100 USD nhận đồng thời hai yêu cầu rút 50 USD chỉ cách nhau vài phần nghìn giây. Bộ cân bằng tải phân phối hai request này tới hai replica ứng dụng khác nhau. Cả hai tiến trình worker cùng thực thi `SELECT balance FROM accounts WHERE id = 42`, cùng đọc được `balance = 100`, cùng kiểm tra `100 >= 50` thỏa mãn, và cùng gửi lệnh `UPDATE accounts SET balance = 50 WHERE id = 42`. Khách hàng rút trót lọt 100 USD nhưng số dư tài khoản chỉ bị trừ 50 USD — 50% số tiền đã bốc hơi vào hư không. Trong buổi họp mổ xẻ sự cố (post-mortem), kỹ sư hoang mang phân trần: *"Cả hai request đều đã được bọc cẩn thận trong transaction cơ sở dữ liệu cơ mà!"*
 
-Bài toán đồng thời phía máy chủ xuất hiện ngay khi hai đơn vị công việc có thể chồng lấn trong lúc cùng tác động đến trạng thái quyết định một bất biến. Chúng không cần chạy trên hai lõi CPU khác nhau. Hai tác vụ bất đồng bộ, hai luồng, hai tiến trình hoặc hai bản sao dịch vụ đều có thể tạo lỗi đồng thời nếu tính đúng đắn phụ thuộc vào thời điểm thực thi.
+Đây chính là hiện thực khốc liệt của xử lý đồng thời (backend concurrency): transaction mà thiếu mức cô lập phù hợp hoặc cơ chế điều phối chuẩn xác thì không thể ngăn chặn các thao tác xen kẽ phá vỡ bất biến nghiệp vụ. Lỗi đồng thời xuất hiện ngay khi hai đơn vị công việc cùng chạm vào trạng thái định đoạt một bất biến. Chúng không cần chạy trên hai lõi CPU khác nhau. Hai tác vụ bất đồng bộ, hai luồng, hai tiến trình hay hai replica dịch vụ đều có thể tạo lỗi nếu tính đúng đắn phụ thuộc vào thời điểm thực thi.
 
-Một vòng lập luận bền vững là:
+## TL;DR
 
-1. nêu **bất biến** phải còn đúng sau mọi thao tác thành công;
-2. xác định trạng thái và tác dụng phụ quyết định bất biến đó;
-3. tìm **vùng tới hạn** nhỏ nhất nơi các công việc xung đột không được xen kẽ tùy ý;
-4. xác định phạm vi phối hợp thật sự: một tác vụ, một tiến trình, một cơ sở dữ liệu hay nhiều bản sao dịch vụ;
-5. chọn cơ chế hẹp nhất nhưng đủ làm chuyển trạng thái có tính nguyên tử cần thiết;
-6. định nghĩa rõ cách xử lý xung đột, thử lại, hết thời gian và lỗi;
-7. đo tranh chấp tài nguyên thay vì nới lỏng tính đúng đắn để lấy thông lượng.
+> 💡 **Quy tắc bỏ túi:** Tuyệt đối không bảo vệ bất biến nghiệp vụ đa bản sao bằng khóa cục bộ trong bộ nhớ tiến trình; hãy thực thi vùng tới hạn ngay tại nơi lưu trữ trạng thái bền vững bằng atomic conditional write, khóa lạc quan (optimistic locking) với phiên bản, hoặc khóa bi quan (`SELECT FOR UPDATE`).
+
+- **Bất biến xác định ranh giới phối hợp:** Lập trình đồng thời không chỉ là hai luồng CPU chạy cùng tích tắc, mà là bảo đảm các thao tác xen kẽ không phá vỡ bất biến nghiệp vụ (như số dư không âm, tồn kho flash sale không bán vượt số lượng thực tế).
+- **Khóa nội bộ dừng lại ở ranh giới tiến trình:** Mutex trong bộ nhớ (`sync.Mutex`, `lock`) vô dụng khi ứng dụng chạy trên nhiều pod/container hoặc worker; ranh giới bảo vệ bắt buộc phải đặt tại kho dữ liệu dùng chung.
+- **Lựa chọn chiến lược điều phối theo độ tranh chấp:** Ưu tiên phép ghi có điều kiện nguyên tử (`UPDATE ... WHERE balance >= 50`) cho số đếm đơn giản, khóa lạc quan (`version = version + 1`) khi tranh chấp thấp, hoặc khóa bi quan (`SELECT ... FOR UPDATE`) khi xung đột cao và chi phí thử lại (retry) quá đắt.
+- **Tranh chấp tài nguyên bản chất là một hàng đợi ngầm:** Khi hàng trăm request cùng giành một vùng tới hạn, thời gian chờ khóa tăng vọt và làm cạn kiệt connection pool; hãy thu nhỏ vùng tới hạn thay vì nới lỏng bất biến để đánh đổi thông lượng ảo.
+- **Cạm bẫy chết người:** Áp dụng mô hình đọc-kiểm tra-ghi ngây thơ (`SELECT balance` -> kiểm tra trên code -> `UPDATE balance`) mà không khóa hàng hay dùng phép ghi nguyên tử, khiến các request đồng thời ghi đè lẫn nhau gây mất cập nhật (lost update) hoặc thất thoát tiền bạc/tồn kho nghiêm trọng.
 
 ```mermaid
 flowchart LR
@@ -228,7 +228,7 @@ Nó không phù hợp khi tranh chấp nóng làm nhiều phía ghi liên tục 
 Ví dụ:
 
 - mutex trong một tiến trình bảo vệ cấu trúc bộ nhớ;
-- khóa hàng cơ sở dữ liệu trong lúc giao dịch cập nhật trạng thái liên quan;
+- khóa hàng cơ sở dữ liệu (chẳng hạn `SELECT ... FOR UPDATE`) trong lúc giao dịch cập nhật trạng thái liên quan;
 - một chủ sở hữu đơn luồng xử lý thao tác cho một key;
 - lease khi quyền sở hữu độc quyền phải kéo dài qua nhiều tiến trình.
 

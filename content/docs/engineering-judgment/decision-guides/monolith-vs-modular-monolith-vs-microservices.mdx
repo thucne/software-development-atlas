@@ -30,11 +30,15 @@ concepts:
 
 ## TL;DR
 
-A monolith, modular monolith, and microservices architecture are not three maturity levels. They place **code, data, deployment, and ownership boundaries** differently.
+Engineering teams rarely suffer outages because their codebase was labeled a "monolith." They suffer because they sliced an application into 20 microservices to mimic Big Tech resume-driven architectures, only to discover that routine pull requests now require synchronized deployments across five repositories, debugging demands distributed tracing specialists, and a single flaky internal network hop triggers cascading timeouts. Architectural style is not a ladder of engineering prestige—it is a pragmatic calculation trading in-process ACID transactions and operational simplicity for team release autonomy and selective workload scaling.
 
-Start with the least distributed deployment model that meets the real constraints. Improve internal modularity before assuming a network boundary is necessary. Extract a service when **independent deployment creates measurable value**—for example by removing real release coordination, isolating a workload that must scale separately, creating a deliberately operated failure boundary, or giving one team ownership it cannot achieve inside a shared deployment.
+> 💡 **Rule of thumb:** Start with the least distributed deployment model that satisfies your hard constraints. Enforce strict domain boundaries in code before introducing network hops. Only extract a microservice when independent deployment creates measurable value—such as removing concrete release coordination bottlenecks, isolating volatile scaling workloads, or establishing explicit failure containment.
 
-The question is not “Can this be a service?” Ask: **which constraint becomes easier after this boundary becomes independently deployed, and how will we measure that improvement?**
+- **Deployment shape is not code quality:** A monolith can feature pristine modular boundaries enforced by compiler rules, while microservices can easily degenerate into a tangled "distributed monolith" communicating over fragile synchronous HTTP calls.
+- **In-process execution preserves local ACID transactions:** Monoliths and modular monoliths leverage shared memory and single-database transactions, eliminating the massive distributed coordination tax of two-phase commits, Sagas, or compensating workflows.
+- **Independent deployment demands platform maturity:** Microservices grant autonomous release schedules to separate product teams, but require automated CI/CD pipelines, distributed tracing, and rigorous handling of **partial failure** and contract compatibility.
+- **Operational complexity depends on deployment count:** Infrastructure overhead, telemetry pipelines, and on-call surface areas scale directly with the number of autonomous deployables rather than total lines of code.
+- **Fatal pitfall:** **Premature microservice extraction without stable domain boundaries.** Splitting a system before business aggregates and data boundaries stabilize forces cross-service database joins, distributed transactions, and lockstep releases—imposing the latency, cost, and failure modes of distributed systems with none of the autonomy benefits.
 
 <TermBox term="Deployment unit">
 A **deployment unit** (or deployable) is a piece of software released and rolled out as one operational unit.

@@ -27,23 +27,34 @@ concepts:
   - backend-request-lifecycle
 ---
 
-## The request is a bounded unit of work
+## TL;DR & Production Incident Hook
 
-A backend request is not just controller code. It is a bounded unit of work that crosses trust, correctness, and failure boundaries before a response leaves the service.
+Imagine 10,000 concurrent users hitting an e-commerce checkout endpoint during a peak flash sale. Suddenly, the entire API cluster stops responding. The servers are not out of memory and CPU utilization hovers at a modest 12%, yet every client request hangs until returning `504 Gateway Timeout`.
+
+The post-mortem reveals a textbook request lifecycle catastrophe: the upstream reverse proxy (such as Nginx or Envoy) had its default socket read timeout left at 60 seconds, while downstream payment gateway calls lacked deadline propagation. A momentary 5-second latency spike from the payment provider held backend worker threads captive waiting on open network sockets. Within 30 seconds, all 200 connections in the database connection pool were locked by stalled transactions awaiting external responses. Every application worker thread became blocked, and newly arriving requests—from mission-critical checkouts to lightweight health checks—piled up in OS socket listen queues until the entire backend silently collapsed.
+
+A backend request is not merely a controller method handling a JSON payload. It is a perishable, tightly bounded unit of work executing across untrusted networks, transport protocols (TCP/TLS), routing middleware, identity verifiers, transactional datastores, and asynchronous event streams. Operating this lifecycle requires deliberate control over every boundary, deadline, and side effect from ingress to egress.
 
 ```mermaid
 flowchart LR
-  I[Ingress] --> P[Parse and validate]
+  I[Transport ingress] --> P[Parse & boundary validation]
   P --> N[Authentication]
   N --> Z[Authorization]
-  Z --> D[Domain work]
+  Z --> D[Domain logic]
   D --> T[Transaction / persistence]
-  T --> M[Map result or error]
+  T --> M[Error mapping & response serialization]
   M --> R[HTTP response]
   T --> A[Durable async handoff]
 ```
 
-The framework hooks vary, but the operating questions do not: what input is trusted, which identity is established, what invariant changes, what must finish before the response, what can continue after commit, what should stop when the deadline expires, and what evidence can reconstruct the request later?
+> 💡 **Rule of thumb:** A backend request is a bounded, perishable lease on system resources—never open a database transaction before boundary validation, never grant layer-independent timeouts, and never return HTTP 200 before durable state commits.
+
+### TL;DR 2.0
+- **The request as an end-to-end pipeline:** Every request traverses a strict operational boundary: transport ingress (TCP/TLS/HTTP parsing), boundary validation, identity authentication, resource authorization, business domain execution, transactional persistence, response/error mapping, and asynchronous dispatch.
+- **Boundaries define correctness:** Parse transport formats at ingress, validate syntactic schemas at the boundary, and evaluate business invariants only inside domain logic. Never treat parsed transport headers as business truth.
+- **Unified deadline budget & cancellation:** Propagate a single request-wide deadline context across all database queries and remote RPCs. If a client drops the connection or time runs out, cancel downstream processing immediately to prevent zombie resource leaks.
+- **Truthful persistence before response:** Never return `200 OK` or `201 Created` based on in-memory assumptions. Complete database transaction commits before serializing success responses, and isolate post-commit side effects behind durable outbox stores rather than unmonitored in-memory promises.
+- **Fatal pitfall:** Neglecting socket read timeouts between reverse proxies and backend workers or holding database transactions open across external third-party HTTP calls, instantly starving thread pools and connection pools and causing cascading service failure.
 
 <TermBox term="Request context">
 A **request context** is the small set of scoped information carried through one request: cancellation/deadline state, authenticated principal, request or correlation identifiers, trace context, and carefully selected metadata.

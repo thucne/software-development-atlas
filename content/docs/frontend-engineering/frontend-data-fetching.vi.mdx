@@ -16,21 +16,20 @@ concepts:
   - frontend-data-fetching
 ---
 
-# Frontend Data Fetching: Làm dữ liệu từ xa trở nên tường minh
+# Lấy dữ liệu Frontend: Định danh request, caching và race condition
 
 ## Tóm tắt
 
-Remote data vẫn là **state do server sở hữu** ngay cả khi browser giữ một bản cache. Vì vậy frontend đáng tin cậy cần nhiều hơn vài lệnh `fetch()`: nó cần request identity ổn định, vị trí fetch có chủ đích, freshness rule rõ ràng, xử lý race, invalidation sau mutation và UI state cho lúc chờ hay lỗi.
+Một người dùng tìm kiếm vé máy bay đi "Tokyo", sau đó đổi ý và gõ ngay "Paris". Phản hồi cho "Paris" trả về nhanh chóng sau 150ms và hiển thị các chuyến bay đi Paris. Nhưng 800ms sau, phản hồi rùa bò cho "Tokyo" mới cập bến, âm thầm ghi đè toàn bộ màn hình thành vé đi Tokyo trong khi ô tìm kiếm vẫn ghi rõ "Paris"! Khách hàng đặt nhầm phòng khách sạn ở Tokyo, gây ra một đợt khiếu nại hỗn loạn. Nguyên nhân? Lỗi race condition kinh điển khi dùng `useEffect` gọi `fetch()` thô sơ mà không có định danh request, thiếu hủy request bằng tín hiệu abort và không có quản lý vòng đời cache.
 
-Một chuỗi câu hỏi review hữu ích là:
+> 💡 **Quy tắc bỏ túi:** **Dữ liệu từ xa thuộc sở hữu của máy chủ, không phải state cục bộ—hãy coi đó là một bản quan sát có lưu cache.** Mọi truy vấn cần một định danh request ổn định (cache key); mọi request đang bay phải hủy được qua `AbortController`; và các thao tác cập nhật (mutation) phải làm mất hiệu lực (invalidate) các query liên quan thay vì cầu may rằng client sẽ tự đồng bộ.
 
-1. Ta đang đọc remote fact nào và ai là nguồn authoritative?
-2. Input nào quyết định request identity?
-3. Request nên bắt đầu ở server/route boundary hay phía client?
-4. Request nào độc lập và có thể chạy song song?
-5. Cache layer nào sở hữu reuse, freshness và deduplication?
-6. Điều gì ngăn response cũ ghi đè view mới hơn?
-7. Sau mutation, observation nào đã trở thành stale?
+- **Dữ liệu server là trạng thái thuộc sở hữu của server:** Coi dữ liệu API là một bản chụp bất đồng bộ của máy chủ; quản lý bằng các công cụ cache chuyên dụng (TanStack Query, SWR, RSC) thay vì dùng `useEffect` + `useState` thủ công.
+- **Định danh request (Request Identity) ổn định:** Xây dựng cache key chứa đầy đủ mọi tham số đầu vào (tham số truy vấn, bộ lọc, phân trang, user ID); các key giống nhau sẽ tự động gộp request và khử trùng lặp mạng.
+- **Race condition & hủy bỏ yêu cầu:** Sử dụng tín hiệu `AbortController` để các lần tìm kiếm kế tiếp nhanh chóng hủy bỏ hoặc bỏ qua các phản hồi cũ trả về muộn từ truy vấn trước.
+- **Tải song song thay vì thác nước (Waterfall):** Đẩy các yêu cầu dữ liệu độc lập lên ranh giới route hoặc Server Component, kích hoạt song song qua `Promise.all` thay vì gọi tuần tự lồng nhau bên trong các component con.
+- **Làm mất hiệu lực (Invalidation) & cập nhật lạc quan (Optimistic Updates):** Khi thay đổi dữ liệu, hãy chủ động làm mất hiệu lực các query bị ảnh hưởng hoặc cập nhật giao diện trước với cơ chế tự động rollback nếu gặp lỗi mạng.
+- **Cạm bẫy chết người:** Viết `useEffect(() => { fetch(...) }, [query])` trần trụi mà không có abort signal—cho phép các phản hồi mạng về sai thứ tự ghi đè lên giao diện người dùng mới hơn bằng dữ liệu cũ kỹ.
 
 <TermBox term="Request identity">
 **Request identity** là mô tả ổn định của remote resource hoặc query đang được quan sát. Client data library thường biểu diễn nó bằng query/cache key. Identity phải chứa mọi input làm thay đổi kết quả, như resource ID, filter, page, sort, tenant hoặc locale khi các giá trị đó ảnh hưởng response.

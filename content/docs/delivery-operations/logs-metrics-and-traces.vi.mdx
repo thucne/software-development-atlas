@@ -32,15 +32,15 @@ concepts:
 
 ## Tóm tắt
 
-Observability không có nghĩa là “thu thập mọi tín hiệu”. Mục tiêu là đi từ một triệu chứng người dùng nhìn thấy đến bằng chứng giải thích được hệ thống đã sai ở **đâu, khi nào và vì sao**.
+Trong một sự cố sập hệ thống thanh toán giờ cao điểm, năm kỹ sư ngồi bất lực trước bức tường 40 biểu đồ Grafana không có điểm chung trong khi khách hàng liên tục bị lỗi mà không thể thanh toán. Hệ thống log là một vòi rồng hỗn loạn xả ra 200.000 dòng văn bản thô không chỉ mục mỗi giây; chỉ số metric báo lỗi 5xx tăng vọt nhưng không thể chỉ ra lỗi xuất phát từ tenant hay service nào; còn distributed tracing thì bị bỏ qua. Cả đội mất hơn 2 tiếng đồng hồ đoán mò trên kênh chat thay vì chẩn đoán dựa trên chứng cứ tương quan.
 
-Ba tín hiệu telemetry cốt lõi có vai trò khác nhau:
+> 💡 **Quy tắc bỏ túi:** **Metric phát hiện triệu chứng, Trace cô lập nguyên nhân, và Log phơi bày sự thật cục bộ.** Dữ liệu giám sát sẽ vô dụng nếu thiếu sự tương quan: chỉ số metric kích hoạt cảnh báo, mã `trace_id` định vị chính xác chặng mạng hoặc truy vấn bị nghẽn, và log có cấu trúc giải thích tường tận quyết định nội bộ của service tại đúng thời điểm đó.
 
-- **Metrics** trả lời câu hỏi tổng hợp như “error rate có tăng không?” và “service nào đang chậm?”.
-- **Traces** dựng lại quan hệ nhân quả của request xuyên qua nhiều boundary: “request này tốn thời gian ở đâu?”.
-- **Logs** cho chi tiết sự kiện: “component này biết gì khi nó đưa ra quyết định?”.
-
-Các tín hiệu hữu ích hơn nhiều khi dùng chung resource attributes ổn định và correlation identifiers như `trace_id`. Hãy coi metric cardinality và trace sampling là budget có chủ đích, không phải mặc định ngẫu nhiên.
+- **Bộ ba tín hiệu bổ trợ:** Metric theo dõi sức khỏe số lượng tổng thể (phương pháp RED); distributed trace dựng lại quan hệ nhân quả của request xuyên qua các ranh giới dịch vụ; structured log ghi lại chi tiết bối cảnh sự kiện.
+- **Tương quan qua ngữ cảnh dùng chung:** Đồng bộ hóa `trace_id` và `span_id` xuyên suốt ranh giới tiến trình, thư viện ghi log và ngữ cảnh OpenTelemetry.
+- **Kiểm soát độ biến thiên (Cardinality):** Tuyệt đối không đưa các giá trị biến thiên cao (`user_id`, UUID, email) vào nhãn metric để tránh làm phình to bộ nhớ cơ sở dữ liệu chuỗi thời gian và bùng nổ chi phí.
+- **Kinh tế học lấy mẫu (Sampling):** Lấy mẫu head-sampling tỷ lệ thấp (1–5%) cho các request thành công thông thường, và lấy mẫu tail-sampling 100% cho mọi request lỗi hoặc có độ trễ đuôi (tail latency) cao.
+- **Cạm bẫy chết người:** Ghi log dạng chuỗi thô (`console.log("lỗi: " + err)`) không có trường JSON chuẩn hóa hoặc thiếu correlation ID—khiến việc tìm kiếm log và cảnh báo tự động hoàn toàn tê liệt khi xảy ra sự cố production.
 
 ## Bắt đầu từ câu hỏi, không phải dashboard
 

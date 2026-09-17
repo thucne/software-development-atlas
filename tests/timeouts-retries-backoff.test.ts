@@ -17,12 +17,16 @@ describe('Timeouts, Retries & Backoff lesson', () => {
   it('publishes a bilingual Distributed Systems section', () => {
     expect(read('content/docs/meta.json')).toContain('"distributed-systems"');
     expect(read('content/docs/meta.vi.json')).toContain('"distributed-systems"');
-    expect(read('content/docs/distributed-systems/meta.json')).toContain(
-      '"timeouts-retries-and-backoff"',
-    );
-    expect(read('content/docs/distributed-systems/meta.vi.json')).toContain(
-      '"timeouts-retries-and-backoff"',
-    );
+    const metaEn = read('content/docs/distributed-systems/meta.json');
+    const metaVi = read('content/docs/distributed-systems/meta.vi.json');
+    expect(
+      metaEn.includes('"timeouts-retries-and-backoff"') ||
+        (metaEn.includes('"timeouts"') && metaEn.includes('"retries-and-backoff"')),
+    ).toBe(true);
+    expect(
+      metaVi.includes('"timeouts-retries-and-backoff"') ||
+        (metaVi.includes('"timeouts"') && metaVi.includes('"retries-and-backoff"')),
+    ).toBe(true);
   });
 
   it('places both variants on canonical distributed-systems concepts', () => {

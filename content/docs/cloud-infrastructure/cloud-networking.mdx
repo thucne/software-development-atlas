@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-Cloud networking becomes much easier to operate when you stop asking “is the network open?” and instead trace the **packet path** as a sequence of decisions:
+At 02:00 AM after a cloud migration, an application pod in a private Kubernetes cluster fails with `Connection timed out` trying to reach an external payment gateway. The developer insists: "DNS resolves cleanly and the database is reachable, so the network must be fine!" In reality, the pod's private subnet lacked a default route `0.0.0.0/0` pointing to a NAT Gateway, silently dropping outbound egress packets into a routing black hole while DNS lookups succeeded only because cluster DNS ran locally.
 
-1. What source and destination addresses are involved?
-2. Which route matches the destination, and what target or next hop does it select?
-3. Does a gateway or NAT translation change the path or address?
-4. Which ingress and egress policies allow or deny the flow?
-5. Can the return path get back to the source?
+> 💡 **Rule of thumb:** **DNS resolution does not equal network reachability, and reachability does not equal application authorization.** Network reachability requires an unbroken bidirectional packet path: valid CIDR addressing, matching route table next hops (longest prefix match), network address translation (NAT), and stateful firewall/security group permission.
 
-DNS, IAM, TLS, and application authorization matter, but they answer different questions. DNS success does not prove network reachability, and network reachability does not prove the application will authorize the request.
+- **Packet path determinism:** Trace connectivity as a continuous sequence: source IP → routing table next hop → gateway/NAT translation → egress/ingress firewall policy → target host → return path.
+- **Subnet topology & NAT:** Private subnets cannot route directly to the Internet; outbound egress requires an explicit route table entry mapping `0.0.0.0/0` to a NAT Gateway or proxy.
+- **Stateful vs. stateless filtering:** Cloud security groups are stateful (inbound allows corresponding outbound); Network ACLs (NACLs) are stateless and require explicit ephemeral return port ranges (`1024-65535`).
+- **Private endpoints & peering:** Services connected via VPC Peering or PrivateLink bypass public internet routing and NAT data transfer bottlenecks.
+- **Fatal pitfall:** Diagnosing connectivity from DNS lookups alone—DNS only returns an IP candidate; if routing tables lack an egress next hop or security groups drop outbound SYN packets, connections time out silently with zero application-layer error feedback.
 
 ```mermaid
 flowchart LR

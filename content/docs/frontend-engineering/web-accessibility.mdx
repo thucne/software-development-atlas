@@ -16,23 +16,19 @@ concepts:
   - web-accessibility
 ---
 
-# Web Accessibility: Operate Interfaces Beyond the Happy Path
+# Web Accessibility: Build Resilient Interfaces Across Input and Ability
 
 ## TL;DR
 
-Web accessibility is not a polish pass after the pixels are finished. It is an operating discipline for making the same user task work across different input methods, output modes, vision, hearing, motor ability, cognition, browser settings, and assistive technologies.
+A financial services firm redesigns its web checkout with sleek, borderless custom dropdowns built from `<div>` tags and `onClick` handlers. The next month, the company receives a civil rights accessibility lawsuit: screen reader users cannot find or activate the checkout trigger, keyboard-only power users get trapped in an un-focusable modal loop, and form validation errors only highlight input borders in light red without text descriptions or live region announcements. A ten-minute manual audit with `Tab` and VoiceOver could have prevented months of legal liability.
 
-A practical workflow is:
+> 💡 **Rule of thumb:** **Use semantic HTML first; ARIA is a supplement, not a substitute for native controls.** If a native `<button>`, `<input>`, or `<dialog>` element exists, use it. Native controls give you keyboard navigation (`Space`, `Enter`, arrows), accessible names, focus states, and screen reader announcements for free without custom ARIA emulation.
 
-1. start from the **user task**, not from a screenshot;
-2. use semantic HTML and native controls before inventing custom widgets;
-3. verify names, roles, states, relationships, and reading order;
-4. operate the task with a keyboard and keep focus visible and predictable;
-5. make forms, errors, loading, and success states perceivable without relying on color or sight alone;
-6. provide text alternatives for meaningful non-text content;
-7. check zoom, reflow, target size, and layout resilience;
-8. combine automated checks with manual keyboard and assistive-technology testing;
-9. keep accessibility regressions inside the normal release loop.
+- **Semantic HTML baseline:** Native elements provide built-in focusability, keyboard events, and accessible roles without custom JavaScript or synthetic event handlers.
+- **Accessible name & description:** Ensure every interactive control has an unambiguous accessible name via visible text, `<label for>`, or `aria-label`/`aria-labelledby`.
+- **Keyboard operability & visible focus:** Ensure every user flow is fully operable using only the keyboard (`Tab`, `Shift+Tab`, `Enter`, `Escape`), with visible focus indicators and modal focus management.
+- **Perceivable forms & live regions:** Associate error messages with inputs using `aria-describedby` and `aria-invalid`; announce dynamic async updates with `aria-live="polite"` or `role="status"`.
+- **Fatal pitfall:** Building interactive controls out of non-semantic tags (`<div onClick={...}>`) without `tabIndex="0"`, keyboard listeners, or accessible labels—rendering critical features completely invisible and inoperable to assistive technology users.
 
 <TermBox term="Accessible name">
 An **accessible name** is the text assistive technology uses to identify a control or region. It can come from visible text, a `<label>`, `aria-labelledby`, or in narrower cases `aria-label`. A control that looks obvious visually can still be unusable if its accessible name is missing or misleading.

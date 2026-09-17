@@ -33,7 +33,16 @@ concepts:
 
 ## TL;DR
 
-Object storage is built around a simple abstraction:
+At the end of the quarter, the VP of Engineering receives a billing alert from AWS: monthly Amazon S3 storage costs spiked by thousands of dollars overnight, even though active customer media uploads remained flat. A deep forensic audit reveals the root cause: millions of mobile video uploads had dropped due to spotty cellular networks; every interrupted **multipart upload** silently stranded gigabytes of unreferenced orphan chunk parts inside the bucket indefinitely because the team omitted an automatic abort **lifecycle policy**. Compounding the crisis, application instances were crashing under severe thread pool starvation: developers had conflated raw file content (**object payload** in S3) with relational state, storing dynamic workflow tags, viewing permissions, and payment confirmations directly in S3 object metadata tags rather than in PostgreSQL, forcing every trivial API check to execute slow, unindexed `HeadObject` HTTP network calls.
+
+> 💡 **Rule of thumb:** Store immutable byte payloads in object storage and transactional business metadata in a relational database (such as PostgreSQL). Always assign unique, immutable keys, verify payload integrity with dedicated checksums, and enforce automated lifecycle policies to abort incomplete multipart uploads.
+
+- **Flat namespace with immutable identity:** An object store organizes data as independent objects inside a **bucket** identified by an **object key**; the namespace is completely **flat** (folders are purely visual conventions via **prefix** matching), and keys must be modeled as **immutable** assets rather than mutable filenames.
+- **Payload vs. metadata separation:** Object storage serves as the authoritative **source of truth** for raw object bytes, while an ACID database owns tenant relations, permissions, processing states, and business metadata.
+- **Delegated direct uploads:** Use scoped, short-lived **presigned** URLs so clients stream large payloads directly to cloud storage without saturating application servers; for large assets, orchestrate a **multipart upload** and verify explicit completion rather than mistaking client-side progress for final object assembly.
+- **Integrity beyond ETags:** Modern S3 guarantees **strong read-after-write** consistency, but verifying file corruption requires explicit **checksum** headers (such as SHA-256 or CRC32C) because an **ETag** is not a universal MD5 digest of the file contents.
+- **Automated lifecycle and versioning:** Enable **versioning** to recover from accidental deletions, and establish automated **lifecycle** rules across each **storage class** to transition cold objects and eliminate abandoned multipart chunks.
+- **Fatal pitfall (Orphan multipart accumulation & metadata confusion):** Aborted multipart uploads linger forever as hidden, billable storage without an explicit lifecycle policy, while storing mutable business state inside S3 metadata turns simple database queries into brittle, high-latency HTTP bottlenecks.
 
 ```text
 bucket + object key -> bytes + metadata

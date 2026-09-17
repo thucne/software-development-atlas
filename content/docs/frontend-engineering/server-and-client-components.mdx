@@ -16,13 +16,19 @@ concepts:
   - server-and-client-components
 ---
 
-# Server and Client Components: Choose the Execution Boundary
+# Server and Client Components: Execution Boundaries and Shipped Code
 
 ## TL;DR
 
-Server and Client Components answer a different question from SSR and CSR.
+A developer adds `'use client'` to the top of a root layout file just to support a small dark-mode toggle. Instantly, 45 imported backend utility functions, database connectors, and markdown parsers get dragged into the client JavaScript bundle graph, bloating initial page load by 1.8MB and leaking an internal database connection template into public browser devtools. The developer was stunned: "I thought Client Components just meant it renders with SSR first!" The root cause was conflating page rendering modes with transitive module execution boundaries.
 
-**SSR/CSR describe where HTML is produced. Server/Client Components describe where component code is allowed to execute and which modules must become browser JavaScript.** These axes can be combined: a Client Component may contribute HTML to an initial server-rendered response and later hydrate in the browser, while a Server Component itself is not shipped as component runtime to the browser.
+> 💡 **Rule of thumb:** **Keep the client boundary as low and small as possible; push Server Components down the tree and pass Client Components through `children`.** Server vs. Client Components is orthogonal to SSR vs. CSR: it dictates *what code is shipped to the browser*, not whether initial HTML is rendered on the server. Never place `'use client'` high up in layout trees.
+
+- **Orthogonal to SSR vs. CSR:** SSR/CSR decide where HTML is generated; Server/Client Components decide whether component code and dependencies are bundled into browser JavaScript.
+- **Transitive client module boundary:** The `'use client'` directive marks a boundary: that file and everything it imports transitively becomes part of the client dependency graph.
+- **Serialization boundary:** Props passed across the server-to-client boundary must be serializable across the wire (JSON-like primitives, JSX children; no class instances, functions, or database handles).
+- **Composition pattern:** Nest Server Components inside Client Components by passing them as `children` props, allowing server-only data fetching inside interactive client wrappers without bundle pollution.
+- **Fatal pitfall:** Slapping `'use client'` at the top of shared parent layouts or container components—pulling massive server dependencies, database clients, and secrets directly into the client bundle.
 
 <TermBox term="Execution boundary">
 An **execution boundary** separates component work that stays in a server environment from work that must be available in the browser. It affects capabilities, data access, serialization, and shipped JavaScript.

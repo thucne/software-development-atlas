@@ -35,6 +35,22 @@ concepts:
   - threat-modeling
 ---
 
+## Production crisis & TL;DR
+
+Imagine Black Friday at midnight. A customer clicks **Place order** over a shaky mobile network. Your checkout service fires a synchronous HTTP request to Stripe. Stripe successfully charges the card $120 and returns HTTP 200 OK. But 15 milliseconds before the response packet reaches your application cluster, an ephemeral connection blip drops the socket. Your server catches an unhandled network timeout (`ETIMEDOUT`), aborts its local operation, and renders an error page to the buyer. In a panic, the buyer hits **Place order** again. Stripe charges another $120.
+
+Now you face the catastrophic **dual-write gap** and **payment ambiguity window**: real money moved twice, but your internal database recorded zero confirmed orders. Building a resilient checkout architecture requires coordinating distributed systems that cannot share a single ACID transaction: your application database, an external payment gateway, a message broker, and downstream fulfillment workers.
+
+> 💡 **Rule of thumb:** Never execute an external network call inside an open database transaction, and never treat an HTTP timeout as proof of payment failure. Treat network timeouts as ambiguous states resolved exclusively through deterministic idempotency keys, atomic outbox tables, and asynchronous webhook reconciliation.
+
+### TL;DR
+
+- **Decouple database transactions from external network I/O:** Commit local order intent (`PAYMENT_PENDING`) in sub-millisecond local transactions before calling external payment gateways.
+- **Isolate API idempotency from payment idempotency:** Use a client-provided `Idempotency-Key` to deduplicate incoming checkout requests, and generate a distinct, stable gateway idempotency key for each logical payment attempt.
+- **Close the dual-write gap with a Transactional Outbox:** Persist order status transitions and downstream publish events in the same atomic database commit, eliminating crash windows between state changes and message dispatch.
+- **Design downstream consumers for at-least-once delivery:** Assume message brokers can deliver the same message more than once; protect fulfillment and notification workers with idempotent consumer tables and unique constraints.
+- **Fatal pitfall:** Wrapping external payment API calls inside `db.transaction()` under the illusion of "distributed rollback"—this locks database rows, starves connection pools during gateway latency spikes, and inevitably produces orphaned charges when connection timeouts trigger local aborts after money has already left the customer's account.
+
 ## System goal and constraints
 
 Suppose a user clicks **Place order**. The system needs to create one logical order, charge at most once for one logical payment attempt, survive retries and process crashes, trigger fulfillment/notification work, and retain enough evidence for operators to explain what happened later.

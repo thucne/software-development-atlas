@@ -29,15 +29,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-Đừng chọn CSR, SSR hay SSG chỉ bằng câu hỏi phương thức nào "hiện đại hơn". Hãy đặt câu hỏi: **khi nào mã HTML hữu ích cần phải xuất hiện, HTML đó có phụ thuộc vào trạng thái tại thời điểm request hay không, sản phẩm chấp nhận dữ liệu cũ (stale) trong bao lâu, cần bao nhiêu JavaScript tải về client, và đội ngũ sẵn sàng vận hành tải tính toán ở build time, request time hay tại trình duyệt?**
+Một sàn thương mại điện tử đang trên đà tăng trưởng quyết định chuyển đổi toàn bộ giao diện bán hàng sang ứng dụng Single Page Application thuần Client-Side Rendering (CSR) để tối ưu trải nghiệm lập trình React. Hậu quả là một thảm họa kinh doanh lập tức giáng xuống: thứ hạng tìm kiếm tự nhiên trên Google tụt dốc không phanh 60% chỉ sau sáu tuần do Googlebot trì hoãn hoặc bỏ qua việc lập chỉ mục các khung HTML trống rỗng. Tệ hơn nữa, khách hàng mua sắm qua mạng 3G trên điện thoại phải nhìn chằm chằm vào màn hình trắng xóa suốt 4 giây trước khi tệp JavaScript khổng lồ kịp tải và phân tích xong—khiến tỷ lệ thoát trang (bounce rate) tăng vọt. Quyết định giữa CSR, SSR và SSG không phải là cuộc đua framework thời thượng, mà là sự cân nhắc kỹ thuật khắt khe giữa Time to First Byte (TTFB), First Contentful Paint (FCP), khoảng trống tương tác (Hydration gap) và áp lực tải lên máy chủ.
 
-Nguyên tắc thực chiến để định hướng:
+> 💡 **Quy tắc bỏ túi:** Hãy chọn chiến lược render theo từng trang (route) và vòng đời dữ liệu, tuyệt đối không áp đặt một mô hình duy nhất cho toàn bộ sản phẩm. Ưu tiên Static Site Generation (SSG/ISR) khi cùng một bản thể hiện HTML có thể tái sử dụng cho hàng nghìn request; sử dụng Server-Side Rendering (SSR) khi mã HTML ban đầu bắt buộc phải chứa dữ liệu động tại thời điểm request (request-time state) không thể lưu cache tĩnh; và tập trung vào Client-Side Rendering (CSR) cho các trang quản trị nội bộ nơi người dùng cần một phiên làm việc tương tác kéo dài.
 
-- **Ưu tiên Static Site Generation (SSG)** khi cùng một bản thể hiện HTML có thể tái sử dụng cho hàng nghìn request và độ tươi mới được duy trì qua cơ chế xuất bản hoặc xác thực lại (revalidation/ISR).
-- **Sử dụng Server-Side Rendering (SSR)** khi mã HTML ban đầu bắt buộc phải chứa dữ liệu động tại thời điểm request vốn không thể chia sẻ an toàn qua cache tĩnh.
-- **Tập trung vào Client-Side Rendering (CSR)** khi trang web chỉ cần một khung HTML tĩnh ban đầu và phần lớn giá trị tương tác xuất hiện sau khi mã JavaScript và API tải về client.
-
-Đây không phải là những lựa chọn loại trừ lẫn nhau. Các ứng dụng hiện đại ngày nay thường kết hợp linh hoạt cả 3 mô hình theo từng trang (route), từng thành phần (component) và vòng đời dữ liệu.
+- **SSG tối ưu khả năng lưu cache tại Edge và tốc độ phản hồi:** Tạo sẵn HTML từ lúc build hoặc qua tái xác thực ngầm (ISR) mang lại chỉ số TTFB dưới 50ms trên toàn cầu, giải phóng hoàn toàn cơ sở dữ liệu khỏi áp lực render trên từng request.
+- **SSR nhúng dữ liệu động vào HTML ngay ở chặng mạng đầu tiên:** Máy chủ trả về mã HTML có sẵn nội dung phục vụ SEO và người dùng, nhưng đẩy trực tiếp tải tính toán CPU và truy vấn cơ sở dữ liệu vào thẳng đường găng (critical request path).
+- **CSR trao quyền kiểm soát phiên tương tác cho trình duyệt:** Tiết kiệm tài nguyên máy chủ bằng cách phục vụ khung shell tĩnh, nhưng buộc người dùng phải trả giá bằng thời gian chờ tải, phân tích cú pháp và thực thi các gói bundle JavaScript lớn.
+- **Cảnh giác với "khoảng trống tương tác" (Hydration gap):** SSR và SSG giúp hiển thị nội dung trực quan rất sớm (FCP), nhưng nếu mã script quá nặng, người dùng sẽ rơi vào trạng thái ức chế khi các nút bấm đã hiển thị nhưng hoàn toàn "bất động" chờ hydration hoàn tất.
+- **Cạm bẫy chết người:** **Lạm dụng SSR cho trang danh mục công khai mà không có lớp đệm cache.** Ép máy chủ phải query database và render lại toàn bộ mã HTML cho mỗi lượt truy cập sẽ nhanh chóng bóp nghẹt CPU và làm sập database trong các đợt khuyến mãi lớn. Luôn chia tách: dùng SSG/ISR cho khung nội dung công khai và chỉ gọi API bất đồng bộ (CSR) cho các mẩu dữ liệu cá nhân hóa.
 
 <TermBox term="CSR / SSR / SSG">
 Các thuật ngữ này mô tả **nơi và thời điểm mã HTML hữu ích được sinh ra**:

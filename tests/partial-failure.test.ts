@@ -21,10 +21,12 @@ describe('Partial Failure lesson', () => {
     ]) {
       const source = read(relativePath);
       const partialFailure = source.indexOf('"partial-failure"');
-      const legacyTimeouts = source.indexOf('"timeouts-retries-and-backoff"');
+      const timeouts = source.indexOf('"timeouts"') !== -1
+        ? source.indexOf('"timeouts"')
+        : source.indexOf('"timeouts-retries-and-backoff"');
 
       expect(partialFailure, relativePath).toBeGreaterThan(-1);
-      expect(legacyTimeouts, relativePath).toBeGreaterThan(partialFailure);
+      expect(timeouts, relativePath).toBeGreaterThan(partialFailure);
     }
   });
 

@@ -30,11 +30,13 @@ concepts:
 
 # Giới hạn tốc độ: Kiểm soát lưu lượng, spike và phân phối công bằng
 
-## Tóm tắt nhanh
+## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Rate limiting là một **chính sách tiếp nhận**: trước khi công việc đắt đỏ bắt đầu, hệ thống quyết định request này có được phép tiêu thụ tài nguyên hữu hạn ngay lúc này hay không.
+Vào lúc 11:59:50, một đợt tấn công dò quét mật khẩu (credential stuffing) tự động nhắm thẳng vào API xác thực của bạn. Hệ thống đang cài đặt thuật toán giới hạn tốc độ kiểu Cửa sổ cố định (Fixed Window Counter): tối đa 100 request/phút cho mỗi địa chỉ IP. Từ 11:59:50 đến 11:59:59, botnet bắn dồn dập đúng 100 request. Đồng hồ vừa điểm 12:00:00, cửa sổ thời gian bước sang phút mới và bộ đếm lập tức reset về 0. Ngay từ 12:00:00 đến 12:00:10, kẻ tấn công xả tiếp 100 request nữa. Chỉ trong vỏn vẹn 20 giây ở ranh giới giữa 2 phút, hệ thống đã tiếp nhận tới 200 request—gấp đôi ngưỡng năng lực thiết kế tối đa. Toàn bộ worker băm mật khẩu (bcrypt/argon2) ngốn sạch 100% CPU, kéo sập cơ sở dữ liệu xác thực vì cạn kiệt connection pool.
 
-Một mô hình tư duy hữu ích:
+Sự cố bùng nổ lưu lượng ở ranh giới thời gian này là điểm yếu chết người của các giải pháp đếm request đơn sơ. Rate limiter chưa bao giờ chỉ là một biến đếm tăng dần trong bộ nhớ cache Redis; nó là một **chính sách tiếp nhận (admission control)** sống còn: trước khi bất kỳ tài nguyên tính toán, cơ sở dữ liệu hay mạng khan hiếm nào bị tiêu hao, hệ thống phải quyết định xem request này có được phép đi vào ngay lúc này, bị trì hoãn hay bị từ chối. Để bảo vệ hệ thống trước tấn công brute-force, cạn kiệt tài nguyên và sự cố DDoS, các kỹ sư backend phải dựa trên các thuật toán điều phối luồng mượt mà như Token Bucket (Thùng token), Leaky Bucket (Thùng rò rỉ) hoặc Sliding Window (Cửa sổ trượt).
+
+Một trình tự vận hành thực tế:
 
 ```text
 request
@@ -44,8 +46,6 @@ request
   -> cho phép HOẶC từ chối/trì hoãn
   -> phát bằng chứng cho client và vận hành
 ```
-
-Phần khó hiếm khi là đếm request. Phần khó là xác định **tài nguyên nào đang khan hiếm, ai sở hữu allowance, burst được phép đến đâu, trạng thái nằm ở đâu khi có nhiều replica, và client phải làm gì sau khi bị giới hạn**.
 
 ```mermaid
 flowchart LR
@@ -58,6 +58,15 @@ flowchart LR
   T --> S[Trả tín hiệu cho client]
   S --> E2[Ghi nhận request bị giới hạn]
 ```
+
+> 💡 **Quy tắc bỏ túi:** Rate limiting là cổng tiếp nhận lưu lượng chứ không chỉ là bộ đếm—hãy chọn thuật toán làm mượt đột biến ở ranh giới thời gian (Token Bucket hoặc Sliding Window), gắn khóa với danh tính đáng tin và luôn trả về header Retry-After để dập tắt retry storm từ client.
+
+### TL;DR 2.0
+- **Kiểm soát tiếp nhận trước khi xử lý:** Rate limiting đánh giá request trước khi tiêu tốn tài nguyên đắt đỏ (CPU, DB, API bên thứ ba), quyết định cho phép đi vào (admit), từ chối (reject) hay trì hoãn (defer) ngay tại ranh giới ngoài cùng.
+- **Thuật toán quyết định hành vi bùng nổ (Burst):** Bộ đếm cửa sổ cố định (Fixed Window) dễ bị bùng nổ gấp đôi lưu lượng ở giao điểm giữa 2 phút. Các hệ thống thực chiến ưu tiên Token Bucket (cho phép burst có kiểm soát với tốc độ nạp ổn định) hoặc Sliding Window (san phẳng lưu lượng theo thời gian thực).
+- **Khóa giới hạn (Limiter Key) định hình công bằng:** Khóa phải được trích xuất từ danh tính đã xác thực (`user_id`, `tenant_id`, `api_key`) hoặc IP mạng đáng tin từ reverse proxy, tránh tin mù quáng vào các header dễ giả mạo như `X-Forwarded-For`.
+- **Tín hiệu phản hồi & Chiến lược sự cố:** Luôn trả về mã `429 Too Many Requests` đi kèm header `Retry-After` chuẩn xác. Chủ động cấu hình cơ chế mở khi lỗi (fail-open) cho luồng đọc ít rủi ro hoặc đóng khi lỗi (fail-closed) cho luồng bảo mật nhạy cảm khi hệ thống lưu trữ rate limiter gặp sự cố.
+- **Cạm bẫy chết người:** Dùng thuật toán Fixed Window Counter khiến lưu lượng bùng nổ gấp đôi ở ranh giới giữa 2 phút làm sập hạ tầng, hoặc dùng bộ đếm in-memory cục bộ khiến năng lực tiếp nhận bị nhân lên gấp bội theo số lượng replica khi autoscaling.
 
 <TermBox term="Rate limit">
 **Rate limit** giới hạn tốc độ một chủ thể được phép tiêu thụ một capability được bảo vệ theo thời gian.

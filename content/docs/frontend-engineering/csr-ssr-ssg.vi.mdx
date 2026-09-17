@@ -16,11 +16,19 @@ concepts:
   - csr-ssr-ssg
 ---
 
-# CSR, SSR và SSG: HTML được tạo ở đâu và khi nào
+# CSR, SSR và SSG: Nơi nào và khi nào UI biến thành HTML
 
 ## Tóm tắt
 
-CSR, SSR và SSG trả lời một câu hỏi nền tảng: **HTML hữu ích của một route được tạo ở đâu và khi nào?** Câu trả lời thay đổi first response, thời điểm lấy dữ liệu, khả năng reuse cache, server work, client work và failure mode.
+Một website thương mại điện tử ra mắt dưới dạng Single-Page App với cơ chế render máy khách thuần túy (CSR). Vào ngày siêu sale Black Friday, bot thu thập dữ liệu của Google chỉ quét được vỏ bọc `<div id="root"></div>` trống rỗng, khiến thứ hạng tìm kiếm rớt thảm hại 80%, trong khi khách hàng dùng mạng 3G phải nhìn màn hình trắng suốt 6,2 giây chờ tải và phân tích gói JS 2MB. Đội ngũ kỹ thuật hoảng loạn chuyển toàn bộ web sang SSR động, khiến cụm máy chủ Node.js bốc cháy và quá tải vì không thể gánh nổi lượng render HTML khổng lồ tại thời điểm request.
+
+> 💡 **Quy tắc bỏ túi:** **Chọn vị trí render dựa trên độ tươi của dữ liệu và khả năng lưu cache, không theo trào lưu framework.** Dùng SSG cho nội dung thay đổi theo đợt phát hành hoặc webhook (lưu cache vô hạn tại CDN edge); dùng SSR cho dữ liệu cá nhân hóa hoặc biến động liên tục cần SEO và First Contentful Paint nhanh; dùng CSR cho trang quản trị nội bộ sau đăng nhập nơi tương tác máy khách chiếm ưu thế.
+
+- **Câu hỏi nền tảng:** HTML hữu ích của một route được tạo ra ở đâu và khi nào? Trong trình duyệt sau khi JavaScript chạy (CSR), trên server tại thời điểm request (SSR), hay trước đó ở build/revalidation time (SSG/ISR).
+- **SEO & First Contentful Paint (FCP):** SSG và SSR cung cấp markup ngữ nghĩa ngay trong gói phản hồi đầu tiên; CSR chỉ trả về container rỗng và trì hoãn hiển thị cho đến khi tải xong JS.
+- **Yêu cầu Hydration:** Cả SSR và SSG vẫn phải tải bundle JavaScript nếu HTML đã render cần gắn các event listener tương tác—tạo ra giai đoạn hydration nơi giao diện trông có vẻ sẵn sàng nhưng bấm chưa ăn.
+- **Chi phí hạ tầng và tính toán:** SSG mở rộng quy mô vô hạn trên CDN edge với chi phí gần như bằng không; SSR tiêu tốn CPU máy chủ trên mỗi request; CSR đẩy toàn bộ chi phí tính toán sang thiết bị người dùng.
+- **Cạm bẫy chết người:** Coi chiến lược render như một lựa chọn nhị phân áp dụng cho toàn bộ dự án thay vì quyết định linh hoạt trên từng route—ép các trang bán hàng công khai chạy CSR (giết chết SEO/FCP) hoặc ép trang dashboard nội bộ chạy SSR (làm quá tải server mà không có lợi ích cache).
 
 <TermBox term="Rendering placement">
 **Rendering placement** là vị trí thực thi và thời điểm tạo ra HTML hữu ích: trong trình duyệt sau khi JavaScript chạy, trên server cho từng request, hoặc trước request cụ thể ở build/publish/revalidation time.

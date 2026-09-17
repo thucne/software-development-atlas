@@ -18,9 +18,19 @@ concepts:
 
 # Architecture Decision Records: Preserve the Why
 
+A high-stakes architectural decision is casually hashed out in an informal Slack huddle or an ephemeral direct message thread. Six months later, the original engineers have moved on. A newly hired senior engineer looks at the codebase in bewilderment, unable to fathom why the system relies on a bizarre asynchronous reconciliation loop instead of a standard ACID transaction. Viewing it as pure legacy technical debt, the team launches an expensive multi-month crusade to rebuild the "proper" synchronous solution—only to re-encounter the exact same crippling database locks, third-party vendor timeouts, and edge-case deadlocks that prompted the original design.
+
+Without recorded architectural memory, engineering organizations are condemned to endlessly replay their past failures at immense organizational cost.
+
+> 💡 **Rule of thumb:** Code reflects *what* was built; commit messages record *what* changed; ADRs preserve *why* an architecturally significant decision was made and what trade-offs were accepted. If reversing a choice later would cost weeks of engineering or disrupt multiple teams, capture it in an immutable ADR before implementation cements it.
+
 ## TL;DR
 
-An **Architecture Decision Record (ADR)** is a small, durable record of one architecturally significant decision: its context, alternatives, chosen direction, and consequences.
+- **Preserve architecturally significant decisions**: An **Architecture Decision Record (ADR)** is a lightweight, durable document capturing one significant architectural choice: its context, evaluated alternatives, chosen direction, and accepted consequences.
+- **Context and constraints outweigh the final answer**: The primary value of an ADR is explaining why a decision was rational under specific conditions, preventing future teams from dismantling deliberate architecture under the delusion of "cleaning up legacy debt."
+- **Explicit consequences over uncritical advocacy**: An authentic ADR must rigorously document negative consequences, maintenance costs, and operational trade-offs—not just sunny benefits.
+- **Immutable history—supersede, never rewrite**: Historical decisions explain existing code, infrastructure, and past incidents. When context evolves, write a new ADR and mark the old one superseded rather than rewriting history.
+- **Fatal pitfall:** **The Ephemeral Consensus Trap**—Making monumental architectural decisions through chat threads, meeting whiteboards, or PR comments without codifying them in a durable repository record. When staff turns over, the rationale evaporates and past architectural mistakes are inevitably rebuilt.
 
 ```mermaid
 flowchart LR

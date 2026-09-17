@@ -20,7 +20,15 @@ concepts:
 
 ## Tóm tắt nhanh
 
-Một **sự kiện là sự thật đã xảy ra**. Trong kiến trúc hướng sự kiện, bên phát công bố sự thật mà không cần biết mọi bên nhận, còn consumer phản ứng độc lập qua event channel hoặc stream bền vững.
+Hãy tưởng tượng một đài truyền hình phát đi bản tin: "Chuyến bay VN123 đã hạ cánh an toàn". Người dẫn chương trình không gọi điện riêng cho từng gia đình hành khách—họ phát sự thật đã được xác thực ra toàn thế giới, để người thân, tài xế taxi hay dịch vụ mặt đất tự do phản ứng theo nhu cầu riêng. Nhưng trong các hệ thống phân tán, nếu coi sự kiện như một "mẩu tin tức" vô thưởng vô phạt mà thiếu kỷ luật hợp đồng, bạn sẽ phải trả giá bằng những cuộc gọi khẩn cấp giữa đêm: bên phát bắn ra sự kiện `OrderPlaced` rỗng tuếch, trong khi bên nhận thanh toán lại kỳ vọng dữ liệu thẻ tín dụng tức thời; một thay đổi schema âm thầm làm vỡ contract của hệ thống xuất hóa đơn; và một lần thử lại mạng thoáng qua khiến broker bắn lặp sự kiện, quẹt thẻ khách hàng ba lần liên tiếp.
+
+> 💡 **Quy tắc bỏ túi:** Sự kiện (Event) là một sự thật bất biến đã diễn ra trong quá khứ, không phải một mệnh lệnh (Command) cải trang. Nếu bên phát vẫn kỳ vọng nhận kết quả phản hồi ngay lập tức hoặc ngầm định bên nhận phải làm gì tiếp theo, bạn chỉ đang dựng một hệ thống RPC phân tán cồng kềnh qua message broker chứ không phải kiến trúc hướng sự kiện.
+
+- **Sự kiện ghi nhận sự thật quá khứ, không phải mệnh lệnh thực thi:** Đặt tên sự kiện ở thì quá khứ (`OrderPlaced`, `InvoiceIssued`) và tách rời hoàn toàn bên phát khỏi các tác dụng phụ của bên nhận.
+- **Mô hình pub/sub đa điểm khác biệt hoàn toàn với hàng đợi công việc:** Publish/subscribe phân phối một bản sao logic độc lập đến từng miền đăng ký; trong khi các consumer cạnh tranh (competing consumers) chia việc từ một hàng đợi chung cho các worker.
+- **Luồng sự kiện lưu giữ lịch sử và cho phép phát lại:** Nhật ký nối thêm (append-only) theo phân vùng cho phép bên nhận độc lập quản lý vị trí đọc (cursor/offset) và phát lại dữ liệu lịch sử sau khi sửa lỗi hoặc tái tạo mô hình dữ liệu.
+- **Ngữ nghĩa chuyển giao là at-least-once qua ranh giới mạng:** Sự cố mạng và sập tiến trình sẽ gây ra trùng lặp thông điệp; bên nhận bắt buộc phải có cơ chế **idempotency** (tính lặp an toàn).
+- **Cạm bẫy chết người:** **Khoảng trống ghi kép (Dual-write gap).** Ghi dữ liệu vào database rồi mới publish sự kiện sang broker bằng hai thao tác rời rạc chắc chắn sẽ gây sai lệch dữ liệu khi một trong hai bước thất bại. Luôn đồng bộ thay đổi trạng thái và xuất bản sự kiện nguyên tử bằng mẫu thiết kế **Transactional Outbox**.
 
 ```mermaid
 flowchart LR

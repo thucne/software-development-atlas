@@ -20,7 +20,15 @@ concepts:
 
 ## TL;DR
 
-A local program often gets a crisp answer: a function returned, or the process crashed. A distributed operation can fail **partially**: one component commits while another times out, a request arrives but its response is lost, or one observer thinks the call failed while another thinks it succeeded.
+Imagine standing at a checkout counter with your morning coffee. You tap your payment card on the POS terminal. The screen spins for several agonizing seconds before flashing a harsh red banner: *"Transaction Failed — Network Timeout"*. But before you can pull out your wallet to tap again, your phone buzzes with an instant bank notification: \$5.50 has been deducted from your account. The cashier's register insists the payment never arrived; your bank's ledger insists it already settled. Neither system is lying—both are recording accurate local observations across an unreliable network wire. Welcome to the defining reality of distributed systems: **partial failure**.
+
+> 💡 **Rule of thumb:** In distributed systems, a timeout is a local observation, not a remote verdict. Never assume an unanswered state-changing operation failed without authoritative reconciliation or idempotent protection.
+
+- **Local certainty vs. distributed ambiguity:** In a single process, a function call yields a deterministic outcome—it returns a value or raises an exception that halts the thread. Across a network, operations fail **partially**: some nodes commit durable state while others crash, drop packets, or hang indefinitely.
+- **Independent caller and callee observations:** The caller and callee form **independent local judgments** regarding the same RPC; a caller's `DEADLINE_EXCEEDED` timeout often coincides with a callee's completed database transaction.
+- **Safe recovery demands request identity:** Because a lost response leaves the remote outcome unknown, blind retries risk severe duplicate side effects; stateful retries must carry a stable **request identity** (an idempotency key).
+- **Blast radius and failure isolation:** Unbounded waits on slow dependencies quickly consume worker threads, database connections, and memory; systems must enforce end-to-end **deadlines**, propagate **cancellation**, and actively isolate failures via **fail-fast**, fallback, or graceful degradation.
+- **Fatal pitfall:** **Treating timeouts as operational failures.** Conflating "I stopped waiting" with "nothing happened on the server" and triggering immediate, unprotected retries on non-idempotent endpoints is the fastest way to double-charge credit cards, corrupt balances, and produce duplicate inventory reservations.
 
 ```mermaid
 flowchart LR
@@ -31,7 +39,7 @@ flowchart LR
   N -. timeout .-> C
 ```
 
-The hard part is not merely failure. It is **uncertainty about what already happened**.
+The fundamental challenge is not merely failure. It is **uncertainty about what already happened**.
 
 <TermBox term="Partial Failure">
 A **partial failure** happens when some participants or communication paths fail while other parts of the distributed operation continue or complete.

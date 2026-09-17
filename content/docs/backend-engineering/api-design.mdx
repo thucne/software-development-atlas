@@ -26,18 +26,11 @@ concepts:
   - api-design
 ---
 
-## An API is a contract, not a controller shape
+## TL;DR & Production Incident Hook
 
-An HTTP API exposes a contract that another program can depend on. That contract is larger than a route and a JSON body:
+A backend engineering team ships a seemingly innocent refactor: renaming `tracking_url` to `tracking.url` and adding a required `postal_code` field to the checkout schema. Within minutes of deployment, support channels ignite: over 50,000 active mobile app users experience immediate crashes on the order details screen. Unlike web applications that update on the next page refresh, installed native mobile apps rely on strict deserializers and cannot be hot-patched on user devices. The backend service was technically running with 100% uptime and green metrics, yet the business suffered a catastrophic client outage.
 
-- the target **resource** and representation;
-- the meaning of the HTTP method;
-- accepted request fields and validation rules;
-- status code semantics;
-- success and error response shapes;
-- pagination and ordering rules;
-- compatibility guarantees;
-- what a caller may safely retry.
+An HTTP API is not merely a reflection of server database tables or internal controller handlers. It is a distributed, legally binding contract between independently deployed systems. Once published, your endpoints must guarantee predictable resource representations, standardized HTTP method semantics, machine-readable error models (such as Problem Details per RFC 7807 and RFC 9457), safe pagination, and rock-solid backward compatibility.
 
 ```mermaid
 flowchart LR
@@ -50,7 +43,14 @@ flowchart LR
   E --> C
 ```
 
-If those semantics are accidental, clients end up depending on implementation details anyway. API design is the work of making the externally observable behavior intentional.
+> 💡 **Rule of thumb:** An API is a published contract deployed across systems you do not control—treat additive evolution as mandatory, make error schemas and pagination deterministic, and never break backward compatibility without an explicit migration and coexistence window.
+
+### TL;DR 2.0
+- **Contract over implementation:** APIs expose durable resource representations and clear domain intents (`/orders/{id}`) rather than internal procedure names (`/doCreateOrder`). HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) must strictly adhere to their standardized semantics regarding safety and idempotency.
+- **Structured error modeling:** Discard custom, ad-hoc `{ "error": "msg" }` JSON payloads. Adopt RFC 7807 / RFC 9457 Problem Details (`type`, `title`, `status`, `detail`, `instance`) so clients, SDKs, and API gateways can branch on machine-readable error types rather than parsing human-readable prose.
+- **Safe, bounded pagination:** Collection endpoints must enforce server-side limits and explicit ordering. Prefer opaque cursor-based pagination over large offset queries for high-volume or rapidly mutating datasets to prevent missing records or duplicate reads.
+- **Coexistence & backward compatibility:** Client versions evolve at vastly different speeds. Never rename or remove fields, never change data types, and never turn an optional request parameter into a required one within an active contract version.
+- **Fatal pitfall:** Shipping a breaking response schema change or tightening input validation on an existing endpoint, instantly bricking tens of thousands of deployed native mobile apps that cannot be updated immediately.
 
 <TermBox term="API contract">
 An **API contract** is the set of externally observable rules a client may rely on: identifiers, request and response fields, method semantics, status codes, error formats, ordering, pagination, and compatibility behavior.

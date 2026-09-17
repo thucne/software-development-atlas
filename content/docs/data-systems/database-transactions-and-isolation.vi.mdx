@@ -34,17 +34,22 @@ concepts:
 
 # Transaction & Isolation: Đảm bảo tính nhất quán khi có đồng thời
 
+Hãy hình dung hệ thống trực ban của một bệnh viện cấp cứu với quy định sinh tử: *"Luôn luôn phải có ít nhất một bác sĩ trực tại khoa bất kể thời điểm nào."* Đúng 03:00:00 sáng, hai bác sĩ trực là Alice và Bob đều kiệt sức và nộp đơn xin nghỉ cùng một giây qua ứng dụng di động. Hai transaction cơ sở dữ liệu đồng thời được mở trên PostgreSQL ở mức cô lập `Repeatable Read`.
+
+Transaction A truy vấn lịch trực, đếm thấy 2 bác sĩ đang trực, thỏa mãn điều kiện nên duyệt cho Alice nghỉ. Cùng thời điểm đó, transaction B cũng truy vấn lịch trực, đếm thấy 2 bác sĩ đang trực, thỏa mãn điều kiện nên duyệt cho Bob nghỉ. Do Alice và Bob cập nhật trên hai dòng dữ liệu hoàn toàn khác nhau, cơ chế khóa hàng (row-level lock) không hề phát sinh xung đột. Cả hai transaction commit trót lọt không một lỗi nhỏ. Chỉ một phần nghìn giây sau, khoa cấp cứu rơi vào thảm kịch: **không còn bất kỳ bác sĩ nào trực ban**.
+
+Đó chính là thảm họa **Write Skew** kinh điển. Cả hai transaction đều ra quyết định hoàn toàn hợp lệ trên snapshot cục bộ của mình, nhưng sự xen kẽ đồng thời của chúng đã phá hủy hoàn toàn ràng buộc bất biến (invariant) cốt lõi của hệ thống. Đặt câu lệnh giữa `BEGIN` và `COMMIT` chỉ mang lại tính nguyên tử (atomicity), chứ tuyệt đối không giúp ứng dụng miễn nhiễm với race condition. Để làm chủ hệ thống chịu tải cao, bạn phải phân biệt rạch ròi giữa `Read Committed`, `Repeatable Read`, vận dụng khóa tường minh (`FOR UPDATE`) và mức cô lập `Serializable` đi kèm vòng lặp retry loop xử lý mã lỗi serialization failure `40001`.
+
+> 💡 **Quy tắc bỏ túi:** Một transaction mang tính nguyên tử (atomic) chỉ đảm bảo các thao tác ghi cùng thành công hoặc cùng thất bại—chứ không bảo đảm các quyết định đồng thời là an toàn. Nếu ràng buộc bất biến (invariant) trải dài trên nhiều hàng, bạn bắt buộc phải dùng khóa tường minh (`SELECT ... FOR UPDATE`), database constraint, hoặc mức cô lập `Serializable` đi kèm vòng lặp retry khi gặp mã lỗi `40001`.
+
 ## Tóm tắt
 
-Transaction cho nhiều câu lệnh chung một ranh giới commit-hoặc-rollback. **Isolation** trả lời một câu hỏi khác: các transaction chạy đồng thời được phép quan sát gì, và những kiểu xen kẽ nào được phép commit?
-
-Cách vận hành nên là:
-
-1. viết business invariant trước;
-2. giữ transaction boundary không lớn hơn mức invariant thực sự cần;
-3. chọn isolation/locking strategy bảo vệ invariant khi có concurrency;
-4. coi serialization failure là control flow bình thường và retry **toàn bộ transaction**;
-5. không gán cho database transaction những bảo đảm đối với external side effect mà nó không thể cung cấp.
+- **Atomicity không đồng nghĩa với Isolation:** `BEGIN` và `COMMIT` chỉ cam kết các thao tác ghi cùng thành công hoặc cùng rollback. Ranh giới này không ngăn được các session chạy song song đọc dữ liệu trung gian hoặc đưa ra những quyết định xung đột.
+- **Ranh giới snapshot quyết định tính khả kiến (visibility):** Trong `Read Committed`, mỗi câu lệnh SQL nhận một snapshot dữ liệu mới; trong khi ở `Repeatable Read` và `Serializable`, transaction giữ nguyên một snapshot ổn định duy nhất từ câu lệnh truy vấn dữ liệu đầu tiên.
+- **Write Skew phá vỡ các invariant liên hàng:** `Repeatable Read` trong PostgreSQL triệt tiêu hoàn toàn dirty read, non-repeatable read và phantom read, nhưng vẫn để lọt lỗi write skew khi các transaction chỉnh sửa các hàng độc lập dựa trên tập dữ liệu đọc chung.
+- **Serializable bắt buộc phải có retry loop:** Khi chạy ở mức `Serializable`, PostgreSQL chủ động theo dõi các chu trình phụ thuộc đọc/ghi và lập tức ngắt một transaction bằng mã lỗi serialization failure `40001`. Ứng dụng phải bắt mã lỗi này và thử lại toàn bộ transaction từ đầu.
+- **Transaction dừng lại ở ranh giới database:** Cơ sở dữ liệu không thể rollback tiền đã trừ qua cổng thanh toán hay email đã gửi cho khách hàng. Tuyệt đối không đưa network I/O vào trong transaction; hãy dùng pattern Transactional Outbox.
+- **Cạm bẫy chết người:** Lầm tưởng `Repeatable Read` ngăn chặn được mọi race condition. Mức cô lập này chỉ giữ snapshot ổn định, nhưng vẫn để lọt thảm họa Write Skew trừ khi bạn khóa dữ liệu có chủ đích hoặc nâng lên mức `Serializable`.
 
 ## Một mental model: atomicity không phải isolation
 
@@ -58,19 +63,19 @@ flowchart LR
   C -->|không| X["ROLLBACK thay đổi của transaction"]
 ```
 
-Một transfer có thể atomic nhưng vẫn sai khi có concurrency nếu hai transaction cùng ra quyết định từ các snapshot không bảo vệ được invariant chung.
+Một thao tác chuyển tiền có thể đảm bảo tính nguyên tử (atomic) nhưng kết quả vẫn bị sai lệch khi có concurrency nếu hai transaction cùng ra quyết định dựa trên các snapshot không bảo toàn được invariant chung.
 
 <TermBox term="Transaction">
-**Transaction** là một đơn vị công việc database kết thúc bằng commit hoặc rollback. PostgreSQL cũng hỗ trợ savepoint để rollback một phần công việc bên trong transaction lớn hơn.
+**Transaction** là một đơn vị công việc trong cơ sở dữ liệu kết thúc bằng commit hoặc rollback. PostgreSQL cũng hỗ trợ savepoint để rollback một phần công việc bên trong transaction lớn hơn.
 
-**Vì sao quan trọng ở đây:** transaction boundary quyết định những database change nào thành công hoặc thất bại cùng nhau. Bản thân boundary không làm mọi read-modify-write workflow an toàn trước quyết định đồng thời.
+**Vì sao quan trọng ở đây:** Ranh giới transaction quyết định những thay đổi nào trong cơ sở dữ liệu sẽ thành công hoặc thất bại cùng nhau. Bản thân ranh giới này không tự động bảo vệ quy trình đọc-sửa-ghi (read-modify-write) an toàn trước các quyết định chạy đồng thời.
 </TermBox>
 
 ## Bắt đầu từ invariant, không phải tên isolation level
 
-Giả sử transfer phải giữ invariant:
+Giả sử giao dịch chuyển tiền phải bảo toàn ràng buộc bất biến (invariant):
 
-> Tiền không được tự sinh ra hoặc mất đi trong database transfer: debit và credit phải cùng commit hoặc cùng không commit.
+> Tiền không được tự sinh ra hoặc mất đi trong quá trình chuyển tiền: ghi nợ (debit) và ghi có (credit) phải cùng commit hoặc cùng không commit.
 
 ```sql
 BEGIN;
@@ -86,14 +91,14 @@ WHERE id = 2;
 COMMIT;
 ```
 
-Boundary này bảo vệ hai write khỏi partial commit. Nhưng rule như “tài khoản không bao giờ được âm” cần thêm reasoning. Nếu application đọc balance trước, quyết định rằng số dư đủ, rồi mới ghi sau đó, các transaction khác có thể chạy xen giữa khoảng quyết định này nếu SQL shape, lock, constraint hoặc isolation strategy không đóng race đó.
+Ranh giới transaction này bảo vệ hai thao tác ghi không bị commit dở dang (partial commit). Tuy nhiên, một quy tắc nghiệp vụ như “số dư tài khoản không bao giờ được âm” đòi hỏi tư duy sâu hơn. Nếu ứng dụng đọc số dư trước, thấy đủ tiền rồi mới thực hiện ghi sau đó, các transaction chạy song song có thể chen ngang vào khoảng thời gian ra quyết định này trừ khi cú pháp SQL, khóa (lock), ràng buộc dữ liệu (constraint) hoặc chiến lược isolation chủ động chặn đứng kẽ hở đó.
 
 Một chuỗi câu hỏi review hữu ích:
 
 - Điều gì phải luôn đúng sau mọi commit thành công?
-- Những hàng hoặc predicate nào quyết định điều đó?
-- Hai transaction có thể đều đưa ra quyết định hợp lệ cục bộ nhưng cùng nhau phá invariant không?
-- Database mechanism nào sẽ từ chối hoặc serialize kiểu xen kẽ xấu đó?
+- Những hàng dữ liệu hoặc điều kiện vị từ (predicate) nào quyết định điều đó?
+- Hai transaction có thể đều đưa ra quyết định hợp lệ cục bộ nhưng khi kết hợp lại sẽ phá vỡ invariant không?
+- Cơ chế cơ sở dữ liệu (database mechanism) nào sẽ từ chối hoặc tuần tự hóa kiểu xen kẽ xung đột đó?
 
 ## Read Committed: mỗi statement có snapshot mới
 
@@ -242,7 +247,7 @@ Một ticket service lưu inventory trong một hàng với `remaining = 1`. App
 3. sau đó `UPDATE inventory SET remaining = remaining - 1`;
 4. tạo reservation.
 
-Khi tải cao, hai request có thể cùng ra quyết định chấp nhận trước khi write của request kia visible.
+Khi tải cao, hai request có thể cùng ra quyết định chấp thuận đặt chỗ trước khi thao tác ghi của request bên kia trở nên khả kiến (visible).
 
 **Hậu quả:** hai khách cùng nhận confirmed reservation cho ghế cuối, dẫn đến refund và xử lý support thủ công.
 
@@ -250,29 +255,29 @@ Khi tải cao, hai request có thể cùng ra quyết định chấp nhận trư
 
 **Cách khắc phục chuẩn:** biểu diễn decrement bằng conditional update (`... WHERE remaining > 0`) khi một hàng đại diện đầy đủ invariant, hoặc dùng lock/Serializable transaction phù hợp khi decision trải trên nhiều hàng hoặc predicate. Reservation creation phải nằm trong cùng local transaction. Nếu transaction có thể lỗi `40001`, retry toàn bộ decision với state mới. Payment hoặc messaging phải dùng pattern idempotent/durable thay vì giả định database có thể rollback chúng.
 
-Lesson sâu hơn là chuyển correctness từ “các request có lẽ không overlap” thành rule được database enforce về những overlapping execution nào được phép commit.
+Bài học sâu sắc hơn ở đây là chuyển hóa tính đúng đắn (correctness) từ phỏng đoán mơ hồ “các request chắc không chạy trùng nhau đâu” thành các quy tắc bất biến được database thực thi nghiêm ngặt về việc những luồng thực thi xen kẽ nào mới được phép commit.
 
 ## Những lỗi thường gặp
 
-### “Nằm trong transaction nên không còn race”
+### “Đã đặt trong transaction thì chắc chắn không còn race condition”
 
-Atomic commit không đồng nghĩa serial execution. Phải xác định những concurrent read và decision làm cơ sở cho write.
+Commit mang tính nguyên tử (atomic) hoàn toàn không đồng nghĩa với thực thi tuần tự (serial execution). Kỹ sư bắt buộc phải phân tích kỹ các thao tác đọc song song và logic ra quyết định làm tiền đề cho các lệnh ghi.
 
-### Chỉ retry statement bị lỗi
+### Chỉ retry câu lệnh SQL bị lỗi
 
-Serialization failure làm invalid toàn transaction attempt. Hãy chạy lại toàn unit decision trong transaction mới.
+Lỗi serialization failure làm vô hiệu hóa toàn bộ lần chạy của transaction đó. Cố tiếp tục chạy các câu lệnh sau là vô nghĩa; bạn phải rollback và thực thi lại toàn bộ chu trình nghiệp vụ trong một transaction mới toanh.
 
-### Tăng isolation globally mà không đo contention
+### Tăng mức isolation trên toàn hệ thống mà không đo lường độ tranh chấp
 
-Guarantee cao hơn có đánh đổi vận hành. Chọn guarantee từ invariant và workload, sau đó quan sát retry, lock wait, transaction duration và throughput.
+Mức cô lập càng cao thì chi phí đánh đổi về hiệu năng và nghẽn tài nguyên càng lớn. Hãy lựa chọn isolation level dựa trên invariant và đặc thù workload, sau đó theo dõi sát sao tỉ lệ retry, thời gian chờ lock (lock wait), thời lượng transaction và throughput thực tế.
 
-### Giữ transaction mở qua remote I/O
+### Giữ transaction mở trong khi chờ gọi remote I/O
 
-Remote latency kéo dài lifetime của lock/snapshot và tăng contention. Persist local intent, commit sớm, rồi coordinate external work bằng durable workflow pattern.
+Độ trễ mạng từ các lệnh gọi API bên ngoài sẽ kéo dài thời gian giữ lock và snapshot, thổi bùng sự tranh chấp tài nguyên. Hãy ghi nhận ý định vào local database, commit sớm nhất có thể, rồi điều phối công việc bên ngoài bằng các pattern workflow bền vững như Transactional Outbox.
 
-### Nghĩ Repeatable Read đồng nghĩa Serializable
+### Nhầm tưởng Repeatable Read tương đương với Serializable
 
-Trong PostgreSQL, `Repeatable Read` mạnh hơn minimum của SQL standard và không cho phantom read, nhưng vẫn có thể cho serialization anomaly như write skew. Phải dùng semantics PostgreSQL thật thay vì mnemonic chung chung.
+Trong PostgreSQL, `Repeatable Read` mạnh hơn tiêu chuẩn SQL ANSI tối thiểu và ngăn chặn được phantom read, nhưng vẫn hoàn toàn để lọt các bất thường như Write Skew. Bạn phải nắm vững cơ chế thực tế của PostgreSQL thay vì học vẹt theo các định nghĩa lý thuyết chung chung.
 
 ## Tự kiểm tra
 

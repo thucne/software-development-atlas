@@ -18,9 +18,19 @@ concepts:
 
 # Architecture Decision Records: Giữ lại lý do
 
+Một quyết định kiến trúc mang tính sống còn được thống nhất chóng vánh qua vài dòng tin nhắn Slack hoặc một cuộc gọi ngắn không biên bản. Sáu tháng sau, các kỹ sư chủ chốt rời dự án. Một kỹ sư cấp cao mới gia nhập nhìn vào mã nguồn và vò đầu bứt tai: không ai hiểu nổi tại sao hệ thống lại được thiết kế kỳ dị với một vòng lặp đối soát bất đồng bộ phức tạp thay vì dùng một transaction cơ sở dữ liệu thông thường. Cho rằng đây là "mã nguồn rác của thế hệ trước", đội ngũ mới hào hứng phát động chiến dịch đập đi xây lại theo cách "chuẩn chỉ"—để rồi cay đắng tái hiện lại chính xác những vụ nghẽn khóa database, sự cố timeout từ đối tác và deadlock mà kiến trúc kỳ dị năm xưa sinh ra để giải quyết.
+
+Nếu không có bản ghi lưu giữ ký ức kiến trúc, mọi tổ chức phần mềm đều bị kết án phải lặp lại những thất bại trong quá khứ với chi phí kỹ thuật vô cùng đắt đỏ.
+
+> 💡 **Quy tắc bỏ túi:** Mã nguồn cho biết *cái gì* được xây dựng; commit log ghi lại *cái gì* đã đổi; còn ADR lưu giữ *vì sao* quyết định kiến trúc được đưa ra và những đánh đổi nào đã được chấp nhận. Nếu việc đảo ngược một quyết định sau này sẽ ngốn nhiều tuần lễ hoặc làm xáo trộn nhiều đội nhóm, hãy ghi lại trong một ADR bất biến trước khi code đóng băng thực tế.
+
 ## Tóm tắt nhanh
 
-Một **Architecture Decision Record (ADR)** là bản ghi nhỏ nhưng bền vững cho một quyết định kiến trúc đáng kể: bối cảnh, các phương án, hướng đã chọn và những hệ quả đi kèm.
+- **Lưu giữ các quyết định kiến trúc quan trọng**: **Architecture Decision Record (ADR)** là bản ghi nhỏ gọn, bền vững trong kho mã nguồn nhằm lưu lại một **quyết định kiến trúc đáng kể** cùng bối cảnh, các phương án đã cân nhắc, lý do lựa chọn và hệ quả đi kèm.
+- **Bối cảnh và ràng buộc quan trọng hơn đáp án**: Giá trị cốt lõi của ADR là lý giải vì sao lựa chọn này lại hoàn toàn hợp lý dưới các điều kiện thực tế lúc bấy giờ, ngăn chặn các thế hệ sau đập bỏ kiến trúc có chủ đích vì ngộ nhận là nợ kỹ thuật.
+- **Phơi bày hệ quả và đánh đổi thay vì lạc quan tếu**: Một bản ADR trung thực bắt buộc phải liệt kê các gánh nặng vận hành, chi phí phát sinh và rủi ro chấp nhận—nếu chỉ toàn ưu điểm thì đó là bài quảng cáo chứ không phải bản ghi kỹ thuật.
+- **Nhật ký quyết định bất biến—thay thế (supersede), không viết lại lịch sử**: Khi bối cảnh thay đổi, không sửa đổi nội dung ADR cũ mà tạo một ADR mới và đánh dấu ADR trước đó là đã bị thay thế (superseded).
+- **Cạm bẫy chết người:** **Bẫy đồng thuận phù du (Ephemeral Consensus Trap)**—Chốt các quyết định kiến trúc trọng yếu qua kênh chat, bảng trắng phòng họp hay bình luận PR mà không đưa vào **nhật ký quyết định (decision log)**. Khi người cũ rời đi, lý do biến mất và đội ngũ mới chắc chắn sẽ đập đi xây lại đúng những gì từng thất bại.
 
 ```mermaid
 flowchart LR

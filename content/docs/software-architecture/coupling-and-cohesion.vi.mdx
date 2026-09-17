@@ -29,47 +29,51 @@ concepts:
 
 # Coupling & Cohesion: Giữ thay đổi cục bộ
 
-## Tóm tắt
+Đó là 4 giờ 45 chiều thứ Sáu khi một kỹ sư đẩy lên một bản sửa đổi tưởng chừng vô hại: đổi tên một trường trong bảng `users` từ `status` thành `account_status`. Chỉ trong vòng mười phút, hệ thống CI/CD đỏ rực trên 14 services và modules khác nhau. Worker xử lý thông báo ngầm bị crash, tiến trình tính toán xuất hóa đơn treo đứng vì lỗi thuộc tính, còn API gateway bắt đầu trả về HTTP 500 hàng loạt. Không ai cố tình đụng vào 14 service đó—nhưng tất cả đều gãy đổ cùng lúc.
 
-Architecture dễ thay đổi hơn khi hai điều cùng đúng:
+Đây chính là cái giá đắt của **liên kết phụ thuộc quá chặt (Tight Coupling)** và **tính gắn kết bị phân tán (Scattered Cohesion)**. Khi mã nguồn spaghetti đan xen, logic nghiệp vụ văng khắp nơi và các module chọc thẳng vào bảng dữ liệu dùng chung, một thao tác sửa đổi cục bộ nhỏ nhất cũng lập tức kích nổ một chuỗi lan truyền thay đổi (ripple effect / blast radius) thảm họa trên toàn hệ thống.
 
-- code phục vụ **cùng một lý do thay đổi** nằm gần nhau;
-- code phục vụ **những lý do thay đổi khác nhau** biết ít nhất có thể về internals của nhau.
+> 💡 **Quy tắc bỏ túi:** Tối đa hóa tính gắn kết (cohesion) bên trong ranh giới để mã nguồn chỉ thay đổi vì một lý do nghiệp vụ duy nhất; tối thiểu hóa liên kết phụ thuộc (coupling) xuyên ranh giới để thay đổi nội bộ không bao giờ rò rỉ hay ép các module gọi phải sửa đổi theo.
 
-Đó là mục tiêu vận hành đằng sau **high cohesion** và **low unnecessary coupling**.
+## Tóm tắt nhanh (TL;DR)
 
-Mental model:
+- **Tính gắn kết (Cohesion) gom cụm theo lý do thay đổi:** Mã nguồn cùng thực thi một quy tắc nghiệp vụ (business invariant) và có cùng tần suất thay đổi phải được quy về một chủ sở hữu duy nhất. Tuyệt đối không gom các chức năng không liên quan vào các class hay package tiện ích chung chung.
+- **Mức liên kết (Coupling) giảm thiểu rò rỉ tri thức:** Các module chỉ được giao tiếp qua hợp đồng công khai (contract/API) tinh gọn và ổn định. Module bên ngoài tuyệt đối không được biết cấu trúc bảng, chiến lược cache hay thứ tự gọi nội bộ của module khác.
+- **Bán kính ảnh hưởng (change blast radius) là thước đo thực chiến:** Giá trị của ranh giới kiến trúc được đo bằng số lượng file, module và đội nhóm buộc phải phối hợp mỗi khi có thay đổi nghiệp vụ—chứ không phải số lượng thư mục hay sơ đồ hộp vẽ trên giấy.
+- **Cạm bẫy chết người:** **Phụ thuộc dữ liệu và schema dùng chung (Shared Data Coupling).** Cho phép nhiều module truy vấn và ghi trực tiếp vào cùng các bảng cơ sở dữ liệu sẽ vô hiệu hóa hoàn toàn tính đóng gói—khiến một lần migration schema nhỏ biến thành thảm họa phải sửa code và deploy đồng bộ nhiều đội nhóm.
+
+Mô hình tư duy:
 
 ```text
-change request
-  -> xác định business rule / invariant owner
-  -> xem module nào phải thay đổi cùng nhau
-  -> đưa behavior liên quan về một owner
-  -> expose contract ổn định nhỏ nhất
-  -> loại leaked data / ordering / implementation knowledge
-  -> kiểm tra ít module hơn cần coordinated edit
+change request (yêu cầu thay đổi)
+  -> xác định chủ sở hữu quy tắc nghiệp vụ / bất biến (invariant owner)
+  -> kiểm tra những module nào phải thay đổi cùng nhau
+  -> đưa hành vi liên quan về một chủ sở hữu duy nhất
+  -> công khai hợp đồng (contract) ổn định và nhỏ gọn nhất
+  -> loại bỏ tri thức rò rỉ về dữ liệu / thứ tự gọi / chi tiết triển khai
+  -> kiểm chứng lại: ít module phải phối hợp sửa code hơn
 ```
 
 ```mermaid
 flowchart LR
-  R[Change request] --> M[Map affected modules]
-  M --> O[Find rule owner]
-  O --> C[Co-locate cohesive behavior]
-  C --> I[Expose stable interface]
-  I --> T[Contract + focused tests]
-  T --> B[Smaller change blast radius]
+  R[Yêu cầu thay đổi] --> M[Xác định các module bị ảnh hưởng]
+  M --> O[Tìm chủ sở hữu quy tắc nghiệp vụ]
+  O --> C[Gom cụm hành vi có tính gắn kết cao]
+  C --> I[Công khai giao diện ổn định]
+  I --> T[Kiểm thử hợp đồng có trọng tâm]
+  T --> B[Thu hẹp bán kính ảnh hưởng của thay đổi]
 ```
 
-Mục tiêu không phải “zero dependency”. Phần mềm hữu ích luôn có dependency. Mục tiêu là làm dependency **có chủ đích, visible, stable và aligned với ownership**.
+Mục tiêu không phải là “không có phụ thuộc nào” (zero dependencies). Phần mềm thực tế luôn luôn cần phụ thuộc. Mục tiêu cốt lõi là làm cho các phụ thuộc trở nên **có chủ đích, tường minh, ổn định và gắn liền với quyền sở hữu rõ ràng**.
 
-## 1. Coupling là knowledge đi qua một boundary
+## 1. Coupling là lượng tri thức vượt qua ranh giới
 
 <TermBox term="Coupling">
-**Coupling (mức liên kết phụ thuộc)** là mức độ một module phụ thuộc vào knowledge, behavior, data, timing hoặc thay đổi của module khác.
+**Coupling (mức liên kết phụ thuộc)** là mức độ một module phụ thuộc vào tri thức, hành vi, dữ liệu, thời gian thực thi hoặc sự thay đổi của module khác.
 
-Dependency có thể explicit như gọi API, hoặc hidden như hai module duplicate cùng pricing rule nên buộc phải sửa đồng bộ.
+Phụ thuộc có thể tường minh như một lời gọi API, hoặc ngầm định như việc hai module cùng nhân bản một quy tắc định giá (pricing rule) khiến chúng buộc phải sửa đổi đồng bộ mỗi khi nghiệp vụ thay đổi.
 
-**Vì sao quan trọng:** coupling quyết định change có thể propagate xa tới đâu. Strong/hidden coupling làm tăng lượng software phải hiểu, test, coordinate và release cùng nhau.
+**Vì sao quan trọng:** mức độ liên kết quyết định bán kính lan truyền của một thay đổi (change propagation). Liên kết phụ thuộc quá chặt hoặc bị che giấu sẽ làm tăng đáng kể khối lượng mã nguồn cần phải đọc hiểu, kiểm thử, phối hợp và triển khai đồng thời.
 </TermBox>
 
 Một dependency edge không tự động là xấu.

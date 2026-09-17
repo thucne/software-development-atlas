@@ -16,21 +16,19 @@ concepts:
   - component-boundaries
 ---
 
-# Ranh giới Component: Làm rõ phạm vi sở hữu và giao diện
+# Ranh giới component: Làm rõ quyền sở hữu và hợp đồng giao diện
 
 ## Tóm tắt
 
-Một ranh giới component tốt gom **một trách nhiệm gắn kết**, trao ownership rõ ràng cho state/data/action thay đổi, và chỉ lộ ra một contract nhỏ cho phần còn lại của UI.
+Một kỹ sư tách file `CheckoutForm.tsx` dài 600 dòng thành 12 component siêu nhỏ ('Header', 'InputWrapper', 'SubmitRow', 'Notice') chỉ vì quy tắc linter cảnh báo độ dài tệp. Hai tuần sau, một thay đổi nhỏ trong logic mã giảm giá làm hỏng việc tính phí vận chuyển, buộc dev phải truyền props (prop drilling) qua 8 tầng component và gây ra 14 lượt re-render trên mỗi phím bấm. Nguyên nhân? Phân tách dựa trên số dòng giao diện ngẫu nhiên thay vì **trách nhiệm gắn kết và ranh giới thay đổi**, làm xé nát quyền sở hữu trạng thái giữa các thành phần liên quan mật thiết.
 
-Đừng tách component chỉ vì nó vượt một ngưỡng số dòng hay kích thước file tùy ý. Hãy tách khi các phần có **lý do thay đổi khác nhau**, owner khác nhau, hoặc khi interface giữa chúng cần trở nên explicit. Giữ code cùng nhau khi các phần thường thay đổi cùng nhau và cùng enforce một interaction hay invariant.
+> 💡 **Quy tắc bỏ túi:** **Tách component theo lý do thay đổi và quyền sở hữu state, không bao giờ tách theo số dòng code hay kích thước file.** Giữ code lại cùng nhau khi các phần cùng bảo vệ một tương tác bất biến; chỉ vẽ ranh giới khi các nhánh giao diện thay đổi vì những lý do độc lập, cần người sở hữu riêng, hoặc hưởng lợi từ cơ chế composition qua `children`.
 
-Một review thực dụng sẽ hỏi:
-
-- vùng này sở hữu trách nhiệm gì;
-- state, remote observation và action nào thuộc về nó;
-- data nào cần đi vào boundary;
-- user intent nào cần đi ngược ra ngoài;
-- thay đổi nào nên được giữ cục bộ khi sản phẩm tiến hóa.
+- **Trách nhiệm gắn kết thay vì chia cắt hình thức:** Một ranh giới component tốt đóng gói hành vi gắn kết đằng sau một hợp đồng rõ ràng, tối giản gồm props và callback thể hiện ý định ngữ nghĩa.
+- **Minh bạch quyền sở hữu state:** Mỗi mảnh trạng thái có thể thay đổi phải có một chủ sở hữu duy nhất; không bao giờ phân tán các bất biến trạng thái qua các ranh giới trình bày nhân tạo.
+- **Tính cục bộ của thay đổi (Change Locality):** Khi nghiệp vụ phát triển (ví dụ: quy tắc định giá, bộ lọc tìm kiếm), phạm vi ảnh hưởng của thay đổi phải nằm gọn bên trong ranh giới component đó thay vì lan rộng lên các component cha.
+- **Kết hợp (Composition) thay vì truyền props lòng vòng:** Tận dụng component composition (`children`, slot hiển thị) để đảo ngược quyền điều khiển và tránh truyền props qua các tầng trung gian không cần thiết.
+- **Cạm bẫy chết người:** Vội vàng băm nhỏ markup thành hàng tá component đơn dụng vụn vặt—làm nhân bội mã boilerplate, gây prop drilling và phá hủy tính gắn kết cũng như tính cục bộ của thay đổi.
 
 <TermBox term="Ranh giới component">
 **Ranh giới component** là ranh giới logic về ownership và interface bên trong UI. Nó gom phần render và behavior có cohesion phía sau input/output tường minh để caller không cần biết state, markup hay chi tiết triển khai bên trong.

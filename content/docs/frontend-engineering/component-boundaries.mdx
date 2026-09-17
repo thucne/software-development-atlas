@@ -20,17 +20,15 @@ concepts:
 
 ## TL;DR
 
-A useful component boundary groups **one cohesive responsibility**, gives changing state/data/actions a clear owner, and exposes a small contract to the rest of the UI.
+An engineer splits a 600-line `CheckoutForm.tsx` file into 12 micro-components ('Header', 'InputWrapper', 'SubmitRow', 'Notice') because a linter flagged file length. Two weeks later, a minor change to discount code validation unexpectedly breaks shipping address calculation, requiring prop drilling through 8 levels of components and causing 14 re-renders on every keystroke. The root cause? Slicing by visual layout instead of **cohesive responsibility and change boundaries**, fragmenting state ownership across unrelated components.
 
-Do not split a component because it crossed an arbitrary line count or file size. Split when different parts have **different reasons to change**, different owners, or an interface that deserves to become explicit. Keep code together when the pieces change together and jointly enforce one interaction or invariant.
+> 💡 **Rule of thumb:** **Split components by reason to change and state ownership, never by line count or aesthetic file size.** Keep code together when parts share a single interaction invariant; draw an explicit boundary when sub-trees change for different reasons, need distinct data owners, or benefit from decoupled composition via `children` slots.
 
-A practical review asks:
-
-- what responsibility does this region own;
-- which state, remote observation, and actions belong to it;
-- what data must cross into the boundary;
-- what user intent must cross back out;
-- which changes should remain local when the product evolves.
+- **Cohesive responsibility over visual slicing:** A well-designed boundary encapsulates cohesive behavior behind a minimal, explicit contract of props and semantic intent callbacks.
+- **State ownership clarity:** Every piece of mutable state must have a single authoritative owner; never scatter stateful invariants across artificial presentation boundaries.
+- **Change locality:** When product requirements evolve (e.g. pricing, search filters), the change blast radius must stay strictly local to that component boundary rather than rippling across parent trees.
+- **Composition over prop drilling:** Use component composition (`children`, render slots) to invert control and avoid passing irrelevant props through intermediate presentation layers.
+- **Fatal pitfall:** Prematurely decomposing tightly coupled markup into dozens of trivial single-use components—multiplying interface boilerplate and prop drilling while destroying cohesion and change locality.
 
 <TermBox term="Component boundary">
 A **component boundary** is a logical ownership and interface boundary inside the UI. It groups cohesive rendering and behavior behind explicit inputs and outputs so callers do not need to know the internal state, markup, or implementation details.

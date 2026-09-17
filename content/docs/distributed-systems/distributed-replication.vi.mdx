@@ -18,19 +18,19 @@ concepts:
 
 # Sao chép phân tán: Giữ các bản sao đúng qua sự cố và chuyển đổi dự phòng
 
+Người dùng vừa bấm "Đổi mật khẩu", nhận ngay thông báo thành công xanh rờn, nhưng chỉ vài giây sau đăng nhập lại thì bị báo lỗi "Sai mật khẩu". Nguyên nhân: lệnh ghi mật khẩu mới đã ghi nhận thành công trên Leader, nhưng yêu cầu đăng nhập lại bị router đẩy trúng một Replica đang bị lag 800ms chưa kịp nạp dữ liệu. Đau đầu hơn nữa: một sự cố mạng âm thầm cô lập Leader; hệ thống failover tự động vội vã thăng cấp một Replica lên làm Leader mới, trong khi một cụm worker cũ vẫn tiếp tục đẩy dữ liệu vào Leader cũ. Hậu quả là thảm kịch split-brain: hai node cùng tưởng mình là chủ trì, cùng nhận ghi và tạo ra hai lịch sử phân kỳ không thể tự hàn gắn.
+
+Sao chép phân tán giữ **nhiều bản sao trạng thái trên nhiều nút**, nhưng việc truyền tải byte qua mạng chỉ là phần nổi của tảng băng chìm. Bài toán kỹ thuật thực sự là xác lập nút nào nắm quyền ghi tối thượng, khi nào một lần ghi mới được xem là an toàn, và cách dập tắt xung đột khi ranh giới mạng bị chia cắt.
+
+> 💡 **Quy tắc bỏ túi:** Hãy xem sao chép phân tán là giao thức về thẩm quyền và bản sao với ranh giới lỗi tường minh, không đơn thuần là đồng bộ dữ liệu nền. Đừng bao giờ đánh đồng $N$ bản sao với việc luôn có $N$ dữ liệu mới nhất, và tuyệt đối không bao giờ failover mà thiếu cơ chế rào chắn cô lập bên ghi cũ.
+
 ## Tóm tắt
 
-Sao chép phân tán giữ **nhiều bản sao trạng thái trên nhiều nút**, nhưng bài toán kỹ thuật không chỉ là chuyển byte. Một giao thức sao chép phải xác định:
-
-- nút hoặc quy tắc nào có quyền quyết định từng cập nhật;
-- các cập nhật được sắp thứ tự ra sao để bản sao có thể áp dụng;
-- khi nào một lần ghi được phép trả về thành công;
-- một bản sao được phép chậm đến mức nào;
-- bản sao mới hoặc vừa quay lại bắt kịp bằng cách nào;
-- quyền ghi chuyển đổi ra sao khi failover mà không tạo hai bên ghi đồng thời;
-- xung đột được hòa giải thế nào nếu kiến trúc chủ động cho phép nhiều bên ghi.
-
-Quy tắc thực dụng là: **hãy xem sao chép như một giao thức về bản sao và quyền ghi với failure semantics tường minh**. Đừng suy ra rằng “ba bản sao” tự động đồng nghĩa với ba bản sao đều mới nhất, không thể mất dữ liệu hoặc chỉ có một lịch sử duy nhất.
+- **Sao chép xác lập thẩm quyền và thứ tự cập nhật, không chỉ lưu trữ thô:** Giao thức sao chép phải định rõ nút nào có quyền quyết định từng cập nhật, xếp thứ tự các thao tác ghi vào một nhật ký sao chép duy nhất, và bảo đảm các bản sao áp dụng dữ liệu một cách tất định.
+- **Ranh giới xác nhận định nghĩa cam kết của lần ghi:** Sao chép bất đồng bộ trả về thành công ngay khi nút ghi lưu đĩa cục bộ, tối ưu thông lượng và tính sẵn sàng nhưng chấp nhận rủi ro mất dữ liệu nếu Leader đột tử; sao chép đồng bộ chờ các bản sao từ xa xác nhận bền vững, đánh đổi độ trễ để bảo toàn dữ liệu.
+- **Độ trễ sao chép phân hóa theo từng chặng:** Một bản sao có thể chậm trễ ở khâu nhận gói tin qua mạng (đã nhận), lưu trữ xuống đĩa bền vững (đã lưu bền vững), nạp vào state machine (đã áp dụng), hoặc khâu sẵn sàng cho câu lệnh đọc quan sát (đã nhìn thấy).
+- **Chuyển đổi dự phòng bắt buộc phải có rào chắn để dập tắt split-brain:** Thăng cấp một bản sao lên làm Leader mới mà không dùng token rào chắn (fencing token) tăng đơn điệu theo nhiệm kỳ (epoch/term) sẽ cho phép Leader cũ tiếp tục ghi đè bừa bãi vào hạ tầng lưu trữ.
+- **Cạm bẫy chết người:** Ảo tưởng rằng hệ số sao chép bằng 3 ($N=3$) đồng nghĩa với việc không bao giờ mất dữ liệu. Nếu ranh giới xác nhận chỉ nằm ở Leader cục bộ và Leader gặp sự cố phần cứng vĩnh viễn trước khi kịp đồng bộ sang các follower, toàn bộ các lần ghi đã báo thành công cho client sẽ bốc hơi hoàn toàn.
 
 ```mermaid
 flowchart LR
@@ -255,11 +255,11 @@ Một service theo vùng lưu trạng thái entitlement của khách hàng trên
 
 Traffic chuyển sang B, nhưng A vẫn có thể được một application pool cũ truy cập. A tiếp tục nhận cập nhật entitlement trong vài phút. Khi kết nối trở lại, các bản sao chứa hai lịch sử đều trông có vẻ hợp lệ.
 
-**Hậu quả:** quyền của khách hàng xuất hiện rồi biến mất tùy bản sao phục vụ request, còn reconciliation không thể an toàn đoán cập nhật nghiệp vụ xung đột nào phải thắng.
+**Hậu quả:** quyền của khách hàng xuất hiện rồi biến mất chập chờn tùy thuộc bản sao nào tiếp nhận request đọc; khâu đối soát (reconciliation) hoàn toàn bất lực vì không thể đoán định một cách an toàn xem cập nhật nghiệp vụ xung đột nào mới là dữ liệu chuẩn.
 
-**Nguyên nhân cốt lõi:** team xem promotion như thay đổi routing. Nút ghi cũ không có fencing boundary, nên mất kết nối với control plane không thu hồi khả năng sửa authoritative state.
+**Nguyên nhân cốt lõi:** đội ngũ kỹ thuật xem việc thăng cấp (promotion) chỉ như một thao tác đổi hướng routing mạng đơn thuần. Nút ghi cũ không hề có rào chắn cô lập, khiến việc đứt kết nối với control plane không thể tước bỏ khả năng tiếp tục ghi đè dữ liệu có thẩm quyền của nó.
 
-**Cách khắc phục chuẩn:** gắn mọi lần ghi authoritative với epoch hoặc term hiện tại, buộc downstream state từ chối token quyền cũ và chỉ promotion sau khi cơ chế failover thiết lập được một nguồn quyền hiện tại. Khi nút ghi cũ quay lại, đưa nó về vai trò bản sao không có quyền ghi, cài snapshot an toàn hoặc reconcile phần log còn giữ, rồi xác minh đã bắt kịp trước khi nó có thể đủ điều kiện trở lại.
+**Cách khắc phục chuẩn:** gắn chặt mọi lần ghi có thẩm quyền với số epoch hoặc term hiện tại, buộc trạng thái downstream từ chối thẳng thừng token quyền cũ và chỉ cho phép thăng cấp sau khi cơ chế failover xác lập được một nguồn quyền duy nhất. Khi nút ghi cũ quay lại mạng, giáng cấp nó về làm bản sao không có quyền ghi, cài ảnh chụp (snapshot) an toàn hoặc đối soát phần nhật ký còn giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép ứng cử trở lại.
 
 ## Tự kiểm tra
 

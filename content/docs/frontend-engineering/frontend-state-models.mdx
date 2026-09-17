@@ -16,20 +16,19 @@ concepts:
   - frontend-state-models
 ---
 
-# Frontend State Models: Put Each State in the Right Place
+# Frontend State Models: Own, Derive, or Persist
 
 ## TL;DR
 
-Frontend state is not one bucket. Before choosing `useState`, Context, a global store, the URL, `localStorage`, or a data cache, classify the information first.
+A user filters an e-commerce catalog by "Price < $50" and "In Stock", finds a product, and copies the browser URL to share with a colleague. When the colleague opens the link, the page displays an unfiltered, random product catalog. Meanwhile, on the original tab, a developer copied remote API response data into both a global store and local component state, causing an infinite `useEffect` synchronization loop that freezes the browser tab. The root cause? Misclassifying URL state as local state and creating competing writable copies of server-owned cache data.
 
-Ask four questions:
+> 💡 **Rule of thumb:** **Every state fact must have exactly one authoritative owner—derive everything else.** If state represents navigational meaning (filters, tabs, search terms), store it in the URL so it is bookmarkable and shareable; if it is remote backend data, treat it as a server-owned cache; never duplicate props or remote cache data into local state just to sync them with effects.
 
-1. **Who owns it?** Which part of the product is authoritative for changing it?
-2. **How long should it live?** One interaction, one route visit, one browser session, or across sessions?
-3. **How wide is its scope?** One component, a subtree, the whole app, or multiple devices/users?
-4. **Should it persist?** Should refresh, sharing a URL, or reopening the app restore it?
-
-The best state model usually has **one canonical owner per fact**, keeps state close to that owner, and derives everything else when possible.
+- **Four-dimensional classification:** Categorize any piece of data by its authoritative owner (local UI, URL, server cache, shared workflow), lifetime, scope, and persistence requirements.
+- **URL as state owner:** Lift search parameters, active views, filters, and pagination into the URL query string so browser history (back/forward) and direct link sharing work naturally.
+- **Single source of truth & derived state:** Compute values dynamically during render (e.g. `const visibleItems = items.filter(...)`) rather than storing duplicate state that requires manual synchronization.
+- **Remote data is server-owned:** Treat API data as an asynchronous cache of backend truth; use specialized caching mechanisms (TanStack Query, SWR, RSC) rather than general-purpose client stores.
+- **Fatal pitfall:** Copying server data or parent props into local `useState` and trying to maintain bidirectional synchronization with `useEffect`—inevitably causing stale UI, race conditions, and infinite render loops.
 
 <TermBox term="State owner">
 A **state owner** is the component, URL, store, cache, server, or persistence layer that is authoritative for a particular fact. Consumers may read or derive from it, but they should not silently create competing writable copies.

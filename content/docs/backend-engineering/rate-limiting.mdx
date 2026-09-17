@@ -30,11 +30,13 @@ concepts:
 
 # Rate Limiting: Control Admission, Bursts, and Fairness
 
-## TL;DR
+## TL;DR & Production Incident Hook
 
-Rate limiting is an **admission policy**: before expensive work starts, the system decides whether this request may consume a constrained resource now.
+At 11:59:50 AM, an automated credential-stuffing botnet targets your public authentication API. The backend is protected by an intuitive Fixed Window Counter: a maximum of 100 requests per minute per IP address. Between 11:59:50 and 11:59:59, the botnet fires exactly 100 requests. At 12:00:00, the clock ticks into a new minute window, resetting the counter to zero. Between 12:00:00 and 12:00:10, the attacker fires another 100 requests. Across a brief 20-second span bridging the minute boundary, the system admitted 200 requests—twice the advertised threshold. Downstream password-hashing workers (bcrypt/argon2) pinned CPU at 100%, and the authentication database came crashing down under connection starvation.
 
-A useful mental model is:
+This boundary spike illustrates why rate limiting cannot be treated as a simple counter in a Redis cache. A rate limiter is an **admission policy**: before any expensive computational, database, or external network resource is consumed, the system must decide whether this specific request may be admitted now, delayed, or throttled. Defending systems against brute-force attacks, resource exhaustion, and distributed denial of service (DDoS) requires continuous traffic-shaping algorithms like Token Bucket, Leaky Bucket, and Sliding Window counters.
+
+A practical operating sequence is:
 
 ```text
 request
@@ -44,8 +46,6 @@ request
   -> admit OR reject/defer
   -> emit evidence for clients and operators
 ```
-
-The difficult part is rarely counting requests. The difficult part is choosing **what is scarce, who owns the allowance, how bursts behave, where state lives across replicas, and what clients should do after rejection**.
 
 ```mermaid
 flowchart LR
@@ -58,6 +58,15 @@ flowchart LR
   T --> S[Return client signal]
   S --> E2[Record limited outcome]
 ```
+
+> 💡 **Rule of thumb:** Rate limiting is an admission gate, not just a counter—select algorithms that smooth burst boundaries (Token Bucket or Sliding Window), tie keys to verified caller identity, and always return explicit Retry-After headers to prevent client retry storms.
+
+### TL;DR 2.0
+- **Admission control before execution:** Rate limiting evaluates requests before expensive database, CPU, or downstream third-party work begins, deciding whether to admit, throttle, or reject traffic at the system edge.
+- **Algorithm governs burst dynamics:** Simple fixed-window counters allow 2x traffic bursts at minute boundaries. Production APIs favor Token Bucket (to accommodate controlled, predictable bursts with steady refill) or Sliding Window counters (to enforce smooth, continuous admission rates).
+- **Identity key defines fairness:** Limiter keys must be derived from authenticated identities (`user_id`, `tenant_id`, `api_key`) or validated edge proxies rather than spoofable client headers like raw `X-Forwarded-For`.
+- **Signaling and failure policies:** When throttling, return standard `429 Too Many Requests` with a clear `Retry-After` header. Deliberately configure fail-open (prioritize availability for non-critical reads) or fail-closed (prioritize protection for login and write paths) when the rate limiter datastore becomes unreachable.
+- **Fatal pitfall:** Using naive fixed-window counters that allow traffic spikes to double across interval boundaries, or implementing process-local in-memory limits that multiply capacity by the number of autoscaling replicas.
 
 <TermBox term="Rate limit">
 A **rate limit** bounds how quickly a subject may consume a protected capability over time.

@@ -16,13 +16,19 @@ concepts:
   - hydration
 ---
 
-# Hydration: Turn Rendered HTML into an Interactive App
+# Hydration: Turn Server HTML into an Interactive Tree
 
 ## TL;DR
 
-Server rendering can make HTML visible before the browser has loaded and executed the application runtime. **Hydration is the client-side step that attaches component logic and event behavior to that existing HTML so the UI can become interactive.**
+During a flash sale, a customer clicks "Buy Now" five times in the first two seconds after a product page appears. The button looks completely loaded, but nothing happens—until the 1.5MB JavaScript bundle finishes downloading, fires hydration mismatch warnings in the console, discards the server DOM, re-renders client-side, and queues all five clicks at once. The root cause? The customer fell into the **hydration gap** between visual paint and event attachment, compounded by a server/client markup mismatch that triggered expensive DOM regeneration.
 
-Visible HTML and an interactive application are therefore different milestones.
+> 💡 **Rule of thumb:** **Visible HTML does not equal interactive UI.** Hydration reuses server-rendered DOM nodes instead of recreating them; any mismatch between server HTML and the initial client render forces an expensive recovery, degrading performance and trapping users inside the hydration gap.
+
+- **Two distinct milestones:** Server rendering produces visible HTML (FCP); hydration attaches event handlers and reactive state to existing DOM nodes to achieve interactivity (TTI).
+- **The hydration gap:** The latency window between painted HTML and interactive event listeners—widened by massive JavaScript bundles, main-thread CPU congestion, and un-streamed SSR.
+- **Hydration mismatch triggers:** Divergence between server and initial client renders (e.g. `Date.now()`, `Math.random()`, browser `window`/`localStorage`, user locale differences, or invalid HTML nesting).
+- **Recovery cost:** When initial client output differs from server HTML, the framework must discard mismatched DOM nodes and reconstruct them, causing layout shifts and UI flashes.
+- **Fatal pitfall:** Using `suppressHydrationWarning` to sweep mismatch errors under the rug instead of fixing root data divergences or deferring browser-specific logic to post-mount effects.
 
 <TermBox term="Hydration">
 **Hydration** is the process of attaching client-side component logic to HTML that was rendered earlier on the server or during prerendering, while reusing the existing DOM instead of replacing it from scratch.

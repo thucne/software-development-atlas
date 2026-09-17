@@ -31,16 +31,19 @@ concepts:
 
 # Background Jobs: Make Work Durable Beyond the Request
 
+At 9:00 AM, a marketing automation background job is triggered to dispatch a critical announcement email to a batch of 100,000 customers. The worker process iterates through the recipients in an in-memory loop. Forty-five minutes into the execution, after successfully dispatching 60,000 emails, the worker exhausts its assigned memory. The Kubernetes node immediately fires an `OOMKilled` signal and terminates the pod. Because the background job lacked durable checkpointing and idempotent tracking, the job orchestrator treats the unexpected worker crash as a transient failure and redelivers the entire task to a fresh worker. The new worker innocently starts over from recipient zero—and 60,000 bewildered customers receive duplicate emails, with some receiving a third copy before an engineer frantically pulls the plug.
+
+A background job is never just "calling a function asynchronously in the background." Moving work out of the HTTP request path introduces complex distributed responsibilities: durable state persistence, lease-based claiming, execution timeouts, progress checkpointing, and idempotent side-effect boundaries.
+
 ## TL;DR
 
-A background job moves work out of the request path, but that does not make the work reliable by itself. Reliability comes from a **durable lifecycle** and a worker protocol that answers four questions:
+> 💡 **Rule of thumb:** Treat background jobs as durable state machines rather than transient functions in RAM. Persist job intent before reporting success to the client, checkpoint progress at idempotent milestones, and design worker recovery so that crash retries never duplicate irreversible side effects.
 
-1. What durable record says the work exists?
-2. Which worker currently has the right to process it, and for how long?
-3. When is the work acknowledged as complete?
-4. What happens after a timeout, worker crash, transient failure, permanent failure, retry, cancellation, or duplicate delivery?
-
-A useful mental model is:
+- **Durable lifecycle state machine:** Model jobs with explicit state transitions (`queued`, `running`, `succeeded`, `failed`, `cancelled`); the job's identity and progress must live in durable storage that outlives ephemeral container pods or worker crashes.
+- **Logical identity vs. execution attempts:** Separate the permanent business identity of the job from transient attempt counters. When a worker dies, redelivery must resume or reconcile existing work rather than creating a second uncoordinated business effect.
+- **Lease-based claims and heartbeat timeouts:** Worker ownership must be granted as a time-bounded lease; long-running jobs must periodically send heartbeats to renew their lease, while hung workers must time out so that locks are released safely.
+- **Progress checkpointing and cooperative cancellation:** Long-running batch work must record durable progress checkpoints at safe boundaries; cancellation must be cooperative, allowing workers to stop cleanly before the next irreversible action.
+- **Fatal pitfall:** Enqueueing jobs in process memory or acknowledging completion before the durable state commit, causing silent job loss on worker restart; or restarting non-idempotent batch jobs from scratch after a Kubernetes OOM eviction, spamming customers or double-charging accounts.
 
 ```mermaid
 stateDiagram-v2

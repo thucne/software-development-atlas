@@ -16,21 +16,20 @@ concepts:
   - frontend-data-fetching
 ---
 
-# Frontend Data Fetching: Make Remote Data Explicit
+# Frontend Data Fetching: Request Identity, Caching, and Races
 
 ## TL;DR
 
-Remote data is still **server-owned state** even when the browser keeps a cached copy. A reliable frontend therefore needs more than `fetch()` calls: it needs a stable request identity, an intentional fetch location, explicit freshness rules, race handling, mutation invalidation, and UI states for waiting and failure.
+A user searches a flight portal for "Tokyo", then immediately types "Paris". The network response for "Paris" returns in 150ms and renders Paris flights. But 800ms later, the delayed "Tokyo" response finally arrives, silently overwriting the screen with Tokyo flights while the input field still clearly says "Paris"! The user books the wrong hotel, causing customer support havoc. The root cause? A classic un-aborted async data fetching race condition caused by naked `useEffect` fetches without request identity, abort signals, or cache lifecycle management.
 
-A useful review sequence is:
+> 💡 **Rule of thumb:** **Remote data is server-owned state, not local state—treat it as a cached observation.** Every query requires a stable request identity (cache key); every in-flight request must be cancelable via `AbortController`; and mutations must explicitly invalidate affected queries rather than blindly hoping client state stays in sync.
 
-1. What remote fact are we reading, and who is authoritative?
-2. What inputs define the request identity?
-3. Should this request start at a server/route boundary or in the client?
-4. Which requests are independent and can start in parallel?
-5. Which cache layer owns reuse, freshness, and deduplication?
-6. What prevents an old response from overwriting a newer view?
-7. After a mutation, which observations are now stale?
+- **Server-owned state over local copies:** Treat remote data as an asynchronous snapshot of server truth; manage it with dedicated caching tools (TanStack Query, SWR, RSC) rather than raw `useEffect` + `useState`.
+- **Stable request identity:** Build cache keys that capture all influencing inputs (query parameters, filters, pagination, user ID); identical keys coalesce in-flight requests and deduplicate network traffic.
+- **Race conditions & cancellation:** Use `AbortController` signals so that quick successive searches cancel or ignore late-arriving stale responses from previous queries.
+- **Parallel fetching over waterfalls:** Hoist independent data requirements to route or Server Component boundaries, firing parallel requests via `Promise.all` instead of chaining sequential calls inside nested presentation components.
+- **Mutation invalidation & optimistic updates:** When modifying data, explicitly invalidate affected cache queries or apply optimistic UI updates with automatic error rollback.
+- **Fatal pitfall:** Writing naked `useEffect(() => { fetch(...) }, [query])` without an abort signal—allowing out-of-order network responses to overwrite newer user views with stale data.
 
 <TermBox term="Request identity">
 A **request identity** is the stable description of the remote resource or query being observed. Client data libraries often encode it as a query/cache key. The identity should include every input that changes the result, such as resource ID, filters, page, sort, tenant, or locale when those values affect the response.

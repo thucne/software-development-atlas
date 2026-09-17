@@ -33,28 +33,37 @@ concepts:
 
 ## Tóm tắt
 
-Object storage xoay quanh một abstraction đơn giản:
+Vào kỳ thanh toán cuối tháng, ban giám đốc kỹ thuật bàng hoàng khi hóa đơn đám mây AWS S3 tăng vọt hàng ngàn đô la một cách bất thường, dù dung lượng tệp thực tế của ứng dụng gần như không tăng. Thủ phạm là gì? Hàng triệu lượt người dùng upload video trên điện thoại bị rớt mạng giữa chừng; mỗi phiên **multipart upload** dở dang đã bỏ lại hàng loạt chunk rác vô chủ âm thầm tích tụ trong bucket suốt nhiều tháng trời mà không hề có bất kỳ quy tắc vòng đời (**lifecycle policy**) nào tự động dọn dẹp. Chưa dừng lại ở đó, máy chủ ứng dụng liên tục quá tải và sập nguồn vì một quyết định kiến trúc sai lầm: đội ngũ phát triển nhầm lẫn nghiêm trọng giữa dữ liệu tệp thô (**object payload** trong S3) và metadata nghiệp vụ, lưu toàn bộ trạng thái thanh toán, quyền xem và thẻ phân loại vào metadata của S3 thay vì lưu trong PostgreSQL, khiến mỗi request đơn giản đều phải gọi hàng loạt API `HeadObject` đắt đỏ và nghẽn mạng.
+
+> 💡 **Quy tắc bỏ túi:** Lưu trữ payload tệp thô bất biến trong object storage, và lưu toàn bộ metadata nghiệp vụ có tính giao dịch trong cơ sở dữ liệu quan hệ (như PostgreSQL). Luôn gán khóa object bất biến, kiểm tra tính toàn vẹn bằng checksum chuyên dụng, và bắt buộc cấu hình lifecycle rule để tự động hủy các phiên multipart upload dở dang.
+
+- **Không gian khóa phẳng với định danh bất biến:** Object storage tổ chức dữ liệu thành các đối tượng độc lập trong **bucket**, định danh bằng **khóa object (object key)**; cấu trúc lưu trữ hoàn toàn **phẳng** (thư mục chỉ là quy ước trực quan dựa trên tiền tố **prefix**), và các key nên được thiết kế **bất biến (immutable)** thay vì dùng tên tệp người dùng dễ thay đổi.
+- **Phân định ranh giới giữa payload và metadata:** Object store là **nguồn sự thật (source of truth)** cho các byte nhị phân của tệp, trong khi cơ sở dữ liệu quan hệ (như PostgreSQL) nắm giữ trạng thái nghiệp vụ, quyền truy cập và liên kết dữ liệu giao dịch.
+- **Tải lên trực tiếp và multipart upload:** Sử dụng **presigned** URL để client tải trực tiếp lên cloud mà không làm nghẽn băng thông của application server; với tệp lớn, giao thức **multipart upload** cho phép truyền từng phần độc lập nhưng chỉ hoàn tất khi có bước xác nhận lắp ghép cuối cùng.
+- **Tính toàn vẹn vượt trên ETag:** S3 hiện đại cam kết **nhất quán mạnh (strong read-after-write consistency)**, nhưng việc đảm bảo dữ liệu không bị hỏng hóc đòi hỏi hợp đồng kiểm tra mã **checksum** tường minh, bởi vì **ETag** không phải lúc nào cũng là mã băm MD5 của toàn bộ nội dung.
+- **Quản trị vòng đời và phiên bản hóa:** Kích hoạt **phiên bản hóa (versioning)** để bảo vệ dữ liệu trước rủi ro xóa nhầm, đồng thời cấu hình **vòng đời (lifecycle)** tự động chuyển đổi qua các **lớp lưu trữ (storage class)** rẻ hơn và tự động hủy các phần multipart dang dở.
+- **Cạm bẫy chết người (Chi phí chunk rác multipart & nhầm lẫn vai trò metadata):** Các phiên multipart upload bị hủy giữa chừng sẽ âm thầm biến thành rác tính phí đắt đỏ nếu thiếu quy tắc lifecycle dọn dẹp, trong khi việc lạm dụng S3 làm database lưu trữ metadata động sẽ biến các câu truy vấn thông thường thành những lời gọi HTTP chậm chạp và tốn kém.
 
 ```text
 bucket + object key -> bytes + metadata
 ```
 
-Sự đơn giản đó rất mạnh, nhưng production system vẫn cần contract rõ ràng cho **identity, authorization, upload completion, integrity, lifecycle và metadata ownership**.
+Sự đơn giản đó rất mạnh mẽ, nhưng các hệ thống production thực tế vẫn đòi hỏi cam kết rõ ràng cho **định danh, phân quyền, hoàn tất tải lên, tính toàn vẹn, vòng đời và quyền sở hữu metadata**.
 
 Mental model hữu ích:
 
 ```mermaid
 flowchart LR
-  A[Application / client] --> K[Allocate immutable object key]
-  K --> P[Authorize upload]
-  P --> U[Upload bytes]
-  U --> V[Verify completion + integrity]
-  V --> M[Commit application metadata]
-  M --> C[Serve / process object]
-  C --> L[Lifecycle / retention / deletion]
+  A[Ứng dụng / Client] --> K[Cấp phát object key bất biến]
+  K --> P[Ủy quyền upload]
+  P --> U[Upload các byte nhị phân]
+  U --> V[Xác thực hoàn tất + tính toàn vẹn]
+  V --> M[Ghi nhận metadata vào CSDL]
+  M --> C[Phục vụ / Xử lý object]
+  C --> L[Vòng đời / Lưu trữ / Xóa]
 ```
 
-Object store có thể giữ bytes bền vững trong khi application vẫn sai về việc bytes đó đã complete chưa, thuộc đúng tenant chưa, có an toàn để expose không, hoặc đã sẵn sàng cho processing chưa.
+Object store có thể lưu trữ byte dữ liệu bền vững, nhưng hệ thống vẫn có thể sai lầm nếu ứng dụng không nắm chắc liệu dữ liệu đó đã hoàn tất chưa, thuộc về đúng tenant chưa, có an toàn để chia sẻ công khai không, hoặc đã sẵn sàng cho processing chưa.
 
 ## 1. Object storage không phải filesystem có ổ đĩa lớn hơn
 
@@ -65,68 +74,68 @@ Object storage tổ chức dữ liệu thành các object độc lập. Mỗi ob
 Phân biệt thực tế:
 
 ```text
-filesystem
-  directory hierarchy
-  path lookup
-  mutable file / byte range
-  local hoặc mounted filesystem semantics
+hệ thống tệp (filesystem)
+  phân cấp theo thư mục
+  tra cứu theo đường dẫn (path)
+  các tệp và dải byte có thể ghi đè/sửa đổi (mutable)
+  ngữ nghĩa gắn liền với ổ đĩa cục bộ hoặc ổ đĩa mạng
 
 object storage
-  bucket namespace
-  object key lookup
-  whole-object API semantics
-  metadata + policy quanh từng object
-  service boundary truy cập qua API
+  không gian tên theo bucket
+  tra cứu theo khóa object (object key)
+  thao tác trên toàn bộ object (toàn bộ payload)
+  siêu dữ liệu và chính sách gắn liền với từng object
+  ranh giới dịch vụ phân tán truy cập qua API
 ```
 
-Đừng thiết kế object storage bằng cách giả định filesystem behavior mà object API chưa từng hứa.
+Đừng bao giờ thiết kế hệ thống tương tác với object storage bằng việc áp đặt những giả định về filesystem mà API của object storage không hề cam kết.
 
 ## 2. Bucket và object key tạo nên storage identity
 
 <TermBox term="Object key">
-**Object key (khóa object)** là tên dùng để nhận diện object bên trong một bucket.
+**Object key (khóa object)** là chuỗi định danh duy nhất dùng để nhận diện một đối tượng bên trong một bucket.
 
-Trong Amazon S3, key định danh duy nhất một object trong bucket. Key có thể chứa delimiter như `/`, nhưng core data model của S3 là phẳng; “folder” trong console chỉ được suy ra từ key prefix.
+Trong Amazon S3, khóa này xác định duy nhất một object trong bucket tương ứng. Khóa có thể chứa các ký tự phân cách như dấu gạch chéo `/`, nhưng mô hình dữ liệu cốt lõi của S3 hoàn toàn là **phẳng (flat)**; giao diện “thư mục” hiển thị trên AWS Console thực chất chỉ được suy ra từ tiền tố (**prefix**) của khóa.
 
-**Vì sao quan trọng:** key design trở thành một phần của application identity, routing, authorization, lifecycle selection và operational debugging.
+**Vì sao quan trọng:** Thiết kế khóa object gắn liền với danh tính ứng dụng, khả năng định tuyến, phân quyền truy cập, áp dụng quy tắc vòng đời và công tác điều tra lỗi vận hành.
 </TermBox>
 
-Một key như:
+Một khóa dạng như:
 
 ```text
 tenants/t42/invoices/2026/09/inv_81a7.pdf
 ```
 
-trông có hierarchy, nhưng các phần ngăn bằng slash vẫn chỉ là character trong một key. Prefix là convention hữu ích, không phải directory độc lập có filesystem semantics.
+trông có vẻ mang tính phân cấp thư mục, nhưng các phần ngăn cách bằng dấu gạch chéo thực chất vẫn chỉ là các ký tự trong một chuỗi định danh phẳng. Tiền tố (**prefix**) là một quy ước hữu ích, chứ không phải là một thư mục độc lập mang ngữ nghĩa của hệ thống tệp POSIX.
 
-Các câu hỏi quan trọng khi thiết kế key:
+Các câu hỏi then chốt khi thiết kế khóa:
 
-- Key có làm lộ private information không nên xuất hiện trong log hay URL không?
-- Key có ổn định nếu user rename file không?
-- Hai concurrent upload có vô tình chọn cùng key không?
-- Key có encode tenant ownership đủ rõ cho policy và operations không?
-- Lifecycle/inventory job có select đúng object family bằng prefix hoặc tag không?
+- Khóa có làm lộ thông tin nhạy cảm/riêng tư trong log hoặc URL công khai không?
+- Khóa có bị phá vỡ nếu người dùng đổi tên hiển thị của tệp hay không?
+- Hai phiên tải lên đồng thời có nguy cơ vô tình chọn trùng cùng một khóa hay không?
+- Khóa có thể hiện rõ ràng quyền sở hữu của tenant để phục vụ phân quyền và vận hành không?
+- Các tác vụ quản trị vòng đời hoặc thống kê có thể lọc đúng nhóm đối tượng cần xử lý bằng prefix hoặc tag không?
 
 ## 3. Ưu tiên immutable storage identity hơn mutable human name
 
-Human-facing filename là primary identifier kém an toàn.
+Tên tệp do người dùng đặt (human-facing filename) là một định danh chính rất mong manh và kém an toàn.
 
-Ví dụ:
+Xét tình huống:
 
 ```text
 uploads/report.pdf
 ```
 
-Hai user, retry hoặc concurrent replacement có thể collision trên cùng key. Nếu application overwrite key tại chỗ, cache, asynchronous processor và audit trail có thể không đồng thuận “report.pdf” nghĩa là bytes nào tại một thời điểm cụ thể.
+Hai người dùng, hai lần thử lại (retry) hoặc hai thao tác cập nhật đồng thời có thể xung đột ghi đè trên cùng một khóa. Nếu ứng dụng cho phép ghi đè trực tiếp tại chỗ, tầng cache, các worker xử lý nền bất đồng bộ và hệ thống nhật ký kiểm toán (audit trail) sẽ không thể đồng nhất xem “report.pdf” tương ứng với các byte dữ liệu nào tại một thời điểm nhất định.
 
-Thiết kế an toàn hơn:
+Thiết kế chuẩn kỹ thuật:
 
 ```text
 object key: tenants/t42/uploads/01J.../original.pdf
 logical name: report.pdf
 ```
 
-Database lưu logical filename và trỏ tới immutable storage key.
+Cơ sở dữ liệu lưu tên tệp logic hiển thị cho người dùng và trỏ tới một khóa lưu trữ **bất biến (immutable)** trên object store.
 
 ```mermaid
 flowchart LR

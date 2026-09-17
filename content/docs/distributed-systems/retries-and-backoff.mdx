@@ -20,7 +20,15 @@ concepts:
 
 ## TL;DR
 
-Retry only when another attempt can plausibly help **and** repetition is safe. Retries consume capacity on a dependency that may already be unhealthy, so bound both correctness risk and extra load.
+Picture a congested highway exit during the evening rush hour. A minor fender bender slows traffic to a crawl. Instead of yielding and merging smoothly, every driver behind the jam floors the accelerator, swerves around, and rams back into the merge lane simultaneously every two seconds on the dot. The result is catastrophic gridlock: a brief, manageable slowdown instantly detonates into an impassable, multi-mile pileup. In distributed systems, this exact failure mode is known as a **retry storm**—where well-intentioned automated retries weaponize client traffic and DDoS an already struggling downstream service straight into an unrecoverable outage.
+
+> 💡 **Rule of thumb:** Retry only transient failures on idempotent operations within the remaining deadline; always apply exponential backoff with full jitter and designate a single retry owner.
+
+- **Classify before retrying:** Retries are only effective against **transient** transport blips, rate-limiting throttle responses (`429`), or temporary server overload (`503`). Deterministic errors (malformed input, invalid credentials, business logic violations) will never self-heal and must never be retried.
+- **Idempotency is non-negotiable for state mutations:** A network retry is a brand new attempt, not an undo action. Retrying an ambiguous write without an **idempotency key** or reconciliation path will create duplicate charges, double-booked seats, and ghost inventory entries.
+- **Exponential backoff with full jitter:** Immediate retries batter degraded services. Space successive attempts with **exponential backoff**, and always inject randomized **jitter** to break resonance so an entire fleet of clients never retries in locked phase.
+- **Single retry owner:** Establish clear **retry ownership** at a single architectural boundary. If the client, API gateway, and intermediate microservice each independently configure 3 retries, a single failed query multiplies into `3 × 3 × 3 = 27` destructive attempts on the deepest database layer.
+- **Fatal pitfall:** **Uncoordinated multi-layer retries with fixed intervals.** Nesting un-jittered retry loops across upstream tiers creates an exponential feedback loop that transforms a 200 ms downstream latency fluctuation into a total cascading outage.
 
 ```mermaid
 flowchart LR

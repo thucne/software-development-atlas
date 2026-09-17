@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-Cloud networking dễ vận hành hơn nhiều khi bạn ngừng hỏi “network có mở không?” và thay vào đó lần theo **đường đi của gói tin** như một chuỗi quyết định:
+Vào 02:00 sáng sau đợt di chuyển hạ tầng, một pod ứng dụng trong cụm Kubernetes nội bộ liên tục ném lỗi `Connection timed out` khi gọi ra cổng thanh toán bên ngoài. Kỹ sư phụ trách khẳng định: "DNS vẫn phân giải ra IP bình thường và pod vẫn kết nối được cơ sở dữ liệu nội bộ, mạng chắc chắn không có vấn đề!" Thực tế là subnet riêng của pod thiếu một route mặc định `0.0.0.0/0` trỏ ra NAT Gateway, khiến toàn bộ gói tin đi ra ngoài bị rơi vào hố đen định tuyến, trong khi DNS phân giải thành công chỉ vì cụm CoreDNS chạy cục bộ bên trong mạng ảo.
 
-1. Source và destination đang dùng địa chỉ nào?
-2. Route nào match destination, và nó chọn target hay next hop nào?
-3. Gateway hoặc NAT có thay đổi đường đi hay địa chỉ không?
-4. Policy ingress và egress nào cho phép hoặc từ chối flow?
-5. Return path có quay lại source được không?
+> 💡 **Quy tắc bỏ túi:** **DNS phân giải thành công không đồng nghĩa với khả năng kết nối mạng, và thông mạng không đồng nghĩa với ứng dụng cho phép truy cập.** Kết nối mạng đòi hỏi một đường đi gói tin hai chiều liền mạch: định địa chỉ CIDR hợp lệ, next hop khớp trên bảng định tuyến (longest prefix match), cổng dịch địa chỉ (NAT), và quy tắc tường lửa/security group cho phép ở cả hai chiều.
 
-DNS, IAM, TLS và application authorization đều quan trọng, nhưng trả lời các câu hỏi khác nhau. DNS phân giải thành công không chứng minh khả năng kết nối mạng; network reachability cũng không chứng minh ứng dụng sẽ cho phép request.
+- **Tính tất định của đường đi gói tin:** Lần theo luồng kết nối như một chuỗi quyết định liên tục: IP nguồn → next hop trên bảng định tuyến → cổng dịch địa chỉ NAT → chính sách tường lửa egress/ingress → máy chủ đích → đường phản hồi đối xứng.
+- **Cấu trúc Subnet & NAT:** Subnet riêng không thể đi thẳng ra Internet công cộng; luồng egress bắt buộc phải có route trỏ `0.0.0.0/0` đến một NAT Gateway hoặc cụm proxy trung gian.
+- **Lọc lưu lượng stateful và stateless:** Security group có trạng thái (stateful: cho phép vào sẽ tự động mở chiều ra); Network ACL (NACL) là phi trạng thái (stateless), đòi hỏi phải mở thủ công dải port phản hồi ngẫu nhiên (`1024-65535`).
+- **Endpoint riêng & Peering:** Các dịch vụ kết nối qua VPC Peering hoặc PrivateLink giúp luồng dữ liệu nội bộ đi tắt qua backbone của nhà cung cấp đám mây, tránh chi phí NAT đắt đỏ và rủi ro internet công cộng.
+- **Cạm bẫy chết người:** Đánh giá độ thông suốt mạng chỉ dựa trên kết quả phân giải DNS—DNS chỉ trả về địa chỉ IP; nếu bảng định tuyến thiếu next hop hoặc security group chặn gói tin SYN gửi đi, kết nối sẽ bị timeout trong im lặng mà không có bất kỳ thông báo lỗi cấp ứng dụng nào.
 
 ```mermaid
 flowchart LR

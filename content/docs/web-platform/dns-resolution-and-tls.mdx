@@ -36,14 +36,15 @@ concepts:
 
 ## TL;DR
 
-For a **fresh** HTTPS connection, two questions have to be answered before HTTP application data can flow:
+At 09:15 AM on migration day, an engineering team switches `api.example.com` to point to a new cloud cluster with a new IP address. Seconds later, mobile apps worldwide crash with `ERR_CERT_COMMON_NAME_INVALID`, while corporate offices continue blasting traffic at the decommissioned legacy server for another 48 hours. The root cause? Conflating network routing with cryptographic identity, and ignoring the upstream DNS TTL caching chain.
 
-1. **Where should this hostname be reached?** DNS resolution turns a name such as `api.example.com` into routing information, often an IP address.
-2. **Is the peer I reached actually authorized to represent that service name?** TLS establishes cryptographic keys and authenticates the service identity presented by the server.
+> 💡 **Rule of thumb:** **DNS locates; TLS authenticates.** DNS resolution only tells you *where* to send IP packets—it provides zero proof of server identity. TLS certificate verification independently proves the destination is authorized to serve that hostname before a single byte of application data is exchanged.
 
-Do not collapse those questions into one. A DNS answer can point you to an address without proving that the server at that address is the right `api.example.com`. TLS certificate and service-identity verification provide a separate authentication boundary.
-
-Also do not assume every HTTP request repeats DNS and TLS. Browser, OS, and recursive DNS caches can satisfy name lookups; existing HTTP connections can be reused; TLS sessions can be resumed. This lesson explains the **fresh-setup path** so you can recognize when each stage is present or skipped.
+- **Two distinct boundaries:** DNS resolves a hostname into candidate IP addresses; TLS establishes session keys and verifies cryptographic service identity (SAN) against the reference identity.
+- **Cache-first resolution hierarchy:** Lookups traverse browser cache → OS stub resolver → recursive resolver → root/TLD/authoritative nameservers, governed by record TTL.
+- **TLS 1.3 efficiency:** Modern handshakes authenticate and establish forward-secret keys in a single round-trip (1-RTT) via `ClientHello` + ECDHE key share; TLS 1.2 requires 2-RTT.
+- **Connection reuse over renegotiation:** Production systems maintain persistent HTTP keep-alive connections and session resumption, skipping both DNS and TLS on warm requests.
+- **Fatal pitfall:** Lowering DNS TTL *during* or *after* a cutover instead of days beforehand—upstream recursive caches honor the old TTL, routing traffic to stale backends while certificate mismatches sever live sessions.
 
 ## One mental model: locate first, authenticate second
 

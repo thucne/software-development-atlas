@@ -16,11 +16,19 @@ concepts:
   - csr-ssr-ssg
 ---
 
-# CSR, SSR, and SSG: Where and When HTML Is Produced
+# CSR, SSR, and SSG: When and Where UI Becomes HTML
 
 ## TL;DR
 
-CSR, SSR, and SSG answer one foundational question: **where and when does useful HTML for a route come into existence?** The answer changes the first response, data timing, cache reuse, server work, client work, and failure modes.
+An e-commerce storefront launches as a pure client-side rendered Single-Page App (CSR). On Black Friday, search engine crawlers index only empty `<div id="root"></div>` shells, crashing Google search rankings by 80%, while mobile shoppers on 3G connections stare at a blank white screen for 6.2 seconds before the 2MB JS bundle downloads and parses. The team panics and switches every page to dynamic SSR, only to melt their Node.js cluster under an avalanche of uncacheable request-time renders.
+
+> 💡 **Rule of thumb:** **Choose rendering placement by data freshness and cacheability, not by framework trend.** Use SSG for content that changes with releases or webhooks (infinitely cacheable at edge); use SSR for per-user or highly volatile data that requires SEO or fast First Contentful Paint; use CSR for authenticated dashboards where an empty HTML shell is acceptable and rich client interaction dominates.
+
+- **Foundational question:** Where and when does useful HTML come into existence? In the browser after JavaScript execution (CSR), on the server at request time (SSR), or before requests at build/revalidation time (SSG/ISR).
+- **SEO & First Contentful Paint (FCP):** SSG and SSR deliver immediately parseable semantic markup in the first response packet; CSR delivers an empty container, deferring paint until client JS downloads and executes.
+- **Hydration requirements:** Both SSR and SSG still ship JavaScript bundles if the rendered HTML requires interactive event listeners—creating a hydration phase where UI looks ready before clicks work.
+- **Infrastructure and compute costs:** SSG scales infinitely from edge CDNs for cents; SSR consumes server CPU on every request; CSR pushes compute costs onto user client devices.
+- **Fatal pitfall:** Treating rendering strategies as a whole-app binary choice rather than a per-route architectural decision—forcing public marketing/catalog routes into CSR (killing SEO/FCP) or complex private dashboards into SSR (inflating server load with zero caching benefit).
 
 <TermBox term="Rendering placement">
 **Rendering placement** is the execution location and time that produces useful HTML: in the browser after JavaScript runs, on the server for a request, or before an individual request during build/publish/revalidation.

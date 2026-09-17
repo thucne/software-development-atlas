@@ -30,11 +30,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-Monolith (Kiến trúc nguyên khối), Modular Monolith (Nguyên khối theo mô-đun) và Microservices (Kiến trúc vi dịch vụ) không phải là 3 cấp độ trưởng thành tăng dần. Bản chất của chúng là **cách định vị khác nhau về ranh giới mã nguồn, dữ liệu, triển khai và quyền sở hữu của đội ngũ kỹ thuật**.
+Hiếm có hệ thống nào sụp đổ chỉ vì codebase mang danh "Monolith". Nhưng vô số dự án đã rơi vào vũng lầy kiệt quệ khi vội vã xẻ nhỏ hệ thống thành 20 microservices theo trào lưu Big Tech: một tính năng đơn giản đòi hỏi phối hợp phát hành đồng loạt trên 5 repository khác nhau; việc debug lỗi nghiệp vụ trở thành cơn ác mộng dò tìm log phân tán; và chỉ một cú chập chờn mạng nội bộ cũng đủ kéo sập dây chuyền toàn bộ ứng dụng. Kiến trúc phần mềm không phải là bảng xếp hạng danh tiếng—đó là bài toán cân não giữa tính toàn vẹn dữ liệu, chi phí vận hành phân tán và sự tự chủ phát hành thực tế của đội ngũ.
 
-Hãy bắt đầu với mô hình triển khai ít phân tán nhất đáp ứng được các ràng buộc thực tế. Hãy cải thiện tính mô-đun hóa bên trong mã nguồn trước khi giả định rằng bắt buộc phải dựng ranh giới mạng. Chỉ tách thành một service độc lập khi **việc triển khai độc lập tạo ra giá trị đo lường được**—ví dụ: loại bỏ sự phụ thuộc lịch phát hành giữa các team, cô lập tải tính toán cần mở rộng đột biến, thiết lập ranh giới sự cố có chủ đích, hoặc trao quyền tự chủ thực sự cho một nhóm kỹ sư mà mô hình triển khai chung không thể đáp ứng.
+> 💡 **Quy tắc bỏ túi:** Luôn bắt đầu với mô hình triển khai ít phân tán nhất đáp ứng được các ràng buộc kỹ thuật thực tế. Hãy cưỡng chế ranh giới module nghiêm ngặt trong mã nguồn trước khi dựng ranh giới mạng. Chỉ tách microservice khi việc triển khai độc lập tạo ra giá trị đo lường được—chẳng hạn như gỡ bỏ nút thắt release giữa các team, cô lập tải biến động đặc thù hoặc khoanh vùng rủi ro sự cố.
 
-Câu hỏi trọng tâm không phải là "Cái này có thể tách thành service không?" mà là: **Ràng buộc nào sẽ được giải quyết dễ dàng hơn sau khi ranh giới này được triển khai độc lập, và chúng ta sẽ đo lường sự cải thiện đó bằng chỉ số nào?**
+- **Hình thái triển khai không đồng nghĩa với chất lượng mã nguồn:** Monolith hoàn toàn có thể có cấu trúc module mẫu mực và sạch sẽ, trong khi chia microservices cẩu thả sẽ tạo ra một "Monolith phân tán" tệ hại với chi phí vận hành đắt đỏ gấp bội.
+- **Lời gọi hàm in-memory giữ trọn giao dịch ACID:** Monolith và Modular Monolith tận dụng bộ nhớ cục bộ và một cơ sở dữ liệu duy nhất, loại bỏ hoàn toàn gánh nặng phải thiết kế Saga, Outbox hay quy trình bù trừ (Compensating workflow) phức tạp.
+- **Triển khai độc lập luôn đi kèm "thuế phân tán" (Distribution Tax):** Microservices đem lại sự tự chủ phát hành cho các team lớn hoạt động độc lập, nhưng đòi hỏi hạ tầng tự động hóa cao: CI/CD độc lập, Distributed Tracing, API Gateway và năng lực xử lý lỗi cục bộ (Partial Failure).
+- **Gánh nặng vận hành phụ thuộc vào số lượng bản triển khai:** Chi phí giám sát, mạng lưới giao tiếp, bảo mật và áp lực trực on-call tỷ lệ thuận với số lượng tiến trình độc lập thay vì số dòng code.
+- **Cạm bẫy chết người:** **Tách microservice khi ranh giới nghiệp vụ chưa ổn định.** Tách dịch vụ khi các domain model còn thay đổi liên tục sẽ dẫn đến thảm họa gọi chéo database, transaction phân tán và phát hành đồng loạt kiểu bậc thang (lockstep deployment)—chịu trọn rủi ro của hệ phân tán mà không thu về được chút tự chủ nào.
 
 <TermBox term="Deployment unit">
 **Đơn vị triển khai (Deployment unit)** là một phần mềm được đóng gói, phát hành và vận hành như một thực thể thống nhất.

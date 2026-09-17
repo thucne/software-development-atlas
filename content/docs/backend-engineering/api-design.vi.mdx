@@ -26,18 +26,11 @@ concepts:
   - api-design
 ---
 
-## API là một hợp đồng, không phải hình dạng của controller
+## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Một HTTP API phơi bày một **hợp đồng** mà chương trình khác có thể dựa vào. Hợp đồng đó lớn hơn route và JSON body:
+Một đội ngũ backend vừa deploy một thay đổi nhỏ nhằm "dọn dẹp code": đổi tên trường `tracking_url` thành `tracking.url` và bổ sung một trường bắt buộc `postal_code` vào schema thanh toán. Chỉ 5 phút sau khi release, các kênh hỗ trợ khách hàng nổ tung: hơn 50.000 người dùng ứng dụng di động bị crash ngay tại màn hình chi tiết đơn hàng. Khác với ứng dụng web có thể cập nhật ngay sau khi tải lại trang, các ứng dụng native mobile đã cài trên thiết bị người dùng sử dụng bộ giải tuần tự nghiêm ngặt (strict deserializers) và không thể vá lỗi nóng tức thì. Máy chủ backend vẫn hoạt động bình thường với tỷ lệ uptime 100% và dashboard xanh rì, nhưng toàn bộ trải nghiệm người dùng thực tế đã sụp đổ hoàn toàn.
 
-- **tài nguyên** đích và representation;
-- ý nghĩa của HTTP method;
-- trường request được chấp nhận và quy tắc kiểm tra dữ liệu;
-- ngữ nghĩa mã trạng thái;
-- hình dạng response thành công và response lỗi;
-- quy tắc phân trang và sắp xếp;
-- bảo đảm tương thích ngược;
-- thao tác nào client có thể thử lại an toàn.
+Một HTTP API không đơn thuần là sự phản chiếu cấu trúc bảng cơ sở dữ liệu hay tên hàm xử lý trong controller. Nó là một hợp đồng phân tán có tính ràng buộc kỹ thuật giữa các hệ thống được phát hành độc lập. Khi một endpoint đã xuất bản, nó phải cam kết tính nhất quán của tài nguyên, ngữ nghĩa chuẩn của các HTTP method, mô hình báo lỗi máy đọc được (như Problem Details theo RFC 7807 và RFC 9457), cơ chế phân trang an toàn và tính tương thích ngược tuyệt đối.
 
 ```mermaid
 flowchart LR
@@ -50,7 +43,14 @@ flowchart LR
   E --> C
 ```
 
-Nếu các ngữ nghĩa này chỉ hình thành tình cờ, client vẫn sẽ phụ thuộc vào chi tiết triển khai. Thiết kế API là biến hành vi quan sát được thành quyết định có chủ đích.
+> 💡 **Quy tắc bỏ túi:** API là một hợp đồng được triển khai trên những hệ thống bạn không thể kiểm soát thời điểm cập nhật—hãy ưu tiên mở rộng tương thích (additive change), chuẩn hóa mô hình lỗi và phân trang, tuyệt đối không tạo breaking change nếu chưa có lộ trình chuyển đổi và cùng tồn tại (coexistence window).
+
+### TL;DR 2.0
+- **Hợp đồng quan trọng hơn triển khai:** API phơi bày tài nguyên ổn định (`/orders/{id}`) thay vì phản chiếu tên hàm nội bộ (`/doCreateOrder`). Sử dụng các HTTP method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) chuẩn xác theo tính chất an toàn (safe) và lặp lại an toàn (idempotent).
+- **Mô hình lỗi chuẩn hóa Problem Details:** Khai tử các payload lỗi tự chế dạng `{ "error": "msg" }`. Áp dụng tiêu chuẩn Problem Details (RFC 7807 / RFC 9457) với các trường máy đọc được (`type`, `title`, `status`, `detail`, `instance`) để client và gateway xử lý lỗi theo loại thay vì dò chuỗi văn bản.
+- **Phân trang an toàn & có giới hạn:** Mọi endpoint danh sách đều phải có giới hạn (limit) và tiêu chí sắp xếp (ordering). Ưu tiên phân trang theo con trỏ (cursor pagination) với token mờ (opaque token) thay vì offset để ngăn chặn lỗi sót bản ghi hoặc trùng lặp khi dữ liệu biến động liên tục.
+- **Bảo toàn tính tương thích ngược (Backward Compatibility):** Các phiên bản client nâng cấp với tốc độ khác nhau. Tuyệt đối không xóa/đổi tên trường response, không đổi kiểu dữ liệu, và không biến trường request tùy chọn thành bắt buộc trên một phiên bản API đang chạy.
+- **Cạm bẫy chết người:** Đổi tên field trong response hoặc đột ngột thắt chặt validation đầu vào trên endpoint hiện hữu, làm sập ngay lập tức 50.000 app mobile của người dùng mà không thể rollback client kịp thời.
 
 <TermBox term="Hợp đồng API">
 **Hợp đồng API** là tập quy tắc quan sát được mà client được phép dựa vào: identifier, request/response field, method semantics, mã trạng thái, mô hình lỗi, ordering, pagination và hành vi tương thích.

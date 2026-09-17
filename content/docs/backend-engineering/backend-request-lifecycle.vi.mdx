@@ -27,33 +27,34 @@ concepts:
   - backend-request-lifecycle
 ---
 
-## Yêu cầu là một đơn vị công việc có giới hạn
+## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Một yêu cầu phía máy chủ không chỉ là “mã trong bộ điều khiển”. Nó là một đơn vị công việc có giới hạn, đi qua nhiều ranh giới tin cậy, tính đúng và lỗi trước khi phản hồi rời khỏi dịch vụ.
+Hãy hình dung một đợt mở bán vé ca nhạc lớn: 10.000 người dùng bấm thanh toán cùng lúc. Đột ngột, toàn bộ cụm API backend tê liệt. CPU máy chủ chỉ vỏn vẹn 15%, RAM vẫn còn trống hàng chục GB, nhưng toàn bộ người dùng đều nhận về lỗi `504 Gateway Timeout`.
 
-Một mô hình vận hành hữu ích là:
+Biên bản mổ xẻ sự cố (post-mortem) phơi bày một thảm kịch kinh điển trong vòng đời request: Tầng reverse proxy (như Nginx hoặc Envoy) giữ cấu hình mặc định `proxy_read_timeout 60s`, trong khi backend gọi sang cổng thanh toán bên thứ ba mà không thiết lập hạn chót (deadline). Một sự cố gián đoạn mạng kéo dài 5 giây từ cổng thanh toán đã giam giữ hàng trăm worker thread backend trên các kết nối TCP treo lơ lửng. Chỉ sau 30 giây, 200 kết nối trong database connection pool cạn kiệt sạch bách vì các transaction bị giữ mở để chờ phản hồi từ bên ngoài. Mọi request mới đi vào—từ kiểm tra sức khỏe hệ thống (health check) đến đọc dữ liệu cơ bản—bị dồn ứ tại hàng đợi socket của hệ điều hành cho tới khi toàn bộ cụm máy chủ sụp đổ trong im lặng.
+
+Một request phía máy chủ không bao giờ chỉ là một hàm controller đón nhận JSON body. Đó là một hành trình khép kín, một đơn vị công việc có thời hạn thuê tài nguyên (resource lease) nghiêm ngặt đi qua tầng truyền tải (TCP/TLS), bộ phân tích cú pháp HTTP, chuỗi middleware, các cổng xác thực - phân quyền, giao dịch cơ sở dữ liệu và bàn giao bất đồng bộ. Làm chủ vòng đời yêu cầu chính là kiểm soát chặt chẽ từng ranh giới tin cậy, thời gian sống và bằng chứng vận hành trên mỗi chặng đường của dữ liệu.
 
 ```mermaid
 flowchart LR
-  I[Cổng vào] --> P[Phân tích và kiểm tra đầu vào]
+  I[Cổng vào truyền tải] --> P[Phân tích & kiểm tra đầu vào]
   P --> N[Xác thực]
   N --> Z[Phân quyền]
   Z --> D[Xử lý nghiệp vụ]
   D --> T[Giao dịch / lưu bền vững]
-  T --> M[Ánh xạ kết quả hoặc lỗi]
+  T --> M[Ánh xạ lỗi & phản hồi]
   M --> R[Phản hồi HTTP]
   T --> A[Bàn giao bất đồng bộ bền vững]
 ```
 
-Hook của từng framework có thể khác nhau, nhưng các câu hỏi cốt lõi không đổi:
+> 💡 **Quy tắc bỏ túi:** Một request phía backend là một khoản thuê tài nguyên có hạn—tuyệt đối không mở transaction cơ sở dữ liệu trước khi kiểm tra đầu vào, không cấp timeout độc lập ở từng tầng, và không bao giờ trả HTTP 200 trước khi trạng thái bền vững đã được commit.
 
-- Đầu vào nào đã thực sự đáng tin?
-- Danh tính nào đã được thiết lập?
-- Bất biến nghiệp vụ nào đang thay đổi?
-- Công việc nào phải xong trước phản hồi?
-- Công việc nào có thể chạy an toàn sau khi ghi nhận bền vững?
-- Điều gì phải dừng khi người gọi biến mất hoặc hạn chót hết?
-- Bằng chứng nào giúp người vận hành dựng lại một yêu cầu sau này?
+### TL;DR 2.0
+- **Hành trình toàn vẹn của một request:** Request đi qua một đường ống tuần tự nghiêm ngặt: tiếp nhận tại cổng vào (TCP/TLS/HTTP), kiểm tra hình dạng đầu vào, xác thực danh tính, phân quyền tài nguyên, thực thi nghiệp vụ cốt lõi, lưu trữ giao dịch bền vững, ánh xạ lỗi/kết quả và bàn giao bất đồng bộ.
+- **Ranh giới tin cậy độc lập:** Cổng vào chỉ xác thực tính toàn vẹn cú pháp truyền tải. Các bất biến nghiệp vụ và trạng thái cạnh tranh chỉ được phép xử lý sâu bên trong domain logic và giao dịch cơ sở dữ liệu.
+- **Ngân sách thời gian (Deadline Budget) & Lan truyền hủy bỏ:** Toàn bộ vòng đời phải chia sẻ một deadline duy nhất; từng lời gọi downstream chỉ được dùng phần thời gian còn lại. Khi client ngắt kết nối hoặc hết hạn, tín hiệu hủy (cancellation) phải lập tức dừng ngay các truy vấn DB và RPC phía sau để tránh lãng phí tài nguyên.
+- **Phản hồi phải đúng sự thật dữ liệu:** Chỉ trả về phản hồi thành công (`200 OK` / `201 Created`) sau khi trạng thái đã ghi nhận bền vững (commit) vào cơ sở dữ liệu. Các tác vụ phụ sau commit (email, webhook) phải được chuyển giao qua cơ chế bền vững (outbox pattern/hàng đợi) thay vì chạy nền trong bộ nhớ tiến trình.
+- **Cạm bẫy chết người:** Bỏ quên cấu hình socket timeout giữa reverse proxy và backend hoặc mở transaction giữ connection pool cơ sở dữ liệu trong khi chờ API bên thứ ba, khiến worker thread bị giam giữ 60s làm cạn kiệt tài nguyên toàn hệ thống trong tích tắc.
 
 <TermBox term="Ngữ cảnh yêu cầu">
 **Ngữ cảnh yêu cầu** là tập nhỏ thông tin chỉ sống trong một yêu cầu: trạng thái hủy/hạn chót, principal đã xác thực, định danh yêu cầu hoặc tương quan, ngữ cảnh dấu vết và một lượng siêu dữ liệu được chọn lọc.
@@ -269,7 +270,7 @@ Tối thiểu, người vận hành cần phân biệt được:
 > Một yêu cầu còn 900 ms. Nó cần ghi cơ sở dữ liệu rồi gửi email xác nhận. Commit có thể mất 300–700 ms, còn nhà cung cấp email có thể mất 2 giây. Phần nào thuộc đường xử lý yêu cầu?
 
 <details>
-<summary>Xem giải thích</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Công việc cơ sở dữ liệu cần để phản hồi nói đúng sự thật thuộc đường xử lý yêu cầu có giới hạn, với ngân sách còn lại được lan truyền tới lấy kết nối/truy vấn/commit.
 

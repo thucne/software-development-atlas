@@ -30,9 +30,19 @@ concepts:
 
 # Hexagonal Architecture: Đặt công nghệ ra ngoài lõi ứng dụng
 
-## Tóm tắt nhanh
+Hãy tưởng tượng bạn bấm chạy bộ test suite của dự án: để kiểm tra một logic chiết khấu và tính thuế đơn giản, bạn phải chờ đằng đẵng 45 giây vì mỗi test case đều phải khởi động web server Express, mở kết nối tới cơ sở dữ liệu PostgreSQL trong Docker container và nạp hàng chục dòng dữ liệu mẫu. Tệ hơn nữa, khi công ty muốn bổ sung tính năng nhập đơn hàng hàng loạt từ Kafka song song với REST API, bạn bàng hoàng nhận ra toàn bộ logic đặt hàng đã bị trói chặt vào các đối tượng `req`, `res` của Express và model của ORM. Để tái sử dụng, bạn chỉ còn hai lựa chọn tồi tệ: hoặc copy-paste nhân bản code, hoặc tạo request HTTP giả lập để "bắn" vào chính API của mình.
 
-Hexagonal Architecture, còn gọi là **Ports and Adapters**, tách hành vi có ý nghĩa của ứng dụng khỏi công nghệ dùng để kích hoạt nó hoặc được nó gọi tới.
+Tình trạng tê liệt kiến trúc này bắt nguồn từ việc công nghệ bên ngoài đã xâm lấn và bóp nghẹt logic nghiệp vụ. **Hexagonal Architecture** (Kiến trúc Lục giác, hay **Ports and Adapters — Cổng và Bộ chuyển đổi**) giải quyết triệt để vấn đề này bằng cách cô lập hoàn toàn lõi nghiệp vụ (core domain) khỏi HTTP framework hay cơ sở dữ liệu. Nhờ nguyên lý **đảo ngược phụ thuộc (Dependency Inversion)**, ứng dụng chỉ định nghĩa các cổng giao tiếp thuần túy, giúp bạn có thể kiểm thử toàn bộ nghiệp vụ bằng các mock / fake adapter siêu tốc trong bộ nhớ mà không cần bật bất kỳ database nào.
+
+> 💡 **Quy tắc bỏ túi:** Giữ lõi nghiệp vụ hoàn toàn độc lập với phương thức truyền tải và cơ sở dữ liệu lưu trữ; bên trong ứng dụng định nghĩa các cổng (ports), còn công nghệ bên ngoài phải tự viết bộ chuyển đổi (adapters) để thích ứng theo.
+
+## Tóm tắt nhanh (TL;DR)
+
+- **Sự phân tách cốt lõi giữa bên trong và bên ngoài (inside vs outside):** Lõi ứng dụng nằm ở **bên trong**, hoàn toàn miễn nhiễm với framework web, công cụ dòng lệnh (CLI), cơ sở dữ liệu hay message broker ở **bên ngoài**.
+- **Cổng (Port) xác định mục đích nghiệp vụ:** **Cổng chủ động (driving port)** định nghĩa những gì ứng dụng có thể làm (use case được kích hoạt bởi HTTP, CLI, batch job hay test harness); **cổng bị điều khiển (driven port)** định nghĩa những gì ứng dụng cần từ thế giới bên ngoài (lưu trữ dữ liệu, cổng thanh toán, gửi email).
+- **Bộ chuyển đổi (Adapter) hấp thụ biến động công nghệ:** **Driving adapter** dịch request từ giao thức bên ngoài thành command nghiệp vụ sạch; **driven adapter** dịch yêu cầu của domain thành các câu lệnh SQL, cuộc gọi SDK bên thứ ba hoặc triển khai giả lập trong bộ nhớ (in-memory mock/fake).
+- **Đảo ngược phụ thuộc mang lại khả năng kiểm thử tức thì:** Lõi nghiệp vụ biên dịch độc lập mà không cần bất kỳ thư viện database hay HTTP nào; việc lắp ghép các adapter cụ thể chỉ diễn ra tại điểm khởi tạo (**composition root**).
+- **Cạm bẫy chết người:** **Rò rỉ chi tiết kỹ thuật vào chữ ký của cổng (port).** Định nghĩa port nhận trực tiếp chuỗi truy vấn SQL, thực thể ORM hay object request của HTTP framework sẽ vô hiệu hóa hoàn toàn kiến trúc sáu cạnh, kéo công nghệ hạ tầng trở lại thống trị lõi nghiệp vụ.
 
 Mental model:
 

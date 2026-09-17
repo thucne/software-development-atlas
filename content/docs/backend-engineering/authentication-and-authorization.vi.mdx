@@ -28,12 +28,13 @@ concepts:
   - authentication-and-authorization
 ---
 
-## Danh tính và quyền hạn là hai câu hỏi khác nhau
+## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Xác thực và phân quyền nằm cạnh nhau trong vòng đời request nhưng giải quyết hai vấn đề khác nhau:
+Một ứng dụng công nghệ tài chính vừa tự hào vượt qua đợt đánh giá bảo mật nghiêm ngặt cho tính năng đăng nhập hai lớp (2FA). Nhưng chỉ hai tuần sau, một lỗ hổng nghiêm trọng bị phanh phui: một người dùng sau khi đăng nhập tài khoản cá nhân chỉ cần chặn bắt request `GET /api/v1/users/1042/profile`, đổi `userId` thành `1043` trên thanh địa chỉ là có thể xem toàn bộ họ tên, địa chỉ nhà, số tài khoản ngân hàng và lịch sử giao dịch của người khác.
 
-- **Xác thực:** chủ thể nào vừa chứng minh quyền kiểm soát một authenticator hay credential được hệ thống chấp nhận?
-- **Phân quyền:** principal vừa được xác thực có được phép thực hiện hành động này trên tài nguyên này trong ngữ cảnh hiện tại hay không?
+Đây chính là lỗ hổng IDOR (Insecure Direct Object Reference) kinh điển—được OWASP xếp hàng đầu trong danh mục rủi ro bảo mật API dưới tên gọi BOLA (Broken Object Level Authorization). Hệ thống đã làm rất tốt khâu **Xác thực (Authentication)**: kiểm tra mật khẩu, xác minh OTP, cấp JWT có chữ ký bảo mật và xác nhận người dùng mang vai trò `user` thông qua RBAC. Nhưng hệ thống đã bỏ quên khâu **Phân quyền (Authorization)**: kiểm tra xem người dùng đang đăng nhập có thực sự sở hữu hoặc có quyền truy cập vào bản ghi dữ liệu cụ thể đó hay không (ABAC). Xác thực kiểm tra chiếc chìa khóa để bước vào sảnh tòa nhà; phân quyền mới là chiếc khóa kiểm tra quyền mở từng căn phòng riêng biệt.
+
+Danh tính và quyền hạn là hai ranh giới hoàn toàn độc lập trong kiến trúc backend. Một phiên đăng nhập hợp lệ hay một access token còn hạn không bao giờ đồng nghĩa với việc được phép đọc, sửa hay xóa bất kỳ tài nguyên nào trong hệ thống. Phân quyền chuẩn mực bắt buộc phải là cơ chế mặc định từ chối (deny by default), kiểm soát chặt chẽ quyền sở hữu ở cấp đối tượng trên từng request riêng biệt.
 
 ```mermaid
 flowchart LR
@@ -45,7 +46,14 @@ flowchart LR
   A -->|từ chối| D[Trả lỗi an toàn + bằng chứng audit]
 ```
 
-Một phiên hoặc token hợp lệ **không** đồng nghĩa với quyền truy cập mọi route, object, field hay thao tác nghiệp vụ.
+> 💡 **Quy tắc bỏ túi:** Xác thực (Authentication) trả lời câu hỏi "bạn là ai"; Phân quyền (Authorization) trả lời câu hỏi "bạn được phép làm gì lúc này"—tuyệt đối không bao giờ đánh đồng một token hợp lệ hay vai trò chung chung với quyền truy cập vào một ID tài nguyên cụ thể.
+
+### TL;DR 2.0
+- **Hai cổng kiểm soát độc lập:** Xác thực (Authentication) kiểm tra credential để tạo ra chủ thể (principal) đáng tin cậy; Phân quyền (Authorization) đưa ra quyết định cho phép hay từ chối dựa trên bộ tứ: `chủ thể + hành động + tài nguyên + ngữ cảnh` (`subject + action + resource + context`).
+- **Mặc định từ chối ở cấp đối tượng:** Kiểm tra vai trò trên route (RBAC) là chưa đủ. Hệ thống bắt buộc phải kiểm tra quyền ở cấp tài nguyên/đối tượng (ABAC), đưa phạm vi sở hữu (tenant/user ownership) trực tiếp vào câu truy vấn dữ liệu và mặc định từ chối nếu không có chính sách cho phép rõ ràng.
+- **Quản lý vòng đời phiên toàn diện:** Đăng nhập thành công chỉ là điểm khởi đầu. Phải rotate session ID khi thay đổi quyền hạn, thiết lập thời hạn phiên, yêu cầu xác thực lại (reauthentication) kháng phishing trước các hành động nhạy cảm, và duy trì cơ chế thu hồi (revocation) tức thì.
+- **Danh tính dịch vụ và máy móc (Service Identity):** Worker chạy ngầm, cron job và các microservice nội bộ cũng là các principal độc lập. Phải cấp quyền tối thiểu (least privilege) với credential ngắn hạn thay vì dùng chung API key hay bỏ qua phân quyền chỉ vì là traffic nội bộ.
+- **Cạm bẫy chết người:** Mắc lỗ hổng IDOR / BOLA do chỉ kiểm tra người dùng đã đăng nhập mà quên kiểm tra quyền sở hữu tài nguyên, dẫn đến việc kẻ tấn công chỉ cần đổi `userId` hoặc `resourceId` trong URL là xem trộm hoặc thao túng toàn bộ dữ liệu của nạn nhân.
 
 <TermBox term="Principal">
 **Principal** là danh tính bảo mật mà ứng dụng dùng khi ra quyết định sau bước xác thực. Nó thường gồm một định danh chủ thể ổn định cùng một số thuộc tính được chọn như tenant, role, phương thức xác thực hoặc mức assurance.

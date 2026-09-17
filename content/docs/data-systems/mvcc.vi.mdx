@@ -31,22 +31,21 @@ concepts:
 
 # MVCC: Suy luận về snapshot và phiên bản dòng dữ liệu
 
+Đúng 02:00 sáng, một kỹ sư chạy câu lệnh trích xuất dữ liệu (analytics / export job) với hàng triệu dòng, hoặc một kết nối từ ứng dụng bị rò rỉ và nằm im lìm trong connection pool ở trạng thái `idle in transaction`. Cả đội ngũ kỹ thuật đều đang ngủ say và không ai hay biết. Đến 09:00 sáng, còi báo động trực ban vang lên dồn dập: dung lượng ổ cứng chạm mốc 95%, độ trễ truy vấn tăng vọt gấp 10 lần, và các thao tác ghi bắt đầu báo lỗi timeout hàng loạt.
+
+Chuyện gì đã xảy ra? Duy nhất một transaction chạy ngầm bị bỏ quên đó đã ghim chặt ranh giới dọn dẹp toàn cục (cleanup horizon) của PostgreSQL. Do connection này vẫn giữ một snapshot cũ kỹ, tiến trình Autovacuum bị trói tay hoàn toàn—nó không được phép dọn dẹp các phiên bản dữ liệu cũ (dead tuples) sinh ra từ hàng triệu lượt ghi ban đêm. Hậu quả là bảng dữ liệu chính rơi vào thảm họa **phình to bảng (table bloat)**, dung lượng tăng vọt từ 10 GB lên hơn 100 GB chỉ sau một đêm, bộ nhớ đệm ngập tràn dữ liệu rác và toàn bộ ổ đĩa cứng của server bị vắt kiệt.
+
+Sự cố vận hành nghẹt thở này phơi bày bản chất hai mặt của **Multi-Version Concurrency Control (MVCC)**. Lời hứa cốt lõi làm nên tên tuổi của MVCC là: *người đọc không chặn người ghi, người ghi không chặn người đọc*. Để làm được điều kỳ diệu này, database không bao giờ ghi đè trực tiếp lên dữ liệu cũ: mỗi lệnh `UPDATE` thực chất là một lần chèn (insert) phiên bản tuple mới toanh và đánh dấu xóa mềm tuple cũ; mỗi lệnh `DELETE` chỉ đóng một dấu hủy. Bài toán đồng thời biến thành bài toán về khả năng quan sát (visibility) và thu gom rác bộ nhớ. Nếu không kiểm soát vòng đời transaction và ranh giới dọn dẹp, ưu thế lớn nhất của MVCC sẽ ngay lập tức biến thành ngòi nổ làm sập toàn bộ hệ thống của bạn.
+
+> 💡 **Quy tắc bỏ túi:** Người đọc không chặn người ghi, người ghi không chặn người đọc—bởi vì mọi thao tác sửa đổi dữ liệu đều tạo ra một phiên bản row mới và giữ lại phiên bản cũ. Thế nhưng, snapshot hoạt động lâu nhất sẽ ghim chặt ranh giới dọn dẹp (cleanup horizon): chỉ một kết nối `idle in transaction` bị bỏ quên cũng đủ làm tê liệt `VACUUM`, gây phình bảng (table bloat) gấp hàng chục lần và làm cạn kiệt ổ đĩa.
+
 ## Tóm tắt
 
-Multiversion concurrency control (MVCC) cho phép cơ sở dữ liệu giữ **nhiều phiên bản row** để reader có thể đánh giá một snapshot nhất quán trong khi các transaction đồng thời vẫn tiếp tục thay đổi dữ liệu.
-
-Với PostgreSQL, hãy dùng mental model này:
-
-```text
-statement hoặc transaction lấy snapshot
-  -> snapshot xác định transaction nào được xem là visible
-  -> một logical row có thể có nhiều physical tuple version
-  -> visibility rule chọn version mà snapshot hiện tại được phép thấy
-  -> UPDATE / DELETE có thể để lại version cũ tạm thời
-  -> VACUUM thu hồi version mà không snapshot hợp lệ nào còn cần
-```
-
-MVCC giảm việc read và write chặn lẫn nhau, nhưng **không** loại bỏ concurrency conflict, row lock, transaction isolation rule hay công việc cleanup. Sai lầm trọng tâm cần tránh là coi “row trong bảng” như một object mutable duy nhất với một giá trị hiện tại chung cho mọi reader.
+- **Logical row và Physical tuple version:** Một dòng dữ liệu logic trong bảng có thể được đại diện đồng thời bởi nhiều phiên bản tuple vật lý trên đĩa cứng. Quy tắc visibility sẽ quyết định chính xác phiên bản nào được phép hiển thị cho một transaction hay câu truy vấn cụ thể.
+- **Snapshot là ranh giới visibility, không phải bản copy dữ liệu:** Snapshot là tập thông tin transaction ID để xác định ranh giới nhìn thấy dữ liệu, hoàn toàn không sao chép dữ liệu vật lý. Mức `Read Committed` tạo snapshot mới cho từng câu lệnh SQL, trong khi `Repeatable Read` cố định một snapshot ổn định duy nhất cho toàn bộ vòng đời transaction.
+- **Thao tác ghi luôn để lại dead tuple:** Trong PostgreSQL, lệnh `UPDATE` tạo ra phiên bản tuple mới và giữ lại phiên bản cũ cho các snapshot đang đọc song song. Lệnh `DELETE` chỉ đánh dấu tuple đã chết chứ không giải phóng đĩa cứng ngay lập tức.
+- **VACUUM là điều kiện sống còn của hệ thống:** `VACUUM` giải phóng không gian lưu trữ từ các dead tuple, cập nhật visibility map phục vụ index-only scan, và đóng băng (freeze) các transaction ID quá cũ nhằm ngăn ngừa sự cố dừng hệ thống khẩn cấp do transaction ID wraparound.
+- **Cạm bẫy chết người:** Để các truy vấn báo cáo kéo dài hoặc kết nối `idle in transaction` mở quên trên các bảng ghi tải cao. Thói quen này làm tê liệt `VACUUM`, cản trở visibility map, thổi phồng table bloat gấp 10 lần và đẩy database vào nguy cơ dừng khẩn cấp do cạn kiệt transaction ID wraparound.
 
 ```mermaid
 flowchart LR

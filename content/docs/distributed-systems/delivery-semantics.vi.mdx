@@ -18,20 +18,26 @@ concepts:
 
 # Ngữ nghĩa giao nhận: Suy luận về mất mát, trùng lặp và hiệu ứng
 
-## Tóm tắt
+2 giờ sáng, một sự cố chập chờn mạng thoáng qua làm rơi mất gói tin xác nhận (ACK) giữa consumer và message broker. Broker đinh ninh message chưa tới đích nên lập tức kích hoạt cơ chế phát lại (redelivery). Chỉ vài giây sau, consumer phụ trách thanh toán nhận lại đúng sự kiện đó, trừ tiền thẻ tín dụng của khách hàng lần thứ hai và gửi đi 2 email xác nhận. Trong buổi họp mổ xẻ sự cố (post-mortem), kỹ sư ngơ ngác phân trần: *"Sao lại bị xử lý lặp được? Message broker của chúng ta cam kết giao nhận đáng tin cậy cơ mà!"*
 
-Delivery semantics mô tả điều gì có thể xảy ra khi producer, broker, consumer hoặc network lỗi quanh thời điểm giao message. Câu hỏi hữu ích không phải “queue có exactly-once không?” mà là **guarantee có scope ở đâu, failure có thể xảy ra ở đâu, và business effect nào có thể lặp?**
+Hệ thống phân tán không vận hành bằng phép màu mà chạy trên hạ tầng mạng vốn dĩ không đáng tin cậy. Khi xảy ra phân mảnh mạng (network partition), tiến trình sập (crash) hay quá thời gian chờ (timeout), ngữ nghĩa giao nhận (delivery semantics) chính là ranh giới kỹ thuật vạch rõ điều hệ thống đảm bảo và điều ứng dụng bắt buộc phải tự xử lý.
 
-- **At-most-once / tối đa một lần:** message có thể mất, nhưng delivery path không chủ động giao lại.
-- **At-least-once / ít nhất một lần:** hệ thống retry hoặc redeliver cho tới khi quan sát được success, nên duplicate là điều bình thường.
-- **Exactly-once / chính xác một lần:** chỉ có nghĩa khi scope được định nghĩa chính xác. Broker hoặc stream có thể transactional/deduplicate trong boundary của nó, nhưng database, payment API, email hay side effect ngoài boundary vẫn cần coordination.
+## TL;DR
+
+> 💡 **Quy tắc bỏ túi:** Ngữ nghĩa giao nhận là cam kết của tầng truyền tải mạng, còn lọc trùng là trách nhiệm của thực thể nghiệp vụ. Tuyệt đối không phó mặc cho message broker bảo đảm "chính xác một lần" đối với các tác dụng phụ nghiệp vụ nếu consumer không được thiết kế lũy đẳng (idempotent).
+
+- **At-most-once (tối đa một lần):** Ưu tiên thông lượng tối đa và triệt tiêu nguy cơ trùng lặp; message có thể bị mất trắng khi xảy ra sự cố, nhưng hệ thống cam kết không bao giờ chủ động phát lại.
+- **At-least-once (ít nhất một lần):** Lựa chọn thực chiến chuẩn mực cho các tác vụ cần độ bền vững. Broker kiên trì phát lại cho tới khi nhận được xác nhận (ACK), đồng nghĩa **trùng lặp là điều tất yếu** khi mạng chập chờn hoặc tiến trình xử lý sập.
+- **Exactly-once (chính xác một lần):** Chỉ là một trừu tượng có phạm vi giới hạn nghiêm ngặt (như transactional stream nội bộ của Apache Kafka); hoàn toàn không có cơ chế thần kỳ nào tự động bảo đảm chính xác một lần xuyên qua database bên ngoài, cổng thanh toán hay email.
+- **Thứ tự độc lập với giao nhận:** Việc phát lại trong at-least-once thường xuyên làm đảo lộn thứ tự đến của message; cần dựa vào partition key hoặc sequence tăng đơn điệu (monotonic) thay vì kỳ vọng thứ tự toàn cục.
+- **Cạm bẫy chết người:** Xác nhận (ACK) trước khi commit database sẽ làm mất dữ liệu vĩnh viễn nếu tiến trình sập; ngược lại, ACK sau commit mà thiếu consumer lũy đẳng hoặc bảng inbox sẽ gây trừ tiền hai lần hoặc tạo đơn hàng trùng lặp khi broker phát lại.
 
 ```mermaid
 flowchart LR
-  P["Producer"] --> B["Broker hoặc log"]
+  P["Producer"] --> B["Message broker"]
   B --> C["Consumer"]
   C --> E["Hiệu ứng nghiệp vụ"]
-  C --> A["Acknowledgement"]
+  C --> A["Xác nhận (ACK)"]
   A --> B
 ```
 
@@ -41,167 +47,161 @@ flowchart LR
 
 ## Bắt đầu từ cửa sổ lỗi
 
-Consumer thường phải làm hai việc:
+Trong một kiến trúc hướng sự kiện (event-driven architecture), consumer thường phải thực hiện hai tác vụ tách biệt:
 
-1. áp dụng business effect;
-2. báo cho broker hoặc log rằng delivery đã hoàn tất.
+1. Áp dụng hiệu ứng nghiệp vụ (business effect) bền vững (ghi database, trừ tiền tài khoản, phát lệnh sang dịch vụ khác).
+2. Gửi tín hiệu xác nhận (acknowledgement / ACK) báo cho message broker hoặc tịnh tiến offset log rằng message đã xử lý xong.
 
-Hai việc này hiếm khi là một atomic action.
+Hai thao tác này trên hai hệ sinh thái độc lập gần như không bao giờ có thể tạo thành một hành động nguyên tử (atomic action) duy nhất nếu không có cơ chế điều phối phân tán đắt đỏ.
 
-Nếu consumer xác nhận **trước** khi effect hoàn tất, crash có thể làm mất công việc. Nếu xác nhận **sau** effect, crash giữa effect và acknowledgement có thể gây giao lại và xử lý trùng.
+Nếu consumer gửi xác nhận **trước** khi ghi thành công vào database, một sự cố sập nguồn (crash) hay hết bộ nhớ (OOM) giữa chừng sẽ làm mất vĩnh viễn dữ liệu. Ngược lại, nếu consumer chỉ xác nhận **sau** khi ghi database, bất kỳ trục trặc mạng hay sự cố crash nào xảy ra giữa thời điểm commit và thời điểm broker nhận được ACK đều khiến broker phát lại message, dẫn đến việc xử lý trùng lặp.
 
 ```mermaid
 sequenceDiagram
-  participant B as Broker
+  participant B as Message Broker
   participant C as Consumer
   participant D as Database
-  B->>C: giao event
-  C->>D: commit business effect
-  C-->>B: acknowledgement không được quan sát
-  B->>C: giao lại event
-  C->>D: attempt trùng lặp
+  B->>C: Giao event
+  C->>D: Commit hiệu ứng nghiệp vụ
+  C-->>B: Xác nhận (ACK) bị rơi hoặc trễ
+  Note over B,C: Timeout kích hoạt cơ chế phát lại
+  B->>C: Giao lại event
+  C->>D: Thử lại trùng lặp (duplicate attempt)
 ```
 
 <TermBox term="Acknowledgement">
-**Acknowledgement / xác nhận** là bằng chứng cho thấy ownership của delivery đã chuyển đủ xa để sender hoặc broker có thể ngừng giữ hoặc retry nó. Thời điểm ack là một phần của correctness model.
+**Xác nhận (Acknowledgement / ACK)** là bằng chứng giao thức cho thấy quyền sở hữu và trách nhiệm xử lý của một message đã chuyển giao an toàn về phía hạ nguồn, cho phép sender hoặc broker giải phóng nó khỏi bộ đệm phát lại. Thời điểm gửi ACK chính là cốt lõi trong mô hình tính đúng đắn (correctness model) của bạn.
 </TermBox>
 
 ## So sánh ba guarantee phổ biến
 
-| Guarantee | Failure có thể gây ra | Đánh đổi thường gặp |
-| --- | --- | --- |
-| **At-most-once** | mất message | tránh protocol-level redelivery nhưng có thể bỏ mất công việc |
-| **At-least-once** | delivery hoặc processing trùng | ưu tiên eventual processing; consumer phải chịu được việc lặp |
-| **Exactly-once** | phụ thuộc boundary được định nghĩa | thường cần deduplication hoặc atomic coordination giữa input progress và output |
+| Ngữ nghĩa giao nhận | Rủi ro khi có sự cố | Đánh đổi kiến trúc điển hình |
+| :--- | :--- | :--- |
+| **At-most-once (tối đa một lần)** | Mất mát message âm thầm | Triệt tiêu nguy cơ phát lại ở tầng giao thức, tối ưu thông lượng nhưng chấp nhận bỏ rơi tác vụ. |
+| **At-least-once (ít nhất một lần)** | Giao hoặc xử lý trùng lặp | Ưu tiên bảo toàn dữ liệu bằng mọi giá; đẩy trách nhiệm lọc trùng và tính lũy đẳng về phía consumer. |
+| **Exactly-once (chính xác một lần)** | Bị bó hẹp trong phạm vi nội bộ | Đòi hỏi điều phối tốn kém, giao dịch phân tán hoặc commit offset nguyên tử; đắt đỏ và chỉ có tính cục bộ. |
 
 ### At-most-once
 
-At-most-once phù hợp khi mất một item đôi lúc còn tốt hơn việc lặp nó, hoặc khi dữ liệu có thể regenerate rẻ. Consumer có thể move checkpoint hoặc ack trước khi làm việc, nhưng failure sau thời điểm đó có thể làm effect biến mất vĩnh viễn.
+At-most-once (tối đa một lần) thích hợp khi việc mất mát vài bản ghi đơn lẻ ít gây tổn hại hơn việc xử lý lặp lại, hoặc khi dữ liệu có thể dễ dàng tái tạo với chi phí rẻ (như dữ liệu đo kiểm telemetry từ cảm biến, tọa độ GPS thời gian thực). Consumer thường tự động xác nhận ngay khi nhận được gói tin hoặc tịnh tiến checkpoint trước khi bắt đầu xử lý. Nếu tiến trình sập giữa chừng, công việc đó sẽ biến mất vĩnh viễn.
 
-Đừng đọc “at-most-once” thành “business action xảy ra đúng một lần.” Nó cũng có thể xảy ra **zero lần**.
+Đừng hiểu nhầm “at-most-once” là “chắc chắn hành động nghiệp vụ đã diễn ra một lần.” Nó hoàn toàn có thể là **không lần nào (zero)**.
 
 ### At-least-once
 
-At-least-once giữ trách nhiệm với message cho tới khi success được quan sát. Với manual acknowledgement, RabbitMQ requeue delivery chưa ack khi connection của consumer đóng. Amazon SQS standard queue cũng document at-least-once delivery, vì vậy cùng một message có thể được receive nhiều hơn một lần.
+At-least-once (ít nhất một lần) giữ trách nhiệm bảo toàn message cho tới khi quan sát thấy xác nhận thành công. Ví dụ, với manual acknowledgement, RabbitMQ sẽ đẩy ngược lại hàng đợi (requeue) các message chưa được ACK khi kết nối TCP của consumer bị đứt. Tương tự, hàng đợi tiêu chuẩn Amazon SQS áp dụng cơ chế at-least-once kèm visibility timeout: nếu thời gian xử lý kéo dài vượt ngưỡng, message chắc chắn sẽ được phát lại cho consumer khác.
 
-At-least-once thường là default thực dụng cho durable work, nhưng duplicate delivery là behavior được thiết kế trước, không phải edge case có thể bỏ qua.
+At-least-once là xương sống thực chiến của các hệ thống phân tán chịu lỗi cao. Khi chọn at-least-once, việc nhận trùng lặp là một phần của thiết kế vận hành bình thường chứ không phải lỗi ngoại lệ có thể ngó lơ.
 
-### Exactly-once cần boundary
+### Exactly-once cần một ranh giới rõ ràng
 
-“Exactly-once” không phải một thuộc tính toàn cục. Hãy hỏi chính xác một lần **ở đâu?**
+Không có thứ gọi là "chính xác một lần" toàn năng xuyên suốt mọi hạ tầng phân tán. Bất cứ khi nào một nền tảng tuyên bố hỗ trợ exactly-once, câu hỏi đầu tiên bạn phải đặt ra là: **chính xác một lần ở ranh giới nào?**
 
-Stream processor có thể atomically commit consumed offset và derived record trong cùng transactional system. FIFO queue có thể deduplicate producer retry trong một time window giới hạn. Các guarantee đó không tự biến external payment charge, email, warehouse reservation hoặc webhook thành effect chính xác một lần.
-
-Tài liệu thiết kế Kafka hiện tại cũng tách publishing durability khỏi consuming semantics và chỉ ra rằng end-to-end semantics mạnh cần coordination với destination.
+Một hệ thống stream processing như Apache Kafka có thể commit nguyên tử offset đã tiêu thụ và các record kết quả sinh ra trong cùng một transaction nội bộ của Kafka. Amazon SQS FIFO có thể lọc trùng các lần producer retry trong cửa sổ thời gian 5 phút. Nhưng không có hệ thống nào trong số đó tự biến một lời gọi API thanh toán bên thứ ba, một email gửi ra ngoài hay một lệnh webhook thành hiệu ứng chính xác một lần. Để đảm bảo kết quả kinh doanh cuối cùng chỉ diễn ra đúng một lần, consumer bắt buộc phải có cơ chế lọc trùng tự thân.
 
 ## Làm duplicate processing hội tụ
 
-At-least-once delivery trở nên an toàn khi xử lý lặp hội tụ về cùng logical result.
+Vì at-least-once chắc chắn sẽ phát lại message, hệ thống chỉ an toàn khi các lần xử lý lặp lại đều hội tụ về cùng một trạng thái nghiệp vụ duy nhất.
 
-Các pattern phổ biến:
+Các mẫu thiết kế (pattern) cốt lõi:
 
-- **Idempotent update:** set `order.status = 'shipped'` thay vì “tăng shipped count”.
-- **Stable event identity:** lưu `event_id` dưới unique constraint trước khi áp dụng effect.
-- **Inbox table:** record consumed message ID trong cùng database transaction với local state change.
-- **Idempotency key downstream:** dùng lại stable key khi gọi service khác có hỗ trợ deduplication.
-- **Outbox sau local commit:** persist downstream intent cùng business transaction rồi publish sau.
+- **Cập nhật lũy đẳng tự nhiên (Idempotent update):** Thực thi câu lệnh `UPDATE orders SET status = 'shipped'` thay vì các phép cộng dồn tương đối kiểu `UPDATE metrics SET count = count + 1`.
+- **Định danh sự kiện ổn định (Stable event identity):** Lưu `event_id` dưới một ràng buộc duy nhất (`UNIQUE constraint`) trong cơ sở dữ liệu trước khi thực hiện thay đổi trạng thái.
+- **Bảng Inbox (Inbox table pattern):** Ghi lại ID của message đã nhận vào bảng `inbox` trong cùng một database transaction cục bộ với việc cập nhật trạng thái nghiệp vụ.
+- **Khóa lũy đẳng hạ nguồn (Downstream idempotency key):** Tái sử dụng một khóa định danh duy nhất ổn định khi gọi sang các dịch vụ hoặc cổng thanh toán bên ngoài có hỗ trợ lọc trùng.
+- **Transactional outbox sau khi commit:** Lưu trữ ý định phát sự kiện vào database cục bộ cùng lúc với transaction nghiệp vụ rồi mới phát đi sau.
 
 <TermBox term="Idempotent Consumer">
-**Idempotent consumer** có thể xử lý cùng logical message nhiều lần mà không nhân business effect dự kiến. Điều này có thể đến từ state transition vốn idempotent, deduplication record, unique constraint hoặc downstream idempotency key.
+**Idempotent consumer (Consumer lũy đẳng)** là mẫu thiết kế cho phép consumer tiếp nhận và xử lý cùng một message logic nhiều lần mà không làm nhân bản các hiệu ứng nghiệp vụ ngoài ý muốn. Tính lũy đẳng này có thể đạt được thông qua chuyển dịch trạng thái tự nhiên, ràng buộc khóa duy nhất, bảng inbox hoặc khóa lũy đẳng truyền đi hạ nguồn.
 </TermBox>
 
 ```mermaid
 flowchart TB
-  E["Event có stable id"] --> T["Một local transaction"]
-  T --> I["Insert inbox id với unique constraint"]
-  T --> S["Apply business state"]
-  T --> O["Ghi downstream outbox intent"]
-  O --> P["Publish sau"]
+  E["Event có ID ổn định"] --> T["Một database transaction cục bộ"]
+  T --> I["Ghi bảng inbox (ràng buộc UNIQUE)"]
+  T --> S["Áp dụng thay đổi trạng thái nghiệp vụ"]
+  T --> O["Ghi ý định outbox phát hạ nguồn"]
+  O --> P["Phát đi bất đồng bộ sau đó"]
 ```
 
-Transaction trên không biến mọi remote effect thành exactly-once. Nó tạo một atomic boundary cục bộ: event record và state transition cùng commit, hoặc cả hai cùng không commit.
+Transaction trên không thể biến mọi hiệu ứng từ xa thành exactly-once. Nó thiết lập một ranh giới nguyên tử cục bộ: hoặc cả sự kiện tiếp nhận lẫn thay đổi dữ liệu cùng commit thành công, hoặc cả hai cùng bị hủy bỏ nếu gặp lỗi.
 
-## Ordering là contract riêng
+## Thứ tự là một cam kết riêng biệt
 
-Delivery semantics và ordering liên quan nhưng không giống nhau.
+Các kỹ sư thường nhầm lẫn giữa ngữ nghĩa giao nhận và thứ tự thông điệp (ordering). Đây là hai cam kết hoàn toàn độc lập.
 
-Một hệ thống có thể at-least-once **và** giữ thứ tự trong một partition hoặc message group. Hệ thống khác có thể giao lại message cũ sau khi message mới hơn đã được xử lý. Global ordering đắt và hiếm; guarantee thường scope theo partition, key, queue hoặc consumer group.
+Một hệ thống có thể vừa đảm bảo at-least-once **vừa** bảo đảm thứ tự trong một partition, stream shard hoặc message group cụ thể. Tuy nhiên, khi mạng chập chờn hoặc consumer sập kích hoạt cơ chế giao lại, một message cũ hoàn toàn có thể đến đích *sau* khi một message mới hơn đã được xử lý xong. Thứ tự toàn cục (global ordering) cực kỳ đắt đỏ và hiếm khi cần thiết; thông thường thứ tự chỉ cần bảo đảm theo partition, aggregate key hoặc customer ID.
 
-Khi thứ tự quan trọng:
+Khi thứ tự mang tính sống còn:
 
-- xác định ordering key;
-- mang monotonic version hoặc sequence khi có thể;
-- định nghĩa late/duplicate event sẽ bị ignore, merge hay reconcile;
-- không giả định retry giữ global order.
+- Luôn xác định rõ ràng ordering key (ví dụ `account_id` hoặc `order_id`).
+- Đính kèm một phiên bản (version) hoặc số thứ tự tăng đơn điệu (`monotonic sequence`) trong payload của message.
+- Thiết kế consumer để chủ động từ chối hoặc dung hòa các chuyển dịch trạng thái cũ (ví dụ: một đơn hàng đã `PAID` mà sau đó nhận được sự kiện giao trễ `CREATED` thì phải bỏ qua).
+- Tuyệt đối không giả định việc retry sẽ tự động bảo toàn thứ tự toàn cục trên nhiều worker xử lý song song.
 
-Với state transition như `CREATED -> PAID -> SHIPPED`, consumer nên reject hoặc reconcile stale transition thay vì mù quáng tin arrival order.
+## Xử lý message độc và Dead-Letter Queue
 
-## Poison message và dead-letter handling
+Không phải mọi lỗi xử lý đều là trục trặc mạng tạm thời. Những lỗi tất định—như cấu trúc JSON sai lệch, không tương thích schema phiên bản mới, thiếu dữ liệu tham chiếu hoặc vi phạm quy tắc nghiệp vụ—sẽ thất bại 100% mỗi khi được thử lại.
 
-Một số message sẽ không bao giờ thành công nếu không có can thiệp: payload sai, schema version không hỗ trợ, thiếu reference data hoặc business violation deterministic.
+Vòng lặp retry vô tận với một **message độc (poison message)** sẽ gây nghẽn nghiêm trọng hàng đợi, lãng phí năng lực tính toán và chặn đứng mọi công việc hợp lệ phía sau.
 
-Giao lại vô hạn một poison message sẽ tốn capacity và có thể chặn useful work. Hãy bound attempt hoặc delivery count, giữ diagnostic context và route terminal failure sang **dead-letter queue (DLQ) hoặc failure stream tương đương**.
+Để bảo vệ đường ống xử lý:
 
-DLQ tự nó không phải correctness strategy. Operator vẫn cần:
+- Giới hạn số lần retry bằng chiến lược exponential backoff kết hợp ngẫu nhiên hóa thời gian chờ (jitter).
+- Định tuyến các thất bại triệt để sang **hàng đợi lỗi / thư chết (Dead-Letter Queue - DLQ)** hoặc failure stream chuyên dụng, kèm theo stack trace và dữ liệu chẩn đoán chi tiết.
+- Thiết lập quy trình replay DLQ chặt chẽ, bảo đảm các message chạy lại vẫn mang ID gốc để tránh nhân bản tác dụng phụ nghiệp vụ.
+- Thiết lập cảnh báo chủ động (alerting) khi dung lượng DLQ hoặc tuổi thọ message trong DLQ tăng đột biến.
 
-- reason và exception metadata;
-- original message identity;
-- replay rule;
-- cơ chế để replay không nhân effect;
-- alert khi volume hoặc age tăng.
+## Kịch bản production thực chiến: Trừ tiền thành công, giao hàng nhân đôi
 
-## Kịch bản production
+Một dịch vụ thanh toán phát ra sự kiện: `OrderPaid(eventId="evt-42", orderId="ord-17")`. Worker phía kho vận (fulfillment) nhận event, chèn một bản ghi vận chuyển vào database, rồi chuẩn bị gửi tín hiệu xác nhận (ACK) về message broker.
 
-Payment service phát `OrderPaid(eventId=evt-42, orderId=o-17)`. Fulfillment consumer insert shipment row rồi acknowledgement message.
+Database commit thành công rực rỡ. Thế nhưng, đúng vài mili-giây trước khi gói tin ACK chạm tới broker, container của worker bị sập (crash) do Kubernetes thu hồi tài nguyên (eviction). Broker phát hiện mất kết nối TCP liền kích hoạt cơ chế at-least-once và phát lại `evt-42` sang một worker dự phòng khác.
 
-Database commit thành công nhưng consumer crash trước khi broker quan sát được xác nhận. Broker giao lại `evt-42`.
+**Hậu quả:** Worker mới tiếp nhận lại event, ngây thơ chèn thêm một bản ghi vận chuyển thứ hai, xuất kho lần hai và kích hoạt lệnh giao hàng kép tới đối tác vận tải—dù message broker hoàn toàn vận hành đúng theo cam kết at-least-once.
 
-**Hậu quả:** consumer ngây thơ insert shipment thứ hai, trigger warehouse reservation lần hai hoặc phát duplicate downstream command dù broker đang hoạt động đúng với at-least-once delivery.
+**Nguyên nhân cốt lõi:** Đội ngũ phát triển đánh đồng việc gửi ACK với việc hoàn tất hiệu ứng nghiệp vụ, ngộ nhận rằng "giao nhận đáng tin cậy của broker" đồng nghĩa với "tác dụng phụ chỉ xảy ra đúng một lần".
 
-**Nguyên nhân cốt lõi:** team xem message acknowledgement như thể atomic với business effect và diễn giải “reliable delivery” thành “một business effect.”
+**Cách khắc phục chuẩn:** Dùng `eventId` làm định danh lọc trùng bất biến. Ghi `eventId` vào bảng `inbox` dưới một ràng buộc duy nhất (`UNIQUE constraint`) trong cùng một database transaction cục bộ với thao tác tạo bản ghi giao hàng. Nếu gặp xung đột trùng khóa, coi như event đã được xử lý xong, rollback transaction an toàn và gửi ngay ACK về broker. Nếu cần gọi tiếp dịch vụ bên ngoài, hãy lưu ý định đó vào bảng outbox và mang theo khóa lũy đẳng ổn định.
 
-**Cách khắc phục chuẩn:** dùng `eventId` làm stable deduplication identity; insert nó dưới unique constraint trong cùng local transaction tạo shipment; xem uniqueness conflict là event đã được apply; chỉ acknowledgement sau khi transaction commit. Nếu downstream reservation phải diễn ra sau, persist outbox record và gọi downstream service bằng stable idempotency key.
+Mô hình này mang lại **hiệu quả xử lý chính xác một lần trên trạng thái cục bộ (effectively-once business state transition)** ngay cả khi broker phát lại liên tục, mà không đòi hỏi một giao dịch phân tán toàn cục ảo tưởng.
 
-Cách này tạo **effectively-once local business state transition dưới redelivery** mà không giả vờ toàn bộ distributed workflow có một global exactly-once transaction.
+## Checklist suy luận cho mọi cam kết messaging
 
-## Checklist suy luận cho mọi messaging guarantee
+Trước khi tin vào bất kỳ lời hứa "exactly-once" nào từ nhà cung cấp giải pháp, hãy tự vấn 7 câu hỏi kiến trúc sau:
 
-Khi platform nói “exactly once,” hãy hỏi:
-
-1. Claim nói về producer publish, broker storage, consumer delivery, stream processing hay external effect?
-2. Điều gì xảy ra nếu consumer crash sau effect nhưng trước ack hoặc checkpoint commit?
-3. Cùng logical event có stable identity không?
-4. Deduplication state được lưu ở đâu, và có atomic với local effect không?
-5. Ordering scope là gì?
-6. Poison message đi đâu?
-7. Replay được phân biệt với accidental duplicate như thế nào?
+1. Cam kết đó có phạm vi ranh giới cụ thể ở đâu (tại producer publish, lưu trữ nội bộ của broker, giao nhận tới consumer hay toàn bộ hiệu ứng bên ngoài)?
+2. Điều gì sẽ xảy ra nếu consumer sập ngay sau khi ghi database nhưng trước khi gửi ACK hoặc commit checkpoint?
+3. Mỗi sự kiện logic có mang một ID định danh duy nhất và bất biến trên toàn hệ thống không?
+4. Trạng thái lọc trùng được lưu trữ ở đâu, và nó có nằm trong cùng ranh giới nguyên tử (atomic boundary) với thay đổi nghiệp vụ không?
+5. Ranh giới thứ tự là gì (toàn cục, theo partition, theo aggregate key hay hoàn toàn ngẫu nhiên)?
+6. Các message độc (poison message) được cách ly ra sao, và điều gì bảo đảm việc chạy lại (replay) từ DLQ không nhân đôi tác dụng phụ nghiệp vụ?
+7. Hệ thống phân biệt các lượt replay có chủ đích với các lần trùng lặp do mạng chập chờn bằng cách nào?
 
 ## Tự kiểm tra
 
-Consumer charge thẻ rồi mới commit queue checkpoint. Charge thành công nhưng process crash trước checkpoint commit. Broker giao lại message. Queue “at-least-once” có vi phạm contract không?
+Một consumer gọi API ngân hàng để trừ tiền thẻ tín dụng của khách, sau đó mới commit checkpoint trên message queue. Giao dịch trừ tiền thành công, nhưng tiến trình consumer sập ngay trước khi lệnh commit checkpoint kịp gửi tới broker. Khi khởi động lại, broker phát lại message đó. Hàng đợi "at-least-once" này có vi phạm hợp đồng không?
 
 <details>
 <summary>Xem giải thích chi tiết</summary>
 
-Không. Redelivery chính là behavior mà at-least-once cho phép. Phần không an toàn là business effect: consumer thực hiện remote action không idempotent trước khi persist progress. Dùng stable payment idempotency key hoặc coordinated state machine để delivery lặp hội tụ vào cùng logical charge.
+Không hề vi phạm. Cơ chế phát lại (redelivery) chính là hành vi được thiết kế chuẩn mực của at-least-once khi chưa ghi nhận xác nhận hoàn tất. Điểm yếu chết người nằm ở thiết kế của consumer: nó đã thực hiện một tác dụng phụ từ xa không có tính lũy đẳng (trừ tiền thẻ) trước khi lưu vết tiến độ một cách bền vững. Giải pháp chuẩn mực là đính kèm một khóa lũy đẳng (idempotency key) duy nhất sinh từ `eventId` của message khi gọi sang ngân hàng, giúp ngân hàng nhận biết yêu cầu gửi lại và trả về kết quả cũ thay vì trừ tiền lần thứ hai.
 
 </details>
 
-## Checklist delivery semantics
+## Checklist ngữ nghĩa giao nhận
 
-- [ ] Gọi tên guarantee và boundary chính xác.
-- [ ] Mô hình crash window quanh effect và acknowledgement.
-- [ ] Kỳ vọng duplicate dưới at-least-once delivery.
-- [ ] Cho logical event stable identity.
-- [ ] Làm local effect idempotent hoặc deduplicate atomically.
-- [ ] Định nghĩa ordering scope và stale-event behavior.
-- [ ] Bound poison-message retry và vận hành DLQ hoặc failure stream.
-- [ ] Xem vendor claim “exactly-once” là scoped, không phải global business guarantee.
-- [ ] Quan sát delivery, redelivery, duplicate suppression, DLQ volume và consumer lag.
+- [ ] **Xác định ranh giới cam kết:** Ghi rõ từng chặng truyền thông cam kết at-most-once, at-least-once hay exactly-once nội bộ.
+- [ ] **Mô hình hóa cửa sổ lỗi (Failure Window):** Vẽ rõ khoảng cách rủi ro giữa thời điểm commit dữ liệu và thời điểm gửi ACK về broker.
+- [ ] **Thiết kế tính lũy đẳng:** Bảo đảm mọi consumer chạy chế độ at-least-once đều trang bị bảng inbox lọc trùng hoặc logic cập nhật lũy đẳng.
+- [ ] **Định danh sự kiện ổn định:** Ép buộc mọi producer sinh ra `event_id` ngẫu nhiên duy nhất toàn cục và bất biến.
+- [ ] **Kiểm soát thứ tự chặt chẽ:** Xác định phạm vi thứ tự cần thiết và sử dụng sequence tăng đơn điệu (monotonic) khi nghiệp vụ yêu cầu.
+- [ ] **Cách ly message độc:** Thiết lập ngưỡng retry hữu hạn, thuật toán backoff và chuyển hướng dứt khoát sang Dead-Letter Queue (DLQ).
+- [ ] **Giám sát chuyên sâu:** Thiết lập dashboard và cảnh báo cho dung lượng DLQ, độ trễ xử lý (consumer lag) và tuổi thọ của message bị tồn đọng.
 
-## Agent rule
+## Quy tắc cho agent
 
-Trước khi chấp nhận một messaging guarantee, hãy recover toàn bộ failure boundary: producer confirmation, broker durability, consumer acknowledgement, checkpoint timing, duplicate behavior, ordering scope, local transaction boundary, downstream side effect, replay behavior và poison-message policy. Không được nâng một scoped transport guarantee thành business-effect guarantee mạnh hơn nếu chưa chứng minh cơ chế coordination.
+Khi đánh giá hoặc viết code tích hợp message broker, không bao giờ được chấp nhận các khẳng định "exactly-once" mà không kiểm tra toàn diện chuỗi xử lý: từ xác nhận của producer, tính bền vững của broker, thời điểm gửi ACK của consumer, ranh giới database transaction cục bộ, khóa lũy đẳng gọi downstream cho đến chính sách cách ly message độc. Tuyệt đối không được đánh đồng cam kết truyền tải mạng của broker với tính lũy đẳng nghiệp vụ của tầng ứng dụng.
 
 ## Nguồn
 

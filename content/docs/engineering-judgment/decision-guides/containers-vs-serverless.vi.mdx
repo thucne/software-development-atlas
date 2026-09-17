@@ -35,10 +35,15 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-1. **Ranh giới đóng gói (Packaging) khác với Ranh giới vận hành (Operating):** Một ứng dụng có thể vừa là container vừa là serverless (ví dụ tiêu biểu: Google Cloud Run hoặc AWS Fargate).
-2. **Serverless vượt trội cho lưu lượng biến thiên mạnh hoặc có thể co về 0 (Scale to Zero):** Khi lưu lượng đến không đều đặn hoặc có khoảng thời gian dài không có request, serverless giúp tối ưu chi phí hạ tầng về 0$.
-3. **Container vượt trội cho lưu lượng ổn định, tiến trình chạy nền dài hạn, hoặc yêu cầu kiểm soát sâu hệ điều hành:** Khi cần kết nối TCP trường tồn (WebSockets/gRPC streaming), binary nhị phân tùy biến, hoặc thông lượng CPU liên tục.
-4. **Coi chừng sự cố sập cơ sở dữ liệu khi Serverless mở rộng quy mô (Connection Pool Exhaustion):** Serverless có thể tự động nâng lên 2,000 instance trong vài giây và lập tức làm nghẽn cạn kiệt giới hạn kết nối của Database phía sau.
+Trong một đêm săn sale cao điểm, một công ty công nghệ tài chính (fintech) bàng hoàng chứng kiến tỷ lệ thanh toán thành công rơi tự do: các hàm serverless chưa được làm ấm (un-warmed) mất tới 3 giây "Cold Start" chỉ để nạp thư viện mã hóa và mở kết nối database—vượt quá thời gian chờ (timeout) của cổng thanh toán. Vài tháng sau, khi lượng giao dịch đi vào quỹ đạo ổn định 24/7 với 3,500 request/giây, bộ phận tài chính phát hoảng khi hóa đơn Lambda tính theo từng mili-giây tăng vọt gấp 10 lần so với chi phí thuê một cụm container cố định. Lựa chọn mô hình tính toán đám mây không phải là câu chuyện chạy theo công nghệ thời thượng—đó là bài toán tối ưu tổng chi phí sở hữu (TCO), kiểm soát ngân sách độ trễ và hiểu rõ bản chất ranh giới giữa đóng gói (Packaging) và vận hành (Operating).
+
+> 💡 **Quy tắc bỏ túi:** Tách bạch ranh giới đóng gói (Packaging) khỏi ranh giới vận hành (Operating). Container quy định những gì bạn đóng gói trong runtime artifact, còn Serverless quy định mức độ ủy thác việc cấp phát tài nguyên và vòng đời máy chủ cho nhà cung cấp đám mây. Chọn serverless cho các tác vụ biến thiên đột biến, hướng sự kiện hoặc có thể co về 0 để tiết kiệm công sức vận hành; chọn container cố định khi hệ thống cần tối ưu chi phí cho lưu lượng đều đặn, yêu cầu kết nối TCP trường tồn hoặc bắt buộc đảm bảo độ trễ P99 tính bằng mili-giây.
+
+- **Ranh giới đóng gói khác biệt với mô hình vận hành:** Container image đóng gói mã nguồn và môi trường thực thi; nền tảng serverless tự động quản lý hạ tầng và co giãn instance. Một ứng dụng hoàn toàn có thể vừa chạy container vừa mang tính chất serverless (như Google Cloud Run hoặc AWS Fargate).
+- **Độ trễ Cold Start quyết định tính khả thi trên luồng request:** Serverless phải khởi tạo môi trường sandbox mới khi có đột biến tải, tạo ra độ trễ Cold Start có thể làm đứt gãy trải nghiệm người dùng trừ khi có giải pháp giữ ấm (warm instances) hoặc provisioned concurrency chủ động.
+- **Hình thái lưu lượng quyết định điểm giao thoa chi phí (TCO):** Serverless cực kỳ tiết kiệm cho lưu lượng biến động ngắt quãng nhờ khả năng co về 0 (Scale-to-Zero), nhưng sẽ đắt gấp nhiều lần so với container cố định khi xử lý tải cao liên tục suốt 24/7.
+- **Đánh giá hợp đồng kỹ thuật cụ thể của nền tảng được chọn:** Tên gọi "serverless" không tự động đảm bảo hiệu năng; bắt buộc phải rà soát kỹ các cơ chế co giãn, khởi động, độ đồng thời (concurrency), vòng đời tiến trình và mô hình tính cước của nhà cung cấp.
+- **Cạm bẫy chết người:** **Hiện tượng Serverless co giãn mất kiểm soát đánh sập cơ sở dữ liệu phía sau.** Việc các serverless function tự động scale vọt từ 10 lên 1,500 instance đồng thời chỉ trong vài giây sẽ vắt kiệt connection pool của PostgreSQL/MySQL ngay lập tức. Bắt buộc phải đặt proxy quản lý kết nối (như RDS Proxy/PgBouncer) hoặc siết giới hạn concurrency tối đa của function.
 
 ---
 

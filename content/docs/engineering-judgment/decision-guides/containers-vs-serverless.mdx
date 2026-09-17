@@ -28,13 +28,15 @@ concepts:
 
 ## TL;DR
 
-“Containers vs serverless” combines two different questions. **A container image defines an application/runtime packaging boundary. Serverless describes an operating model in which a managed platform owns more of capacity provisioning and execution-environment lifecycle.** The choices can overlap: some serverless products run container images directly.
+During a midnight flash sale, a fintech team watched payment conversions drop as un-warmed serverless functions suffered a 3-second cold start initializing cryptographic modules and database pools—exceeding the payment gateway's timeout budget. Months later, as transaction volume stabilized into a predictable 24/7 baseline of 3,500 requests per second, the monthly cloud bill arrived: their on-demand Lambda costs were 10x higher than running an equivalent, predictably provisioned container cluster. Choosing a cloud compute model is not about developer convenience or serverless hype—it is a concrete engineering trade-off across cold-start latency budgets, execution environment control, and Total Cost of Ownership (TCO).
 
-Choose the operating model from workload and ownership requirements. Explicit container capacity is useful when you need process/runtime control or deliberately managed capacity. A serverless service is useful when the workload fits that service's execution contract and delegating capacity/host lifecycle removes work the team does not need to own.
+> 💡 **Rule of thumb:** Separate the packaging boundary from the operating boundary. An OCI container image defines the runtime artifact you package and ship; serverless defines how aggressively you delegate capacity provisioning, autoscaling, and instance lifecycle to a managed cloud platform. Choose serverless for bursty, event-driven, or scale-to-zero workloads where operational delegation offsets compute unit price premiums; choose provisioned containers when sustained baseline utilization, sub-millisecond startup requirements, persistent connections, or deep OS control dominate your constraints.
 
-The word “serverless” does not guarantee startup latency, concurrency, scaling speed, execution time, networking, local state, or price. **Verify the selected platform's scaling, startup, concurrency, lifecycle, and billing contract before relying on those properties.**
-
-A **container image** defines what runtime artifact you deploy (application code, system libraries, and configuration). **Capacity provisioning**—the operational work of making compute instances, execution slots, or CPU/memory resources available—can either be owned directly by your team or delegated to a cloud service.
+- **Packaging boundary is distinct from the operating model:** A container image packages your application code and runtime dependencies; a serverless platform manages capacity provisioning and instance lifecycles. A workload can be both (such as Google Cloud Run or AWS Fargate).
+- **Startup latency and cold starts dictate request-path fit:** Serverless runtimes initialize fresh sandboxes on demand, introducing cold starts that can violate strict latency budgets unless mitigated by provisioned concurrency or warm instances.
+- **Traffic shape dictates Total Cost of Ownership (TCO):** Serverless cuts costs dramatically for intermittent or bursty traffic by scaling to zero, but becomes substantially more expensive than provisioned container capacity under sustained, high-throughput baselines.
+- **Evaluate the selected platform's concrete contract:** The word "serverless" guarantees neither zero cost nor instant scaling; verify the selected platform's **scaling, startup, concurrency, lifecycle, and billing** rules before relying on them in production.
+- **Fatal pitfall:** **Unconstrained serverless autoscaling triggering downstream infrastructure collapse.** A serverless function tier scaling instantly from 10 to 1,500 concurrent execution environments will exhaust database connection pools and saturate downstream rate limits within seconds. Always enforce concurrency limits or place connection proxies (e.g., RDS Proxy) before the database.
 
 ## Decision frame
 

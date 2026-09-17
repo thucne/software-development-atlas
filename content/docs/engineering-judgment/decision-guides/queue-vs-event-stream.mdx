@@ -27,13 +27,15 @@ concepts:
 
 ## TL;DR
 
-A **work queue** and an **event stream** can both move records asynchronously, but they answer different ownership questions.
+Imagine a restaurant order ticket clipped to a kitchen rail: the first available line cook grabs the ticket, prepares the dish, and discards the paper in the trash—the task is completed and gone forever. That is a **worker queue**. Now imagine a company's financial general ledger: every transaction is written into an immutable, append-only journal. Auditors, tax analysts, and billing algorithms can each read through the exact same historical journal at their own speed, replaying entries from months ago without erasing a single line. That is a **partitioned log stream**. Production disasters strike when teams confuse these primitives: routing domain events to a worker queue where competing consumers accidentally steal events from each other, or introducing a heavy Kafka cluster merely to resize avatars and drowning in partition rebalances and disk retention bloat.
 
-Use a queue when the central question is **which worker should perform this unit of work?** Multiple competing consumers can share one queue so that each delivery is handled by one worker, with acknowledgements and redelivery controlling completion.
+> 💡 **Rule of thumb:** Ask whether messages represent discrete jobs to be performed once and discarded, or immutable facts to be observed independently over time. Use a message queue (e.g., RabbitMQ, Amazon SQS) when the goal is competing consumer work distribution with per-message acknowledgements and granular retry dead-letter queues; use a partitioned event stream (e.g., Apache Kafka, Redpanda) when multiple independent consumer groups need to read, order, and replay an immutable historical sequence at their own pace.
 
-Use an event stream when the central question is **which independent subscribers need to observe this fact, now or later?** A retained append-only log lets multiple subscriber groups track their own positions and replay retained history without consuming the record away for other groups.
-
-Do not choose from throughput slogans. The decision changes with **fan-out, replay requirements, retention, ordering scope, delivery semantics, backpressure, and operational ownership**. Queue products can fan out into multiple queues, and stream products can use consumer groups to distribute work. The important distinction is the behavior your system needs, not the product category printed on a homepage.
+- **Work queues distribute discrete units of work:** Competing consumers pull from a shared queue; once a worker acknowledges completion, the broker removes the message. Ideal for background tasks, batch jobs, and rate-limited third-party API interactions.
+- **Event streams preserve an immutable history of facts:** An append-only log retains events according to a retention policy. Independent consumer groups track their own offsets and can replay historical events arbitrarily without affecting other consumers.
+- **Ordering is scoped by partition, not universal:** Event streams guarantee strict FIFO ordering only within the same partition key; message queues with concurrent workers complete jobs out of order unless restricted to a single serial consumer.
+- **Acknowledge vs. commit failure semantics:** In queues, unacknowledged jobs trigger redelivery; in streams, consumers advance committed offsets. Neither transport guarantees end-to-end "exactly-once" side effects—consumers must enforce application-level **idempotency**.
+- **Fatal pitfall:** **Treating a single worker queue as a fan-out event bus.** Hooking up analytics, billing, and fraud-detection consumers to the same competing-consumer queue means each event is processed by only one of them at random while the others starve. Always use separate queues per subscriber or publish to a partitioned event stream.
 
 ## Decision frame
 

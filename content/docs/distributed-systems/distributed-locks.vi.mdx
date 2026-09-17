@@ -18,28 +18,19 @@ concepts:
 
 # Khóa phân tán: Điều phối công việc độc quyền bằng lease và fencing
 
+Một worker backend acquire thành công khóa phân tán trên Redis với thời hạn TTL 30 giây để xử lý đối soát giao dịch tài chính. Mới chạy được 10 giây, máy ảo JVM bất ngờ dính một đợt dừng toàn bộ tiến trình (Stop-The-World GC) kéo dài tới 45 giây. Trong khi worker thread bị "đóng băng" thời gian, thời hạn lease trên Redis lặng lẽ hết hạn. Một worker thứ hai phát hiện khóa trống, lập tức acquire một lease mới và ghi dữ liệu thành công xuống cơ sở dữ liệu. Đúng lúc này, worker thứ nhất bừng tỉnh sau cơn ngủ GC, ngây thơ tin rằng mình vẫn là bên giữ khóa hợp pháp, và lập tức đẩy gói ghi cũ xuống database—phá nát toàn bộ dữ liệu chuẩn mà worker thứ hai vừa cập nhật.
+
+Sự cố thực tế này lột trần ảo tưởng nguy hiểm: xem khóa phân tán như một mutex luồng trải dài qua mạng. Nếu không có cơ chế rào chắn kiểm soát tại đích lưu trữ, tính loại trừ tương hỗ (mutual exclusion) phân tán chỉ là một ảo giác mong manh.
+
+> 💡 **Quy tắc bỏ túi:** Khóa phân tán chỉ điều phối thứ tự cấp quyền, nhưng chỉ có token rào chắn tăng đơn điệu được kiểm tra tại tài nguyên đích mới bảo đảm được tính độc quyền dữ liệu. Đừng bao giờ giả định một thread sẽ tự động dừng chạy khi thời hạn lease của nó kết thúc.
+
 ## Tóm tắt
 
-Khóa phân tán không phải mutex cục bộ được kéo dài qua network. Nó là một **giao thức quyền sở hữu** giúp nhiều participant điều phối công việc độc quyền trong khi message có thể chậm, process có thể tạm dừng và bên giữ lock có thể biến mất.
-
-Một thiết kế production phải trả lời:
-
-- hệ thống coordination dùng chung nào quyết định owner hiện tại;
-- quyền sở hữu hết hạn hoặc được gia hạn bằng cách nào;
-- holder chứng minh mình vẫn sở hữu lock ra sao;
-- stale holder bị ngăn sửa protected resource như thế nào;
-- thao tác unlock tránh xóa quyền sở hữu của holder mới ra sao;
-- contender chờ thế nào mà không tạo polling storm;
-- lock có thực sự là primitive phù hợp cho invariant hay không.
-
-Mental model cốt lõi:
-
-```text
-acquire lock -> quyền sở hữu tạm thời -> công việc được bảo vệ
-                                      \-> quyền sở hữu có thể trở nên stale
-```
-
-Vì vậy correctness phụ thuộc vào **lease, ownership identity và fencing**, không chỉ vào việc "một process duy nhất đã đi vào vùng tới hạn."
+- **Khóa phân tán là giao thức sở hữu dựa trên lease, không phải mutex cục bộ:** Khác với mutex của hệ điều hành vốn có chung scheduler ép luồng dừng lại, khóa phân tán chỉ cấp quyền sở hữu có thời hạn qua mạng không đáng tin cậy—nơi các tiến trình có thể tạm dừng, lag mạng hoặc mất phiên làm việc bất cứ lúc nào.
+- **Hết hạn lease giải quyết bài toán tiến triển (liveness), không ngăn chặn được thực thi cũ:** TTL giúp giải phóng các khóa bị bỏ rơi khi worker crash, nhưng các đợt GC pause, tranh chấp CPU hay nghẽn mạng có thể khiến worker vượt quá thời hạn lease trong khi thread ứng dụng vẫn tiếp tục chạy tiếp.
+- **Token rào chắn (fencing token) thiết lập ranh giới an toàn tại tài nguyên đích:** Mỗi lần cấp khóa thành công bắt buộc phải đi kèm một số thứ tự tăng đơn điệu. Hệ thống lưu trữ đích (database, kho file) phải kiên quyết từ chối mọi thao tác mang token cũ hơn token cao nhất từng ghi nhận.
+- **Giải phóng khóa an toàn bắt buộc phải kiểm tra danh tính chủ sở hữu:** Thao tác xóa khóa mù quáng khi hoàn thành công việc có thể vô tình xóa nhầm khóa của một worker mới vừa acquire sau khi lease hết hạn. Luôn sử dụng thao tác xóa có so sánh (compare-and-delete) dựa trên token sở hữu duy nhất.
+- **Cạm bẫy chết người:** Tin tưởng tuyệt đối vào đồng hồ local hoặc biến cờ kiểm tra trong bộ nhớ trước khi ghi xuống database. Vì thời gian trôi lệch nhau trên từng máy và tiến trình có thể bị khựng lại tại bất kỳ dòng lệnh nào, việc kiểm tra "lease vẫn còn hạn trong RAM" không thể ngăn một thread bị lag thức dậy và phá hỏng cơ sở dữ liệu.
 
 ```mermaid
 flowchart LR
@@ -292,18 +283,18 @@ Một service xử lý tài liệu dùng distributed lock 30 giây theo từng d
 
 Lock service làm lease của A hết hạn sau 30 giây. Worker B acquire cùng lock và nhận fencing token 202. B publish artifact đúng. A chạy lại với local state cũ rồi upload một artifact cũ hơn sau B.
 
-**Hậu quả:** người dùng đôi khi nhận artifact stale dù monitoring cho thấy lock service chưa từng cấp lock cho hai active owner tại đúng cùng một thời điểm.
+**Hậu quả:** người dùng thỉnh thoảng nhận phải artifact cũ (stale) dù số liệu giám sát khẳng định lock service chưa từng cấp phát quyền sở hữu cho hai worker tại cùng một thời điểm.
 
-**Nguyên nhân cốt lõi:** team xem lease expiry như thể nó vật lý dừng vùng tới hạn cũ. Protected object store không validate fencing token, nên stale holder vẫn có thể overwrite công việc của owner mới.
+**Nguyên nhân cốt lõi:** đội ngũ kỹ thuật ngộ nhận rằng việc hết hạn lease sẽ lập tức triệt tiêu tiến trình cũ một cách vật lý. Hệ thống lưu trữ đối tượng đích không kiểm tra token rào chắn, khiến bên giữ khóa cũ vẫn có thể tự do ghi đè lên kết quả của chủ sở hữu mới.
 
-**Cách khắc phục chuẩn:** cấp fencing token tăng đơn điệu cho mỗi lần acquire thành công, buộc publishing boundary từ chối token thấp hơn token cao nhất đã chấp nhận cho document đó, biến release thành compare-and-delete dựa trên unique owner token, và làm publish operation idempotent để retry không thể tạo duplicate logical effect.
+**Cách khắc phục chuẩn:** cấp phát token rào chắn tăng đơn điệu cho mỗi lần acquire thành công, buộc ranh giới xuất bản phải từ chối mọi token thấp hơn token cao nhất từng được chấp nhận cho tài liệu đó, biến thao tác giải phóng khóa thành so sánh và xóa (compare-and-delete) dựa trên token sở hữu duy nhất, và bảo đảm thao tác xuất bản có tính bất biến (idempotent) để việc thử lại không tạo ra tác dụng phụ trùng lặp.
 
 ## Tự kiểm tra
 
 Một worker acquire lock dựa trên lease với fencing token 50. Nó pause đủ lâu để lease hết hạn. Worker khác acquire token 51 và cập nhật protected resource. Worker đầu tiên chạy lại. Việc kiểm tra "object lock vẫn còn trong code của tôi" có đủ trước khi write không?
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không. Lock object chỉ là local memory và có thể đại diện cho ownership đã stale. Worker cũ không đáng tin chỉ vì nó chạy lại. Protected resource cần authority check phân biệt token 50 với token mới hơn 51 và phải từ chối token stale. Lease expiry cung cấp liveness cho coordinator; fencing enforce ordering tại resource boundary.
 

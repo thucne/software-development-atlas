@@ -16,21 +16,19 @@ concepts:
   - frontend-bundle-performance
 ---
 
-# Hiệu năng Bundle Frontend: Gửi ít JavaScript hơn, tải muộn hơn
+# Hiệu năng bundle Frontend: Đồ thị, thời điểm và công việc của trình duyệt
 
 ## TL;DR
 
-Hiệu năng bundle frontend không phải cuộc thi tạo ra một file nhỏ nhất có thể. Đây là việc kiểm soát **JavaScript nào đi vào browser, khi nào nó được request, và browser phải làm bao nhiêu công việc trước khi người dùng có thể tương tác**.
+Một nhóm phát triển phát hành một bản cập nhật "nhỏ" bổ sung tính năng xuất hóa đơn PDF bên trong modal cài đặt. Ngay hôm sau, Google Search Console đồng loạt báo động đỏ vì chỉ số Core Web Vitals tụt dốc thảm hại (INP tăng vọt lên 650ms, LCP chậm thêm 2,8 giây), kéo theo tỷ lệ chuyển đổi đơn hàng giảm 35%. Kiểm tra bằng công cụ phân tích bundle cho thấy một câu lệnh `import { pdfGenerator } from 'heavy-pdf-lib'` ở đầu file modal đã kéo theo 1.4MB thư viện xử lý canvas và font chữ vào thẳng bundle khởi động chính của *mọi người dùng trên toàn bộ các trang*. Nguyên nhân gốc rễ? Sử dụng static import cho các tính năng có điều kiện, làm nhiễm độc đồ thị phụ thuộc của client.
 
-Một mental model hữu ích:
+> 💡 **Quy tắc bỏ túi:** **Đoạn mã JavaScript nhanh nhất là đoạn mã không bao giờ phải tải xuống, phân tích cú pháp hay thực thi trong trình duyệt.** Dung lượng truyền tải qua mạng (brotli/gzip) mới chỉ là một nửa chi phí—công sức CPU giải nén, compile và chạy code trên luồng chính mới là thứ làm đơ giao diện (INP). Hãy cô lập các tính năng không bắt buộc đằng sau import động (`React.lazy`, `import()`) và áp đặt ngân sách bundle chặt chẽ trong CI.
 
-1. lần theo **đồ thị phụ thuộc client (client dependency graph)**;
-2. giữ code ở ngoài đồ thị đó nếu code không cần chạy trong browser;
-3. tách capability tùy chọn tại boundary route hoặc interaction có ý nghĩa;
-4. để static analysis loại bỏ code thật sự không được dùng;
-5. đo cả transfer size **và** chi phí parse/compile/execute;
-6. xác minh code splitting không tạo request waterfall mới;
-7. bảo vệ kết quả bằng budget và guardrail chống regression.
+- **Tổng chi phí của JavaScript:** Dung lượng tải về (brotli/gzip) chỉ là giai đoạn một; giải nén, phân tích cú pháp (parse), biên dịch bytecode và thực thi trên luồng chính của CPU di động mới chiếm phần lớn độ trễ.
+- **Kỷ luật quản lý đồ thị phụ thuộc client:** Lần theo đồ thị import bắc cầu: một import tĩnh đơn lẻ bên trong file tiện ích dùng chung có thể kéo theo các gói thư viện khổng lồ của bên thứ ba vào mọi entry point.
+- **Chia mã chiến lược (Code Splitting):** Phân tách mã tại các ranh giới tự nhiên của route hoặc tương tác (ví dụ: modal, bộ soạn thảo rich-text, biểu đồ, công cụ xuất file) bằng `import()` động thay vì chia chunk ngẫu nhiên.
+- **Loại bỏ mã chết (Tree-shaking) hiệu quả:** Đảm bảo các gói hỗ trợ cú pháp ES module (`sideEffects: false`) và tránh các file barrel (`index.ts` export hàng trăm module) làm vô hiệu hóa khả năng loại bỏ mã chết của bundler.
+- **Cạm bẫy chết người:** Import tĩnh các thư viện bên thứ ba nặng nề (như Moment.js, Lodash, thư viện xuất PDF, Chart.js) ở đầu file của các component hiếm khi hiển thị—làm ô nhiễm bundle trên đường dẫn tới hạn (critical path) của 100% người dùng.
 
 <TermBox term="Đồ thị phụ thuộc client">
 **Đồ thị phụ thuộc client** là tập module bắc cầu mà một entry point phía browser có thể chạm tới qua các import. Một component rất nhỏ vẫn có thể kéo một library lớn vào browser nếu import chain của nó đi tới library đó.

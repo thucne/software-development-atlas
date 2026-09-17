@@ -32,19 +32,19 @@ concepts:
 
 # Backend Concurrency: Preserve Invariants When Requests Overlap
 
+During a midnight flash sale, an account with a \$100 balance receives two withdrawal requests of \$50 within milliseconds of each other. The load balancer routes them to two different application replicas. Both worker processes execute `SELECT balance FROM accounts WHERE id = 42`, both observe `balance = 100`, both confirm `100 >= 50`, and both subsequently issue `UPDATE accounts SET balance = 50 WHERE id = 42`. The customer successfully withdraws \$100, yet the account balance settles at \$50—half the money literally vanished into thin air. In the morning post-mortem, an engineer protests: *"Both requests ran inside database transactions!"*
+
+This is the brutal reality of backend concurrency: transactions without proper isolation or coordination do not prevent concurrent interleavings from violating business invariants. Concurrency bugs begin the moment two units of work can overlap while touching state that matters to the same invariant. They do not need to execute on different CPU cores. Two async tasks, two threads, two processes, or two service replicas can all create concurrency bugs if correctness depends on timing.
+
 ## TL;DR
 
-Backend concurrency begins the moment two units of work can overlap while touching state that matters to the same invariant. They do not need to execute on different CPU cores. Two async tasks, two threads, two processes, or two service replicas can all create concurrency bugs if correctness depends on timing.
+> 💡 **Rule of thumb:** Never coordinate cross-replica business invariants with process-local locks; enforce the critical section where the durable state lives through atomic conditional updates, optimistic locking with monotonic versions, or pessimistic locks (`SELECT FOR UPDATE`).
 
-A durable reasoning loop is:
-
-1. state the **invariant** that must survive every successful operation;
-2. identify the state and side effects that determine it;
-3. find the smallest **critical section** where conflicting work must not interleave freely;
-4. determine the real coordination scope: one task, one process, one database, or many service instances;
-5. choose the narrowest primitive that makes the invariant atomic enough;
-6. define conflict, retry, timeout, and failure behavior explicitly;
-7. measure contention instead of weakening correctness to gain throughput.
+- **Invariants define coordination boundaries:** Concurrency is not about whether two CPU cores execute simultaneously, but whether overlapping operations violate business invariants (such as non-negative balances or strict inventory caps).
+- **Process-local locks stop at the process boundary:** An in-memory mutex (`sync.Mutex`, language locks) cannot coordinate across multiple container instances, serverless functions, or background workers sharing a database.
+- **Coordination primitives by contention:** Use atomic conditional writes (`UPDATE ... WHERE balance >= 50`) for simple numeric transitions, optimistic concurrency (`version = version + 1`) for low-contention document edits, and pessimistic locking (`SELECT ... FOR UPDATE`) when conflict retries would cause disastrous retry storms.
+- **Contention is an unmodeled queue:** When hundreds of requests fight over the same critical section, lock wait times spike, connection pools saturate, and latency degrades; shrink critical sections rather than weakening invariants.
+- **Fatal pitfall:** Relying on naive read-check-write application patterns (`SELECT balance` -> check in code -> `UPDATE balance`) without atomic conditional transitions or pessimistic locks, allowing concurrent operations to interleave, overwrite each other, and cause catastrophic lost updates.
 
 ```mermaid
 flowchart LR
@@ -228,7 +228,7 @@ It is a poor fit when hot contention makes many writers repeatedly fail and retr
 Examples include:
 
 - a process mutex protecting one in-memory structure;
-- a database row lock while a transaction updates related state;
+- a database row lock (such as `SELECT ... FOR UPDATE`) while a transaction updates related state;
 - a single-threaded owner/actor processing operations for one key;
 - a lease when exclusive ownership must span processes.
 

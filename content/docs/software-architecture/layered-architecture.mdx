@@ -29,9 +29,18 @@ concepts:
 
 # Layered Architecture: Make Dependency Direction Explicit
 
+It begins with a well-intentioned shortcut: a developer needs to display a user's subscription status on a dashboard. Writing a dedicated domain policy, application service, and repository query feels like "too much ceremony for a simple read." So, they write a quick SQL query directly inside the HTTP Controller. It works. Two months later, an admin reactivation endpoint copies the pattern and updates the database row directly. But because it completely bypassed the application and domain layers, fraud-check invariants never ran, audit events were never published, and payment status checks were silently skipped.
+
+This is the classic pitfall of **layer skipping** (bypassing layers). When presentation code reaches directly into persistence for quick wins, business rules fragment across the codebase, security validations leak, and the architecture collapses into an untestable illusion.
+
+> 💡 **Rule of thumb:** Layers define logical boundaries and unidirectional dependency rules; the moment presentation bypasses business policy to touch data directly, architectural integrity is lost.
+
 ## TL;DR
 
-Layered architecture organizes responsibilities into **logical layers** and constrains which directions dependencies may flow.
+- **Layers organize technical responsibilities:** Standardize codebase structure across logical concerns—**presentation layer** translates protocols, **application layer** orchestrates use cases and transaction boundaries, **domain layer** enforces core business invariants, and **infrastructure layer** manages concrete mechanisms (databases, queues, external APIs).
+- **Enforce the unidirectional dependency rule:** Dependencies must flow strictly downward (or inward via dependency inversion). Higher layers may depend on adjacent lower layers, but lower layers must never import higher-level presentation or transport constructs.
+- **Distinguish layers from tiers:** **Layers** are logical boundaries within a deployable unit; **tiers** are physical deployment boundaries across machines or processes. Do not introduce network latency and distributed failure modes merely to mirror code folders.
+- **Fatal pitfall:** **Layer skipping (bypass).** Letting controllers or background jobs bypass the application and domain layers to query or mutate persistence state directly creates fragmented validation, exposes security vulnerabilities, and corrupts database invariants when essential business policies are silently skipped.
 
 A common shape is:
 

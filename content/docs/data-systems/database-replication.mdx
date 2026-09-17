@@ -32,9 +32,22 @@ concepts:
 
 # Database Replication: Reason About Copies, Lag, and Failover
 
+A user updates their account password or completes a critical \$500 payment. The application receives a 200 OK from the primary database and immediately redirects the user to their account settings or billing dashboard. But the backend router naively dispatches the follow-up read to an asynchronous read replica that is experiencing an 800ms `replica lag` spike under peak traffic.
+
+The replica has not yet received or replayed the corresponding write-ahead log (`WAL`) record. The dashboard displays the old password or flags the order as "Unpaid / Failed." The customer panics, assumes their transaction disappeared into a black hole, and bombards customer support with angry tickets and duplicate charges.
+
+In production data architecture, copying bytes via physical streaming `WAL` is straightforward. The real engineering difficulty lies in mastering the distributed consistency contracts: accepting that an asynchronous replica is inherently an *eventually consistent* view, guaranteeing `read-after-write` causal consistency, configuring synchronous commit guarantees (`synchronous_commit = on` vs. `remote_apply`), preventing `pg_wal` disk exhaustion from abandoned replication slots, and executing automated `failover` paired with ironclad split-brain fencing (STONITH) so that two nodes never act as writable primaries simultaneously.
+
+> 💡 **Rule of thumb:** An asynchronous read replica is not an instant clone—it is an eventually consistent stream lagging behind primary WAL. Never route immediate read-after-write flows or security-critical authorization checks to replicas without causal tokens or primary routing, and never trigger failover without automated split-brain fencing (STONITH) to prevent two primaries from accepting conflicting writes.
+
 ## TL;DR
 
-Replication creates additional database copies for availability, disaster tolerance, and read capacity. The hard part is not copying bytes. The hard part is defining **when a copy is allowed to be stale, what a successful commit guarantees, which node may accept writes, and how failover avoids two primaries**.
+- **Streaming WAL is a multi-stage pipeline:** WAL records travel through distinct stages: generated on the primary, transmitted across the network, received by the standby, flushed to durable storage, and replayed. A commit acknowledged by the primary does not mean the data is instantly visible on standbys.
+- **Durability vs. Visibility in Synchronous Commit:** `synchronous_commit = on` only waits for standbys to flush WAL durably to disk; queries on the replica still cannot see the change until it is replayed. Only `synchronous_commit = remote_apply` guarantees immediate query visibility on the synchronous standby.
+- **Read-after-write requires explicit routing:** Asynchronous replicas inherently exhibit `replica lag`. Production applications must route immediate post-write reads to the primary, use causal consistency tokens, or verify replication offsets before serving dependent requests.
+- **Replication slots protect standbys but risk primary disks:** A replication slot guarantees the primary retains all WAL until consumed by the standby. If a standby drops offline or stalls, `pg_wal` on the primary will grow without bound until disk space is exhausted unless capped and monitored.
+- **Failover is an authority transfer requiring fencing:** Promoting a standby without fencing the old primary risks split-brain catastrophe, where two nodes accept writes and permanently diverge. Automated STONITH (Shoot The Other Node In The Head) fencing is essential.
+- **Fatal pitfall:** Treating asynchronous read replicas as immediately consistent for post-mutation redirects. Without sticky routing to the primary or causal replication checkpoints, users will read stale data, trigger false error states, or submit duplicate payments.
 
 For PostgreSQL physical streaming replication, use this mental model:
 

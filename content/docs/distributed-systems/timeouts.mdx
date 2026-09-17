@@ -20,7 +20,15 @@ concepts:
 
 ## TL;DR
 
-A timeout bounds how long one wait may consume resources. A **deadline** bounds when the larger operation stops being useful. Operate remote calls with explicit scopes, one end-to-end budget, propagated remaining time, cancellation, and stage-level telemetry.
+03:15 AM during a massive flash-sale campaign. A minor 400 ms database latency hiccup strikes an internal recommendation engine. Seconds later, your entire user-facing API gateway locks up. CPU utilization hovers at a sleepy 12%, yet incoming health checks fail, thousands of user requests queue indefinitely, and edge load balancers drop connections with 504 errors. The culprit? An innocent default across every microservice client: an unconfigured, generic 30-second socket timeout. Instead of failing fast when the recommendation service lagged, 5,000 worker threads were held hostage waiting on connections that could never finish before the user gave up. A timeout is not a casual configuration parameter—it is an explicit contract on **finite system resources**.
+
+> 💡 **Rule of thumb:** Never configure an isolated, static timeout without knowing its exact socket phase; always propagate the remaining end-to-end deadline and reserve local processing budget down the call chain.
+
+- **Timeout scope vs. end-to-end deadline:** A **timeout** limits how long a single socket phase or operation can wait; a **deadline** defines the absolute wall-clock threshold beyond which the overall business transaction ceases to have any value.
+- **Deconstruct socket phases:** A setting named `timeout` is meaningless until its exact phase is defined—a connect timeout does nothing to mitigate stalled body reads, while socket read timeouts often reset on every received byte. Explicitly configure thresholds for **DNS** lookup, TCP **connect**, **TLS** negotiation, request **write**, and response body **read**.
+- **Propagate remaining budget:** Downstream services must never be granted a fresh, full timeout allocation. Each hop must consume only the **remaining budget** after deducting elapsed upstream time and a local safety reserve for serialization and dispatch.
+- **Cancellation without rollback:** When a deadline expires, propagate **cancellation** immediately to stop wasteful downstream processing; however, cancellation is not a rollback—changes already committed remain durable.
+- **Fatal pitfall:** **Resetting timeout budgets at every hop.** Granting a fresh 2-second timeout to three sequential microservices turns a 1-second caller SLO into an invisible 6-second thread-starvation cascade that paralyzes upstream worker pools during downstream degradation.
 
 ```mermaid
 flowchart LR

@@ -31,32 +31,19 @@ concepts:
 
 # Idempotency: Biến retry thành thao tác an toàn dù kết quả không chắc chắn
 
-## Tóm tắt nhanh
+Một khách hàng đang đứng trong thang máy với kết nối 4G chập chờn nhấn nút "Thanh toán ngay" cho đơn hàng 2 triệu đồng. Yêu cầu đầu tiên chạm tới máy chủ thanh toán và trừ tiền thành công qua cổng thanh toán, nhưng đúng lúc đó cột sóng điện thoại chuyển trạm khiến kết nối TCP chiều về bị đứt đoạn trước khi phản hồi `200 OK` kịp truyền tới điện thoại. Ứng dụng di động xoay vòng tròn chờ đợi, báo lỗi timeout sau 5 giây và tự động kích hoạt cơ chế gửi lại (retry). Người dùng sốt ruột cũng bấm liên tiếp thêm hai lần nữa. Trong vòng 10 giây, máy chủ nhận liên tiếp 3 request thanh toán giống hệt nhau. Nếu thiếu một ranh giới lũy đẳng (idempotency) thực thụ, thẻ của khách hàng sẽ bị trừ 6 triệu đồng với 3 tin nhắn trừ tiền dồn dập, kéo theo sự giận dữ của người dùng, tranh chấp thanh toán và chi phí đối soát hoàn tiền đắt đỏ.
 
-Idempotency nghĩa là lặp lại **cùng một thao tác logic** không làm hiệu ứng nghiệp vụ dự kiến được áp dụng nhiều hơn một lần.
+Trong mạng phân tán, lỗi timeout vốn dĩ mang tính chất mơ hồ: bạn không thể biết thao tác bị đứt gãy trước khi tới máy chủ, trong khi đang xử lý, hay trên đường trả về kết quả. **Tính lũy đẳng (Idempotency)** chính là giao ước kiến trúc biến việc thử lại khi gặp sự cố không chắc chắn thành một thao tác an toàn tuyệt đối.
 
-Vấn đề vận hành xuất hiện khi caller không biết attempt đầu đã thành công hay chưa:
+## TL;DR
 
-```text
-client gửi command
-  -> server commit hiệu ứng
-  -> kết nối chết trước khi response tới client
-  -> client chỉ thấy timeout
-  -> client phải quyết định có retry hay không
-```
+> 💡 **Quy tắc bỏ túi:** Thao tác an toàn (safe operation như `GET`) không làm thay đổi trạng thái máy chủ, còn thao tác lũy đẳng (idempotent operation như `PUT` hoặc `POST` có bảo vệ) có thể thay đổi dữ liệu một lần duy nhất và trả về cùng kết quả logic ở mọi lần gọi lại. Hãy luôn reserve Idempotency Key một cách nguyên tử bằng ràng buộc duy nhất (unique constraint) kết hợp băm fingerprint payload trước khi kích hoạt bất kỳ tác dụng phụ không thể đảo ngược nào.
 
-Nếu không có ranh giới idempotency, availability và correctness xung đột trực tiếp. Retry thì có thể tạo hiệu ứng trùng. Không retry thì có thể để người dùng nhìn thấy operation như thất bại dù server đã thực hiện xong.
-
-Một mô hình hữu ích:
-
-```text
-định danh thao tác logic
-  + fingerprint của request
-  + reservation nguyên tử
-  + outcome bền vững
-  + cửa sổ retention rõ ràng
-  + downstream effect chịu được duplicate
-```
+- **Ranh giới an toàn (Safe) và lũy đẳng (Idempotent):** Phương thức an toàn (`GET`, `HEAD`) không bao giờ làm biến đổi tài nguyên. Thao tác lũy đẳng (`PUT`, `DELETE` hoặc `POST` được thiết kế chuẩn) cho phép thay đổi dữ liệu ở lần đầu, nhưng bảo đảm việc lặp lại cùng lệnh đó sẽ không phát sinh thêm bất kỳ hiệu ứng nghiệp vụ nào.
+- **Định danh thao tác logic ổn định:** Client phải sinh `Idempotency-Key` một lần duy nhất khi hành động nghiệp vụ bắt đầu và tái sử dụng đúng key đó cho mọi nỗ lực thử lại; việc sinh UUID ngẫu nhiên mới ở mỗi lần retry qua mạng sẽ phá vỡ hoàn toàn cơ chế lọc trùng.
+- **Reservation nguyên tử kết hợp băm fingerprint:** Lưu bản ghi idempotency vào database bằng `INSERT ... ON CONFLICT` với unique constraint, kết hợp mã băm SHA-256 (fingerprint) của payload chuẩn hóa; từ chối ngay lập tức trường hợp cùng key nhưng payload khác để ngăn chặn xung đột hoặc sửa đổi tham số bất thường.
+- **Điều phối hiệu ứng bên ngoài (External side effects):** Transaction cơ sở dữ liệu cục bộ không thể rollback cổng thanh toán bên thứ ba hay nhà cung cấp email; cần truyền downstream idempotency key hoặc ghi nhận trạng thái bền vững trước khi gọi ra ngoài.
+- **Cạm bẫy chết người:** Viết logic ngây thơ theo kiểu kiểm tra trước rồi trừ tiền sau (`if key not found -> charge -> insert key`), tạo kẽ hở để hai request đồng thời cùng thấy key "chưa tồn tại", cùng trừ tiền thẻ tín dụng hai lần và phá hủy hoàn toàn ý nghĩa của khóa idempotency.
 
 ```mermaid
 sequenceDiagram

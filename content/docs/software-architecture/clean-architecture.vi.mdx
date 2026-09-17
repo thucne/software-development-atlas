@@ -30,22 +30,32 @@ concepts:
 
 # Clean Architecture: Giữ logic nghiệp vụ độc lập với chi tiết triển khai
 
+Tưởng tượng một nhóm phát triển tiếp nhận một hệ thống quản lý người dùng và đăng ký tài khoản (onboarding) cơ bản. Vì mong muốn tuân thủ "chuẩn mực kiến trúc tốt nhất", nhóm kỹ sư tiền nhiệm đã sùng bái thái quá (cargo-cult) sơ đồ 4 vòng tròn đồng tâm kinh điển của Clean Architecture. Mọi thao tác đọc ghi dữ liệu đơn giản nhất đều bị ép phải đi qua 24 lớp trung gian: `UserController`, `UserPresenter`, `CreateUserUseCaseInputPort`, `CreateUserUseCaseOutputPort`, `CreateUserInteractor`, `UserRepositoryInterface`, `PostgresUserRepository`, 5 loại DTO khác nhau cùng hàng tá mapper chuyển đổi qua lại. Khi sản phẩm cần bổ sung một trường dữ liệu đơn giản như `phone_number`, kỹ sư buộc phải sửa đổi tới 14 file rải rác ở 6 tầng thư mục. Dung lượng codebase phình to gấp 3 lần, tốc độ giao hàng (time-to-market) sụt giảm thảm hại, trong khi các bài kiểm thử chỉ toàn mock dữ liệu ảo mà không đem lại chút năng lực testability thực tế nào trước các lỗi runtime của cơ sở dữ liệu.
+
+Sai lầm nghiêm trọng ở đây là nhầm lẫn giữa sự rườm rà hình thức với bản chất kiến trúc. Clean Architecture không phải là cuộc đua nhân bản interface hay chia thư mục máy móc; giá trị cốt lõi nhất của nó nằm ở **Quy tắc phụ thuộc (Dependency Rule)**: mã nguồn luôn luôn trỏ vào trong hướng về các quy tắc nghiệp vụ cốt lõi, giữ cho nghiệp vụ độc lập hoàn toàn với database, web framework, SDK bên thứ ba và giao diện người dùng.
+
+> 💡 **Quy tắc bỏ túi:** Bảo vệ quy tắc nghiệp vụ ổn định khỏi chi tiết kỹ thuật dễ biến động; mọi phụ thuộc mã nguồn phải luôn hướng vào trong về phía domain, và chỉ vượt qua ranh giới bằng các abstraction do chính phía trong sở hữu.
+
 ## Tóm tắt nhanh
 
-Clean Architecture tổ chức dependency trong mã nguồn để **policy quan trọng không phụ thuộc vào detail dễ thay đổi**.
+- **Quy tắc phụ thuộc (Dependency Rule) là bất biến:** Chiều phụ thuộc mã nguồn (source-code dependency) chỉ được phép trỏ **hướng vào trong** về phía policy cấp cao. Các tầng bên trong (`Entities` và `Use Cases`) tuyệt đối không bao giờ được import hay phụ thuộc trực tiếp vào các chi tiết cơ chế bên ngoài (`Interface Adapters`, `Frameworks and Drivers`).
+- **Các vòng tròn thể hiện gradient độ ổn định:** Vòng ngoài cùng chứa chi tiết kỹ thuật và cơ chế vận hành dễ biến động (web framework, ORM, cơ sở dữ liệu, message broker); vòng trong cùng lưu giữ giá trị nghiệp vụ bền vững (`Entities` chứa quy tắc nghiệp vụ cốt lõi và `Use Cases` điều phối luồng xử lý ứng dụng).
+- **Dữ liệu qua ranh giới (boundary data) không được rò rỉ:** Dữ liệu vượt qua các tầng chỉ dùng cấu trúc dữ liệu thuần túy (DTO, request model, response model). Tuyệt đối không tuồn HTTP request, con trỏ database hay entity ORM vào bên trong lõi nghiệp vụ.
+- **Đảo ngược phụ thuộc và Composition Root:** Tầng ngoài hiện thực hóa (implement) các abstraction do tầng trong sở hữu thông qua **đảo ngược phụ thuộc (dependency inversion)**. Toàn bộ việc khởi tạo và lắp ghép các phụ thuộc cụ thể chỉ diễn ra tại một nơi duy nhất lúc khởi động: **composition root**.
+- **Cạm bẫy chết người:** **Nghi thức kiến trúc thái quá khi không có biến động thực tế (Cargo-cult).** Ép buộc mọi thao tác CRUD tầm thường phải đi qua đầy đủ interface, interactor, presenter và mapper khi không có logic nghiệp vụ phức tạp hay sự thay đổi hạ tầng. Điều này làm code phình to gấp 3 lần, làm chậm thời gian giao hàng mà không đem lại giá trị kiểm thử hay bảo trì thực tế.
 
-Quy tắc trung tâm:
+Mối quan hệ chi phối giữa các tầng được thể hiện như sau:
 
 ```text
-source-code dependency hướng vào trong
+phụ thuộc mã nguồn luôn hướng vào trong
 
-framework / driver
-        -> interface adapter
-        -> application use case
-        -> core business policy
+Frameworks and Drivers (Công cụ & Chi tiết kỹ thuật)
+        -> Interface Adapters (Bộ chuyển đổi giao diện)
+        -> Use Cases (Quy tắc ứng dụng)
+        -> Entities (Quy tắc nghiệp vụ cốt lõi)
 ```
 
-Runtime control có thể đi ra ngoài khi use case gọi database, presenter, queue hay payment provider. Nhưng source code ở policy bên trong nên phụ thuộc vào abstraction do phía trong sở hữu, còn detail bên ngoài implement abstraction đó.
+Luồng điều khiển tại thời điểm chạy (runtime control) có thể đi ra ngoài khi use case gọi database, presenter, hàng đợi tin nhắn hay cổng thanh toán. Nhưng mã nguồn ở tầng policy bên trong chỉ phụ thuộc vào abstraction do chính nó sở hữu, còn chi tiết kỹ thuật bên ngoài sẽ implement abstraction đó.
 
 ```mermaid
 flowchart LR
@@ -57,104 +67,104 @@ flowchart LR
   class E inner
 ```
 
-Các vòng tròn trong diagram phổ biến chỉ là **schematic**. Clean Architecture không yêu cầu chính xác bốn project, bốn folder hay một class hierarchy kiểu enterprise. Giá trị kiến trúc nằm ở **Dependency Rule**, không nằm ở việc sao chép hình vẽ.
+Các vòng tròn trong sơ đồ kinh điển chỉ mang tính **minh họa cấu trúc (schematic)**. Clean Architecture không bắt buộc bạn phải tách đúng bốn project, tạo đúng bốn folder hay xây dựng một cây thừa kế class phức tạp kiểu enterprise. Giá trị kiến trúc nằm ở **Quy tắc phụ thuộc (Dependency Rule)**, chứ không nằm ở việc vẽ lại một hình tròn.
 
-## 1. Dependency Rule là constraint chi phối thiết kế
+## 1. Dependency Rule là quy tắc chi phối thiết kế
 
 <TermBox term="Dependency Rule">
-**Quy tắc phụ thuộc** nói rằng source-code dependency chỉ được hướng vào trong, về phía policy tổng quát và cấp cao hơn.
+**Quy tắc phụ thuộc (Dependency Rule)** quy định rằng chiều phụ thuộc mã nguồn chỉ được phép trỏ hướng vào trong, về phía các quy tắc nghiệp vụ tổng quát và có cấp độ trừu tượng cao hơn.
 
-Code ở boundary bên trong không nên biết tên type, function, data format, framework hay implementation detail thuộc boundary bên ngoài.
+Mã nguồn ở tầng bên trong tuyệt đối không được gọi tên kiểu dữ liệu, hàm, định dạng dữ liệu, framework hay chi tiết triển khai thuộc về tầng bên ngoài.
 
-**Vì sao quan trọng:** thay web framework, database, SDK, transport hay delivery mechanism không nên buộc core business policy đổi theo trừ khi chính business behavior thay đổi.
+**Vì sao quan trọng:** Việc thay đổi web framework, database, SDK, giao thức mạng hay cách thức hiển thị giao diện không được phép làm thay đổi logic nghiệp vụ cốt lõi, trừ khi chính yêu cầu kinh doanh thay đổi.
 </TermBox>
 
-Đây chủ yếu là quy tắc về **phụ thuộc mã nguồn hoặc phụ thuộc lúc biên dịch**.
+Đây là quy tắc cốt tử về **phụ thuộc mã nguồn hoặc phụ thuộc lúc biên dịch (compile-time dependency)**.
 
-Giả sử use case cần lưu order.
+Giả sử một use case cần lưu đơn hàng vào hệ thống.
 
-Dependency lúc biên dịch yếu:
+Phụ thuộc trực tiếp lúc biên dịch (thiết kế sai):
 
 ```text
 PlaceOrderUseCase -> PrismaOrderRepository
 ```
 
-Hướng dependency tốt hơn:
+Chiều phụ thuộc chuẩn mực (thiết kế đúng):
 
 ```text
-PlaceOrderUseCase -> OrderRepository abstraction
-PostgresOrderRepository -> OrderRepository abstraction
+PlaceOrderUseCase -> Abstraction OrderRepository
+PostgresOrderRepository -> Abstraction OrderRepository
 ```
 
-Ở runtime, call vẫn tới PostgreSQL:
+Khi chạy thực tế (runtime), lời gọi hàm vẫn đến đúng cơ sở dữ liệu PostgreSQL:
 
 ```text
 PlaceOrderUseCase
-  -> OrderRepository interface
+  -> Interface OrderRepository
   -> PostgresOrderRepository
   -> PostgreSQL
 ```
 
-Vì vậy runtime flow và source-code dependency direction không phải cùng một thứ.
+Vì vậy, chiều đi của luồng chạy runtime và chiều phụ thuộc mã nguồn lúc biên dịch là hai khái niệm hoàn toàn tách biệt.
 
 ```mermaid
 flowchart TB
-  subgraph CompileTime[Dependency lúc biên dịch]
+  subgraph CompileTime[Phụ thuộc lúc biên dịch]
     UI[Web adapter] --> UC[PlaceOrder use case]
     DBI[Postgres adapter] --> PORT[OrderRepository abstraction]
     UC --> PORT
   end
 
-  subgraph Runtime[Runtime control]
+  subgraph Runtime[Luồng điều khiển runtime]
     RUC[Use case] --> RP[Repository interface]
     RP --> RAD[Concrete adapter]
     RAD --> RDB[(Database)]
   end
 ```
 
-## 2. Bên trong là policy; bên ngoài là mechanism
+## 2. Bên trong là policy; bên ngoài là cơ chế kỹ thuật
 
-Clean Architecture thường dùng các vòng đồng tâm vì chúng thể hiện một gradient:
+Clean Architecture sử dụng các vòng tròn đồng tâm nhằm thể hiện một gradient độ ổn định:
 
-- vùng ngoài chứa **mechanism và detail**;
-- vùng trong chứa **policy và business meaning**;
-- càng đi vào trong, abstraction và stability thường càng cao.
+- Vùng bên ngoài chứa **cơ chế thực thi và chi tiết kỹ thuật**;
+- Vùng bên trong chứa **chính sách (policy) và ý nghĩa nghiệp vụ**;
+- Càng đi sâu vào trong, tính trừu tượng và độ bền vững của mã nguồn càng cao.
 
-Các nhãn điển hình:
+Bốn tầng phân loại điển hình:
 
-1. Entities hoặc core business rule;
-2. Use Cases hoặc application-specific policy;
-3. Interface Adapters;
-4. Frameworks and Drivers.
+1. **Entities**: quy tắc nghiệp vụ cốt lõi cấp doanh nghiệp (core business policy);
+2. **Use Cases**: quy tắc ứng dụng chuyên biệt (application-specific policy);
+3. **Interface Adapters**: bộ chuyển đổi giao diện và cầu nối dữ liệu;
+4. **Frameworks and Drivers**: công cụ ngoại vi, cơ sở dữ liệu và framework giao tiếp.
 
-Tên gọi hữu ích, nhưng số lượng chính xác không phải điều thiêng liêng.
+Tên gọi các tầng giúp định hình tư duy, nhưng số lượng tầng không phải là điều bất di bất dịch.
 
-Câu hỏi mạnh hơn là:
+Câu hỏi quan trọng nhất mà kiến trúc sư phải tự vấn là:
 
-> Khi một detail đổi, thay đổi đó lan vào trong bao xa?
+> Khi một chi tiết kỹ thuật thay đổi, tác động lan truyền sẽ đi sâu vào bên trong đến đâu?
 
-Nếu nâng cấp ORM làm order-discount rule phải đổi, dependency boundary đang yếu dù folder tree trông rất đẹp.
+Nếu việc nâng cấp phiên bản ORM buộc bạn phải sửa lại công thức tính chiết khấu đơn hàng, thì ranh giới kiến trúc của bạn đang quá yếu, bất kể cấu trúc thư mục trông có vẻ ngăn nắp đến mức nào.
 
-## 3. “Entities” là business policy cấp cao, không phải ORM row
+## 3. “Entities” là quy tắc nghiệp vụ cấp cao, không phải bảng ORM
 
-Một bẫy thuật ngữ lớn là nghĩ **Entity** trong Clean Architecture đồng nghĩa với “database entity”.
+Một hiểu lầm tai hại kinh điển là đồng nhất khái niệm **Entities** trong Clean Architecture với các entity của database hay ORM.
 
-Đó không phải ý nghĩa kiến trúc.
+Đó hoàn toàn không phải là ý đồ kiến trúc.
 
-Trong mô hình Clean Architecture, policy trong cùng đại diện cho những business rule tổng quát, cấp cao và bền vững nhất của hệ thống. Ở enterprise lớn, một số rule có thể dùng chung giữa nhiều application. Với một application đơn lẻ, đó có thể chỉ là business object và policy bền vững nhất của chính application.
+Trong mô hình Clean Architecture, tầng trong cùng chứa các quy tắc nghiệp vụ tổng quát, cao cấp và bền vững nhất của hệ thống. Trong một tập đoàn lớn, các quy tắc này có thể dùng chung giữa nhiều ứng dụng khác nhau. Trong một ứng dụng đơn lẻ, đây chính là các đối tượng nghiệp vụ và điều kiện bất biến lâu bền nhất.
 
-Ví dụ:
+Ví dụ về các điều kiện bất biến (invariants):
 
 ```text
-Order không được thanh toán hai lần.
-Refund không được vượt captured amount.
-Subscription không renew sau khi cancellation có hiệu lực.
-Inventory reservation không được âm.
+Đơn hàng không thể thanh toán hai lần.
+Số tiền hoàn lại không được vượt quá số tiền đã ghi nhận.
+Gói đăng ký không thể tự động gia hạn sau khi yêu cầu hủy đã có hiệu lực.
+Số lượng hàng giữ chỗ trong kho không được phép mang giá trị âm.
 ```
 
-ORM annotation, SQL row, HTTP request hay JSON schema không nên trở thành nơi định nghĩa những rule này chỉ vì tiện.
+Annotation của ORM, dòng dữ liệu SQL, HTTP request hay schema JSON không bao giờ được phép làm nơi định nghĩa những quy tắc sống còn này.
 
-Boundary yếu:
+Ranh giới bị phá vỡ:
 
 ```ts
 class OrderPolicy {
@@ -162,62 +172,68 @@ class OrderPolicy {
 }
 ```
 
-Persistence representation đã đi vào core policy.
+Cấu trúc biểu diễn của tầng lưu trữ (ORM) đã xâm nhập trực tiếp vào lõi nghiệp vụ.
 
-Tốt hơn là core model hoặc input shape mà meaning thuộc về chính policy.
+Mô hình chuẩn phải là một entity thuần túy mang ý nghĩa nghiệp vụ độc lập:
 
-## 4. Use case chứa application-specific policy
+```ts
+class OrderPolicy {
+  canCancel(order: OrderSnapshot): boolean
+}
+```
+
+## 4. Use Cases chứa quy tắc điều phối của ứng dụng
 
 <TermBox term="Use case">
-**Use case** đóng gói application-specific business rule và điều phối công việc cần thiết để đạt một mục tiêu của user hoặc system.
+**Use case** đóng gói các quy tắc nghiệp vụ chuyên biệt của ứng dụng và điều phối các bước cần thiết để hoàn thành một mục tiêu cụ thể của người dùng hoặc hệ thống.
 
-Nó phối hợp core policy, input, output và external capability cần thiết mà không phụ thuộc trực tiếp vào web, database hay vendor implementation detail.
+Nó phối hợp các chính sách nghiệp vụ cốt lõi, dữ liệu đầu vào, dữ liệu đầu ra và các năng lực ngoại vi cần thiết mà không phụ thuộc trực tiếp vào chi tiết của web framework, database hay SDK bên ngoài.
 
-**Vì sao quan trọng:** thay đổi vận hành của một application flow có thể tiến hóa mà không làm bẩn business rule tổng quát nhất, còn technology change vẫn nằm xa hơn ở ngoài.
+**Vì sao quan trọng:** Quy trình vận hành của một ứng dụng có thể thay đổi linh hoạt mà không làm ô nhiễm các quy tắc nghiệp vụ nền tảng, trong khi các biến động công nghệ vẫn được cách ly ở phía ngoài.
 </TermBox>
 
-Ví dụ:
+Ví dụ điển hình:
 
-- Place Order;
-- Cancel Subscription;
-- Approve Refund;
-- Publish Article;
-- Reconcile Payment;
-- Generate Monthly Statement.
+- Đặt hàng (Place Order);
+- Hủy gói đăng ký (Cancel Subscription);
+- Phê duyệt hoàn tiền (Approve Refund);
+- Xuất bản bài viết (Publish Article);
+- Đối soát thanh toán (Reconcile Payment);
+- Xuất báo cáo tài chính tháng (Generate Monthly Statement).
 
-Use case có thể quyết định:
+Một use case sẽ điều phối:
 
 ```text
-load order
-  -> kiểm tra cancellation policy
-  -> ghi cancellation
-  -> save order
-  -> publish outcome
+tải thông tin đơn hàng
+  -> kiểm tra điều kiện hủy (cancellation policy)
+  -> ghi nhận trạng thái hủy
+  -> lưu đơn hàng cập nhật
+  -> phát thông báo sự kiện
 ```
 
-Nhưng không nên cần biết:
+Nhưng use case hoàn toàn không cần biết đến:
 
 ```text
-Express Request
+Express Request / Response
 Prisma TransactionClient
-Stripe SDK response type
-Kafka producer config
-React component state
+Kiểu dữ liệu từ Stripe SDK
+Cấu hình Kafka producer
+Trạng thái component React
 ```
 
-Đó là mechanism quanh use case.
+Tất cả những thứ đó chỉ là cơ chế kỹ thuật bao quanh use case.
 
-## 5. Interface adapter chuyển đổi representation
+## 5. Interface Adapters đảm nhiệm chuyển đổi biểu diễn dữ liệu
 
 <TermBox term="Interface adapter">
-**Bộ chuyển đổi giao diện** chuyển đổi giữa representation tiện cho external mechanism và representation tiện cho use case hoặc core policy.
+**Bộ chuyển đổi giao diện (Interface adapter)** có nhiệm vụ dịch qua lại giữa biểu diễn thuận tiện cho cơ chế ngoại vi và biểu diễn thuận tiện cho use case hoặc quy tắc nghiệp vụ cốt lõi.
 
-Controller, presenter, repository implementation, message consumer, ORM mapper và external-service client thường nằm ở loại boundary này.
+Controller, presenter, repository implementation, message consumer, ORM mapper và client tích hợp dịch vụ bên thứ ba đều thuộc về ranh giới này.
 
-**Vì sao quan trọng:** external data format có thể đổi mà không buộc inner policy phải nói ngôn ngữ framework, database hay vendor.
+**Vì sao quan trọng:** Định dạng dữ liệu bên ngoài có thể thay đổi liên tục mà không bắt buộc tầng logic bên trong phải nói ngôn ngữ của framework, database hay nhà cung cấp dịch vụ.
 </TermBox>
 
-HTTP adapter có thể dịch:
+Một HTTP adapter sẽ chuyển đổi:
 
 ```text
 HTTP JSON request
@@ -225,20 +241,20 @@ HTTP JSON request
   -> PlaceOrder use case
 ```
 
-Presenter có thể dịch:
+Một presenter sẽ chuyển đổi:
 
 ```text
 PlaceOrderResult
   -> HTTP response model
-  -> JSON + status code
+  -> JSON payload kèm HTTP status code
 ```
 
-Persistence adapter có thể dịch:
+Một persistence adapter sẽ chuyển đổi:
 
 ```text
 Order aggregate
   -> ORM persistence model
-  -> database rows
+  -> Các dòng dữ liệu SQL
 ```
 
 ```mermaid
@@ -255,93 +271,92 @@ flowchart LR
   M --> RP
 ```
 
-Mục tiêu không phải tạo duplicate DTO cho mọi function call. Chỉ nên map khi các representation có **owner hoặc reason-to-change khác nhau**.
+Mục tiêu ở đây không phải là máy móc tạo ra hàng chục DTO cho mọi hàm đơn giản. Hãy chỉ chuyển đổi dữ liệu khi các biểu diễn đó có **chủ thể sở hữu khác nhau hoặc có lý do thay đổi độc lập**.
 
-## 6. Framework và driver là detail từ góc nhìn của core
+## 6. Frameworks and Drivers là chi tiết kỹ thuật dưới góc nhìn của vùng lõi
 
-Boundary ngoài cùng thường chứa:
+Tầng ngoài cùng của kiến trúc thường tập hợp:
 
-- web framework;
-- database engine và ORM config;
-- message broker;
-- UI framework;
-- vendor SDK;
-- scheduler;
-- device driver;
-- cloud service client.
+- Web frameworks (Express, Fastify, Next.js, Spring Boot);
+- Database engines và cấu hình ORM (PostgreSQL, MongoDB, Prisma, Hibernate);
+- Message brokers (Kafka, RabbitMQ, SQS);
+- Thư viện UI (React, Vue, Flutter);
+- SDK của các nhà cung cấp bên ngoài (Stripe, Twilio, AWS SDK);
+- Bộ lập lịch cron và background worker;
+- Driver phần cứng và client dịch vụ đám mây.
 
-Gọi chúng là “detail” **không** có nghĩa chúng tầm thường hay không quan trọng trong vận hành.
+Gọi chúng là "chi tiết kỹ thuật" **không** có nghĩa chúng tầm thường hay thiếu quan trọng trong vận hành.
 
-PostgreSQL transaction semantics vẫn quan trọng. Payment-provider idempotency vẫn quan trọng. Kafka ordering vẫn quan trọng.
+Ngược lại, ngữ nghĩa transaction của PostgreSQL cực kỳ quan trọng. Tính lũy quyền (idempotency) của cổng thanh toán cực kỳ quan trọng. Thứ tự tin nhắn trong Kafka cực kỳ quan trọng.
 
-“Detail” nghĩa là inner business policy không nên bị ownership cấu trúc bởi các lựa chọn implementation đó.
+"Chi tiết" ở đây mang nghĩa: các quy tắc nghiệp vụ cốt lõi không được phép để các công nghệ này áp đặt cấu trúc mã nguồn lên mình.
 
-Vẫn cần infrastructure expertise, production observability, integration test, migration, retry policy và runbook vận hành.
+Hệ thống vẫn đòi hỏi chuyên môn sâu về hạ tầng, năng lực giám sát production (observability), kiểm thử tích hợp, migration dữ liệu, chính sách retry và tài liệu vận hành chi tiết.
 
-## 7. Dependency inversion giúp vượt boundary mà không đảo runtime behavior
+## 7. Đảo ngược phụ thuộc vượt qua ranh giới mà không làm đảo lộn luồng chạy
 
-Giả sử use case cần báo cho presenter khi checkout thành công.
+Giả sử sau khi thanh toán thành công, use case cần thông báo kết quả cho một presenter hiển thị giao diện.
 
-Source dependency trực tiếp:
+Nếu tham chiếu mã nguồn trực tiếp:
 
 ```text
 CheckoutUseCase -> HttpCheckoutPresenter
 ```
 
-Nó hướng ra ngoài và vi phạm Dependency Rule.
+Mũi tên này trỏ ra ngoài và vi phạm trắng trợn Quy tắc phụ thuộc (Dependency Rule).
 
-Thay vào đó, use-case boundary có thể sở hữu output abstraction:
+Giải pháp chuẩn mực: ranh giới use case sẽ tự sở hữu một abstraction đầu ra:
 
 ```text
-CheckoutUseCase -> CheckoutOutput
-HttpCheckoutPresenter -> CheckoutOutput
+CheckoutUseCase -> Abstraction CheckoutOutput
+HttpCheckoutPresenter -> Abstraction CheckoutOutput
 ```
 
-Runtime control vẫn có thể là:
+Tại thời điểm thực thi runtime, luồng gọi hàm vẫn diễn ra bình thường:
 
 ```text
 CheckoutUseCase
-  -> CheckoutOutput method
-  -> HttpCheckoutPresenter implementation
+  -> Gọi method của CheckoutOutput
+  -> HttpCheckoutPresenter thực thi cụ thể
 ```
 
-Đây là đảo ngược phụ thuộc: source dependency hướng vào abstraction do phía trong sở hữu dù runtime execution cuối cùng vẫn tới implementation bên ngoài.
+Đây chính là **đảo ngược phụ thuộc (dependency inversion)**: phụ thuộc mã nguồn trỏ hướng vào trong về phía abstraction do tầng nghiệp vụ sở hữu, dù luồng chạy runtime cuối cùng vẫn chạm tới implementation ở tầng ngoài cùng.
 
-Cùng kỹ thuật áp dụng cho:
+Nguyên lý này áp dụng nhất quán cho:
 
-- repository;
-- gateway;
-- presenter;
-- message publisher;
-- clock;
-- object store;
-- external API.
+- Repository;
+- Gateway thanh toán;
+- Presenter giao diện;
+- Message publisher;
+- Đồng hồ hệ thống (System clock);
+- Bộ lưu trữ file (Object store);
+- API bên thứ ba.
 
-## 8. Dependency Injection không đồng nghĩa Clean Architecture
+## 8. Dependency Injection không đồng nghĩa với Clean Architecture
 
-Dependency Injection có thể giúp wire implementation với abstraction, nhưng bản thân nó không phải architecture.
+Dependency Injection (DI) là một kỹ thuật hữu ích giúp gắn kết implementation cụ thể với abstraction, nhưng bản thân nó không tạo nên kiến trúc sạch.
 
-Đoạn này có DI:
+Đoạn code sau đây sử dụng DI hoàn hảo:
 
 ```ts
 new OrderService(prisma, stripe, expressResponseFactory)
 ```
 
-nhưng `OrderService` vẫn phụ thuộc trực tiếp vào infrastructure concept.
+Thế nhưng `OrderService` vẫn trực tiếp phụ thuộc vào các khái niệm công nghệ hạ tầng.
 
-Đoạn này gần Dependency Rule hơn:
+Đoạn code sau đây mới thực sự tuân thủ Dependency Rule:
 
 ```ts
 new PlaceOrderUseCase(orderRepository, paymentGateway, outputBoundary)
 ```
 
-khi các contract đó do application boundary sở hữu và implementation ở bên ngoài.
+Ở đây, các hợp đồng interface hoàn toàn do tầng ứng dụng làm chủ và định nghĩa, còn các class hiện thực cụ thể được đẩy ra bên ngoài.
 
-DI container có thể wire một kiến trúc tệ. Constructor injection cũng có thể wire một kiến trúc tệ. Câu hỏi quan trọng là **ai sở hữu abstraction và source dependency hướng về đâu**.
+Một DI container vẫn có thể lắp ghép một kiến trúc tồi tệ. Constructor injection cũng có thể tạo ra một hệ thống thắt nút phụ thuộc. Vấn đề then chốt luôn là: **ai sở hữu abstraction và mã nguồn đang trỏ về hướng nào**.
 
-## 9. Composition root được phép biết concrete detail
+## 9. Composition Root là nơi chấp nhận biết rõ các chi tiết cụ thể
 
-Khi startup, một đoạn code bên ngoài phải biết concrete class để application chạy được.
+Khi ứng dụng khởi động, bắt buộc phải có một nơi tập trung biết rõ các class cụ thể để kết nối hệ thống thành một đồ thị đối tượng hoàn chỉnh (object graph).
 
 Ví dụ:
 
@@ -357,32 +372,32 @@ const placeOrder = new PlaceOrderUseCase({
 });
 ```
 
-Đó là **composition root**.
+Vị trí khởi tạo tập trung đó chính là **composition root**.
 
-Outer edge này được phép biết infrastructure concrete vì nhiệm vụ của nó là lắp ghép object graph.
+Tầng rìa ngoài cùng này được phép biết chi tiết hạ tầng kỹ thuật vì nhiệm vụ duy nhất của nó là lắp ghép các khối linh kiện lại với nhau.
 
-Điều nên tránh là để use case bên trong tự truy cập global container hoặc import concrete infrastructure.
+Điều tối kỵ là không bao giờ được để các use case bên trong tự ý gọi vào một service locator toàn cục hoặc tự import các class hạ tầng cụ thể.
 
-## 10. Dữ liệu qua ranh giới không nên lén kéo outer dependency vào trong
+## 10. Dữ liệu qua ranh giới không được lén kéo outer dependency vào trong
 
-Bài gốc của Robert Martin nhấn mạnh các data structure đơn giản khi crossing boundary.
+Bài viết kinh điển của Robert C. Martin nhấn mạnh việc chỉ sử dụng các cấu trúc dữ liệu đơn giản khi truyền qua ranh giới.
 
-Quy tắc thực dụng:
+Quy tắc thực tế là:
 
-> inner code không nên bị ép phụ thuộc vào outer representation chỉ vì representation đó tiện.
+> Mã nguồn bên trong không bao giờ bị buộc phải phụ thuộc vào cấu trúc dữ liệu bên ngoài chỉ vì cấu trúc đó tiện lợi.
 
-Tránh truyền các loại này vào trong khi chúng leak outer ownership:
+Tuyệt đối tránh truyền những đối tượng sau vào bên trong lõi nghiệp vụ:
 
 ```text
-Express Request
+Express Request / Response
 ORM RowStructure
 Framework ModelState
-Vendor SDK Response
+Vendor SDK Response object
 Database cursor
-HTTP-specific status enum
+HTTP status code enum
 ```
 
-Thay vào đó, chuyển sang dữ liệu phù hợp với use case bên trong:
+Thay vào đó, hãy chuyển đổi sang dạng **dữ liệu qua ranh giới (boundary data)** thuần túy phù hợp với ngôn ngữ nghiệp vụ:
 
 ```ts
 type ApproveRefundInput = {
@@ -392,93 +407,89 @@ type ApproveRefundInput = {
 };
 ```
 
-Tương tự, use case có thể tạo output model để presenter chuyển sang HTTP, CLI hay delivery representation khác.
+Tương tự, use case sẽ trả về một output model thuần túy để presenter tùy ý chuyển đổi thành định dạng HTTP JSON, CLI hay GraphQL.
 
-Đừng biến việc này thành mapper theater. Nếu hai layer thật sự chia sẻ cùng một stable value object và việc chia sẻ không đảo dependency ownership, duplication có thể không cần thiết.
+Tuy nhiên, đừng biến điều này thành trò hề mapper (mapper theater). Nếu hai tầng cùng chia sẻ một value object ổn định và việc chia sẻ đó không làm đảo ngược chiều sở hữu phụ thuộc, thì việc nhân bản dữ liệu là không cần thiết.
 
 ## 11. Clean Architecture và Hexagonal Architecture chồng lấp mạnh
 
-Chúng không phải hai “trường phái” phải chọn một.
+Hai phong cách kiến trúc này không phải là hai tôn giáo đối đầu nhau.
 
-Cả hai đều bảo vệ application policy khỏi external technology và đảo dependency tại boundary có ý nghĩa.
+Cả hai đều cùng chung một sứ mệnh cao nhất: bảo vệ logic nghiệp vụ khỏi biến động công nghệ và đảo ngược phụ thuộc tại các ranh giới có ý nghĩa.
 
-Khác biệt về trọng tâm:
+Sự khác biệt chủ yếu nằm ở góc nhìn và thuật ngữ:
 
 ```text
-Hexagonal Architecture
-  -> ports/adapters
-  -> inside vs outside
-  -> driving vs driven interaction
+Hexagonal Architecture (Ports and Adapters)
+  -> ports và adapters
+  -> bên trong (inside) đối lập bên ngoài (outside)
+  -> tương tác chủ động (driving) và bị động (driven)
 
 Clean Architecture
-  -> policy vs detail
-  -> các mức abstraction đồng tâm
-  -> Dependency Rule: source dependency hướng vào trong
+  -> chính sách nghiệp vụ (policy) đối lập cơ chế kỹ thuật (detail)
+  -> các mức độ trừu tượng đồng tâm
+  -> Dependency Rule: chiều phụ thuộc mã nguồn luôn hướng vào trong
 ```
 
-Một hệ thống có thể thỏa cả hai.
-
-Ví dụ:
+Một hệ thống hoàn toàn có thể kết hợp cả hai góc nhìn:
 
 ```text
 HTTP adapter
-  -> use-case input boundary
-  -> application use case
-  -> core policy
-  -> repository/payment output boundary
-  -> infrastructure adapters
+  -> Cổng vào của use case (driving port)
+  -> Application use case
+  -> Entities (Quy tắc nghiệp vụ cốt lõi)
+  -> Cổng ra repository / payment (driven port)
+  -> Infrastructure adapters
 ```
 
-Vocabulary của diagram ít quan trọng hơn việc dependency ownership có đúng hay không.
+Thuật ngữ trên sơ đồ không quan trọng bằng việc chiều sở hữu phụ thuộc có chuẩn xác hay không.
 
-## 12. Clean Architecture không yêu cầu DDD
+## 12. Clean Architecture không bắt buộc phải áp dụng DDD
 
-Domain-Driven Design có thể bổ trợ Clean Architecture, nhưng không phải prerequisite.
+Domain-Driven Design (DDD) bổ trợ rất tốt cho Clean Architecture, nhưng nó không phải là điều kiện tiên quyết.
 
-Có thể có:
+Trong thực tế, bạn hoàn toàn có thể có:
 
-- Clean Architecture không dùng aggregate hay bounded context;
-- DDD concept trong layered architecture;
-- modular monolith dùng Clean-style dependency inversion;
-- microservice có dependency direction rất tệ bên trong service.
+- Một Clean Architecture tinh gọn không dùng aggregate hay bounded context phức tạp;
+- Các khái niệm DDD nằm trong một kiến trúc phân tầng (layered architecture) truyền thống;
+- Một modular monolith áp dụng đảo ngược phụ thuộc chuẩn mực theo phong cách Clean Architecture;
+- Một microservice có chiều phụ thuộc cực kỳ hỗn loạn bên trong chính service đó.
 
-Chọn boundary vì nó bảo vệ policy và volatility thật, không phải vì checklist methodology đòi thêm artifact.
+Hãy thiết lập ranh giới vì chúng bảo vệ logic nghiệp vụ thật và cách ly sự biến động thật, chứ không phải vì muốn đánh dấu cho đủ checklist của một trường phái lý thuyết.
 
-## 13. Kiểm thử đi theo dependency boundary
+## 13. Chiến lược kiểm thử đi theo ranh giới phụ thuộc
 
-Dependency structure sạch tạo ra những test seam hữu ích.
-
-Một cân bằng thường gặp:
+Một cấu trúc phụ thuộc trong sạch sẽ tự nhiên mở ra các đường nối kiểm thử (test seams) vô cùng lợi hại:
 
 ```text
-Core policy test
-  -> pure / nhanh / không cần infrastructure
+Kiểm thử quy tắc nghiệp vụ cốt lõi (Entities)
+  -> Hàm thuần túy (pure) / siêu tốc / không cần hạ tầng
 
-Use-case test
-  -> fake hoặc controlled output dependency
+Kiểm thử Use Cases
+  -> Dùng fake hoặc mock có kiểm soát cho các dependency đầu ra
 
-Adapter integration test
-  -> DB / broker / provider contract thật khi hợp lý
+Kiểm thử tích hợp cho Adapters
+  -> Kết nối database thật / message broker / provider contract
 
-Composition / end-to-end test
-  -> kiểm một số flow đã lắp ghép
+Kiểm thử hệ thống (End-to-End)
+  -> Xác thực một số luồng nghiệp vụ quan trọng đã lắp ghép hoàn chỉnh
 ```
 
-Clean Architecture không loại bỏ nhu cầu integration test.
+Clean Architecture giúp viết unit test nhanh hơn, nhưng nó không bao giờ thay thế được kiểm thử tích hợp (integration test).
 
-Fake repository không chứng minh được:
+Một mock repository trong bộ nhớ không bao giờ chứng minh được:
 
-- database constraint;
-- isolation behavior;
-- SQL mapping correctness;
-- provider timeout behavior;
-- broker delivery semantics.
+- Ràng buộc khóa ngoại và unique index của cơ sở dữ liệu;
+- Mức độ cô lập transaction (isolation level);
+- Tính chính xác của câu lệnh SQL phức tạp;
+- Xử lý timeout và retry của dịch vụ bên thứ ba;
+- Ngữ nghĩa phân phối tin nhắn của message broker.
 
-Giữ policy test nhanh, và test detail tại nơi semantics thật của chúng tồn tại.
+Hãy giữ cho các bài kiểm thử đơn vị của tầng policy chạy siêu tốc mà không cần môi trường ngoài, và kiểm thử chi tiết kỹ thuật ở đúng nơi mà ngữ nghĩa thực tế của chúng vận hành.
 
-## 14. Tránh architecture ceremony khi không có volatility thật
+## 14. Tránh nghi thức kiến trúc rườm rà khi không có biến động thực tế
 
-Một CRUD app rất nhỏ có thể không hưởng lợi từ:
+Một ứng dụng CRUD đơn giản sẽ phải chịu gánh nặng vô ích nếu bạn cố tình nhồi nhét:
 
 ```text
 Controller
@@ -490,45 +501,43 @@ Controller
   -> Mapper
 ```
 
-cho mọi operation đơn giản.
+cho mọi thao tác tầm thường.
 
-Dependency Rule có giá trị, nhưng số abstraction phải tương xứng với chi phí thay đổi.
+Quy tắc phụ thuộc là vô giá, nhưng số lượng lớp trừu tượng phải tương xứng với chi phí chịu đựng sự thay đổi.
 
-Boundary mạnh hơn đáng cân nhắc khi:
+Chỉ nên dựng ranh giới kiên cố khi:
 
-- core policy có giá trị và sống lâu;
-- infrastructure biến động;
-- có nhiều delivery mechanism;
-- test core policy hiện cần infrastructure nặng;
-- framework/vendor type leak rộng;
-- thay detail thường xuyên lan vào business behavior.
+- Logic nghiệp vụ phức tạp, có giá trị cao và tồn tại lâu dài;
+- Công nghệ hạ tầng có nguy cơ biến động hoặc cần thay thế;
+- Hệ thống hỗ trợ nhiều kênh giao tiếp (Web API, CLI, Message Queue);
+- Việc kiểm thử nghiệp vụ đang bị kìm hãm nặng nề bởi hạ tầng cồng kềnh;
+- Kiểu dữ liệu của framework bên ngoài đang rò rỉ khắp nơi trong mã nguồn;
+- Mỗi lần sửa đổi chi tiết kỹ thuật thường xuyên gây lỗi dây chuyền sang logic nghiệp vụ.
 
-Architecture là quyết định kinh tế, không phải cuộc thi tối đa hóa interface.
+Kiến trúc phần mềm là một quyết định kinh tế, không phải là cuộc đua xem ai tạo được nhiều interface hơn.
 
-## 15. Production failure: ORM trở thành business model
+## 15. Sự cố production: ORM biến thành mô hình nghiệp vụ
 
-Một subscription system bắt đầu bằng framework-generated ORM model.
-
-Team dùng ORM entity ở mọi nơi:
+Một nền tảng SaaS quản lý gói đăng ký (subscription) tăng trưởng nhanh bắt đầu bằng các model ORM tự sinh để làm bản thử nghiệm (prototype). Với áp lực phải bàn giao tính năng thần tốc, nhóm kỹ sư đã truyền entity ORM `Subscription` đi khắp nơi trong hệ thống:
 
 ```text
 HTTP controller
   -> Subscription ORM entity
-  -> renewal service
-  -> billing service
-  -> notification service
-  -> API serializer
+  -> RenewalService
+  -> BillingService
+  -> NotificationService
+  -> API response serializer
 ```
 
-Dần dần entity chứa persistence annotation, lazy-loaded relation, request-validation decorator, billing-provider ID và presentation flag.
+Sau mười tám tháng phát triển, entity này tích tụ hàng chục annotation cơ sở dữ liệu, quan hệ lazy loading, decorator validate request, Stripe customer ID và các cờ phục vụ giao diện (UI).
 
-Một migration thay persistence representation của subscription status. Thay đổi lan vào renewal policy, API serialization, test và billing logic dù business meaning của “active,” “past due,” và “canceled” không đổi.
+Khi một đợt tái thiết kế quy trình thanh toán yêu cầu chuyển trạng thái subscription từ enum đơn giản sang sổ cái lưu sự kiện (event-sourced ledger), thay đổi này tạo ra làn sóng sụp đổ dây chuyền. Việc đổi định nghĩa cột cơ sở dữ liệu làm hỏng toàn bộ quy tắc gia hạn, gây lỗi tuần tự hóa (serialization) trên các endpoint mobile app, phá vỡ logic kiểm toán thanh toán, và khiến hàng trăm bài kiểm thử đơn vị (unit test) thất bại vì không thể khởi tạo dữ liệu mẫu nếu thiếu container PostgreSQL đang chạy.
 
-**Hậu quả:** database migration kéo theo application rewrite rộng, unit test cần ORM fixture, delivery/persistence concern định hình core policy, và thay một adapter biến thành business-logic change.
+**Hậu quả:** Các đợt migration cơ sở dữ liệu kéo theo việc phải viết lại mã nguồn trên diện rộng. Kiểm thử đơn vị không thể chạy độc lập nếu thiếu fixture cơ sở dữ liệu nặng nề, tốc độ release suy giảm nghiêm trọng, và việc thay thế một nhà cung cấp thanh toán bên ngoài vô tình biến thành một đợt sửa đổi logic nghiệp vụ cốt lõi.
 
-**Nguyên nhân cốt lõi:** outer persistence representation trở thành shared business contract. Source-code dependency từ policy hướng ra ORM detail, vi phạm Dependency Rule.
+**Nguyên nhân cốt lõi:** Một biểu diễn lưu trữ bên ngoài (ORM entity) đã bị nhầm lẫn và biến thành hợp đồng nghiệp vụ dùng chung. Chiều phụ thuộc mã nguồn trỏ từ quy tắc nghiệp vụ ra chi tiết ORM, vi phạm trực tiếp Quy tắc phụ thuộc (Dependency Rule).
 
-**Cách khắc phục chuẩn:** đưa subscription rule ổn định vào core policy, biểu diễn operation thành application use case, định nghĩa repository/gateway abstraction do phía trong sở hữu khi cần external capability, chuyển ORM row và HTTP DTO tại interface adapter, giữ framework/vendor type ngoài policy boundary, và chỉ lắp concrete detail tại composition root.
+**Cách khắc phục chuẩn:** Di chuyển các quy tắc nghiệp vụ bất biến vào Entities trong cùng, biểu diễn các thao tác ứng dụng thành Use Cases, định nghĩa các abstraction cho repository và payment gateway do tầng ứng dụng làm chủ, chuyển đổi các dòng dữ liệu ORM và HTTP DTO tại Interface Adapters, giữ Frameworks and Drivers hoàn toàn ở ngoài rìa, và chỉ kết nối các chi tiết kỹ thuật cụ thể tại composition root.
 
 ```mermaid
 flowchart TB
@@ -550,44 +559,55 @@ flowchart TB
 
 ## 16. Tự kiểm tra
 
-<details>
-<summary>Nếu runtime control đi từ use case đến database adapter thì có vi phạm Dependency Rule không?</summary>
+### 1. Luồng điều khiển runtime đi từ use case đến database adapter có vi phạm Dependency Rule không?
 
-Không nhất thiết. Rule nói về source-code dependency. Use case có thể phụ thuộc vào repository abstraction do phía trong sở hữu, còn database adapter bên ngoài implement abstraction đó. Runtime control tới adapter nhưng compile-time dependency vẫn hướng vào abstraction.
+Khi một use case gọi một phương thức repository và phương thức đó thực thi các câu lệnh SQL trong adapter PostgreSQL, luồng thực thi hướng ra ngoài đó có vi phạm Quy tắc phụ thuộc (Dependency Rule) không?
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+Không nhất thiết. Quy tắc phụ thuộc chi phối **chiều phụ thuộc mã nguồn (source-code dependency) lúc biên dịch**, chứ không chi phối hướng đi của call stack tại thời điểm chạy (runtime). Use case phụ thuộc vào một abstraction (interface) do chính tầng nghiệp vụ sở hữu. Database adapter ở tầng bên ngoài implement abstraction đó. Ở runtime, luồng điều khiển đi từ use case ra adapter bên ngoài, nhưng lúc biên dịch, mã nguồn của adapter mới là phía phụ thuộc vào abstraction bên trong.
 </details>
 
-<details>
-<summary>Clean Architecture có bắt buộc chính xác bốn project tên Entities, UseCases, Adapters và Frameworks không?</summary>
+### 2. Clean Architecture có bắt buộc phải chia đúng 4 project hoặc 4 thư mục không?
 
-Không. Bốn vòng tròn chỉ là schematic. Có thể dùng nhiều hoặc ít boundary, package hay project hơn. Điều phải giữ là source-code dependency không hướng từ inner policy ra outer detail.
+Có phải mọi dự án đều bắt buộc phải tạo 4 module hoặc thư mục riêng biệt đặt tên là Entities, UseCases, Adapters và Frameworks không?
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+Không. Bốn vòng tròn đồng tâm trong sơ đồ kinh điển của Uncle Bob chỉ là **sơ đồ mang tính minh họa (schematic)**. Tùy thuộc vào độ phức tạp của miền nghiệp vụ và quy mô hệ thống, bạn có thể tổ chức thành 3 lớp, 5 lớp hoặc chỉ cần phân tách các boundary rõ ràng trong một package duy nhất. Điều bắt buộc duy nhất là bảo toàn **Quy tắc phụ thuộc (Dependency Rule)**: mã nguồn luôn hướng vào trong về phía quy tắc nghiệp vụ cấp cao, bất kể số lượng vòng tròn trung gian là bao nhiêu.
 </details>
 
-<details>
-<summary>Một class tên `CustomerEntity` có tự động thuộc entity layer của Clean Architecture không?</summary>
+### 3. Một class mang tên `CustomerEntity` trong database có phải là Entity của Clean Architecture không?
 
-Không. “Entity” của ORM có thể chỉ là outer persistence representation. Câu hỏi kiến trúc là type đó đại diện high-level business policy bền vững hay đang mang database/framework concern.
+Nếu ORM hoặc thư viện cơ sở dữ liệu định nghĩa một bảng là `CustomerEntity`, class đó có tự động trở thành một phần của tầng Entity trong Clean Architecture không?
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+Không. Đây là sự trùng lặp tên gọi gây hiểu lầm phổ biến nhất. Trong các ORM (như TypeORM, Hibernate hay Prisma), một "entity" chỉ là cấu trúc biểu diễn bảng dữ liệu (persistence model) gắn chặt với schema cơ sở dữ liệu. Trong Clean Architecture, **Entities** đại diện cho các quy tắc nghiệp vụ và điều kiện bất biến bền vững cấp doanh nghiệp, hoàn toàn độc lập với việc dữ liệu được lưu vào SQL hay NoSQL. Class ORM thuộc về tầng Interface Adapters hoặc Frameworks and Drivers ở phía ngoài, không thuộc về lõi domain.
 </details>
 
 ## 17. Checklist production
 
-- [ ] Source-code dependency hướng về policy ổn định hơn thay vì hướng ra framework hoặc infrastructure.
-- [ ] Core business rule không import ORM, web framework, vendor SDK hay transport type.
-- [ ] Use case biểu diễn application operation độc lập với delivery và persistence mechanism.
-- [ ] External capability đi qua abstraction có semantics hữu ích cho application và do phía trong sở hữu.
-- [ ] Interface adapter chuyển representation tại boundary có owner hoặc reason-to-change khác nhau.
-- [ ] Dữ liệu qua ranh giới không lén kéo framework/database structure vào inner code.
-- [ ] Dependency Injection chỉ được xem là wiring, không phải bằng chứng dependency direction đã đúng.
-- [ ] Concrete infrastructure được lắp ghép tại composition root tường minh.
-- [ ] Core/use-case test chạy không cần final infrastructure khi isolation có giá trị.
-- [ ] Semantics thật của adapter vẫn được integration test.
-- [ ] Team giải thích được mỗi abstraction đang bảo vệ policy/detail boundary nào.
-- [ ] Thiết kế không cargo-cult diagram bốn vòng tròn thành project hay class bắt buộc.
+- [ ] **Chiều phụ thuộc:** Chiều phụ thuộc mã nguồn (source-code dependency) luôn trỏ hướng vào trong về phía business policy ổn định thay vì trỏ ra framework hay hạ tầng.
+- [ ] **Cách ly vùng lõi:** Quy tắc nghiệp vụ cốt lõi (Entities và Use Cases) tuyệt đối không import các package ORM, web framework, SDK bên thứ ba hay định dạng truyền tải mạng.
+- [ ] **Tập trung vào use case:** Use Cases biểu diễn các luồng thao tác của ứng dụng hoàn toàn độc lập với phương thức giao tiếp (HTTP, CLI, hàng đợi) và cơ chế lưu trữ.
+- [ ] **Sở hữu ranh giới:** Mọi khả năng ngoại vi giao tiếp qua ranh giới đều thông qua các abstraction do chính tầng bên trong định nghĩa ngữ nghĩa và sở hữu.
+- [ ] **Interface adapters:** Bộ chuyển đổi giao diện đảm nhiệm dịch dữ liệu giữa các định dạng bên ngoài và cấu trúc nội bộ tại các ranh giới có lý do thay đổi khác nhau.
+- [ ] **Kỷ luật dữ liệu qua ranh giới (boundary data):** Sử dụng các cấu trúc dữ liệu thuần túy (DTO, request model, response model) để truyền qua ranh giới, không tuồn entity ORM, con trỏ database hay request framework vào trong.
+- [ ] **Kỷ luật lắp ghép:** Dependency Injection chỉ được xem là cơ chế đấu dây (wiring), không đồng nghĩa với việc kiến trúc đã tự động đảo ngược phụ thuộc chuẩn xác.
+- [ ] **Composition root:** Toàn bộ việc khởi tạo hạ tầng kỹ thuật, adapter và use case được gom cụm lắp ghép tại một composition root tường minh duy nhất lúc khởi động.
+- [ ] **Kiểm thử đơn vị tốc độ cao:** Quy tắc nghiệp vụ và use case có thể chạy qua bộ unit test siêu tốc trong bộ nhớ mà không cần khởi động database, web server hay giả lập bên thứ ba.
+- [ ] **Kiểm thử tích hợp cho adapter:** Các truy vấn SQL thật, hợp đồng message broker và dịch vụ bên thứ ba được kiểm thử tích hợp chuyên biệt thay vì mock toàn bộ.
+- [ ] **Tính kinh tế của kiến trúc:** Đội ngũ kỹ sư chứng minh được giá trị bảo vệ thay đổi thực tế của từng abstraction, loại bỏ nghi thức hình thức (cargo-cult) rườm rà đối với các tác vụ CRUD đơn giản.
 
 ## Agent rule
 
 Khi đề xuất Clean Architecture, hãy nêu **policy cần bảo vệ**, **outer detail có khả năng thay đổi**, **boundary abstraction do phía trong sở hữu**, và **hướng source-code dependency**. Không đề xuất thêm vòng, DTO, repository hay interface nếu không có lợi ích cô lập thay đổi cụ thể.
 
-## Nguồn
+## Nguồn tham khảo
 
 - Robert C. Martin, [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - Microsoft Learn, [Common web application architectures](https://learn.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/common-web-application-architectures)

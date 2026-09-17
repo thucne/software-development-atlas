@@ -31,9 +31,19 @@ concepts:
 
 # Mô hình dữ liệu quan hệ: Đặt sự thật nghiệp vụ dưới ràng buộc
 
+Lúc 2 giờ sáng trong sự kiện mua sắm quy mô lớn, còi báo động réo liên hồi khắp hệ thống: danh sách thành viên dự án của người dùng bị biến mất bí ẩn, báo cáo tài chính xuất hiện hàng trăm giao dịch ma, và CPU của cụm cơ sở dữ liệu bị đẩy lên 100%. Khi đào sâu điều tra, đội ngũ kỹ thuật phát hiện ba sự cố dây chuyền nghiêm trọng. Đầu tiên, các kỹ sư đã cố nhồi nhét quan hệ nhiều-nhiều (many-to-many) giữa người dùng và dự án vào một mảng JSON `user_ids` không có bất kỳ ràng buộc nào; khi hàng chục worker xử lý đồng thời ghi đè dữ liệu, các cập nhật bị mất (lost update) và làm sai lệch trạng thái thành viên mà không hề để lại dấu vết. Thứ hai, khi một tài khoản tổ chức mẹ bị xóa, hàng triệu bản ghi tài nguyên con vẫn trôi nổi vô chủ dưới dạng bản ghi mồ côi (orphaned records) vì hệ thống không khai báo ràng buộc khóa ngoại (foreign key) để bảo đảm toàn vẹn tham chiếu. Đỉnh điểm là trong cơn hoảng loạn, một kỹ sư chạy câu lệnh migration trực tiếp: `ALTER TABLE orders ADD COLUMN status text NOT NULL DEFAULT 'pending';`. Câu lệnh này ngay lập tức kích hoạt khóa độc quyền toàn bảng (`AccessExclusiveLock`), chặn đứng mọi kết nối đọc và ghi, làm cạn kiệt connection pool và kéo sập toàn bộ hệ thống backend.
+
+Những sự cố này đều bắt nguồn từ một sai lầm gốc rễ: coi cơ sở dữ liệu quan hệ như một kho chứa JSON thụ động và phó mặc các bất biến nghiệp vụ cho sự kỷ luật của code ứng dụng thay vì để database tự thực thi.
+
 ## Tóm tắt
 
-Một lược đồ quan hệ không chỉ là tập hợp các bảng. Nó là mô hình của **sự thật nghiệp vụ, danh tính, quan hệ và bất biến** mà cơ sở dữ liệu phải giữ nhất quán ngay cả khi nhiều luồng ghi chạy đồng thời.
+> 💡 **Quy tắc bỏ túi:** Hãy mô hình hóa các sự thật nghiệp vụ có thẩm quyền và những bất biến cốt lõi bằng ràng buộc của cơ sở dữ liệu trước khi vẽ giao diện hay định nghĩa payload API. Hãy để database từ chối dữ liệu sai ngay tại tầng lưu trữ, không bao giờ phó mặc tính toàn vẹn cho sự kỷ luật của code ứng dụng.
+
+- **Lược đồ quan hệ mô hình hóa sự thật, không phải giao diện:** Lược đồ quan hệ không phải kho tài liệu JSON thụ động—nó là bản hợp đồng thực thi của các **sự thật nghiệp vụ, danh tính, quan hệ và bất biến** được bảo vệ trực tiếp tại storage engine.
+- **Khóa ứng viên (candidate key) định danh duy nhất:** Surrogate primary key (`id`) mang lại sự tiện lợi khi join, nhưng các candidate key nghiệp vụ (`tenant_id`, `external_id`) bắt buộc phải được bảo vệ bằng ràng buộc `UNIQUE` để loại trừ trùng lặp dữ liệu thực tế.
+- **Ràng buộc khóa ngoại (foreign key) bảo đảm toàn vẹn tham chiếu:** Khóa ngoại ngăn chặn triệt để tình trạng bản ghi mồ côi (orphaned records) và mâu thuẫn dữ liệu giữa các luồng ghi đồng thời; kiểm tra ở tầng ứng dụng không bao giờ là giải pháp thay thế an toàn khi có race condition.
+- **Chuẩn hóa (normalization) triệt tiêu bất thường khi ghi:** Lưu mỗi sự thật có thẩm quyền (authoritative fact) ở đúng một nơi duy nhất; phân biệt rạch ròi sự thật hiện hành với snapshot lịch sử (như đơn giá tại thời điểm chốt đơn hàng).
+- **Cạm bẫy chết người:** Nhét quan hệ many-to-many vào mảng JSON thiếu ràng buộc, hoặc chạy trực tiếp lệnh `ALTER TABLE ... NOT NULL DEFAULT` trên bảng hàng chục triệu dòng giữa giờ cao điểm gây lock cứng toàn bảng thay vì áp dụng quy trình tiến hóa schema an toàn (expand-and-contract).
 
 Hãy suy luận theo thứ tự:
 

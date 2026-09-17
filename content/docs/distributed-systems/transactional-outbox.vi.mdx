@@ -18,17 +18,19 @@ concepts:
 
 # Transactional Outbox: Phát sự kiện mà không tạo khoảng trống dual-write
 
+Trong một đợt flash sale nghẹt thở, handler xử lý thanh toán nhận webhook từ cổng ngân hàng. Ứng dụng cập nhật trạng thái đơn hàng thành `PAID` trong database PostgreSQL, commit transaction thành công, rồi chuẩn bị gọi lệnh `messageBroker.publish('OrderPaid')`. Nhưng đúng trong khoảng trống 3 mili-giây định mệnh giữa lúc database vừa commit xong và trước khi lời gọi mạng kịp kích hoạt, container pod bị hệ thống Kubernetes thu hồi tài nguyên (OOM eviction) và sập nguồn tức tưởi. Kết quả: Database ghi nhận khách hàng đã trả tiền, nhưng sự kiện phát đi bị biến mất không dấu vết. Bộ phận kho vận không bao giờ nhận được lệnh đóng gói hàng, số lượng tồn kho bị lệch lạc, và khách hàng phẫn nộ dội bão khiếu nại lên tổng đài hỗ trợ. Trạng thái hệ thống đã bị xé toạc làm đôi bởi **lỗi ghi kép (dual-write gap)**.
+
+Khi một tác vụ vừa phải cập nhật cơ sở dữ liệu nội bộ vừa phải thông báo cho thế giới bên ngoài qua mạng, việc thực hiện hai thao tác ghi độc lập chắc chắn sẽ dẫn đến thảm họa lỗi cục bộ (partial failure).
+
 ## TL;DR
 
-Một service thường cần một thao tác nghiệp vụ tạo ra hai thay đổi bền vững: cập nhật database và thông báo cho hệ thống khác biết điều gì đã xảy ra. Ghi database rồi publish lên broker như hai thao tác độc lập tạo ra **khoảng trống dual-write**: một phía có thể thành công trong khi phía còn lại thất bại.
+> 💡 **Quy tắc bỏ túi:** Tuyệt đối không thể commit nguyên tử đồng thời giữa hai hệ thống lưu trữ độc lập mà không dùng điều phối phân tán đắt đỏ. Thay vì sa lầy vào giao dịch phân tán 2PC nặng nề, hãy ghi trạng thái nghiệp vụ và ý định phát sự kiện vào cùng một database transaction cục bộ, rồi để một tiến trình relay chuyển tiếp bất đồng bộ.
 
-Transactional outbox đóng khoảng trống nguyên tử đó bằng cách ghi business state và một **bản ghi outbox chứa ý định phát sự kiện trong cùng một transaction của database**. Sau đó một relay độc lập publish các bản ghi outbox đã commit lên broker.
-
-Contract hữu ích là:
-
-1. Nếu business transaction rollback, không có event đã commit để phát.
-2. Nếu business transaction commit, ý định publish đã bền vững ngay cả khi process crash tức thì.
-3. Publication vẫn bất đồng bộ và có thể lặp lại, vì vậy consumer vẫn phải idempotent.
+- **Khoảng trống ghi kép (Dual-write gap):** Việc cập nhật database và phát event lên broker như hai thao tác tách biệt không bao giờ đạt tính nguyên tử; một bên thành công thì bên còn lại hoàn toàn có thể sập.
+- **Transactional outbox giải quyết triệt để tính nguyên tử:** Bằng cách lưu thay đổi nghiệp vụ và một **bản ghi outbox chứa ý định phát sự kiện trong cùng một database transaction**, bảo đảm cả hai cùng commit thành công hoặc cùng rollback.
+- **Bộ chuyển tiếp bất đồng bộ (Relay):** Sử dụng cơ chế polling worker (với `SELECT ... FOR UPDATE SKIP LOCKED`) hoặc Change Data Capture (CDC / Debezium) để quét các bản ghi outbox đã commit và đẩy sang broker, giải phóng hoàn toàn độ trễ của request người dùng.
+- **Chấp nhận phát lại (At-least-once):** Do cơ chế retry của relay khi mạng chập chờn, event có thể bị phát lại nhiều lần; vì vậy downstream consumer bắt buộc phải xử lý lũy đẳng (idempotent) dựa trên event ID ổn định.
+- **Cạm bẫy chết người:** Đảo ngược thứ tự thực thi (phát event lên message broker trước rồi mới commit database) sẽ tạo ra "sự kiện ma" (phantom event) nguy hiểm — các dịch vụ hạ nguồn vội vã trừ tiền hoặc xuất kho cho những đơn hàng mà transaction database sau đó lại bị rollback thất bại.
 
 ```mermaid
 flowchart LR
@@ -194,20 +196,20 @@ Về observability, tối thiểu theo dõi:
 
 Tuổi của event cũ nhất thường actionable hơn backlog count đơn thuần: mười record bị kẹt hai giờ có thể nghiêm trọng hơn mười nghìn record đang drain bình thường.
 
-## Production micro-scenario: payment đã commit, event biến mất
+## Kịch bản production thực chiến: Đã commit thanh toán, sự kiện bốc hơi
 
-Checkout service cập nhật `orders.status = 'PAID'`, commit rồi publish `OrderPaid` lên broker. Trong lúc deploy, process bị terminate trong vài millisecond sau database commit nhưng trước khi publish call chạy.
+Dịch vụ checkout cập nhật `orders.status = 'PAID'`, commit vào database PostgreSQL, rồi chuẩn bị gọi lệnh publish `OrderPaid` lên message broker. Đúng lúc đó, quá trình deploy phiên bản mới kích hoạt khiến tiến trình cũ bị ngắt đột ngột (SIGKILL) chỉ vài mili-giây sau khi database vừa commit nhưng trước khi hàm publish kịp chạy.
 
-**Hậu quả:** Fulfillment không bao giờ bắt đầu cho một order đã thanh toán. API đã trả success và database đúng ở local state, nhưng downstream không bao giờ quan sát transition đó.
+**Hậu quả:** Quy trình kho vận (fulfillment) không bao giờ được kích hoạt cho đơn hàng đã thanh toán. API phía frontend đã trả về thông báo thành công cho người dùng và database lưu đúng trạng thái cục bộ, nhưng các hệ thống hạ nguồn không bao giờ nhận biết được sự kiện này.
 
-**Nguyên nhân cốt lõi:** Service coi database commit và broker publish như thể chúng tạo thành một thao tác nguyên tử. Thực tế đó là dual-write qua hai failure domain mà không có ý định phát sự kiện bền vững ở giữa.
+**Nguyên nhân cốt lõi:** Đội ngũ phát triển coi database commit và broker publish như thể chúng tạo thành một thao tác nguyên tử duy nhất. Trên thực tế, đó là một lỗi ghi kép (dual-write) qua hai hệ thống độc lập mà hoàn toàn thiếu vắng một ý định phát sự kiện bền vững ở giữa.
 
-**Cách khắc phục chuẩn:** Trong cùng một transaction đánh dấu order là paid, insert outbox row với event ID ổn định, aggregate ID, event type, payload và sequence nếu cần. Commit cả hai cùng nhau. Để relay publish sau commit, retry ambiguous failure và yêu cầu consumer idempotent vì duplicate publication vẫn có thể xảy ra.
+**Cách khắc phục chuẩn:** Trong cùng một transaction đánh dấu đơn hàng là đã thanh toán, hãy chèn thêm một bản ghi outbox chứa `event_id` bất biến, `aggregate_id`, `event_type`, `payload` và `sequence` nếu cần thiết. Commit cả hai cùng nhau. Để tiến trình relay phát sự kiện sau khi commit, kiên trì retry khi gặp sự cố mạng mập mờ, đồng thời bắt buộc consumer phía sau phải lũy đẳng (idempotent) để phòng ngừa việc phát lại.
 
 <details>
-<summary>Xem cách suy luận</summary>
+<summary>Xem giải thích chi tiết</summary>
 
-Publish trước database commit chỉ đảo ngược failure. Rollback có thể khiến downstream xử lý một event mà business state chưa từng trở nên bền vững. Outbox hiệu quả vì atomic boundary được thu hẹp về một local database transaction, còn communication trở thành asynchronous work có thể recovery.
+Việc đổi thứ tự (publish lên broker trước rồi mới commit database) chỉ đảo ngược thảm họa chứ không hề giải quyết được bài toán. Một lỗi rollback database sau đó sẽ khiến các hệ thống hạ nguồn xử lý một sự kiện ma mà trạng thái nghiệp vụ thực tế chưa từng tồn tại bền vững. Transactional outbox thành công vì nó thu hẹp ranh giới nguyên tử về duy nhất một local database transaction, đồng thời biến việc giao tiếp mạng thành một tác vụ bất đồng bộ có khả năng tự phục hồi.
 
 </details>
 

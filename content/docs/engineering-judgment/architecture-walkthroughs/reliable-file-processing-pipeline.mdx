@@ -37,6 +37,22 @@ concepts:
   - least-privilege
 ---
 
+## Production crisis & TL;DR
+
+A user uploads a high-definition 4K video or complex 2.5 GB archive. Your backend application server parses the incoming `multipart/form-data` request and attempts to buffer the raw byte stream into memory. When three concurrent users trigger similar uploads, server RAM usage spikes to 100%. The operating system's Out-Of-Memory (OOM) killer abruptly terminates the application process. The container restarts in a crash loop, dropping in-flight HTTP connections across unrelated users and triggering a cascading service outage. Meanwhile, abandoned multi-part fragments accumulate quietly in cloud storage, driving up unexpected infrastructure costs.
+
+Treating application servers as byte relays for massive files is an operational disaster. A production-ready pipeline must bypass application servers entirely by issuing scoped presigned URLs directly to object storage, streaming and chunking transformations asynchronously within bounded memory, coordinating workers via queues equipped with dead-letter routing, and enforcing idempotency bound to immutable object versions.
+
+> 💡 **Rule of thumb:** Never route heavy file bytes through your application API servers. Authorize uploads via short-lived presigned URLs directly to object storage, stream chunks during processing within strict memory budgets, and coordinate background workers through durable queues equipped with dead-letter routing and version-bound idempotency.
+
+### TL;DR
+
+- **Bypass application servers via direct scoped uploads:** Issue short-lived presigned URLs or capability tokens so clients upload bytes directly to object storage (such as Amazon S3), keeping web tier memory, CPU, and bandwidth consumption at zero.
+- **Bind processing jobs to immutable object versions:** Tie background worker jobs to unique asset IDs, immutable object version/generation identifiers, and checksums rather than mutable storage keys, eliminating race conditions from late-arriving notifications.
+- **Stream bytes and isolate untrusted inputs in quarantine:** Enforce strict per-worker memory and temporary disk budgets by streaming data instead of buffering entire gigabytes into RAM; keep newly uploaded files quarantined until size, format signatures, and security scans pass.
+- **Control system pressure with bounded concurrency:** Scale worker pools based on queue age, processing throughput, and resource saturation rather than raw backlog count, protecting downstream databases and transcoding engines from catastrophic overload.
+- **Fatal pitfall:** Buffering full multi-gigabyte files into web worker memory or treating a mutable object path (`/uploads/current.file`) as a reliable job identifier—this inevitably causes OOM container crashes under concurrent load and silent corruption when late-arriving completion notifications process overwritten file bytes.
+
 ## System goal and constraints
 
 Suppose a product lets users upload images, videos, archives, or documents that need asynchronous processing. The system should accept files from unreliable networks, avoid turning application servers into byte relays, validate untrusted content, run expensive transformations outside the request path, survive duplicate notifications and worker crashes, expose progress, and prevent a burst of large files from overwhelming downstream capacity.

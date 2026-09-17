@@ -31,20 +31,19 @@ concepts:
 
 # Cache ứng dụng: Chấp nhận dữ liệu chưa cập nhật để giảm tải có chủ đích
 
-## Tóm tắt
+8 giờ tối ngày Siêu Sale Black Friday. Trang sản phẩm hot nhất của sàn thương mại điện tử đang xử lý 50.000 request mỗi giây một cách mượt mà nhờ tỷ lệ cache hit lên tới 99,8%. Bất thình lình, key cache của sản phẩm này chạm ngưỡng TTL và hết hạn. Trong một tích tắc, 10.000 request đồng thời ập xuống đâm thủng lớp cache trống rỗng và lao thẳng vào cơ sở dữ liệu quan hệ chính. Connection pool cạn kiệt ngay lập tức, CPU database vọt lên 100%, độ trễ truy vấn từ 5 mili-giây nhảy vọt lên 30 giây, và cơ sở dữ liệu bốc cháy khiến toàn bộ nền tảng sập nguồn (cascading outage). Cơ sở dữ liệu quá tải không phải vì lượng truy cập tăng gấp đôi, mà vì lớp cache bốc hơi cho đúng một key nóng vào thời điểm nhạy cảm nhất.
 
-Cache ứng dụng là **trạng thái dẫn xuất**. Cơ sở dữ liệu, dịch vụ hoặc bản ghi bền vững có thẩm quyền vẫn là **nguồn dữ liệu chuẩn**; cache tồn tại để tránh lặp lại truy vấn hoặc phép tính tốn kém khi hệ thống chấp nhận tái sử dụng một kết quả trong một khoảng thời gian nhất định.
+Đó chính là thảm họa **Cache Stampede** (hay hiện tượng *dồn tải kiểu bầy đàn - thundering herd*). Cache ứng dụng không phải lá chắn thần kỳ để che giấu điểm yếu của cơ sở dữ liệu. Nếu thiếu các chiến lược phân tầng rõ ràng (như Cache-Aside và Write-Through), kỹ thuật phân tán TTL jitter và cơ chế khóa mutex khi tính toán miss, một hệ thống cache thiếu phối hợp có thể biến lưu lượng bình thường thành quả bom phá hủy hạ tầng.
 
-Một vòng lập luận hữu ích là:
+## TL;DR
 
-1. xác định công việc tốn kém muốn tránh;
-2. xác định chính xác các chiều đầu vào khiến hai câu trả lời được xem là tương đương;
-3. tạo khóa cache từ các chiều đó;
-4. nêu ngân sách độ cũ chấp nhận được trước khi chọn TTL;
-5. quyết định thay đổi ở nguồn chuẩn sẽ vô hiệu hóa hoặc thay thế cache thế nào;
-6. bảo vệ miss trên khóa nóng để không tạo dồn tải kiểu bầy đàn;
-7. quyết định cách xử lý khi miss hoặc cache lỗi;
-8. đo tỷ lệ hit, tỷ lệ miss, độ trễ cache, độ trễ nguồn, eviction và tải lên nguồn chuẩn.
+> 💡 **Quy tắc bỏ túi:** Coi cache là trạng thái dẫn xuất tạm thời, tuyệt đối không xem là nguồn dữ liệu chuẩn. Hãy bảo vệ khóa nóng bằng cơ chế khóa mutex (single-flight) kết hợp TTL jitter, và luôn vô hiệu hóa hoặc xóa cache *sau khi* transaction cơ sở dữ liệu đã commit thành công.
+
+- **Nguồn dữ liệu chuẩn (Source of Truth):** Cache chỉ tồn tại để giảm tải các phép tính hoặc truy vấn tốn kém. Mất cache hay cache bị xóa (eviction) chỉ được phép làm giảm hiệu năng và tăng độ trễ, tuyệt đối không được làm biến dạng hay mất mát sự thật nghiệp vụ.
+- **Mô hình phối hợp:** **Cache-Aside** (đọc đứng bên / lazy loading) đọc cache trước, truy vấn database khi miss rồi ghi bù vào cache; **Write-Through** cập nhật đồng thời cache và database; **Write-Behind** ghi vào cache trước rồi bất đồng bộ đẩy xuống database để tối ưu tốc độ ghi nhưng chấp nhận rủi ro mất dữ liệu nếu sự cố xảy ra.
+- **Khóa cache là ranh giới đúng-sai:** Mọi chiều dữ liệu tác động tới kết quả (tenant_id, phân quyền người dùng, đơn vị tiền tệ, bản địa hóa, phiên bản schema) bắt buộc phải nằm trong cache key; bỏ sót một chiều sẽ dẫn đến nguy cơ rò rỉ dữ liệu chéo giữa các khách hàng.
+- **Chống dồn tải (Cache Stampede) là bắt buộc:** Bảo vệ các khóa nóng khỏi hiện tượng bầy đàn bằng khóa mutex / single-flight (gộp hàng nghìn miss đồng thời thành một lần đọc database duy nhất), làm mới chủ động (refresh-ahead) và phân tán TTL jitter ngẫu nhiên để tránh hết hạn đồng loạt.
+- **Cạm bẫy chết người:** Xóa hoặc vô hiệu hóa cache *trước khi* commit transaction cơ sở dữ liệu, tạo ra kẽ hở tranh chấp (race condition) để một tiến trình đọc lấy dữ liệu cũ chưa commit từ database rồi ghi ngược lại vào cache, khiến dữ liệu sai lệch bị giam giữ vĩnh viễn cho tới khi hết TTL.
 
 ```mermaid
 flowchart LR

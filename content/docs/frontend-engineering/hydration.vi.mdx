@@ -16,13 +16,19 @@ concepts:
   - hydration
 ---
 
-# Hydration: Biến HTML đã render thành ứng dụng có thể tương tác
+# Hydration: Biến HTML render sẵn thành ứng dụng tương tác
 
 ## Tóm tắt
 
-Server rendering có thể làm HTML hiển thị trước khi trình duyệt tải và chạy application runtime. **Hydration là bước phía client gắn component logic và event behavior vào HTML đã tồn tại để UI trở nên tương tác được.**
+Trong đợt mở bán flash sale, một khách hàng bấm liên tục 5 lần vào nút "Mua ngay" trong hai giây đầu tiên khi trang web vừa hiện ra. Nút bấm trông có vẻ đã tải xong, nhưng không hề có phản hồi—cho đến khi gói JavaScript 1.5MB tải xong, bảng điều khiển console nổ tung hàng loạt cảnh báo hydration mismatch, giao diện bị xóa bỏ rồi render lại từ đầu trên client, và tài khoản của khách hàng bị trừ tiền 5 lần liên tiếp. Nguyên nhân? Người dùng rơi vào **khoảng trống hydration** (hydration gap) giữa lúc mắt nhìn thấy và lúc sự kiện được gắn, kết hợp với sự sai lệch dữ liệu giữa server và client kích hoạt cơ chế phá hủy DOM tốn kém.
 
-Vì vậy HTML đã nhìn thấy và ứng dụng đã tương tác được là hai mốc khác nhau.
+> 💡 **Quy tắc bỏ túi:** **HTML hiển thị được không đồng nghĩa với UI đã sẵn sàng tương tác.** Hydration tái sử dụng các node DOM sẵn có từ server thay vì tạo lại từ đầu; bất kỳ sự sai lệch nào giữa output server và lượt render đầu tiên của client đều buộc trình duyệt phải chạy quy trình phục hồi tốn kém, xóa bỏ DOM và giam giữ người dùng trong khoảng trống hydration.
+
+- **Hai cột mốc riêng biệt:** Server render tạo ra HTML hiển thị (FCP); hydration gắn event handler và reactive state vào các node DOM có sẵn để đạt trạng thái tương tác hoàn chỉnh (TTI).
+- **Khoảng trống hydration (Hydration gap):** Độ trễ giữa lúc HTML được vẽ lên màn hình và lúc listener sẵn sàng—bị kéo dài bởi bundle JavaScript quá lớn, CPU luồng chính bị nghẽn và thiếu streaming SSR.
+- **Tác nhân gây hydration mismatch:** Sai lệch giữa server snapshot và client first render (ví dụ: `Date.now()`, `Math.random()`, `window`/`localStorage`, sự khác biệt về locale, hoặc lồng thẻ HTML không hợp lệ).
+- **Cái giá của việc phục hồi mismatch:** Khi client render khác với HTML máy chủ, framework buộc phải hủy bỏ các node DOM cũ và tái tạo lại toàn bộ cây DOM, gây giật lag giao diện (layout shift).
+- **Cạm bẫy chết người:** Dùng `suppressHydrationWarning` để che giấu cảnh báo console thay vì xử lý tận gốc nguyên nhân lệch dữ liệu hoặc trì hoãn logic máy khách sau khi component đã mount.
 
 <TermBox term="Hydration">
 **Hydration** là quá trình gắn component logic phía client vào HTML đã được render trước trên server hoặc trong bước prerender, đồng thời tái sử dụng DOM hiện có thay vì dựng lại toàn bộ từ đầu.
