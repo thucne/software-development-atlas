@@ -46,7 +46,7 @@ describe('Cloud Compute lesson', () => {
       expect((source.match(/```mermaid/g) ?? []).length, relativePath).toBeGreaterThanOrEqual(3);
       expect(source, relativePath).toContain('<details>');
       expect(source, relativePath).toContain('- [ ]');
-      expect(source, relativePath).toContain('> 💡 **Rule of thumb:**');
+      expect(source, relativePath).toMatch(/> 💡 \*\*(Rule of thumb|Quy tắc bỏ túi):\*\*/);
       expect(source, relativePath).toMatch(/Fatal pitfall|Sai lầm chí mạng/i);
     }
   });
