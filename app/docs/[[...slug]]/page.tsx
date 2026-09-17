@@ -1,4 +1,5 @@
 import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
+import { PageFooter } from '@/components/docs/page-footer';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { getFreshnessState } from '@/lib/content/freshness';
@@ -45,7 +46,7 @@ export default async function Page(props: {
     `content/docs/${page.path}`;
 
   return (
-    <DocsPage toc={page.data.toc}>
+    <DocsPage toc={page.data.toc} footer={{ component: <PageFooter /> }}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">
         {page.data.description}
