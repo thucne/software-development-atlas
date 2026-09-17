@@ -1,11 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { getFreshnessState } from '@/lib/content/freshness';
-import { extractLessonModeData } from '@/lib/content/extract-lesson-modes';
-import { LearningModeContainer } from '@/components/learning/learning-mode-container';
 import { createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
 import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
@@ -47,17 +43,6 @@ export default async function Page(props: {
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
-
-  let rawContent = '';
-  try {
-    rawContent = fs.readFileSync(
-      path.join(process.cwd(), 'content/docs', page.path),
-      'utf-8',
-    );
-  } catch {
-    // Gracefully handle unreadable content
-  }
-  const modeData = extractLessonModeData(rawContent, 'en');
 
   return (
     <DocsPage toc={page.data.toc}>
@@ -130,12 +115,7 @@ export default async function Page(props: {
       </div>
 
       <DocsBody>
-        <LearningModeContainer
-          data={modeData}
-          locale="en"
-        >
-          <MDX components={getMDXComponents()} />
-        </LearningModeContainer>
+        <MDX components={getMDXComponents()} />
       </DocsBody>
     </DocsPage>
   );
