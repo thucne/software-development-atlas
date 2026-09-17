@@ -137,7 +137,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     });
   }
 
-  test('banner links directly to What\'s New & Changelog page', async ({ page }) => {
+  test('banner links directly to the current What\'s New release ledger', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
     const banner = page.locator('#atlas-release-2026-09-16');
@@ -148,19 +148,25 @@ test.describe('Announcement banner, changelog, and status badges', () => {
       page.getByRole('heading', { name: "What's New & Changelog", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /September 16, 2026/ }),
+      page.getByRole('heading', { name: /September 17, 2026/ }),
     ).toBeVisible();
+    await expect(page.getByText(/complete the Distributed Systems domain/)).toBeVisible();
+    await expect(page.getByText(/opens Cloud & Infrastructure/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Cloud Networking' })).toBeVisible();
   });
 
-  test('renders Vietnamese changelog at /vi/docs/start-here/changelog', async ({ page }) => {
+  test('renders Vietnamese current release ledger at /vi/docs/start-here/changelog', async ({ page }) => {
     await page.goto(appUrl('/vi/docs/start-here/changelog'));
 
     await expect(
       page.getByRole('heading', { name: 'Cập nhật mới & Nhật ký thay đổi', exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /Ngày 16 tháng 09 năm 2026/ }),
+      page.getByRole('heading', { name: /Ngày 17 tháng 09 năm 2026/ }),
     ).toBeVisible();
+    await expect(page.getByText(/hoàn thiện domain Hệ thống Phân tán/)).toBeVisible();
+    await expect(page.getByText(/mở đầu Cloud & Hạ tầng/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Cloud Networking' })).toBeVisible();
   });
 
   test('exposes What\'s New link in navbar header', async ({ page }) => {
@@ -198,6 +204,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
 
     // Reload page and verify banner remains hidden
     await page.reload();
+
     await expect(banner).not.toBeVisible();
   });
 });

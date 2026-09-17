@@ -90,6 +90,21 @@ describe('Changelog & What\'s New system', () => {
     }
   });
 
+  it('summarizes the September 17 domain transition before older milestones', () => {
+    const en = read(changelogPaths.en);
+    const vi = read(changelogPaths.vi);
+
+    expect(en).toContain('September 17, 2026');
+    expect(en).toContain('complete the Distributed Systems domain');
+    expect(en).toContain('Cloud Networking');
+    expect(en).toContain('opens Cloud & Infrastructure');
+
+    expect(vi).toContain('Ngày 17 tháng 09 năm 2026');
+    expect(vi).toContain('hoàn thiện domain Hệ thống Phân tán');
+    expect(vi).toContain('Cloud Networking');
+    expect(vi).toContain('mở đầu Cloud & Hạ tầng');
+  });
+
   it('documents recent major milestone releases and discovery mechanisms', () => {
     const en = read(changelogPaths.en);
     const vi = read(changelogPaths.vi);
