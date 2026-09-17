@@ -1,4 +1,4 @@
 {
   "title": "Hệ thống Phân tán",
-  "pages": ["partial-failure", "timeouts", "retries-and-backoff", "delivery-semantics", "distributed-consistency", "distributed-replication", "consensus"]
+  "pages": ["partial-failure", "timeouts", "retries-and-backoff", "delivery-semantics", "distributed-consistency", "distributed-replication", "consensus", "distributed-locks"]
 }
