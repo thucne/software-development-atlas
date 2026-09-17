@@ -1,0 +1,243 @@
+---
+title: "Cloud Networking: Trace Reachability Through Routes, NAT, and Policy"
+description: Operate cloud networking by tracing packet paths through CIDR addressing, subnets, routes, gateways, NAT, filtering policy, DNS, private endpoints, and connected networks.
+category: cloud-infrastructure
+level: intermediate
+status: evolving
+lastVerified: 2026-09-17
+reviewAfterDays: 180
+topics: [cloud, networking, routing, subnets, reachability]
+prerequisites: [dns-resolution, http-request-lifecycle]
+related: [load-balancing, cloud-iam, tls-and-https, service-resilience]
+technologies: [aws, gcp, azure]
+contentType: deep-dive
+learningDepth: operate
+concepts:
+  - cloud-networking
+---
+
+# Cloud Networking: Trace Reachability Through Routes, NAT, and Policy
+
+## TL;DR
+
+Cloud networking becomes much easier to operate when you stop asking “is the network open?” and instead trace the **packet path** as a sequence of decisions:
+
+1. What source and destination addresses are involved?
+2. Which route matches the destination, and what target or next hop does it select?
+3. Does a gateway or NAT translation change the path or address?
+4. Which ingress and egress policies allow or deny the flow?
+5. Can the return path get back to the source?
+
+DNS, IAM, TLS, and application authorization matter, but they answer different questions. DNS success does not prove network reachability, and network reachability does not prove the application will authorize the request.
+
+```mermaid
+flowchart LR
+  A["Workload"] --> B["Destination IP"]
+  B --> C["Route lookup"]
+  C --> D["Gateway / next hop"]
+  D --> E["NAT if required"]
+  E --> F["Network policy"]
+  F --> G["Remote endpoint"]
+  G --> H["Return path"]
+```
+
+<TermBox term="CIDR Prefix">
+A **CIDR prefix** describes an IP address range as an address plus prefix length, such as `10.20.0.0/16`. A longer prefix is more specific: `/24` describes a smaller range than `/16`.
+</TermBox>
+
+## Start with address space and subnets
+
+A cloud virtual network normally owns one or more IP ranges. Subnets divide those ranges into smaller allocation and routing domains for workloads with similar connectivity needs.
+
+RFC 1918 reserves private IPv4 ranges including `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`. Cloud environments frequently use these ranges internally, but private addressing alone does not create isolation. Routing and network policy determine what can actually communicate.
+
+CIDR planning has operational consequences:
+
+- avoid overlapping ranges when networks may later connect through peering, VPN, or transit;
+- leave space for growth rather than packing every subnet tightly;
+- group workloads by connectivity and lifecycle needs, not only by team name;
+- document which prefixes are routable to on-premises, other virtual networks, and service endpoints.
+
+If `10.20.4.17` lives in `10.20.4.0/24`, that fact tells you where the address belongs. It does **not** yet tell you whether the workload can reach `10.80.12.9` or the public internet.
+
+## A route maps a destination to a next hop
+
+A route maps a **destination prefix** to a **target or next hop**. Depending on the provider, that target might be a local virtual-network path, internet gateway, NAT gateway, peering link, VPN, transit hub, appliance, or service endpoint.
+
+<TermBox term="Next Hop">
+A **next hop** is the next routing target selected for a packet. It is not necessarily the final destination; it may be a gateway, router, tunnel, or provider-managed virtual path.
+</TermBox>
+
+When multiple routes match, routing normally prefers the **longest prefix**, also described as the most specific route. For example:
+
+| Destination | Target |
+| --- | --- |
+| `10.80.0.0/16` | peering connection |
+| `10.80.12.0/24` | inspection appliance |
+| `0.0.0.0/0` | NAT gateway |
+
+Traffic to `10.80.12.9` should follow the `/24` route rather than the `/16` or default route because `/24` is more specific.
+
+```mermaid
+flowchart TD
+  P["Packet to 10.80.12.9"] --> R1{"10.80.12.0/24?"}
+  R1 -->|"yes"| A["Inspection appliance"]
+  R1 -->|"no"| R2{"10.80.0.0/16?"}
+  R2 -->|"yes"| B["Peering"]
+  R2 -->|"no"| C["Default route 0.0.0.0/0"]
+```
+
+Do not troubleshoot only the configured route table name. Providers can combine system routes, propagated routes, custom routes, and policy-based behavior. Inspect the **effective route** seen by the workload or network interface whenever the platform exposes it.
+
+## “Public” and “private” are reachability properties
+
+The labels **public subnet** and **private subnet** are useful only when you state what they mean in that environment.
+
+In AWS terminology, a subnet with a route to an internet gateway is considered public, while a subnet without that route is private. Other providers model internet access differently, so treat the durable concept as **internet reachability**, not the label itself.
+
+For inbound internet reachability, several conditions may all matter:
+
+- the workload or frontend has an address that can be reached from the internet;
+- the subnet or virtual network has the required route/gateway path;
+- ingress policy permits the source/protocol/port;
+- the service is actually listening;
+- the return path is valid.
+
+A public IP by itself is not proof of inbound reachability.
+
+## NAT changes addresses, not application trust
+
+Private IPv4 addresses are not globally routable on the public internet. A common outbound pattern sends traffic from a private subnet to a NAT device or managed NAT gateway, which translates the source address before forwarding the packet toward an internet gateway or equivalent provider edge.
+
+<TermBox term="NAT">
+**Network Address Translation (NAT)** rewrites address information as traffic crosses a boundary. In common cloud IPv4 egress designs, many private workloads can initiate outbound connections through a smaller set of public addresses.
+</TermBox>
+
+```mermaid
+sequenceDiagram
+  participant W as Private workload 10.20.4.17
+  participant N as NAT gateway
+  participant I as Internet edge
+  participant A as External API
+  W->>N: TCP SYN src=10.20.4.17
+  N->>I: translate source to public address
+  I->>A: outbound connection
+  A-->>I: response
+  I-->>N: response to translated address
+  N-->>W: reverse translation
+```
+
+This pattern usually allows **outbound/egress** connections initiated by private workloads without creating a general path for unsolicited **inbound/ingress** connections from the internet.
+
+NAT is not a firewall and it is not IAM. It solves an addressing/translation problem. Use explicit network policy for traffic filtering and application authorization for who may perform an operation.
+
+## Network policy is a separate gate
+
+Cloud platforms expose constructs such as firewalls, security groups, network security groups, ACLs, or firewall policies. Their exact statefulness, attachment points, priorities, and default rules differ by provider.
+
+Operate them with the same questions:
+
+- **direction:** ingress or egress?
+- **source:** which prefix, identity-derived target, or network object?
+- **destination:** which workload or prefix?
+- **protocol and port:** TCP 443, UDP 53, ICMP, or something else?
+- **priority/evaluation:** which rule wins?
+- **return traffic:** is it implicitly stateful or separately filtered?
+
+Keep **network reachability** separate from **IAM/application authorization**. A packet can reach port 443 and still receive HTTP `403`. Conversely, perfect IAM permissions do not help if the TCP connection never reaches the service.
+
+## DNS answers “where,” not “can I get there?”
+
+DNS can resolve `api.internal.example` to an IP while the connection still times out because of a missing route, blocked egress rule, broken return path, or unavailable listener.
+
+Private DNS also frequently works with a **private endpoint** or service endpoint. The name may resolve to a private address so traffic stays on provider-controlled networking rather than using a public service address. This can reduce public exposure, but you still need routing, endpoint policy, firewall policy, and service authorization to line up.
+
+When debugging, record both the hostname and the resolved address. A stale or unexpected DNS answer can send a perfectly valid route lookup toward the wrong network.
+
+## Connect networks deliberately
+
+As systems grow, reachability may cross virtual-network boundaries:
+
+- **peering** connects selected virtual networks directly or through provider-defined peering behavior;
+- **VPN** carries traffic through encrypted tunnels between cloud and another network;
+- **transit** or hub-and-spoke designs centralize routing among many connected networks;
+- **private endpoints** expose one service privately without necessarily granting broad network adjacency.
+
+Do not assume these mechanisms are interchangeable. Check transitivity, route propagation, overlapping CIDRs, firewall scope, DNS behavior, and failure domains before choosing one.
+
+## Production scenario: DNS works, HTTPS still times out
+
+A background worker runs in a private subnet. It calls `https://api.partner.example` to submit completed jobs. After a network change, DNS still resolves the hostname, but every HTTPS request times out and the job backlog grows.
+
+**Impact:** Completed jobs cannot reach the partner API, queue age climbs, and retry traffic increases without making progress.
+
+**Root cause:** A route-table change removed the worker subnet's default egress route to the NAT gateway. Engineers initially focused on DNS because name resolution was visible, but DNS success did not prove reachability to the resolved public address.
+
+**Correct pattern:** Trace the packet path from the worker: resolve the destination, inspect the effective route for `0.0.0.0/0`, verify the NAT/gateway path, confirm egress policy, validate the return path, then test TCP/TLS and application behavior. Alert on route/NAT drift and outbound failure rather than relying on retries to mask connectivity loss.
+
+<details>
+<summary>Mental-model check: the hostname resolves, but TCP 443 times out. What should you inspect next?</summary>
+
+Do not keep changing DNS simply because it was the first visible layer. Capture the resolved destination IP, inspect the source workload's effective route to that IP, identify the selected next hop, verify NAT or gateway health if translation is required, check egress and destination ingress policy, and confirm the return path. Only after network reachability is established should you move up to TLS and application authorization.
+
+</details>
+
+## A practical reachability runbook
+
+Use the same order every time so debugging is evidence-driven rather than provider-console archaeology:
+
+- [ ] **Identify endpoints:** Record source interface/IP, destination hostname/IP, protocol, and port.
+- [ ] **Verify DNS intentionally:** Confirm the answer is expected for this network and environment.
+- [ ] **Inspect effective routing:** Find the matching destination prefix and selected target/next hop.
+- [ ] **Check translation/gateways:** Verify NAT, internet gateway, private endpoint, VPN, peering, or transit dependencies on the path.
+- [ ] **Evaluate policy both ways:** Inspect ingress/egress filters and whether return traffic is stateful or separately controlled.
+- [ ] **Check the return path:** Asymmetric or missing return routing can look like an outbound timeout.
+- [ ] **Move up the stack:** Once TCP works, inspect TLS, HTTP, IAM, and application authorization separately.
+- [ ] **Use flow evidence:** Prefer flow logs, effective-route views, reachability analyzers, and connection telemetry over assumptions.
+
+## Common mistakes
+
+**“It has a public IP, so it is public.”** Address assignment is only one condition. Routing, gateway attachment, policy, and return paths still matter.
+
+**“The security group allows 443, so it should work.”** An allow rule cannot manufacture a missing route or NAT path.
+
+**“Private subnet means no internet.”** A private workload can still have controlled outbound internet access through NAT or provider-specific egress mechanisms.
+
+**“NAT makes it secure.”** NAT changes addressing. Security policy and authorization are separate controls.
+
+**“DNS works, therefore networking works.”** DNS proves name resolution for that query. It does not prove the resolved address is reachable.
+
+## Agent rules
+
+- [ ] **Trace before editing:** Describe the expected packet path before changing routes or firewall rules.
+- [ ] **Prefer least reachability:** Open only the source, destination, protocol, and direction required by the workload.
+- [ ] **Avoid accidental adjacency:** Prefer a private endpoint when one service needs access and broad network peering is unnecessary.
+- [ ] **Treat defaults as provider-specific:** Verify system routes, stateful filtering, and gateway behavior instead of assuming AWS/GCP/Azure semantics are identical.
+- [ ] **Preserve observability:** Network changes should keep flow logs, route inspection, and failure telemetry usable during incidents.
+
+## Review questions
+
+- [ ] Can you explain why a CIDR prefix and a subnet do not by themselves define reachability?
+- [ ] Can you select the most specific route when several prefixes match the same destination?
+- [ ] Can you separate public addressing, routing, NAT, and filtering policy in a packet path?
+- [ ] Can you explain why DNS success, TCP reachability, TLS success, and application authorization are four different checks?
+- [ ] Can you choose between peering, VPN/transit, and a private endpoint based on the reachability boundary you actually need?
+
+## Primary sources
+
+- [RFC 4632 — Classless Inter-domain Routing (CIDR)](https://www.rfc-editor.org/rfc/rfc4632)
+- [RFC 1918 — Address Allocation for Private Internets](https://www.rfc-editor.org/rfc/rfc1918)
+- [AWS VPC — Route tables](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html)
+- [AWS VPC — Internet gateways](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html)
+- [AWS VPC — NAT devices](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html)
+- [Google Cloud VPC — Routes](https://cloud.google.com/vpc/docs/routes)
+- [Azure Virtual Network — Traffic routing](https://learn.microsoft.com/azure/virtual-network/virtual-networks-udr-overview)
+- [Azure Virtual Network — Network security groups](https://learn.microsoft.com/azure/virtual-network/network-security-groups-overview)
+- [Azure Private Link — Private endpoint overview](https://learn.microsoft.com/azure/private-link/private-endpoint-overview)
+
+## Related lessons
+
+- [DNS Resolution & TLS](/docs/web-platform/dns-resolution-and-tls)
+- [Backend Request Lifecycle](/docs/backend-engineering/backend-request-lifecycle)
+- [Service Resilience](/docs/backend-engineering/service-resilience)
+- [Threat Modeling & Least Privilege](/docs/security/threat-modeling-and-least-privilege)

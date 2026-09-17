@@ -36,7 +36,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 
-### Ngày 17 tháng 09 năm 2026 · Sao chép phân tán, Đồng thuận, Khóa phân tán, Transactional Outbox & Sagas
+### Ngày 17 tháng 09 năm 2026 · Hoàn thiện Hệ thống Phân tán & Khởi đầu Cloud Infrastructure
 
 Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **5 bài deep dive canonical về hệ thống phân tán**, tách cơ chế replication, agreement của consensus, temporary exclusive ownership, reliable event publication và long-lived workflow compensation đồng thời làm rõ authority khi failover, committed history, quorum behavior, lease, fencing, dual-write atomicity, recovery và reconciliation.
 
@@ -46,6 +46,9 @@ Trong bản cập nhật ngày **17 tháng 9, 2026**, Atlas bổ sung **5 bài d
 - [Khóa phân tán](/vi/docs/distributed-systems/distributed-locks): Suy luận về ownership dựa trên lease, renewal, unique owner token, fencing stale holder, unlock an toàn, kiểm soát contention, lock granularity và ranh giới giữa coordination, consensus, database lock với idempotency.
 - [Transactional Outbox](/vi/docs/distributed-systems/transactional-outbox): Vận hành reliable event publication bằng cách commit business state và publication intent atomically, relay committed outbox record, chịu được duplicate publication nhờ idempotent consumer, giữ ordering cần thiết và theo dõi relay backlog cùng lag.
 - [Sagas](/vi/docs/distributed-systems/sagas): Suy luận về workflow phân tán dài hạn như chuỗi local transaction bền vững với semantic compensation, pivot tường minh, idempotent retry, reconciliation cho unknown outcome, choreography so với orchestration, kiểm soát intermediate state và observability cho compensation.
+
+#### Cloud & Hạ tầng
+- [Cloud Networking](/vi/docs/cloud-infrastructure/cloud-networking): Vận hành reachability bằng cách lần theo CIDR addressing, subnet placement, effective route, gateway, NAT, policy ingress/egress, DNS, private endpoint, return path và ranh giới giữa các network được kết nối mà không đánh đồng network access với IAM hoặc application authorization.
 
 ---
 
