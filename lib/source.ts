@@ -54,7 +54,7 @@ function atlasStatusBadgesPlugin(): LoaderPlugin {
 
         node.name = createElement(
           'span',
-          { className: 'flex w-full items-center justify-between gap-1.5' },
+          { key: 'atlas-badge-wrapper', className: 'flex w-full items-center justify-between gap-1.5' },
           createElement('span', { key: 'title', className: 'truncate' }, originalName),
           createElement(
             'span',
