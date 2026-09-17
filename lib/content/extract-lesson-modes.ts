@@ -14,11 +14,7 @@ export interface LessonDiagram {
 export interface PracticeChallenge {
   id: string;
   title: string;
-  setup?: string;
   scenario: string;
-  impact?: string;
-  rootCause?: string;
-  correctPattern?: string;
   reasoning: string;
   type: 'micro-scenario' | 'self-check';
 }
@@ -35,16 +31,6 @@ export interface LessonModeData {
   diagrams: LessonDiagram[];
   practiceChallenges: PracticeChallenge[];
   interactiveLab?: 'EventLoopLab' | 'PromiseResolutionLab' | 'AsyncWaterfallLab' | 'HttpRequestPathExplorer';
-}
-
-/**
- * Strips markdown blockquote markers (> ), headings, and raw bullet points.
- */
-function sanitizeProse(text: string): string {
-  return text
-    .replace(/^>\s*/gm, '')
-    .replace(/^#{1,6}\s+[^\n]*\n*/gm, '')
-    .trim();
 }
 
 /**
@@ -85,44 +71,27 @@ export function extractLessonModeData(
   let story = '';
   let rootCause = '';
 
-  const bodyWithoutFm = rawContent.replace(/^---[\s\S]*?---\s*/, '').trim();
+  const withoutFm = rawContent.replace(/^---[\s\S]*?---\n*/, '');
+  const preHeading = withoutFm.split(/\n##\s+/)[0];
+  const beforeFirstH2 = preHeading.replace(/^#\s+[^\n]+\n+/, '').trim();
 
-  // Case A: Story between top # title and first ## heading (typically ## TL;DR)
-  const introMatch = bodyWithoutFm.match(/^#\s+[^\n]+\n+([\s\S]*?)(?=\n##\s+|$)/);
-  if (introMatch && introMatch[1].trim().length > 30) {
-    const cleanIntro = sanitizeProse(introMatch[1].trim());
-    const paras = cleanIntro.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
-    if (paras.length > 0) {
-      story = paras[0];
+  if (beforeFirstH2.length > 50) {
+    const paras = beforeFirstH2.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    story = paras[0] || '';
+    if (paras.length > 1) {
+      rootCause = paras.slice(1).join('\n\n');
+    }
+  } else if (tldrSection) {
+    const preThumb = tldrSection.match(
+      /##\s+(?:TL;DR|Tóm tắt[^\n]*)\n+([\s\S]*?)(?=\n+>\s*💡)/i,
+    );
+    if (preThumb && preThumb[1].trim()) {
+      const paras = preThumb[1].trim().split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+      story = paras[0] || '';
       if (paras.length > 1) {
         rootCause = paras.slice(1).join('\n\n');
       }
     }
-  }
-
-  // Case B: Story inside ## TL;DR before > 💡 Rule of thumb
-  if (!story && tldrSection) {
-    const preThumbMatch = tldrSection.match(
-      /##\s+(?:TL;DR|Tóm tắt[^\n]*)\n+([\s\S]*?)(?=\n+>\s*💡|$)/i,
-    );
-    if (preThumbMatch && preThumbMatch[1].trim().length > 20) {
-      const cleanIntro = sanitizeProse(preThumbMatch[1].trim());
-      const paras = cleanIntro.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
-      if (paras.length > 0) {
-        story = paras[0];
-        if (paras.length > 1) {
-          rootCause = paras.slice(1).join('\n\n');
-        }
-      }
-    }
-  }
-
-  // Safety filter: ensure rootCause doesn't leak rule of thumb or bullet lists
-  if (rootCause) {
-    rootCause = rootCause
-      .split(/\n>\s*💡/)[0]
-      .split(/\n-\s+\*\*/)[0]
-      .trim();
   }
 
   // 5. Takeaways & Fatal Pitfall
@@ -163,11 +132,6 @@ export function extractLessonModeData(
     }
   }
 
-  // Clean fatal pitfall
-  if (fatalPitfall) {
-    fatalPitfall = fatalPitfall.replace(/^[:\s*]+/, '').trim();
-  }
-
   // 6. Diagrams (Mermaid, AtlasIllustration, DecisionMatrix)
   const diagrams: LessonDiagram[] = [];
   const mermaidRegex = /```mermaid\n([\s\S]*?)```/g;
@@ -175,12 +139,11 @@ export function extractLessonModeData(
   let idx = 1;
   while ((mMatch = mermaidRegex.exec(rawContent)) !== null) {
     const precedingText = rawContent.slice(0, mMatch.index);
-    const headings = [...precedingText.matchAll(/(?:^|\n)#{2,4}\s+([^\n]+)/g)];
-    const lastH = headings.pop();
+    const lastHeading = precedingText.match(/(?:^|\n)#{2,4}\s+([^\n]+)[^\n]*$/);
     diagrams.push({
       id: `mermaid-${idx}`,
-      title: lastH
-        ? lastH[1].trim()
+      title: lastHeading
+        ? lastHeading[1].trim()
         : isVi
           ? `Sơ đồ kiến trúc ${idx}`
           : `Architecture Diagram ${idx}`,
@@ -195,12 +158,11 @@ export function extractLessonModeData(
   let illIdx = 1;
   while ((illMatch = illustrationRegex.exec(rawContent)) !== null) {
     const precedingText = rawContent.slice(0, illMatch.index);
-    const headings = [...precedingText.matchAll(/(?:^|\n)#{2,4}\s+([^\n]+)/g)];
-    const lastH = headings.pop();
+    const lastHeading = precedingText.match(/(?:^|\n)#{2,4}\s+([^\n]+)[^\n]*$/);
     diagrams.push({
       id: `illustration-${illIdx}`,
-      title: lastH
-        ? lastH[1].trim()
+      title: lastHeading
+        ? lastHeading[1].trim()
         : isVi
           ? `Minh họa trực quan ${illIdx}`
           : `Visual Illustration ${illIdx}`,
@@ -217,35 +179,27 @@ export function extractLessonModeData(
   let cIdx = 1;
   while ((dMatch = detailsRegex.exec(rawContent)) !== null) {
     const precedingText = rawContent.slice(0, dMatch.index);
-    const headings = [...precedingText.matchAll(/(?:^|\n)#{2,4}\s+([^\n]+)/g)];
-    const lastH = headings.pop();
-    const rawTitle = lastH ? lastH[1].trim() : '';
-    let cleanTitle = rawTitle
-      .replace(/^(?:Self-check|Tự kiểm tra|Thử thách tư duy|Câu hỏi tự kiểm tra)[:\s-]*/i, '')
-      .trim();
-    if (!cleanTitle) {
-      cleanTitle = isVi ? `Thử thách #${cIdx}` : `Challenge #${cIdx}`;
-    }
-
-    const precedingParas = precedingText
+    const lastH = precedingText.match(/(?:^|\n)#{2,4}\s+([^\n]+)[^\n]*$/);
+    const lastP = precedingText
       .trim()
       .split(/\n\n+/)
-      .map((p) => p.replace(/^#{1,4}\s+[^\n]+\n+/, '').trim())
-      .filter(Boolean);
-
-    const lastP = precedingParas.pop() || '';
-    const cleanScenario = sanitizeProse(lastP);
-    const cleanReasoning = sanitizeProse(dMatch[2].trim());
+      .pop()
+      ?.replace(/^#{1,4}\s+[^\n]+\n+/, '')
+      .trim() || '';
 
     practiceChallenges.push({
       id: `challenge-${cIdx}`,
-      title: cleanTitle,
+      title: lastH
+        ? lastH[1].trim()
+        : isVi
+          ? `Thử thách tư duy ${cIdx}`
+          : `Self-Check Challenge ${cIdx}`,
       scenario:
-        cleanScenario ||
+        lastP ||
         (isVi
           ? 'Phân tích tình huống kỹ thuật và dự đoán hành vi hệ thống:'
           : 'Analyze the technical scenario and predict system behavior:'),
-      reasoning: cleanReasoning,
+      reasoning: dMatch[2].trim(),
       type: 'self-check',
     });
     cIdx++;
@@ -258,40 +212,20 @@ export function extractLessonModeData(
   let sMatch: RegExpExecArray | null;
   while ((sMatch = scenarioRegex.exec(rawContent)) !== null) {
     const precedingText = rawContent.slice(0, sMatch.index);
-    const headings = [...precedingText.matchAll(/(?:^|\n)#{2,4}\s+([^\n]+)/g)];
-    const lastH = headings.pop();
-    const rawTitle = lastH ? lastH[1].trim() : '';
-    let cleanTitle = rawTitle
-      .replace(/^(?:Production failure|Production outage|Sự cố thực tế|Sự cố sản xuất|Sự cố)[:\s-]*/i, '')
-      .trim();
-    if (!cleanTitle) {
-      cleanTitle = isVi ? `Sự cố #${cIdx}` : `Outage #${cIdx}`;
-    }
-
-    const precedingParas = precedingText
-      .trim()
-      .split(/\n\n+/)
-      .map((p) => p.replace(/^#{1,4}\s+[^\n]+\n+/, '').trim())
-      .filter(Boolean);
-
-    const setup = sanitizeProse(precedingParas.pop() || '');
-    const impact = sMatch[1].trim();
-    const scRootCause = sMatch[2].trim();
-    const correctPattern = sMatch[3].trim();
-
+    const lastH = precedingText.match(/(?:^|\n)#{2,4}\s+([^\n]+)[^\n]*$/);
     practiceChallenges.push({
       id: `challenge-${cIdx}`,
-      title: cleanTitle,
-      setup: setup || undefined,
-      impact,
-      rootCause: scRootCause,
-      correctPattern,
+      title: lastH
+        ? lastH[1].trim()
+        : isVi
+          ? `Sự cố thực tế ${cIdx}`
+          : `Production Outage ${cIdx}`,
       scenario: isVi
-        ? `**Hậu quả:** ${impact}\n\n**Nguyên nhân cốt lõi:** ${scRootCause}`
-        : `**Impact:** ${impact}\n\n**Root cause:** ${scRootCause}`,
+        ? `**Hậu quả:** ${sMatch[1].trim()}\n\n**Nguyên nhân cốt lõi:** ${sMatch[2].trim()}`
+        : `**Impact:** ${sMatch[1].trim()}\n\n**Root cause:** ${sMatch[2].trim()}`,
       reasoning: isVi
-        ? `**Cách khắc phục chuẩn:** ${correctPattern}`
-        : `**Correct pattern:** ${correctPattern}`,
+        ? `**Cách khắc phục chuẩn:** ${sMatch[3].trim()}`
+        : `**Correct pattern:** ${sMatch[3].trim()}`,
       type: 'micro-scenario',
     });
     cIdx++;

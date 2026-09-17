@@ -87,7 +87,7 @@ export function LearningModeContainer({
   return (
     <div ref={containerRef} className="space-y-6">
       {/* Segmented Control Switcher */}
-      <div className="relative mb-5 md:sticky md:top-16 md:z-10">
+      <div className="sticky top-14 z-20 -mx-1 rounded-2xl bg-fd-background/80 p-1 backdrop-blur-md">
         <LearningModeSwitcher
           currentMode={activeMode}
           onModeChange={handleModeChange}

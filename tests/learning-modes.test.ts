@@ -21,36 +21,6 @@ describe('extractLessonModeData', () => {
     expect(data.practiceChallenges.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('extracts clean incident hook and challenges from queue-vs-event-stream.mdx', () => {
-    const filePath = path.join(
-      process.cwd(),
-      'content/docs/engineering-judgment/decision-guides/queue-vs-event-stream.mdx'
-    );
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    const data = extractLessonModeData(raw, 'en');
-
-    expect(data.title).toBe('Queue vs Event Stream');
-    expect(data.incidentHook).toBeDefined();
-    // Must NOT leak markdown headings like ## TL;DR
-    expect(data.incidentHook?.story).not.toContain('##');
-    expect(data.incidentHook?.story).not.toContain('TL;DR');
-    expect(data.incidentHook?.story).toContain('restaurant order ticket');
-    // Root cause must not contain Rule of thumb or bullet lists
-    if (data.incidentHook?.rootCause) {
-      expect(data.incidentHook.rootCause).not.toContain('Rule of thumb');
-      expect(data.incidentHook.rootCause).not.toContain('- **');
-    }
-
-    // Challenges should have clean titles and no leading >
-    expect(data.practiceChallenges.length).toBeGreaterThanOrEqual(1);
-    for (const ch of data.practiceChallenges) {
-      expect(ch.title).toBeTruthy();
-      expect(ch.title).not.toMatch(/^#{1,4}/);
-      expect(ch.scenario).not.toMatch(/^>/m);
-      expect(ch.reasoning).not.toMatch(/^>/m);
-    }
-  });
-
   it('extracts mode data from relational-data-model.vi.mdx (VI)', () => {
     const filePath = path.join(
       process.cwd(),

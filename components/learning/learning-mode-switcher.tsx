@@ -48,38 +48,33 @@ export function LearningModeSwitcher({
 
   const modes: Array<{
     id: LearningMode;
-    shortLabel: string;
-    fullLabel: string;
+    label: string;
     description: string;
     icon: string;
     count?: number | string;
   }> = [
     {
       id: 'deep-dive',
-      shortLabel: isVi ? 'Chuyên sâu' : 'Deep Dive',
-      fullLabel: isVi ? 'Chuyên sâu' : 'Deep Dive',
+      label: isVi ? 'Chuyên sâu' : 'Deep Dive',
       description: isVi ? 'Toàn văn bài học, phân tích và code chi tiết' : 'Complete lesson, code walkthroughs, and in-depth analysis',
       icon: '📖',
     },
     {
       id: 'flash-brief',
-      shortLabel: isVi ? 'Tóm tắt' : '60s Brief',
-      fullLabel: isVi ? 'Thẻ tóm tắt' : 'Flash Brief',
+      label: isVi ? 'Thẻ tóm tắt' : 'Flash Brief',
       description: isVi ? 'Nắm trọn sự cố, rule of thumb và cạm bẫy trong 60s' : '60-second incident hook, rule of thumb, and fatal pitfalls',
       icon: '⚡',
     },
     {
       id: 'visual',
-      shortLabel: isVi ? 'Mô hình' : 'Visual',
-      fullLabel: isVi ? 'Mô hình trực quan' : 'Visual Map',
+      label: isVi ? 'Mô hình' : 'Visual Map',
       description: isVi ? 'Toàn bộ sơ đồ kiến trúc và minh họa trực quan' : 'Architecture diagrams, flowcharts, and visual anchors',
       icon: '🗺️',
       count: counts.diagrams && counts.diagrams > 0 ? counts.diagrams : undefined,
     },
     {
       id: 'practice',
-      shortLabel: isVi ? 'Thử thách' : 'Practice',
-      fullLabel: isVi ? (counts.hasLab ? 'Thử thách & Lab' : 'Thử thách') : (counts.hasLab ? 'Practice & Lab' : 'Practice'),
+      label: isVi ? 'Thử thách' : 'Practice',
       description: isVi ? 'Tự kiểm tra phản xạ kiến thức và lab tương tác' : 'Active recall challenges, failure scenarios, and labs',
       icon: '🎯',
       count: counts.hasLab
@@ -103,12 +98,12 @@ export function LearningModeSwitcher({
   return (
     <nav
       aria-label={isVi ? 'Chế độ học tập thích ứng' : 'Adaptive learning modes'}
-      className="w-full"
+      className="my-4 rounded-xl border bg-fd-card/70 p-1.5 backdrop-blur-md transition-colors"
     >
       <div
         role="tablist"
         aria-orientation="horizontal"
-        className="grid grid-cols-4 gap-1 rounded-xl border border-fd-border/70 bg-fd-card/90 p-1 shadow-sm backdrop-blur-md"
+        className="grid grid-cols-2 gap-1 sm:grid-cols-4"
       >
         {modes.map((mode) => {
           const isActive = currentMode === mode.id;
@@ -122,22 +117,19 @@ export function LearningModeSwitcher({
               aria-controls={`panel-${mode.id}`}
               title={mode.description}
               onClick={() => handleSelect(mode.id)}
-              className={`group relative flex items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-semibold transition-all sm:gap-1.5 sm:px-2.5 sm:py-2 ${
+              className={`group relative flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-all sm:text-sm ${
                 isActive
-                  ? 'bg-fd-background text-fd-foreground shadow-sm ring-1 ring-fd-border/80'
+                  ? 'bg-fd-background text-fd-foreground shadow-sm ring-1 ring-fd-border'
                   : 'text-fd-muted-foreground hover:bg-fd-accent/40 hover:text-fd-foreground'
               }`}
             >
-              <span className="shrink-0 text-xs sm:text-sm" aria-hidden="true">
+              <span className="shrink-0 text-sm leading-none sm:text-base" aria-hidden="true">
                 {mode.icon}
               </span>
-              <span className="truncate">
-                <span className="sm:hidden">{mode.shortLabel}</span>
-                <span className="hidden sm:inline">{mode.fullLabel}</span>
-              </span>
+              <span className="truncate">{mode.label}</span>
               {mode.count !== undefined && (
                 <span
-                  className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                  className={`ms-0.5 inline-flex items-center rounded-full px-1.5 py-0.2 text-[10px] font-bold leading-none ${
                     isActive
                       ? 'bg-fd-primary/15 text-fd-primary'
                       : 'bg-fd-muted text-fd-muted-foreground group-hover:bg-fd-accent'
