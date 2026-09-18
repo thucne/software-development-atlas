@@ -2,6 +2,7 @@
   "title": "Testing & Chất lượng",
   "pages": [
     "test-strategy",
-    "unit-testing"
+    "unit-testing",
+    "integration-testing"
   ]
 }
