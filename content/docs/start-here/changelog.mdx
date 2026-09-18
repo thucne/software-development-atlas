@@ -36,7 +36,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ## Releases & Milestones
 
-### September 18, 2026 · Cloud Runtime, Traffic, Storage & Identity
+### September 18, 2026 · Cloud Infrastructure Operating Models
 
 #### Cloud & Infrastructure
 - [Containers](/docs/cloud-infrastructure/containers): Operate containers as replaceable host processes by separating OCI image identity from runtime instances, kernel namespace/cgroup isolation, ephemeral writable layers from durable storage, resource limits and OOM behavior, PID 1 signal handling, health/readiness, logging, networking, security hardening, and orchestration boundaries.
@@ -47,6 +47,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 - [Secrets Management](/docs/cloud-infrastructure/secrets-management): Operate authority-bearing secret material across generation, centralized storage, IAM-scoped runtime delivery, version pinning/aliases, caching, zero-downtime rotation, upstream cutover, connection-pool refresh, revocation, audit, incident response, reversible retirement, and OIDC/federation patterns that eliminate static CI credentials where possible.
 - [Kubernetes Fundamentals](/docs/cloud-infrastructure/kubernetes-fundamentals): Reason about Kubernetes as continuous reconciliation across API objects, controllers, scheduler, kubelet, Pods, Deployments/ReplicaSets, Services/EndpointSlices, probes, requests/limits, priority/preemption, ConfigMaps/Secrets, ServiceAccounts, PVC/PV storage, rollouts, ownership, status conditions, events, and evidence-driven debugging.
 - [Infrastructure as Code](/docs/cloud-infrastructure/infrastructure-as-code): Operate infrastructure changes by separating desired, recorded and actual state; reviewing plan/apply boundaries; protecting and locking remote state; reconciling drift/imports; preserving resource identity through refactors; constraining lifecycle/replacement behavior; pinning provider/module dependencies; and applying through short-lived least-privilege CI with bounded blast radius.
+- [Autoscaling](/docs/cloud-infrastructure/autoscaling): Reason about autoscaling as a delayed feedback-control loop by choosing capacity-proportional demand signals, separating desired from ready serving capacity, tuning warmup/tolerance/stabilization, bounding scale-in, accounting for provisioning/quota failures, queue backlog and age, downstream saturation, scheduled/predictive scaling, scale-to-zero, and interacting Kubernetes workload/node scaling loops.
 
 ---
 
