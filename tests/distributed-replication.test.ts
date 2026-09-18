@@ -91,8 +91,8 @@ describe('Distributed Replication lesson', () => {
     expect(vi).toContain('lastVerified: 2026-09-17');
   });
 
-  it('moves the Atlas maintenance footer to September 17', () => {
-    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-17'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 17, 2026');
+  it('tracks the current Atlas maintenance footer date', () => {
+    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-18'");
+    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 18, 2026');
   });
 });
