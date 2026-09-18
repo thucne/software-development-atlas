@@ -108,7 +108,7 @@ describe('Containers lesson', () => {
     expect(en).toContain('[Containers](/docs/cloud-infrastructure/containers)');
     expect(en).toContain('lastVerified: 2026-09-18');
 
-    expect(vi).toMatch(/18 tháng (09|9), 2026/);
+    expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/containers)');
     expect(vi).toContain('lastVerified: 2026-09-18');
 

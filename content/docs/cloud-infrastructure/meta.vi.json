@@ -1,4 +1,4 @@
 {
   "title": "Cloud & Hạ tầng",
-  "pages": ["cloud-networking", "cloud-compute"]
+  "pages": ["cloud-networking", "cloud-compute", "containers"]
 }
