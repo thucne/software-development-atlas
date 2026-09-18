@@ -36,7 +36,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 
-### Ngày 18 tháng 09 năm 2026 · Runtime Cloud, Traffic, Storage & Identity
+### Ngày 18 tháng 09 năm 2026 · Mô hình Vận hành Hạ tầng Cloud
 
 #### Cloud & Hạ tầng
 - [Containers](/vi/docs/cloud-infrastructure/containers): Vận hành container như tiến trình trên host có thể thay thế bằng cách tách định danh OCI image khỏi runtime instance, isolation bằng namespace/cgroup của kernel, writable layer ephemeral khỏi durable storage, resource limit và hành vi OOM, signal handling của PID 1, health/readiness, logging, networking, security hardening và ranh giới orchestration.
@@ -47,6 +47,7 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 - [Secrets Management](/vi/docs/cloud-infrastructure/secrets-management): Vận hành authority-bearing secret material qua generation, centralized storage, runtime delivery có IAM scope, version pinning/alias, caching, zero-downtime rotation, upstream cutover, connection-pool refresh, revocation, audit, incident response, reversible retirement và OIDC/federation để loại static CI credential khi có thể.
 - [Kubernetes Fundamentals](/vi/docs/cloud-infrastructure/kubernetes-fundamentals): Suy luận Kubernetes như continuous reconciliation qua API object, controller, scheduler, kubelet, Pod, Deployment/ReplicaSet, Service/EndpointSlice, probe, request/limit, priority/preemption, ConfigMap/Secret, ServiceAccount, PVC/PV storage, rollout, ownership, status condition, event và evidence-driven debugging.
 - [Infrastructure as Code](/vi/docs/cloud-infrastructure/infrastructure-as-code): Vận hành infrastructure change bằng cách tách desired/recorded/actual state, review boundary plan/apply, protect và lock remote state, reconcile drift/import, giữ resource identity qua refactor, constrain lifecycle/replacement, pin provider/module dependency và apply qua CI short-lived least-privilege với blast radius bị giới hạn.
+- [Autoscaling](/vi/docs/cloud-infrastructure/autoscaling): Suy luận autoscaling như delayed feedback-control loop bằng cách chọn demand signal tỉ lệ với capacity, tách desired khỏi ready serving capacity, tune warmup/tolerance/stabilization, bound scale-in, tính provisioning/quota failure, queue backlog và age, downstream saturation, scheduled/predictive scaling, scale-to-zero và interaction giữa Kubernetes workload/node scaling loop.
 
 ---
 
