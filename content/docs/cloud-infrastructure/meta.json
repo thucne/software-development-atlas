@@ -1,4 +1,4 @@
 {
   "title": "Cloud & Infrastructure",
-  "pages": ["cloud-networking", "cloud-compute", "containers", "serverless-compute", "load-balancing", "cloud-storage-models"]
+  "pages": ["cloud-networking", "cloud-compute", "containers", "serverless-compute", "load-balancing", "cloud-storage-models", "cloud-iam"]
 }
