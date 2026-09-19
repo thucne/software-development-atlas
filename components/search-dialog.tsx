@@ -15,7 +15,14 @@ import {
   type SharedProps,
 } from 'fumadocs-ui/components/dialog/search';
 import { usePathname, useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 interface DomainSuggestion {
   slug: string;
@@ -100,6 +107,7 @@ const CORE_DOMAINS: DomainSuggestion[] = [
 ];
 
 export default function AtlasSearchDialog(props: SharedProps) {
+  const { onOpenChange } = props;
   const router = useRouter();
   const pathname = usePathname() || '';
   const isVi = pathname.includes('/vi/docs') || pathname.endsWith('/vi');
@@ -108,7 +116,6 @@ export default function AtlasSearchDialog(props: SharedProps) {
   const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const slowTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const baseClient = useMemo(
     () => fetchClient({ api: withBasePath('/api/search') }),
@@ -119,7 +126,6 @@ export default function AtlasSearchDialog(props: SharedProps) {
     () => ({
       deps: baseClient.deps,
       async search(query: string) {
-        // Skip network request entirely if query is shorter than 2 characters
         if (query.trim().length < 2) {
           return [];
         }
@@ -139,41 +145,24 @@ export default function AtlasSearchDialog(props: SharedProps) {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      if (slowTimerRef.current) {
-        clearTimeout(slowTimerRef.current);
-      }
     };
   }, []);
 
   // Detect slow loading (e.g. serverless cold start > 1.5s)
   useEffect(() => {
-    if (query.isLoading) {
-      slowTimerRef.current = setTimeout(() => {
-        setIsSlowLoading(true);
-      }, 1500);
-    } else {
-      setIsSlowLoading(false);
-      if (slowTimerRef.current) {
-        clearTimeout(slowTimerRef.current);
-      }
+    if (!query.isLoading || !props.open) {
+      return;
     }
+
+    const timer = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, 1500);
 
     return () => {
-      if (slowTimerRef.current) {
-        clearTimeout(slowTimerRef.current);
-      }
-    };
-  }, [query.isLoading]);
-
-  // Reset slow loading indicator when dialog closes
-  useEffect(() => {
-    if (!props.open) {
+      clearTimeout(timer);
       setIsSlowLoading(false);
-      if (slowTimerRef.current) {
-        clearTimeout(slowTimerRef.current);
-      }
-    }
-  }, [props.open]);
+    };
+  }, [query.isLoading, props.open]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -197,11 +186,16 @@ export default function AtlasSearchDialog(props: SharedProps) {
   const isSearching = search.trim().length >= 2;
   const displayItems = isSearching && query.data !== 'empty' ? query.data : null;
 
-  const handleNavigateToSuggestion = (suggestion: DomainSuggestion) => {
-    const targetPath = isVi ? `/vi/docs${suggestion.slug}` : `/docs${suggestion.slug}`;
-    router.push(targetPath);
-    props.onOpenChange?.(false);
-  };
+  const handleNavigateToSuggestion = useCallback(
+    (suggestion: DomainSuggestion) => {
+      const targetPath = isVi
+        ? `/vi/docs${suggestion.slug}`
+        : `/docs${suggestion.slug}`;
+      router.push(targetPath);
+      onOpenChange?.(false);
+    },
+    [isVi, router, onOpenChange],
+  );
 
   // Keyboard navigation for Quick Suggestions when not searching
   useEffect(() => {
@@ -227,7 +221,7 @@ export default function AtlasSearchDialog(props: SharedProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSearching, props.open, selectedSuggestionIndex, isVi]);
+  }, [isSearching, props.open, selectedSuggestionIndex, handleNavigateToSuggestion]);
 
   return (
     <SearchDialog

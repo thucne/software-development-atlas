@@ -2,7 +2,7 @@ import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { getFreshnessState } from '@/lib/content/freshness';
-import { createPageMetadata } from '@/lib/seo';
+import { createJsonLdArticle, createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
 import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
 import {
@@ -42,9 +42,14 @@ export default async function Page(props: {
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
+  const jsonLd = createJsonLdArticle(page, 'vi');
 
   return (
     <DocsPage toc={page.data.toc}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">
         {page.data.description}
@@ -139,5 +144,6 @@ export async function generateMetadata(props: {
     title: page.data.title,
     description: page.data.description,
     path: page.url,
+    locale: 'vi',
   });
 }

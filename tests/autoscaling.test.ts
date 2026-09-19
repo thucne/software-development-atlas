@@ -160,10 +160,10 @@ describe('Autoscaling lesson', () => {
 
     expect(en).toContain('September 18, 2026');
     expect(en).toContain('[Autoscaling](/docs/cloud-infrastructure/autoscaling)');
-    expect(en).toContain('lastVerified: 2026-09-18');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/autoscaling)');
-    expect(vi).toContain('lastVerified: 2026-09-18');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
   });
 });

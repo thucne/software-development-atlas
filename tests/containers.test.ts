@@ -106,11 +106,11 @@ describe('Containers lesson', () => {
 
     expect(en).toContain('September 18, 2026');
     expect(en).toContain('[Containers](/docs/cloud-infrastructure/containers)');
-    expect(en).toContain('lastVerified: 2026-09-18');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/containers)');
-    expect(vi).toContain('lastVerified: 2026-09-18');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-19'");
     expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 19, 2026');

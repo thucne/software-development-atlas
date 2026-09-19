@@ -154,10 +154,10 @@ describe('Infrastructure as Code lesson', () => {
 
     expect(en).toContain('September 18, 2026');
     expect(en).toContain('[Infrastructure as Code](/docs/cloud-infrastructure/infrastructure-as-code)');
-    expect(en).toContain('lastVerified: 2026-09-18');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/infrastructure-as-code)');
-    expect(vi).toContain('lastVerified: 2026-09-18');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
   });
 });

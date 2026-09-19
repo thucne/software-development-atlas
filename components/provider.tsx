@@ -4,7 +4,7 @@ import AtlasSearchDialog from '@/components/search-dialog';
 import { i18nUI } from '@/lib/i18n';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { usePathname, useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export function Provider({ children }: { children: ReactNode }) {
   const pathname = usePathname() || '';
@@ -12,6 +12,10 @@ export function Provider({ children }: { children: ReactNode }) {
 
   const isVi = pathname.includes('/vi/docs') || pathname.endsWith('/vi');
   const currentLocale = isVi ? 'vi' : 'en';
+
+  useEffect(() => {
+    document.documentElement.lang = currentLocale;
+  }, [currentLocale]);
 
   const providerProps = i18nUI.provider(currentLocale);
 

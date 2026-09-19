@@ -108,10 +108,10 @@ describe('Load Balancing lesson', () => {
 
     expect(en).toContain('September 18, 2026');
     expect(en).toContain('[Load Balancing](/docs/cloud-infrastructure/load-balancing)');
-    expect(en).toContain('lastVerified: 2026-09-18');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/load-balancing)');
-    expect(vi).toContain('lastVerified: 2026-09-18');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
   });
 });

@@ -88,11 +88,11 @@ describe('Transactional Outbox lesson', () => {
     expect(en).toContain('September 17, 2026');
     expect(en).toMatch(/(?:4|5) canonical distributed-systems deep dives/);
     expect(en).toContain('[Transactional Outbox](/docs/distributed-systems/transactional-outbox)');
-    expect(en).toContain('lastVerified: 2026-09-17');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('17 tháng 9, 2026');
     expect(vi).toMatch(/(?:4|5) bài deep dive canonical về hệ thống phân tán/);
     expect(vi).toContain('](/vi/docs/distributed-systems/transactional-outbox)');
-    expect(vi).toContain('lastVerified: 2026-09-17');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
   });
 });

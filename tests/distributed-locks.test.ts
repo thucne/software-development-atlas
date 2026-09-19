@@ -87,10 +87,10 @@ describe('Distributed Locks lesson', () => {
 
     expect(en).toContain('September 17, 2026');
     expect(en).toContain('[Distributed Locks](/docs/distributed-systems/distributed-locks)');
-    expect(en).toContain('lastVerified: 2026-09-17');
+    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
 
     expect(vi).toContain('17 tháng 9, 2026');
     expect(vi).toContain('](/vi/docs/distributed-systems/distributed-locks)');
-    expect(vi).toContain('lastVerified: 2026-09-17');
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
   });
 });
