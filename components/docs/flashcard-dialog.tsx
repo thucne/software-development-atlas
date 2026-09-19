@@ -269,9 +269,9 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                 </svg>
               </button>
 
-              {/* Scaled Card Canvas Box */}
+              {/* Scaled Card Canvas Box (Zero-clip outer wrapper so card's rounded corners and border are fully preserved) */}
               <div
-                className="relative shrink-0 overflow-hidden rounded-2xl shadow-2xl"
+                className="relative shrink-0"
                 style={{
                   width: `${Math.round(CARD_SPECS[ratio].width * scale)}px`,
                   height: `${Math.round(CARD_SPECS[ratio].height * scale)}px`,

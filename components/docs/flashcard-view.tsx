@@ -48,6 +48,25 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
     const tone = toneStyles[card.badgeTone] || toneStyles.accent;
     const isVi = locale === 'vi';
 
+    // 1. Dynamic character count calculation for content auto-scaling
+    const titleLength = card.title?.length || 0;
+    const isLongTitle = titleLength > 45;
+
+    let bodyCharCount = 0;
+    if (card.type === 'rule-of-thumb') {
+      bodyCharCount = (card.quote?.length || 0) + (card.content?.length || 0);
+    } else if (card.type === 'incident' || card.type === 'pitfall') {
+      bodyCharCount = card.content?.length || 0;
+    } else if (card.type === 'takeaways' && card.bulletItems) {
+      bodyCharCount = card.bulletItems.reduce(
+        (sum, item) => sum + (item.label?.length || 0) + (item.text?.length || 0),
+        0,
+      );
+    }
+
+    const isDenseContent = bodyCharCount > 400;
+    const isMediumContent = bodyCharCount > 240 && bodyCharCount <= 400;
+
     // Layout configuration based on canonical card specifications
     const containerClasses = {
       '9:16': 'w-[342px] h-[608px] p-5',
@@ -56,9 +75,9 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
     }[ratio];
 
     const titleSize = {
-      '9:16': 'text-lg sm:text-xl',
-      '1:1': 'text-lg',
-      '16:9': 'text-base sm:text-lg',
+      '9:16': isLongTitle ? 'text-base sm:text-lg' : 'text-lg sm:text-xl',
+      '1:1': isLongTitle ? 'text-base sm:text-lg' : 'text-lg',
+      '16:9': isLongTitle ? 'text-sm sm:text-base' : 'text-base sm:text-lg',
     }[ratio];
 
     return (
@@ -68,6 +87,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         className={`relative flex flex-col justify-between overflow-hidden rounded-2xl bg-[#090d16] text-slate-100 shadow-2xl border ${tone.border} ${containerClasses} font-sans select-none`}
         style={{
           boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7)',
+          backgroundClip: 'padding-box',
         }}
       >
         {/* Background Technical Grid & Ambient Glow */}
@@ -114,13 +134,13 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Middle Content Area */}
-        <div className="relative z-10 flex flex-1 flex-col justify-center py-1.5 sm:py-2 overflow-hidden">
+        <div className="relative z-10 flex flex-1 flex-col justify-center py-1 overflow-hidden">
           {/* Card Badge */}
-          <div className={ratio === '16:9' ? 'mb-1.5' : 'mb-2'}>
+          <div className={isDenseContent || ratio === '16:9' ? 'mb-1' : 'mb-2'}>
             <span
               className={`inline-flex items-center gap-1.5 rounded-full border ${
-                ratio === '16:9'
-                  ? 'px-2.5 py-0.5 text-[10px]'
+                isDenseContent || ratio === '16:9'
+                  ? 'px-2 py-0.5 text-[10px]'
                   : 'px-3 py-1 text-[11px]'
               } font-semibold uppercase tracking-wider ${tone.badge}`}
             >
@@ -138,7 +158,9 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
           {card.subtitle && (
             <p
               className={`text-slate-400 font-mono ${
-                ratio === '16:9' ? 'mt-0.5 text-[11px]' : 'mt-1 text-xs'
+                isDenseContent || ratio === '16:9'
+                  ? 'mt-0.5 text-[10px]'
+                  : 'mt-1 text-xs'
               }`}
             >
               {card.subtitle}
@@ -146,15 +168,35 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
           )}
 
           {/* Body Content based on Card Type */}
-          <div className={ratio === '16:9' ? 'mt-2' : 'mt-3'}>
+          <div className={isDenseContent || ratio === '16:9' ? 'mt-1.5' : 'mt-2.5'}>
             {/* Type: Rule of Thumb Quote */}
             {card.type === 'rule-of-thumb' && card.quote && (
-              <div className="rounded-xl border border-blue-500/25 bg-blue-950/25 p-4 sm:p-5">
-                <p className="text-sm sm:text-base font-bold leading-snug text-blue-100">
+              <div
+                className={`rounded-xl border border-blue-500/25 bg-blue-950/25 ${
+                  isDenseContent || ratio === '16:9' ? 'p-3 sm:p-3.5' : 'p-4 sm:p-5'
+                }`}
+              >
+                <p
+                  className={`font-bold leading-snug text-blue-100 ${
+                    isDenseContent
+                      ? 'text-xs sm:text-sm'
+                      : ratio === '16:9'
+                        ? 'text-sm sm:text-base'
+                        : 'text-base sm:text-lg'
+                  }`}
+                >
                   &ldquo;{card.quote}&rdquo;
                 </p>
                 {card.content && card.content !== card.quote && (
-                  <p className="mt-2 text-xs sm:text-[13px] leading-relaxed text-slate-300">
+                  <p
+                    className={`leading-relaxed text-slate-300 ${
+                      isDenseContent
+                        ? 'mt-1 text-[11px]'
+                        : ratio === '16:9'
+                          ? 'mt-1.5 text-xs'
+                          : 'mt-2 text-xs sm:text-[13px]'
+                    }`}
+                  >
                     {card.content}
                   </p>
                 )}
@@ -163,12 +205,24 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
             {/* Type: Real-World Incident Story */}
             {card.type === 'incident' && card.content && (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3.5 sm:p-4">
-                <div className="flex items-center gap-2 mb-1.5 text-amber-400 text-xs font-semibold">
+              <div
+                className={`rounded-xl border border-amber-500/20 bg-amber-950/20 ${
+                  isDenseContent || ratio === '16:9' ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1 text-amber-400 text-xs font-semibold">
                   <span>⚡</span>
                   <span>{isVi ? 'Sự cố thực chiến' : 'Production Outage'}</span>
                 </div>
-                <p className="text-xs sm:text-[13px] leading-relaxed text-slate-200">
+                <p
+                  className={`leading-relaxed text-slate-200 ${
+                    isDenseContent
+                      ? 'text-[11px] leading-snug'
+                      : ratio === '16:9'
+                        ? 'text-xs'
+                        : 'text-xs sm:text-[13px]'
+                  }`}
+                >
                   {card.content}
                 </p>
               </div>
@@ -176,12 +230,24 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
             {/* Type: Fatal Pitfall */}
             {card.type === 'pitfall' && card.content && (
-              <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 p-3.5 sm:p-4">
-                <div className="flex items-center gap-2 mb-1.5 text-rose-400 text-xs font-bold uppercase tracking-wide">
+              <div
+                className={`rounded-xl border border-rose-500/25 bg-rose-950/25 ${
+                  isDenseContent || ratio === '16:9' ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1 text-rose-400 text-xs font-bold uppercase tracking-wide">
                   <span>⚠️</span>
                   <span>{isVi ? 'Cạm bẫy nghiêm trọng' : 'Critical Hazard'}</span>
                 </div>
-                <p className="text-xs sm:text-[13px] leading-relaxed text-slate-100">
+                <p
+                  className={`leading-relaxed text-slate-100 ${
+                    isDenseContent
+                      ? 'text-[11px] leading-snug'
+                      : ratio === '16:9'
+                        ? 'text-xs'
+                        : 'text-xs sm:text-[13px]'
+                  }`}
+                >
                   {card.content}
                 </p>
               </div>
@@ -192,10 +258,14 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
               <div
                 className={
                   ratio === '16:9'
-                    ? 'grid grid-cols-2 gap-2.5'
-                    : ratio === '1:1'
-                      ? 'space-y-1.5'
-                      : 'space-y-2'
+                    ? isDenseContent
+                      ? 'grid grid-cols-2 gap-1.5'
+                      : 'grid grid-cols-2 gap-2.5'
+                    : isDenseContent
+                      ? 'space-y-1'
+                      : ratio === '1:1'
+                        ? 'space-y-1.5'
+                        : 'space-y-2'
                 }
               >
                 {card.bulletItems.slice(0, 4).map((item, idx) => {
@@ -209,15 +279,21 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
                   return (
                     <div
                       key={idx}
-                      className={`flex items-start gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 text-slate-300 ${
-                        ratio === '16:9'
-                          ? 'p-2 text-[11px] leading-snug'
-                          : ratio === '1:1'
+                      className={`flex items-start gap-1.5 sm:gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 text-slate-300 ${
+                        isDenseContent
+                          ? 'p-1.5 px-2 text-[10px] sm:text-[10.5px] leading-tight'
+                          : ratio === '16:9' || ratio === '1:1' || isMediumContent
                             ? 'p-2 text-[11px] leading-snug'
                             : 'p-2.5 text-xs leading-snug'
                       }`}
                     >
-                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 font-mono">
+                      <span
+                        className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-emerald-500/20 font-bold text-emerald-400 font-mono ${
+                          isDenseContent
+                            ? 'h-3.5 w-3.5 text-[9px]'
+                            : 'h-4 w-4 text-[10px]'
+                        }`}
+                      >
                         {idx + 1}
                       </span>
                       <span className="min-w-0">
@@ -235,8 +311,12 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Bottom Bar: Watermark & Site URL (Clean & Never Truncated) */}
-        <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-2.5 text-[11px] text-slate-400 font-mono">
-          <div className="flex items-center gap-1.5 min-w-0 pr-2 truncate">
+        <div
+          className={`relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-2 font-mono ${
+            ratio === '9:16' ? 'text-[10px]' : 'text-[11px]'
+          } text-slate-400`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 pr-2">
             <span className="font-semibold text-slate-200 shrink-0">SD Atlas</span>
             <span className="text-slate-600 shrink-0">·</span>
             <span className="text-slate-400 font-medium truncate whitespace-nowrap">
