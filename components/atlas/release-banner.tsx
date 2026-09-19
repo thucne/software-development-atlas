@@ -3,7 +3,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 
-const BANNER_ID = 'atlas-release-2026-09-16';
+const BANNER_ID = 'atlas-release-2026-09-19';
 const GLOBAL_KEY = 'nd-banner-mf2wky3sorsw4zdsgmydimjwg4';
 
 function subscribe(callback: () => void) {
@@ -51,8 +51,8 @@ export function AtlasReleaseBanner({ locale = 'en' }: { locale?: string }) {
     ? '/vi/docs/start-here/changelog'
     : '/docs/start-here/changelog';
   const primaryCopy = isVi
-    ? '13 bài học mới được bổ sung từ 10/09!'
-    : '13 new lessons added since Sep 10!';
+    ? '38 bài học mới được bổ sung từ 10/09!'
+    : '38 new lessons added since Sep 10!';
   const secondaryCopy = isVi
     ? 'Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.'
     : "Following the Sep 10 milestone's 33 new system architecture lessons.";

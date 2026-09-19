@@ -8,11 +8,11 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('renders top release announcement banner on docs pages', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
+    const banner = page.locator('#atlas-release-2026-09-19');
     await expect(banner).toBeVisible();
     await expect(banner.getByText('New', { exact: true })).toBeVisible();
     await expect(
-      banner.getByText('13 new lessons added since Sep 10!', { exact: true }),
+      banner.getByText('38 new lessons added since Sep 10!', { exact: true }),
     ).toBeVisible();
     await expect(
       banner.getByText(
@@ -32,9 +32,9 @@ test.describe('Announcement banner, changelog, and status badges', () => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(appUrl('/docs'));
 
-      const banner = page.locator('#atlas-release-2026-09-16');
+      const banner = page.locator('#atlas-release-2026-09-19');
       const badge = banner.getByText('New', { exact: true });
-      const primaryCopy = banner.getByText('13 new lessons added since Sep 10!', {
+      const primaryCopy = banner.getByText('38 new lessons added since Sep 10!', {
         exact: true,
       });
       const secondaryCopy = banner.getByText(
@@ -74,11 +74,11 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('renders Vietnamese localized banner on /vi/docs pages', async ({ page }) => {
     await page.goto(appUrl('/vi/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
+    const banner = page.locator('#atlas-release-2026-09-19');
     await expect(banner).toBeVisible();
     await expect(banner.getByText('Mới', { exact: true })).toBeVisible();
     await expect(
-      banner.getByText('13 bài học mới được bổ sung từ 10/09!', { exact: true }),
+      banner.getByText('38 bài học mới được bổ sung từ 10/09!', { exact: true }),
     ).toBeVisible();
     await expect(
       banner.getByText('Tiếp nối mốc 33 bài học kiến trúc hệ thống ngày 10/09.', {
@@ -97,10 +97,10 @@ test.describe('Announcement banner, changelog, and status badges', () => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(appUrl('/vi/docs'));
 
-      const banner = page.locator('#atlas-release-2026-09-16');
+      const banner = page.locator('#atlas-release-2026-09-19');
       const badge = banner.getByText('Mới', { exact: true });
       const primaryCopy = banner.getByText(
-        '13 bài học mới được bổ sung từ 10/09!',
+        '38 bài học mới được bổ sung từ 10/09!',
         { exact: true },
       );
       const secondaryCopy = banner.getByText(
@@ -140,7 +140,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('banner links directly to What\'s New & Changelog page', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
+    const banner = page.locator('#atlas-release-2026-09-19');
     await banner.getByRole('link', { name: "Explore What's New →" }).click();
 
     await expect(page).toHaveURL(/\/docs\/start-here\/changelog/);
@@ -188,7 +188,7 @@ test.describe('Announcement banner, changelog, and status badges', () => {
   test('persists banner dismissal in localStorage', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    const banner = page.locator('#atlas-release-2026-09-16');
+    const banner = page.locator('#atlas-release-2026-09-19');
     await expect(banner).toBeVisible();
 
     const closeButton = banner.getByRole('button', { name: /close banner/i });
