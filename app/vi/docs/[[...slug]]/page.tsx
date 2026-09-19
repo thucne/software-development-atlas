@@ -1,6 +1,8 @@
 import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
+import { FlashcardDialog } from '@/components/docs/flashcard-dialog';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
+import { extractFlashcards } from '@/lib/content/flashcards';
 import { getFreshnessState } from '@/lib/content/freshness';
 import { createJsonLdArticle, createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
@@ -43,6 +45,22 @@ export default async function Page(props: {
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
   const jsonLd = createJsonLdArticle(page, 'vi');
+
+  const isLesson = page.data.category !== 'start-here';
+  const rawMarkdown = isLesson ? await page.data.getText('processed') : '';
+  const flashcardDeck = isLesson
+    ? extractFlashcards(
+        rawMarkdown,
+        {
+          title: page.data.title,
+          description: page.data.description,
+          category: page.data.category,
+          level: page.data.level,
+          url: page.url,
+        },
+        'vi',
+      )
+    : null;
 
   return (
     <DocsPage toc={page.data.toc}>
@@ -98,6 +116,9 @@ export default async function Page(props: {
       <div className="mt-4 border-b pb-6">
         <div className="flex flex-wrap items-center gap-2">
           <MarkdownCopyButton markdownUrl={markdownUrl} />
+          {flashcardDeck && flashcardDeck.cards.length > 0 && (
+            <FlashcardDialog deck={flashcardDeck} locale="vi" />
+          )}
           <EditOnGitHubButton href={githubUrl} label="Chỉnh sửa trên GitHub" />
           <ViewOptionsPopover
             markdownUrl={markdownUrl}

@@ -129,6 +129,20 @@ Contract testing làm assumption hiện ra sớm:
 
 Nếu consumer đòi behavior provider không nên support, failed verification trở thành design conversation trước deploy thay vì outage sau deploy.
 
+## Trạng thái provider giúp quá trình xác minh tất định
+
+Khi provider chạy lại (replay) các tương tác của consumer trong quá trình xác minh (verification), provider thường cần dữ liệu có sẵn hoặc điều kiện hệ thống cụ thể (ví dụ: “người dùng 42 đã tồn tại” hoặc “người dùng 42 có hoá đơn quá hạn”).
+
+Những điều kiện tiên quyết này được gọi là **trạng thái provider (provider states)**.
+
+Để giữ việc xác minh provider đáng tin cậy và tốc độ:
+
+- **Thiết lập trạng thái tất định (deterministic state setup):** nạp sẵn dữ liệu mẫu (seed data) ngay trước khi phát lại tương tác tương ứng;
+- **Stub các dependency phụ thuộc:** stub dependency bên ngoài như cổng thanh toán hoặc dịch vụ gửi mail thay vì gọi API thật của bên thứ ba trong lúc xác minh;
+- **Dọn dẹp sạch sẽ:** tránh gây nhiễm bẩn dữ liệu giữa các lần kiểm tra.
+
+Trạng thái provider bảo đảm việc xác minh tập trung kiểm chứng ranh giới contract mà không bị biến tướng thành một môi trường end-to-end chậm chạp và chập chờn (flaky).
+
 ## Provider/schema conformance trả lời câu hỏi khác
 
 Provider cũng có thể được test theo API specification như **OpenAPI**.
@@ -170,7 +184,7 @@ Nếu provider trả:
 - preferences;
 - internalFlags;
 
-nhưng consumer chỉ dùng id và displayName, contract thường chỉ nên quan tâm hai field đó.
+nhưng consumer chỉ cần các field mà mình thực sự dùng (như id và displayName), contract thường chỉ nên quan tâm đúng các field được dùng đó.
 
 Vì sao?
 

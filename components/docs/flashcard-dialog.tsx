@@ -1,0 +1,358 @@
+'use client';
+
+import { FlashcardView } from '@/components/docs/flashcard-view';
+import type { LessonFlashcardDeck } from '@/lib/content/flashcards';
+import {
+  type CardAspectRatio,
+  copyCardToClipboard,
+  downloadCardPng,
+  exportCardAsBlob,
+  shareCardNative,
+} from '@/lib/export-card';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+
+interface FlashcardDialogProps {
+  deck: LessonFlashcardDeck;
+  locale?: 'en' | 'vi';
+}
+
+export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [ratio, setRatio] = useState<CardAspectRatio>('9:16');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const canShare = useSyncExternalStore(
+    () => () => {},
+    () => typeof navigator !== 'undefined' && typeof navigator.share === 'function',
+    () => false,
+  );
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const isVi = locale === 'vi';
+  const totalCards = deck.cards.length;
+  const currentCard = deck.cards[currentIndex] || deck.cards[0];
+
+  const handlePrev = useCallback(() => {
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalCards - 1));
+  }, [totalCards]);
+
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev < totalCards - 1 ? prev + 1 : 0));
+  }, [totalCards]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handlePrev, handleNext]);
+
+  const handleDownload = async () => {
+    if (!cardRef.current || isExporting) return;
+    setIsExporting(true);
+
+    try {
+      const blob = await exportCardAsBlob(cardRef.current, ratio);
+      if (blob) {
+        const slug = deck.lessonTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        downloadCardPng(
+          blob,
+          `${slug}-card-${currentIndex + 1}-${ratio.replace(':', 'x')}.png`,
+        );
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!cardRef.current || isExporting) return;
+    setIsExporting(true);
+
+    try {
+      const blob = await exportCardAsBlob(cardRef.current, ratio);
+      if (blob) {
+        const success = await copyCardToClipboard(blob);
+        if (success) {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+      }
+    } catch (err) {
+      console.error('Copy failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!cardRef.current || isExporting) return;
+    setIsExporting(true);
+
+    try {
+      const blob = await exportCardAsBlob(cardRef.current, ratio);
+      if (blob) {
+        await shareCardNative(blob, {
+          title: `${deck.lessonTitle} · SD Atlas`,
+          text: currentCard.quote || currentCard.content || deck.lessonTitle,
+          filename: `atlas-card-${currentIndex + 1}.png`,
+        });
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  if (!currentCard) return null;
+
+  return (
+    <>
+      {/* Trigger Button in Docs Action Bar */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-secondary/50 px-2.5 py-1 text-xs font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+        title={isVi ? 'Xem thẻ tóm tắt và chia sẻ' : 'View quick flashcards and share'}
+      >
+        <span className="text-sm">🃏</span>
+        <span>{isVi ? 'Thẻ tóm tắt' : 'Flashcards'}</span>
+      </button>
+
+      {/* Modal Dialog */}
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="flashcard-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false);
+          }}
+        >
+          <div className="relative flex max-h-[95vh] w-full max-w-2xl flex-col items-center rounded-2xl border border-slate-800 bg-slate-950 p-4 md:p-6 shadow-2xl overflow-y-auto">
+            {/* Top Toolbar */}
+            <div className="flex w-full items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🃏</span>
+                <h2
+                  id="flashcard-dialog-title"
+                  className="text-sm font-semibold text-white"
+                >
+                  {isVi ? 'Thẻ Tóm Tắt & Chia Sẻ' : 'Lesson Flashcards & Share'}
+                </h2>
+              </div>
+
+              {/* Aspect Ratio Switcher */}
+              <div className="flex items-center rounded-lg bg-slate-900 p-1 text-xs">
+                {(['9:16', '1:1', '16:9'] as CardAspectRatio[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRatio(r)}
+                    className={`rounded px-2.5 py-1 font-medium transition-all ${
+                      ratio === r
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-900 hover:text-white transition-colors"
+                aria-label={isVi ? 'Đóng' : 'Close'}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Main Interactive Card Display Area */}
+            <div className="my-5 flex w-full items-center justify-center">
+              <div className="relative flex items-center justify-center w-full">
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="absolute -left-2 md:-left-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                  aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+
+                {/* Rendered Card */}
+                <FlashcardView
+                  ref={cardRef}
+                  card={currentCard}
+                  ratio={ratio}
+                  currentIndex={currentIndex}
+                  totalCards={totalCards}
+                  locale={locale}
+                />
+
+                {/* Next Button */}
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="absolute -right-2 md:-right-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                  aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Card Dots Indicator */}
+            <div className="flex items-center gap-1.5 mb-4">
+              {deck.cards.map((c, idx) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCurrentIndex(idx)}
+                  className={`h-2 rounded-full transition-all ${
+                    idx === currentIndex
+                      ? 'w-6 bg-blue-500'
+                      : 'w-2 bg-slate-700 hover:bg-slate-500'
+                  }`}
+                  aria-label={isVi ? `Thẻ ${idx + 1}` : `Card ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Bottom Actions: Download, Copy, Share */}
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-800/80 pt-4 w-full">
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-500 transition-colors disabled:opacity-50"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                <span>
+                  {isExporting
+                    ? isVi
+                      ? 'Đang tạo ảnh...'
+                      : 'Generating...'
+                    : isVi
+                      ? 'Tải ảnh PNG'
+                      : 'Download PNG'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={handleCopy}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  {copied ? (
+                    <path d="M20 6L9 17l-5-5" />
+                  ) : (
+                    <>
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </>
+                  )}
+                </svg>
+                <span>
+                  {copied
+                    ? isVi
+                      ? 'Đã sao chép!'
+                      : 'Copied!'
+                    : isVi
+                      ? 'Sao chép ảnh'
+                      : 'Copy Image'}
+                </span>
+              </button>
+
+              {canShare && (
+                <button
+                  type="button"
+                  disabled={isExporting}
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
+                  </svg>
+                  <span>{isVi ? 'Chia sẻ' : 'Share'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

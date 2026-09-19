@@ -129,6 +129,20 @@ Contract testing makes assumptions visible early:
 
 If a consumer asks for behavior the provider should not support, the failed verification becomes a design conversation before deployment instead of an outage afterward.
 
+## Provider states make verification deterministic
+
+When the provider replays consumer interactions during verification, the provider often requires existing data or specific system conditions (such as “user 42 exists” or “user 42 has an overdue invoice”).
+
+These prerequisites are known as **provider states**.
+
+To keep provider verification reliable and fast:
+
+- **deterministic state setup:** establish data seeds or test fixtures right before replaying the corresponding interaction;
+- **stub external dependencies:** stub each external dependency, downstream service, payment gateway, or notification vendor rather than hitting live third-party APIs during verification;
+- **teardown cleanly:** avoid test pollution between interactions.
+
+Provider states ensure verification tests the provider's boundary logic against recorded contracts without turning into a slow, flaky end-to-end environment.
+
 ## Provider/schema conformance answers another question
 
 A provider can also be tested against an API specification such as **OpenAPI**.
@@ -170,7 +184,7 @@ If the provider returns:
 - preferences;
 - internalFlags;
 
-but the consumer uses only id and displayName, the contract should normally care about only those fields.
+but the consumer needs only the fields it actually uses (such as id and displayName), the contract should normally care about only those fields.
 
 Why?
 
