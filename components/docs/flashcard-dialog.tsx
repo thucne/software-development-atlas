@@ -146,12 +146,20 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="flashcard-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsOpen(false);
           }}
         >
-          <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden">
+          <div
+            className={`relative flex max-h-[94vh] w-full ${
+              ratio === '9:16'
+                ? 'max-w-[430px]'
+                : ratio === '1:1'
+                  ? 'max-w-[500px]'
+                  : 'max-w-3xl'
+            } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden transition-all duration-300`}
+          >
             {/* Top Toolbar */}
             <div className="flex w-full shrink-0 items-center justify-between border-b border-slate-800/80 pb-2.5">
               <div className="flex items-center gap-2">
@@ -203,12 +211,12 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
 
             {/* Main Interactive Card Display Area */}
             <div className="my-2 sm:my-3 flex w-full flex-1 min-h-0 items-center justify-center">
-              <div className="relative flex items-center justify-center w-full">
+              <div className="relative inline-flex items-center justify-center">
                 {/* Previous Button */}
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="absolute -left-2 md:-left-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                  className="absolute -left-3 sm:-left-5 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
                   aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
                 >
                   <svg
@@ -236,7 +244,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="absolute -right-2 md:-right-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                  className="absolute -right-3 sm:-right-5 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
                   aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
                 >
                   <svg
