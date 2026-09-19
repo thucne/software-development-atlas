@@ -50,13 +50,13 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
     // Layout configuration based on canonical card specifications
     const containerClasses = {
-      '9:16': 'w-[390px] h-[693px] p-6',
+      '9:16': 'w-[342px] h-[608px] p-5',
       '1:1': 'w-[480px] h-[480px] p-5',
       '16:9': 'w-[760px] h-[428px] px-6 py-4',
     }[ratio];
 
     const titleSize = {
-      '9:16': 'text-xl',
+      '9:16': 'text-lg sm:text-xl',
       '1:1': 'text-lg',
       '16:9': 'text-base sm:text-lg',
     }[ratio];

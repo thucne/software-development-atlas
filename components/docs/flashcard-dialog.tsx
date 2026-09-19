@@ -17,7 +17,7 @@ interface FlashcardDialogProps {
 }
 
 const CARD_SPECS: Record<CardAspectRatio, { width: number; height: number }> = {
-  '9:16': { width: 390, height: 693 },
+  '9:16': { width: 342, height: 608 },
   '1:1': { width: 480, height: 480 },
   '16:9': { width: 760, height: 428 },
 };
@@ -28,13 +28,16 @@ function getCardScale(ratio: CardAspectRatio): number {
   const vw = window.innerWidth;
 
   const isMobile = vw < 640;
-  // Compact chrome overhead budget (backdrop + modal padding + header + gaps + dots + action buttons + buffer)
-  const chromeHeight = isMobile ? 155 : 138;
-  const availableHeight = Math.max(220, vh - chromeHeight);
+  // Modal target max height is 88vh to ensure generous clearance from browser viewport edges.
+  // Chrome overhead budget inside modal:
+  // modal padding (20px) + header (~36px) + display padding/margins (~16px) +
+  // dots row (~24px) + bottom action buttons (~40px) + safety clearance buffer (~30px) = ~166px.
+  const chromeHeight = isMobile ? 180 : 166;
+  const availableHeight = Math.max(180, Math.floor(vh * 0.88 - chromeHeight));
 
   // Horizontal space budget (backdrop padding + modal padding + nav buttons flanking card)
-  const horizontalPadding = isMobile ? 24 : 100;
-  const availableWidth = Math.max(240, vw - horizontalPadding);
+  const horizontalPadding = isMobile ? 32 : 112;
+  const availableWidth = Math.max(240, Math.floor(vw * 0.90 - horizontalPadding));
 
   const spec = CARD_SPECS[ratio];
   const scaleY = availableHeight / spec.height;
@@ -189,13 +192,13 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
           }}
         >
           <div
-            className={`relative flex max-h-[96vh] w-auto max-w-[96vw] ${
+            className={`relative flex max-h-[92vh] w-auto max-w-[96vw] ${
               ratio === '9:16'
-                ? 'min-w-[320px] sm:min-w-[360px] max-w-[440px]'
+                ? 'min-w-[300px] sm:min-w-[340px] max-w-[400px]'
                 : ratio === '1:1'
                   ? 'min-w-[340px] sm:min-w-[400px] max-w-[520px]'
                   : 'min-w-[360px] sm:min-w-[480px] max-w-4xl'
-            } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-2.5 sm:p-3 shadow-2xl overflow-hidden transition-all duration-300`}
+            } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-2 sm:p-2.5 shadow-2xl overflow-hidden transition-all duration-300`}
           >
             {/* Top Toolbar */}
             <div className="flex w-full shrink-0 items-center justify-between border-b border-slate-800/80 pb-1.5 px-1">
@@ -247,7 +250,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Main Interactive Card Display Area */}
-            <div className="my-1 sm:my-2 flex w-full flex-1 min-h-0 items-center justify-center gap-2 sm:gap-3 overflow-hidden">
+            <div className="my-1 sm:my-1.5 flex w-full flex-1 min-h-0 items-center justify-center gap-2 sm:gap-3 py-1">
               {/* Previous Button (Desktop/Tablet) */}
               <button
                 type="button"
