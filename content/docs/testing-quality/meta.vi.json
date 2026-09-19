@@ -4,6 +4,7 @@
     "test-strategy",
     "unit-testing",
     "integration-testing",
-    "end-to-end-testing"
+    "end-to-end-testing",
+    "contract-testing"
   ]
 }
