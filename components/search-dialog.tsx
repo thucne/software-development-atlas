@@ -105,8 +105,10 @@ export default function AtlasSearchDialog(props: SharedProps) {
   const isVi = pathname.includes('/vi/docs') || pathname.endsWith('/vi');
 
   const [isDebouncing, setIsDebouncing] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const slowTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const baseClient = useMemo(
     () => fetchClient({ api: withBasePath('/api/search') }),
@@ -137,8 +139,41 @@ export default function AtlasSearchDialog(props: SharedProps) {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      if (slowTimerRef.current) {
+        clearTimeout(slowTimerRef.current);
+      }
     };
   }, []);
+
+  // Detect slow loading (e.g. serverless cold start > 1.5s)
+  useEffect(() => {
+    if (query.isLoading) {
+      slowTimerRef.current = setTimeout(() => {
+        setIsSlowLoading(true);
+      }, 1500);
+    } else {
+      setIsSlowLoading(false);
+      if (slowTimerRef.current) {
+        clearTimeout(slowTimerRef.current);
+      }
+    }
+
+    return () => {
+      if (slowTimerRef.current) {
+        clearTimeout(slowTimerRef.current);
+      }
+    };
+  }, [query.isLoading]);
+
+  // Reset slow loading indicator when dialog closes
+  useEffect(() => {
+    if (!props.open) {
+      setIsSlowLoading(false);
+      if (slowTimerRef.current) {
+        clearTimeout(slowTimerRef.current);
+      }
+    }
+  }, [props.open]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -269,6 +304,32 @@ export default function AtlasSearchDialog(props: SharedProps) {
                 );
               })}
             </div>
+          </div>
+        ) : isSlowLoading && query.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 px-6 text-center animate-fd-fade-in">
+            <div className="mb-3 flex size-10 items-center justify-center rounded-full border border-fd-primary/30 bg-fd-primary/10 text-fd-primary shadow-sm">
+              <svg
+                className="size-5 animate-pulse"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-fd-foreground">
+              {isVi
+                ? 'Đang khởi động máy chủ tìm kiếm...'
+                : 'Initializing search server...'}
+            </p>
+            <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-fd-muted-foreground">
+              {isVi
+                ? 'Lần tìm kiếm đầu tiên (Serverless Cold Start) có thể mất vài giây để nạp chỉ mục vào bộ nhớ. Vui lòng đợi trong giây lát!'
+                : 'The initial request (Serverless Cold Start) may take a few seconds to load the index into memory. Please hold on!'}
+            </p>
           </div>
         ) : (
           <SearchDialogList items={displayItems} />

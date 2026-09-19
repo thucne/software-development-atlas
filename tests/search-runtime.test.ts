@@ -44,5 +44,11 @@ describe('search runtime', () => {
     expect(searchDialog).toContain('query.trim().length < 2');
     expect(searchDialog).toContain('animate-progress-indeterminate');
   });
+
+  it('notifies users of prolonged latency during cold starts after 1.5 seconds', () => {
+    expect(searchDialog).toContain('1500');
+    expect(searchDialog).toMatch(/isSlowLoading/);
+    expect(searchDialog).toContain('Serverless Cold Start');
+  });
 });
 
