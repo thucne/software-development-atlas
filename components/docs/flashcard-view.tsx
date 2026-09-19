@@ -63,9 +63,15 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
     // Layout configuration based on aspect ratio
     const containerClasses = {
-      '9:16': 'w-full max-w-[420px] aspect-[9/16] p-7 md:p-8',
-      '1:1': 'w-full max-w-[480px] aspect-square p-7 md:p-8',
-      '16:9': 'w-full max-w-[680px] aspect-[16/9] p-6 md:p-8',
+      '9:16': 'w-full max-w-[420px] aspect-[9/16] p-6 sm:p-7 md:p-8',
+      '1:1': 'w-full max-w-[480px] aspect-square p-6 sm:p-7 md:p-8',
+      '16:9': 'w-full max-w-[680px] aspect-[16/9] p-5 sm:p-6 md:p-7',
+    }[ratio];
+
+    const titleSize = {
+      '9:16': 'text-xl sm:text-2xl',
+      '1:1': 'text-lg sm:text-xl',
+      '16:9': 'text-base sm:text-lg md:text-xl',
     }[ratio];
 
     return (
@@ -124,7 +130,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Middle Content Area */}
-        <div className="relative z-10 flex flex-1 flex-col justify-center py-4">
+        <div className="relative z-10 flex flex-1 flex-col justify-center py-3">
           {/* Card Badge */}
           <div className="mb-2">
             <span
@@ -135,20 +141,14 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
             </span>
           </div>
 
-          {/* Title & Subtitle */}
+          {/* Title & Subtitle (Zero Line-Clamp) */}
           <h3
-            className={`font-extrabold tracking-tight text-white ${
-              ratio === '9:16'
-                ? 'text-xl md:text-2xl line-clamp-2'
-                : ratio === '16:9'
-                  ? 'text-lg md:text-xl line-clamp-1'
-                  : 'text-lg md:text-xl line-clamp-2'
-            }`}
+            className={`font-extrabold tracking-tight text-white leading-tight ${titleSize}`}
           >
             {card.title}
           </h3>
           {card.subtitle && (
-            <p className="mt-1 text-xs text-slate-400 font-mono line-clamp-1">
+            <p className="mt-1 text-xs text-slate-400 font-mono">
               {card.subtitle}
             </p>
           )}
@@ -157,24 +157,26 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
           <div className="mt-3">
             {/* Type: Rule of Thumb Quote */}
             {card.type === 'rule-of-thumb' && card.quote && (
-              <div className="relative rounded-xl border border-blue-500/20 bg-blue-950/20 p-4 md:p-5">
-                <span className="absolute -top-3 left-4 rounded bg-blue-500 px-1.5 py-0.5 text-[10px] font-bold text-slate-950 uppercase">
-                  {isVi ? 'Quy tắc vàng' : 'Rule of thumb'}
-                </span>
-                <p className="text-sm md:text-base leading-relaxed text-slate-200 italic">
+              <div className="rounded-xl border border-blue-500/25 bg-blue-950/25 p-4 sm:p-5">
+                <p className="text-sm sm:text-base md:text-lg font-bold leading-snug text-blue-100">
                   &ldquo;{card.quote}&rdquo;
                 </p>
+                {card.content && card.content !== card.quote && (
+                  <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-300">
+                    {card.content}
+                  </p>
+                )}
               </div>
             )}
 
             {/* Type: Real-World Incident Story */}
             {card.type === 'incident' && card.content && (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-4 md:p-5">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-2 text-amber-400 text-xs font-semibold">
                   <span>⚡</span>
                   <span>{isVi ? 'Sự cố thực chiến' : 'Production Outage'}</span>
                 </div>
-                <p className="text-xs md:text-sm leading-relaxed text-slate-300">
+                <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
                   {card.content}
                 </p>
               </div>
@@ -182,49 +184,58 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
             {/* Type: Fatal Pitfall */}
             {card.type === 'pitfall' && card.content && (
-              <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 p-4 md:p-5">
+              <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-2 text-rose-400 text-xs font-bold uppercase tracking-wide">
                   <span>⚠️</span>
                   <span>{isVi ? 'Cạm bẫy nghiêm trọng' : 'Critical Hazard'}</span>
                 </div>
-                <p className="text-xs md:text-sm leading-relaxed text-slate-200">
+                <p className="text-xs sm:text-sm leading-relaxed text-slate-100">
                   {card.content}
                 </p>
               </div>
             )}
 
-            {/* Type: Core Takeaways List */}
+            {/* Type: Core Takeaways List (2-col on 16:9, 1-col on 9:16 and 1:1) */}
             {card.type === 'takeaways' && card.bulletItems && (
-              <ul className="space-y-2">
-                {card.bulletItems.slice(0, ratio === '16:9' ? 3 : 4).map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-2.5 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2.5 text-xs text-slate-300"
-                  >
-                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 font-mono">
-                      {idx + 1}
-                    </span>
-                    <span className="leading-snug">
-                      <strong className="text-slate-100 font-semibold">
-                        {item.label}:
-                      </strong>{' '}
-                      {item.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div
+                className={
+                  ratio === '16:9'
+                    ? 'grid grid-cols-2 gap-2.5'
+                    : 'space-y-2'
+                }
+              >
+                {card.bulletItems.slice(0, 4).map((item, idx) => {
+                  const cleanLabel = item.label.replace(/[:\s]+$/, '');
+                  const cleanText = item.text.replace(/^[:\s]+/, '');
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2.5 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2.5 text-xs text-slate-300"
+                    >
+                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 font-mono">
+                        {idx + 1}
+                      </span>
+                      <span className="leading-snug">
+                        <strong className="text-slate-100 font-semibold">
+                          {cleanLabel}:
+                        </strong>{' '}
+                        {cleanText}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Bottom Bar: Watermark, Site URL & Verification */}
+        {/* Bottom Bar: Watermark & Site URL (Clean & Never Truncated) */}
         <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-3 text-[11px] text-slate-400 font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-300">SD Atlas</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-200">SD Atlas</span>
             <span>·</span>
-            <span className="text-slate-500 truncate max-w-[160px] md:max-w-[200px]">
-              {card.lessonTitle}
-            </span>
+            <span className="text-slate-400 font-medium">{card.domainTitle}</span>
           </div>
 
           <div className="flex items-center gap-1 text-blue-400 font-medium">

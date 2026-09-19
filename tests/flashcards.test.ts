@@ -111,6 +111,75 @@ describe('Flashcards Extraction Engine', () => {
     expect(deck.cards[0].type).toBe('rule-of-thumb');
   });
 
+  it('extracts all 4 cards from Vietnamese lesson using "## Tóm tắt" (logs-metrics-and-traces.vi.mdx)', () => {
+    const filePath = path.join(
+      process.cwd(),
+      'content/docs/delivery-operations/logs-metrics-and-traces.vi.mdx',
+    );
+    const content = readFileSync(filePath, 'utf-8');
+
+    const deck = extractFlashcards(
+      content,
+      {
+        title: 'Logs, Metrics & Traces: Chẩn đoán production bằng bằng chứng tương quan',
+        description: 'Học cách kết hợp logs, metrics, traces để chẩn đoán production.',
+        category: 'delivery-operations',
+        level: 'intermediate',
+        url: '/vi/docs/delivery-operations/logs-metrics-and-traces',
+      },
+      'vi',
+    );
+
+    expect(deck.cards.length).toBe(4);
+    expect(deck.domainTitle).toBe('Phát hành & Vận hành');
+
+    const [ruleCard, incidentCard, pitfallCard, takeawaysCard] = deck.cards;
+
+    // Rule of thumb has extracted motto
+    expect(ruleCard.quote).toContain('Metric phát hiện triệu chứng');
+    // Incident story extracted
+    expect(incidentCard.content).toContain('thanh toán giờ cao điểm');
+    // Fatal pitfall extracted
+    expect(pitfallCard.content).toContain('console.log');
+    // Takeaways have no trailing colons in labels
+    expect(takeawaysCard.bulletItems?.length).toBe(4);
+    for (const item of takeawaysCard.bulletItems || []) {
+      expect(item.label).not.toMatch(/:$/);
+    }
+  });
+
+  it('extracts all 4 cards from Vietnamese lesson using "## Tóm tắt" (csr-ssr-ssg.vi.mdx)', () => {
+    const filePath = path.join(
+      process.cwd(),
+      'content/docs/frontend-engineering/csr-ssr-ssg.vi.mdx',
+    );
+    const content = readFileSync(filePath, 'utf-8');
+
+    const deck = extractFlashcards(
+      content,
+      {
+        title: 'CSR, SSR và SSG: HTML được tạo ở đâu và khi nào',
+        description: 'Suy luận về client rendering, server rendering.',
+        category: 'frontend-engineering',
+        level: 'intermediate',
+        url: '/vi/docs/frontend-engineering/csr-ssr-ssg',
+      },
+      'vi',
+    );
+
+    expect(deck.cards.length).toBe(4);
+    expect(deck.domainTitle).toBe('Kỹ thuật Frontend');
+
+    const [ruleCard, incidentCard, pitfallCard, takeawaysCard] = deck.cards;
+    expect(ruleCard.quote).toContain('Chọn vị trí render dựa trên độ tươi của dữ liệu');
+    expect(incidentCard.content).toContain('Black Friday');
+    expect(pitfallCard.title).toBe('Cạm bẫy chết người');
+    expect(takeawaysCard.bulletItems?.length).toBe(4);
+    for (const item of takeawaysCard.bulletItems || []) {
+      expect(item.label).not.toMatch(/:$/);
+    }
+  });
+
   it('provides a graceful fallback card when lesson lacks TL;DR section', () => {
     const markdown = '# Custom Topic\n\nJust some simple content without TLDR.';
     const deck = extractFlashcards(

@@ -73,22 +73,32 @@ export function extractFlashcards(
 
   const isVi = locale === 'vi';
 
-  // 1. Locate TL;DR section
+  // 1. Locate TL;DR / Summary section (supports English and all Vietnamese variants)
   const tldrHeaderMatch = markdown.match(
-    /(?:^|\n)##\s+(?:TL;DR|Tóm tắt nhanh(?:\s*\(TL;DR\))?)[^\n]*\n+([\s\S]*?)(?=(?:\n##\s+)|$)/i,
+    /(?:^|\n)##\s+(?:TL;DR|Tóm tắt)[^\n]*\n+([\s\S]*?)(?=(?:\n##\s+)|$)/i,
   );
   const tldrContent = tldrHeaderMatch ? tldrHeaderMatch[1].trim() : '';
 
   // 2. Extract Rule of Thumb
-  let ruleOfThumb: string | undefined;
+  let ruleOfThumbMotto: string | undefined;
+  let ruleOfThumbDetails: string | undefined;
   const rotMatch = tldrContent.match(
-    />\s*💡\s*\*\*(?:Rule of thumb|Quy tắc bỏ túi):\*\*\s*([^\n]+(?:\n>[^\n]+)*)/i,
+    />\s*💡\s*\*\*(?:Rule of thumb|Quy tắc bỏ túi)[:\s]*\*\*\s*([^\n]+(?:\n>[^\n]+)*)/i,
   );
   if (rotMatch) {
-    ruleOfThumb = rotMatch[1]
+    const rawRot = rotMatch[1]
       .replace(/\n>\s*/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+
+    // Check if starts with a bolded motto: **Motto.** Details...
+    const boldMottoMatch = rawRot.match(/^\*\*([^*]+)\*\*[:\s]*([\s\S]*)/);
+    if (boldMottoMatch) {
+      ruleOfThumbMotto = boldMottoMatch[1].trim();
+      ruleOfThumbDetails = boldMottoMatch[2].trim() || undefined;
+    } else {
+      ruleOfThumbMotto = rawRot;
+    }
   }
 
   // 3. Extract Incident Story (Paragraph right before Rule of Thumb)
@@ -114,27 +124,35 @@ export function extractFlashcards(
   const bullets: FlashcardBullet[] = [];
   let fatalPitfall: { title: string; text: string } | undefined;
 
-  const bulletLines = tldrContent.match(/^[-*]\s+\*\*([^*]+)\*\*[:\s]*([\s\S]*?)(?=\n[-*]\s+\*\*|\n\n|$)/gm);
+  const bulletLines = tldrContent.match(
+    /^[-*]\s+\*\*([^*]+)\*\*[:\s]*([\s\S]*?)(?=\n[-*]\s+\*\*|\n\n|$)/gm,
+  );
 
   if (bulletLines) {
     for (const rawBullet of bulletLines) {
-      const parsed = rawBullet.match(/^[-*]\s+\*\*([^*]+)\*\*[:\s]*([\s\S]*)/);
+      const parsed = rawBullet.match(
+        /^[-*]\s+\*\*([^*]+)\*\*[:\s]*([\s\S]*)/,
+      );
       if (!parsed) continue;
 
-      const rawLabel = parsed[1].trim();
-      const rawText = parsed[2].replace(/\s+/g, ' ').trim();
+      const rawLabel = parsed[1].replace(/[:\s]+$/, '').trim();
+      const rawText = parsed[2]
+        .replace(/^[:\s]+/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
       const labelLower = rawLabel.toLowerCase();
 
       if (
         labelLower.includes('fatal pitfall') ||
-        labelLower.includes('cạm bẫy chết người')
+        labelLower.includes('cạm bẫy chết người') ||
+        labelLower.includes('sai lầm chí mạng')
       ) {
         const pitfallTitleMatch = rawLabel.match(/\(([^)]+)\)/);
         const pitfallTitle = pitfallTitleMatch
           ? pitfallTitleMatch[1].trim()
           : isVi
-            ? 'Lỗi kiến trúc nghiêm trọng'
-            : 'Dangerous Antipattern';
+            ? 'Cạm bẫy chết người'
+            : 'Fatal Pitfall';
         fatalPitfall = {
           title: pitfallTitle,
           text: rawText,
@@ -156,8 +174,8 @@ export function extractFlashcards(
     badgeTone: 'accent',
     title: meta.title,
     subtitle: isVi ? 'Mô hình tư duy chuẩn xác' : 'Core Mental Model',
-    content: meta.description,
-    quote: ruleOfThumb || meta.description,
+    content: ruleOfThumbDetails || meta.description,
+    quote: ruleOfThumbMotto || meta.description,
     domain: category,
     domainTitle,
     level,
