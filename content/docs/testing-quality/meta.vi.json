@@ -3,6 +3,7 @@
   "pages": [
     "test-strategy",
     "unit-testing",
-    "integration-testing"
+    "integration-testing",
+    "end-to-end-testing"
   ]
 }
