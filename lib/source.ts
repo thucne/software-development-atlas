@@ -31,7 +31,9 @@ function atlasStatusBadgesPlugin(): LoaderPlugin {
 
         const isVi = filePath.endsWith('.vi.mdx') || filePath.includes('.vi.');
         const isNewRelease =
-          data.lastVerified === '2026-09-10' && data.category !== 'start-here';
+          (data.lastVerified === '2026-09-10' ||
+            data.lastVerified === '2026-09-19') &&
+          data.category !== 'start-here';
         const badgeType = data.badge ?? (isNewRelease ? 'new' : undefined);
 
         if (!badgeType) return node;

@@ -11,6 +11,11 @@ const searchDialog = readFileSync(
   'utf8',
 );
 
+const nextConfig = readFileSync(
+  path.join(process.cwd(), 'next.config.mjs'),
+  'utf8',
+);
+
 describe('search runtime', () => {
   it('keeps the search index on the server instead of prerendering a static payload', () => {
     expect(searchRoute).toMatch(
@@ -28,4 +33,16 @@ describe('search runtime', () => {
     expect(searchDialog).not.toContain('orama-static');
     expect(searchDialog).not.toContain('staticClient');
   });
+
+  it('protects Vercel quota with Edge CDN caching headers for /api/search', () => {
+    expect(nextConfig).toContain("source: '/api/search'");
+    expect(nextConfig).toContain('public, s-maxage=86400, stale-while-revalidate=604800');
+  });
+
+  it('throttles search requests with debounce and skips queries shorter than 2 characters', () => {
+    expect(searchDialog).toContain('delayMs: 300');
+    expect(searchDialog).toContain('query.trim().length < 2');
+    expect(searchDialog).toContain('animate-progress-indeterminate');
+  });
 });
+
