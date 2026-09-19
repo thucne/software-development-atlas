@@ -50,14 +50,14 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
     // Layout configuration based on canonical card specifications
     const containerClasses = {
-      '9:16': 'w-[380px] h-[675px] p-5 sm:p-6',
-      '1:1': 'w-[480px] h-[480px] p-5 sm:p-6',
-      '16:9': 'w-[720px] h-[405px] p-5 sm:p-6',
+      '9:16': 'w-[390px] h-[693px] p-6',
+      '1:1': 'w-[480px] h-[480px] p-5',
+      '16:9': 'w-[760px] h-[428px] px-6 py-4',
     }[ratio];
 
     const titleSize = {
       '9:16': 'text-xl',
-      '1:1': 'text-lg sm:text-xl',
+      '1:1': 'text-lg',
       '16:9': 'text-base sm:text-lg',
     }[ratio];
 
@@ -86,7 +86,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         />
 
         {/* Top Bar: Brand & Metadata */}
-        <div className="relative z-10 flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+        <div className="relative z-10 flex items-center justify-between border-b border-slate-800/80 pb-2">
           <div className="flex items-center gap-2 min-w-0 pr-2">
             <svg
               className="h-4 w-4 shrink-0 text-blue-400"
@@ -114,11 +114,15 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Middle Content Area */}
-        <div className="relative z-10 flex flex-1 flex-col justify-center py-2 overflow-hidden">
+        <div className="relative z-10 flex flex-1 flex-col justify-center py-1.5 sm:py-2 overflow-hidden">
           {/* Card Badge */}
-          <div className="mb-2">
+          <div className={ratio === '16:9' ? 'mb-1.5' : 'mb-2'}>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ${tone.badge}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border ${
+                ratio === '16:9'
+                  ? 'px-2.5 py-0.5 text-[10px]'
+                  : 'px-3 py-1 text-[11px]'
+              } font-semibold uppercase tracking-wider ${tone.badge}`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${tone.accentLine}`} />
               {card.badge}
@@ -132,13 +136,17 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
             {card.title}
           </h3>
           {card.subtitle && (
-            <p className="mt-1 text-xs text-slate-400 font-mono">
+            <p
+              className={`text-slate-400 font-mono ${
+                ratio === '16:9' ? 'mt-0.5 text-[11px]' : 'mt-1 text-xs'
+              }`}
+            >
               {card.subtitle}
             </p>
           )}
 
           {/* Body Content based on Card Type */}
-          <div className="mt-3">
+          <div className={ratio === '16:9' ? 'mt-2' : 'mt-3'}>
             {/* Type: Rule of Thumb Quote */}
             {card.type === 'rule-of-thumb' && card.quote && (
               <div className="rounded-xl border border-blue-500/25 bg-blue-950/25 p-4 sm:p-5">
@@ -185,7 +193,9 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
                 className={
                   ratio === '16:9'
                     ? 'grid grid-cols-2 gap-2.5'
-                    : 'space-y-2'
+                    : ratio === '1:1'
+                      ? 'space-y-1.5'
+                      : 'space-y-2'
                 }
               >
                 {card.bulletItems.slice(0, 4).map((item, idx) => {
@@ -199,16 +209,22 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
                   return (
                     <div
                       key={idx}
-                      className="flex items-start gap-2.5 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2.5 text-xs text-slate-300"
+                      className={`flex items-start gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 text-slate-300 ${
+                        ratio === '16:9'
+                          ? 'p-2 text-[11px] leading-snug'
+                          : ratio === '1:1'
+                            ? 'p-2 text-[11px] leading-snug'
+                            : 'p-2.5 text-xs leading-snug'
+                      }`}
                     >
                       <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 font-mono">
                         {idx + 1}
                       </span>
-                      <span className="leading-snug">
+                      <span className="min-w-0">
                         <strong className="text-slate-100 font-semibold">
                           {cleanLabel}:
                         </strong>{' '}
-                        {cleanText}
+                        <span>{cleanText}</span>
                       </span>
                     </div>
                   );
@@ -219,7 +235,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Bottom Bar: Watermark & Site URL (Clean & Never Truncated) */}
-        <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-3 text-[11px] text-slate-400 font-mono">
+        <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-2.5 text-[11px] text-slate-400 font-mono">
           <div className="flex items-center gap-1.5 min-w-0 pr-2 truncate">
             <span className="font-semibold text-slate-200 shrink-0">SD Atlas</span>
             <span className="text-slate-600 shrink-0">·</span>

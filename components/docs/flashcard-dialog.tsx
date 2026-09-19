@@ -17,9 +17,9 @@ interface FlashcardDialogProps {
 }
 
 const CARD_SPECS: Record<CardAspectRatio, { width: number; height: number }> = {
-  '9:16': { width: 380, height: 675 },
+  '9:16': { width: 390, height: 693 },
   '1:1': { width: 480, height: 480 },
-  '16:9': { width: 720, height: 405 },
+  '16:9': { width: 760, height: 428 },
 };
 
 function getCardScale(ratio: CardAspectRatio): number {
@@ -27,12 +27,14 @@ function getCardScale(ratio: CardAspectRatio): number {
   const vh = window.innerHeight;
   const vw = window.innerWidth;
 
-  // Chrome overhead (toolbar + actions + dots + padding)
-  const chromeHeight = 175;
-  const availableHeight = Math.max(260, vh - chromeHeight);
   const isMobile = vw < 640;
-  const horizontalPadding = isMobile ? 32 : 110;
-  const availableWidth = Math.max(260, vw - horizontalPadding);
+  // Compact chrome overhead budget (backdrop + modal padding + header + gaps + dots + action buttons + buffer)
+  const chromeHeight = isMobile ? 155 : 138;
+  const availableHeight = Math.max(220, vh - chromeHeight);
+
+  // Horizontal space budget (backdrop padding + modal padding + nav buttons flanking card)
+  const horizontalPadding = isMobile ? 24 : 100;
+  const availableWidth = Math.max(240, vw - horizontalPadding);
 
   const spec = CARD_SPECS[ratio];
   const scaleY = availableHeight / spec.height;
@@ -187,34 +189,34 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
           }}
         >
           <div
-            className={`relative flex max-h-[96vh] w-auto max-w-[95vw] ${
+            className={`relative flex max-h-[96vh] w-auto max-w-[96vw] ${
               ratio === '9:16'
-                ? 'min-w-[340px] sm:min-w-[380px] max-w-[450px]'
+                ? 'min-w-[320px] sm:min-w-[360px] max-w-[440px]'
                 : ratio === '1:1'
-                  ? 'min-w-[360px] sm:min-w-[420px] max-w-[540px]'
-                  : 'min-w-[360px] sm:min-w-[500px] max-w-4xl'
-            } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden transition-all duration-300`}
+                  ? 'min-w-[340px] sm:min-w-[400px] max-w-[520px]'
+                  : 'min-w-[360px] sm:min-w-[480px] max-w-4xl'
+            } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-2.5 sm:p-3 shadow-2xl overflow-hidden transition-all duration-300`}
           >
             {/* Top Toolbar */}
-            <div className="flex w-full shrink-0 items-center justify-between border-b border-slate-800/80 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🃏</span>
+            <div className="flex w-full shrink-0 items-center justify-between border-b border-slate-800/80 pb-1.5 px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🃏</span>
                 <h2
                   id="flashcard-dialog-title"
-                  className="text-sm font-semibold text-white"
+                  className="text-xs font-semibold text-white tracking-wide"
                 >
-                  {isVi ? 'Thẻ Tóm Tắt & Chia Sẻ' : 'Lesson Flashcards & Share'}
+                  {isVi ? 'Thẻ Tóm Tắt' : 'Flashcards'}
                 </h2>
               </div>
 
               {/* Aspect Ratio Switcher */}
-              <div className="flex items-center rounded-lg bg-slate-900 p-1 text-xs">
+              <div className="flex items-center rounded-lg bg-slate-900 p-0.5 text-xs">
                 {(['9:16', '1:1', '16:9'] as CardAspectRatio[]).map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setRatio(r)}
-                    className={`rounded px-2.5 py-1 font-medium transition-all ${
+                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition-all ${
                       ratio === r
                         ? 'bg-blue-600 text-white shadow'
                         : 'text-slate-400 hover:text-white'
@@ -229,11 +231,11 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-900 hover:text-white transition-colors"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-900 hover:text-white transition-colors"
                 aria-label={isVi ? 'Đóng' : 'Close'}
               >
                 <svg
-                  className="h-5 w-5"
+                  className="h-4 w-4 sm:h-5 sm:w-5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -245,12 +247,12 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Main Interactive Card Display Area */}
-            <div className="my-2 sm:my-3 flex w-full flex-1 min-h-0 items-center justify-center gap-2 sm:gap-4 overflow-hidden">
+            <div className="my-1 sm:my-2 flex w-full flex-1 min-h-0 items-center justify-center gap-2 sm:gap-3 overflow-hidden">
               {/* Previous Button (Desktop/Tablet) */}
               <button
                 type="button"
                 onClick={handlePrev}
-                className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
                 aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
               >
                 <svg
@@ -295,7 +297,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
               <button
                 type="button"
                 onClick={handleNext}
-                className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
                 aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
               >
                 <svg
@@ -311,15 +313,15 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Card Dots Indicator & Mobile Controls */}
-            <div className="flex items-center justify-center gap-3 mb-2.5 shrink-0">
+            <div className="flex items-center justify-center gap-2 mb-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handlePrev}
-                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                className="flex sm:hidden h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                 aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
               >
                 <svg
-                  className="h-4 w-4"
+                  className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -335,10 +337,10 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                     key={c.id}
                     type="button"
                     onClick={() => setCurrentIndex(idx)}
-                    className={`h-2 rounded-full transition-all ${
+                    className={`h-1.5 rounded-full transition-all ${
                       idx === currentIndex
-                        ? 'w-6 bg-blue-500'
-                        : 'w-2 bg-slate-700 hover:bg-slate-500'
+                        ? 'w-5 bg-blue-500'
+                        : 'w-1.5 bg-slate-700 hover:bg-slate-500'
                     }`}
                     aria-label={isVi ? `Thẻ ${idx + 1}` : `Card ${idx + 1}`}
                   />
@@ -348,11 +350,11 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                className="flex sm:hidden h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                 aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
               >
                 <svg
-                  className="h-4 w-4"
+                  className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -364,15 +366,15 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Bottom Actions: Download, Copy, Share */}
-            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-800/80 pt-2.5 sm:pt-3 w-full shrink-0">
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-800/80 pt-2 w-full shrink-0">
               <button
                 type="button"
                 disabled={isExporting}
                 onClick={handleDownload}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-500 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white shadow hover:bg-blue-500 transition-colors disabled:opacity-50"
               >
                 <svg
-                  className="h-4 w-4"
+                  className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -383,8 +385,8 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                 <span>
                   {isExporting
                     ? isVi
-                      ? 'Đang tạo ảnh...'
-                      : 'Generating...'
+                      ? 'Đang tạo...'
+                      : 'Exporting...'
                     : isVi
                       ? 'Tải ảnh PNG'
                       : 'Download PNG'}
@@ -395,10 +397,10 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                 type="button"
                 disabled={isExporting}
                 onClick={handleCopy}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
               >
                 <svg
-                  className="h-4 w-4"
+                  className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -429,10 +431,10 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
                   type="button"
                   disabled={isExporting}
                   onClick={handleShare}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50"
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-3.5 w-3.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
