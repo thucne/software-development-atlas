@@ -16,12 +16,47 @@ interface FlashcardDialogProps {
   locale?: 'en' | 'vi';
 }
 
+const CARD_SPECS: Record<CardAspectRatio, { width: number; height: number }> = {
+  '9:16': { width: 380, height: 675 },
+  '1:1': { width: 440, height: 440 },
+  '16:9': { width: 640, height: 360 },
+};
+
+function getCardScale(ratio: CardAspectRatio): number {
+  if (typeof window === 'undefined') return 1;
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+
+  // Chrome overhead (toolbar + actions + dots + padding)
+  const chromeHeight = 175;
+  const availableHeight = Math.max(260, vh - chromeHeight);
+  const isMobile = vw < 640;
+  const horizontalPadding = isMobile ? 32 : 110;
+  const availableWidth = Math.max(260, vw - horizontalPadding);
+
+  const spec = CARD_SPECS[ratio];
+  const scaleY = availableHeight / spec.height;
+  const scaleX = availableWidth / spec.width;
+
+  const computedScale = Math.min(1, Math.min(scaleX, scaleY));
+  return Math.max(0.35, Number(computedScale.toFixed(3)));
+}
+
 export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [ratio, setRatio] = useState<CardAspectRatio>('9:16');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const scale = useSyncExternalStore(
+    (callback) => {
+      window.addEventListener('resize', callback);
+      return () => window.removeEventListener('resize', callback);
+    },
+    () => getCardScale(ratio),
+    () => 1,
+  );
 
   const canShare = useSyncExternalStore(
     () => () => {},
@@ -152,12 +187,12 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
           }}
         >
           <div
-            className={`relative flex max-h-[94vh] w-full ${
+            className={`relative flex max-h-[96vh] w-auto max-w-[95vw] ${
               ratio === '9:16'
-                ? 'max-w-[430px]'
+                ? 'min-w-[340px] sm:min-w-[380px] max-w-[450px]'
                 : ratio === '1:1'
-                  ? 'max-w-[500px]'
-                  : 'max-w-3xl'
+                  ? 'min-w-[360px] sm:min-w-[420px] max-w-[500px]'
+                  : 'min-w-[360px] sm:min-w-[500px] max-w-3xl'
             } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden transition-all duration-300`}
           >
             {/* Top Toolbar */}
@@ -210,71 +245,122 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Main Interactive Card Display Area */}
-            <div className="my-2 sm:my-3 flex w-full flex-1 min-h-0 items-center justify-center">
-              <div className="relative inline-flex items-center justify-center">
-                {/* Previous Button */}
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  className="absolute -left-3 sm:-left-5 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
-                  aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
+            <div className="my-2 sm:my-3 flex w-full flex-1 min-h-0 items-center justify-center gap-2 sm:gap-4 overflow-hidden">
+              {/* Previous Button (Desktop/Tablet) */}
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
                 >
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
-                </button>
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
 
-                {/* Rendered Card */}
-                <FlashcardView
-                  ref={cardRef}
-                  card={currentCard}
-                  ratio={ratio}
-                  currentIndex={currentIndex}
-                  totalCards={totalCards}
-                  locale={locale}
-                />
-
-                {/* Next Button */}
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="absolute -right-3 sm:-right-5 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
-                  aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
+              {/* Scaled Card Canvas Box */}
+              <div
+                className="relative shrink-0 overflow-hidden rounded-2xl shadow-2xl"
+                style={{
+                  width: `${Math.round(CARD_SPECS[ratio].width * scale)}px`,
+                  height: `${Math.round(CARD_SPECS[ratio].height * scale)}px`,
+                }}
+              >
+                <div
+                  style={{
+                    width: `${CARD_SPECS[ratio].width}px`,
+                    height: `${CARD_SPECS[ratio].height}px`,
+                    transform: `scale(${scale})`,
+                    transformOrigin: '0 0',
+                  }}
                 >
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </button>
+                  <FlashcardView
+                    ref={cardRef}
+                    card={currentCard}
+                    ratio={ratio}
+                    currentIndex={currentIndex}
+                    totalCards={totalCards}
+                    locale={locale}
+                  />
+                </div>
               </div>
+
+              {/* Next Button (Desktop/Tablet) */}
+              <button
+                type="button"
+                onClick={handleNext}
+                className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white transition-all focus:outline-none"
+                aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
             </div>
 
-            {/* Card Dots Indicator */}
-            <div className="flex items-center gap-1.5 mb-2.5 shrink-0">
-              {deck.cards.map((c, idx) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`h-2 rounded-full transition-all ${
-                    idx === currentIndex
-                      ? 'w-6 bg-blue-500'
-                      : 'w-2 bg-slate-700 hover:bg-slate-500'
-                  }`}
-                  aria-label={isVi ? `Thẻ ${idx + 1}` : `Card ${idx + 1}`}
-                />
-              ))}
+            {/* Card Dots Indicator & Mobile Controls */}
+            <div className="flex items-center justify-center gap-3 mb-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                aria-label={isVi ? 'Thẻ trước' : 'Previous card'}
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {deck.cards.map((c, idx) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`h-2 rounded-full transition-all ${
+                      idx === currentIndex
+                        ? 'w-6 bg-blue-500'
+                        : 'w-2 bg-slate-700 hover:bg-slate-500'
+                    }`}
+                    aria-label={isVi ? `Thẻ ${idx + 1}` : `Card ${idx + 1}`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNext}
+                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                aria-label={isVi ? 'Thẻ tiếp theo' : 'Next card'}
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
             </div>
 
             {/* Bottom Actions: Download, Copy, Share */}

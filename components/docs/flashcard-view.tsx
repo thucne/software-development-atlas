@@ -48,17 +48,17 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
     const tone = toneStyles[card.badgeTone] || toneStyles.accent;
     const isVi = locale === 'vi';
 
-    // Layout configuration based on aspect ratio (fits comfortably within 1 screen)
+    // Layout configuration based on canonical card specifications
     const containerClasses = {
-      '9:16': 'h-[min(540px,58vh)] aspect-[9/16] w-auto max-w-full p-4 sm:p-5',
-      '1:1': 'h-[min(450px,50vh)] aspect-square w-auto max-w-full p-4 sm:p-5',
-      '16:9': 'w-full max-w-[620px] aspect-[16/9] max-h-[min(380px,46vh)] p-4 sm:p-5',
+      '9:16': 'w-[380px] h-[675px] p-6',
+      '1:1': 'w-[440px] h-[440px] p-6',
+      '16:9': 'w-[640px] h-[360px] p-6',
     }[ratio];
 
     const titleSize = {
-      '9:16': 'text-base sm:text-lg',
-      '1:1': 'text-base sm:text-lg',
-      '16:9': 'text-sm sm:text-base md:text-lg',
+      '9:16': 'text-xl',
+      '1:1': 'text-lg sm:text-xl',
+      '16:9': 'text-base sm:text-lg',
     }[ratio];
 
     return (
