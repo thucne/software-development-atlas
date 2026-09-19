@@ -18,8 +18,8 @@ interface FlashcardDialogProps {
 
 const CARD_SPECS: Record<CardAspectRatio, { width: number; height: number }> = {
   '9:16': { width: 380, height: 675 },
-  '1:1': { width: 440, height: 440 },
-  '16:9': { width: 640, height: 360 },
+  '1:1': { width: 480, height: 480 },
+  '16:9': { width: 720, height: 405 },
 };
 
 function getCardScale(ratio: CardAspectRatio): number {
@@ -191,8 +191,8 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
               ratio === '9:16'
                 ? 'min-w-[340px] sm:min-w-[380px] max-w-[450px]'
                 : ratio === '1:1'
-                  ? 'min-w-[360px] sm:min-w-[420px] max-w-[500px]'
-                  : 'min-w-[360px] sm:min-w-[500px] max-w-3xl'
+                  ? 'min-w-[360px] sm:min-w-[420px] max-w-[540px]'
+                  : 'min-w-[360px] sm:min-w-[500px] max-w-4xl'
             } flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden transition-all duration-300`}
           >
             {/* Top Toolbar */}

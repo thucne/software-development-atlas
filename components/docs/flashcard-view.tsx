@@ -50,9 +50,9 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
 
     // Layout configuration based on canonical card specifications
     const containerClasses = {
-      '9:16': 'w-[380px] h-[675px] p-6',
-      '1:1': 'w-[440px] h-[440px] p-6',
-      '16:9': 'w-[640px] h-[360px] p-6',
+      '9:16': 'w-[380px] h-[675px] p-5 sm:p-6',
+      '1:1': 'w-[480px] h-[480px] p-5 sm:p-6',
+      '16:9': 'w-[720px] h-[405px] p-5 sm:p-6',
     }[ratio];
 
     const titleSize = {
@@ -184,18 +184,22 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
               <div
                 className={
                   ratio === '16:9'
-                    ? 'grid grid-cols-2 gap-2'
-                    : 'space-y-1.5'
+                    ? 'grid grid-cols-2 gap-2.5'
+                    : 'space-y-2'
                 }
               >
                 {card.bulletItems.slice(0, 4).map((item, idx) => {
-                  const cleanLabel = item.label.replace(/[:\s]+$/, '');
-                  const cleanText = item.text.replace(/^[:\s]+/, '');
+                  const cleanLabel = item.label
+                    .replace(/\*\*/g, '')
+                    .replace(/[:\s]+$/, '');
+                  const cleanText = item.text
+                    .replace(/\*\*/g, '')
+                    .replace(/^[:\s]+/, '');
 
                   return (
                     <div
                       key={idx}
-                      className="flex items-start gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2 sm:p-2.5 text-xs text-slate-300"
+                      className="flex items-start gap-2.5 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2.5 text-xs text-slate-300"
                     >
                       <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400 font-mono">
                         {idx + 1}
