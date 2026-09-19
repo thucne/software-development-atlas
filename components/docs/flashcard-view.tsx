@@ -61,17 +61,17 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
             ? 'Trung cấp'
             : 'Intermediate';
 
-    // Layout configuration based on aspect ratio
+    // Layout configuration based on aspect ratio (fits comfortably within 1 screen)
     const containerClasses = {
-      '9:16': 'w-full max-w-[420px] aspect-[9/16] p-6 sm:p-7 md:p-8',
-      '1:1': 'w-full max-w-[480px] aspect-square p-6 sm:p-7 md:p-8',
-      '16:9': 'w-full max-w-[680px] aspect-[16/9] p-5 sm:p-6 md:p-7',
+      '9:16': 'h-[min(510px,54vh)] aspect-[9/16] w-auto max-w-full p-4 sm:p-5',
+      '1:1': 'h-[min(450px,50vh)] aspect-square w-auto max-w-full p-4 sm:p-5',
+      '16:9': 'w-full max-w-[580px] aspect-[16/9] max-h-[44vh] p-4 sm:p-5',
     }[ratio];
 
     const titleSize = {
-      '9:16': 'text-xl sm:text-2xl',
-      '1:1': 'text-lg sm:text-xl',
-      '16:9': 'text-base sm:text-lg md:text-xl',
+      '9:16': 'text-base sm:text-lg md:text-xl',
+      '1:1': 'text-base sm:text-lg',
+      '16:9': 'text-sm sm:text-base md:text-lg',
     }[ratio];
 
     return (
@@ -99,7 +99,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         />
 
         {/* Top Bar: Brand & Metadata */}
-        <div className="relative z-10 flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="relative z-10 flex items-center justify-between border-b border-slate-800/80 pb-2.5">
           <div className="flex items-center gap-2">
             <svg
               className="h-4 w-4 text-blue-400"
@@ -130,7 +130,7 @@ export const FlashcardView = forwardRef<HTMLDivElement, FlashcardViewProps>(
         </div>
 
         {/* Middle Content Area */}
-        <div className="relative z-10 flex flex-1 flex-col justify-center py-3">
+        <div className="relative z-10 flex flex-1 flex-col justify-center py-2 overflow-y-auto scrollbar-none">
           {/* Card Badge */}
           <div className="mb-2">
             <span

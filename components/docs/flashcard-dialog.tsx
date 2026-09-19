@@ -151,9 +151,9 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             if (e.target === e.currentTarget) setIsOpen(false);
           }}
         >
-          <div className="relative flex max-h-[95vh] w-full max-w-2xl flex-col items-center rounded-2xl border border-slate-800 bg-slate-950 p-4 md:p-6 shadow-2xl overflow-y-auto">
+          <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:p-4 md:p-5 shadow-2xl overflow-hidden">
             {/* Top Toolbar */}
-            <div className="flex w-full items-center justify-between border-b border-slate-800/80 pb-3">
+            <div className="flex w-full shrink-0 items-center justify-between border-b border-slate-800/80 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-base">🃏</span>
                 <h2
@@ -202,7 +202,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Main Interactive Card Display Area */}
-            <div className="my-5 flex w-full items-center justify-center">
+            <div className="my-2 sm:my-3 flex w-full flex-1 min-h-0 items-center justify-center">
               <div className="relative flex items-center justify-center w-full">
                 {/* Previous Button */}
                 <button
@@ -253,7 +253,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Card Dots Indicator */}
-            <div className="flex items-center gap-1.5 mb-4">
+            <div className="flex items-center gap-1.5 mb-2.5 shrink-0">
               {deck.cards.map((c, idx) => (
                 <button
                   key={c.id}
@@ -270,7 +270,7 @@ export function FlashcardDialog({ deck, locale = 'en' }: FlashcardDialogProps) {
             </div>
 
             {/* Bottom Actions: Download, Copy, Share */}
-            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-800/80 pt-4 w-full">
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-800/80 pt-2.5 sm:pt-3 w-full shrink-0">
               <button
                 type="button"
                 disabled={isExporting}
