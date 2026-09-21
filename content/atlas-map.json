@@ -71,6 +71,8 @@
         { "id": "backend-request-lifecycle", "title": "Backend Request Lifecycle", "targetDepth": "operate" },
         { "id": "api-design", "title": "API Design", "targetDepth": "operate" },
         { "id": "authentication-and-authorization", "title": "Authentication and Authorization", "targetDepth": "operate" },
+        { "id": "sso-and-identity-federation", "title": "Single Sign-On and Identity Federation", "targetDepth": "reason" },
+        { "id": "identity-provider-integration", "title": "Identity Provider Integration", "targetDepth": "operate" },
         { "id": "backend-concurrency", "title": "Backend Concurrency", "targetDepth": "reason" },
         { "id": "background-jobs", "title": "Background Jobs", "targetDepth": "reason" },
         { "id": "application-caching", "title": "Application Caching", "targetDepth": "reason" },
