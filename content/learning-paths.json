@@ -46,6 +46,8 @@
         "backend-request-lifecycle",
         "api-design",
         "authentication-and-authorization",
+        "oauth-and-oidc",
+        "sso-and-identity-federation",
         "backend-concurrency",
         "background-jobs",
         "application-caching",

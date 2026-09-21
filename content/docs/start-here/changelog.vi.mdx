@@ -36,6 +36,15 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 
+### Ngày 21 tháng 09 năm 2026 · Giao thức Danh tính & Keycloak
+
+#### Kỹ thuật phía máy chủ
+- [OAuth 2.0 & OpenID Connect](/vi/docs/backend-engineering/oauth-and-oidc): Lần theo authentication và delegated authorization trên browser bằng Authorization Code + PKCE, tách ID/access/refresh token, validate issuer/audience/JWKS và chọn browser architecture mà không giấu client secret trong frontend.
+- [Đăng nhập Một lần & Liên kết Danh tính](/vi/docs/backend-engineering/sso-and-identity-federation): Tách IdP session khỏi application session, so sánh trust flow của OIDC, SAML và CAS, phân biệt identity brokering với user federation và suy luận local logout so với global logout.
+- [Keycloak Thực chiến](/vi/docs/backend-engineering/keycloak-in-practice): Ánh xạ protocol concept sang realm, client, public/confidential behavior, realm/client role, client scope, protocol mapper, identity brokering, browser login và API authorization boundary.
+
+---
+
 ### Ngày 21 tháng 09 năm 2026 · Kiểm thử Dựa trên Thuộc tính
 
 #### Testing & Chất lượng
