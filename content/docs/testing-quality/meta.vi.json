@@ -5,6 +5,7 @@
     "unit-testing",
     "integration-testing",
     "end-to-end-testing",
-    "contract-testing"
+    "contract-testing",
+    "property-based-testing"
   ]
 }
