@@ -134,6 +134,36 @@ test('serves clean Markdown for a docs page', async ({ request }) => {
   expect(await response.text()).toContain('# Content Freshness');
 });
 
+test('uses canonical /learn URLs and localized prompts in AI page actions', async ({
+  page,
+}) => {
+  await page.goto(appUrl('/docs/backend-engineering/oauth-and-oidc'));
+
+  await page.locator('summary').filter({ hasText: /^Open$/ }).click();
+
+  const englishChatGpt = page.getByRole('link', { name: 'Open in ChatGPT' });
+  const englishHref = await englishChatGpt.getAttribute('href');
+  expect(englishHref).not.toBeNull();
+
+  const englishPrompt = new URL(englishHref!).searchParams.get('prompt');
+  expect(englishPrompt).toBe(
+    'Read https://thucde.dev/learn/docs/backend-engineering/oauth-and-oidc. I want to ask questions about its content.',
+  );
+
+  await page.goto(appUrl('/vi/docs/backend-engineering/oauth-and-oidc'));
+
+  await page.locator('summary').filter({ hasText: /^Mở$/ }).click();
+
+  const vietnameseChatGpt = page.getByRole('link', { name: 'Mở trong ChatGPT' });
+  const vietnameseHref = await vietnameseChatGpt.getAttribute('href');
+  expect(vietnameseHref).not.toBeNull();
+
+  const vietnamesePrompt = new URL(vietnameseHref!).searchParams.get('prompt');
+  expect(vietnamesePrompt).toBe(
+    'Đọc https://thucde.dev/learn/vi/docs/backend-engineering/oauth-and-oidc và giúp tôi trả lời các câu hỏi về nội dung này.',
+  );
+});
+
 test('exposes Edit on GitHub as a visible page action', async ({ page }) => {
   await page.goto(appUrl('/docs/start-here/freshness'));
 

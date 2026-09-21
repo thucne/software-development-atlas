@@ -1,3 +1,4 @@
+import { AtlasViewOptions } from '@/components/docs/atlas-view-options';
 import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { FlashcardDialog } from '@/components/docs/flashcard-dialog';
 import { PageFooter } from '@/components/docs/page-footer';
@@ -5,7 +6,7 @@ import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { extractFlashcards } from '@/lib/content/flashcards';
 import { getFreshnessState } from '@/lib/content/freshness';
-import { createJsonLdArticle, createPageMetadata } from '@/lib/seo';
+import { canonicalUrl, createJsonLdArticle, createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
 import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
 import {
@@ -14,7 +15,6 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
-  ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -43,6 +43,7 @@ export default async function Page(props: {
   // Fumadocs page-action helpers do not reliably apply Next.js `basePath`.
   const markdownUrl = withBasePath(`${page.url}.md`);
   const aboutUrl = withBasePath('/docs/start-here/about');
+  const publicPageUrl = canonicalUrl(page.url);
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
@@ -120,9 +121,11 @@ export default async function Page(props: {
             <FlashcardDialog deck={flashcardDeck} locale="en" />
           )}
           <EditOnGitHubButton href={githubUrl} />
-          <ViewOptionsPopover
+          <AtlasViewOptions
+            pageUrl={publicPageUrl}
             markdownUrl={markdownUrl}
             githubUrl={githubUrl}
+            locale="en"
           />
         </div>
         <p className="mt-3 text-xs text-fd-muted-foreground">
