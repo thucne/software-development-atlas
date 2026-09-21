@@ -42,6 +42,26 @@ describe('AI page actions', () => {
     expect(new URL(actions.chatgpt).searchParams.get('prompt')).toBe(prompt);
   });
 
+  it('keeps the branded AI provider icons from the page-actions UI', () => {
+    const component = readFileSync(
+      path.join(
+        process.cwd(),
+        'components/docs/atlas-view-options.tsx',
+      ),
+      'utf8',
+    );
+
+    expect(component).toContain('data-brand="Scira AI"');
+    expect(component).toContain('data-brand="OpenAI"');
+    expect(component).toContain('data-brand="Anthropic"');
+    expect(component).toContain('data-brand="Cursor"');
+
+    // Prevent fallback to the generic placeholder icons introduced by the
+    // canonical-URL hotfix.
+    expect(component).not.toContain('M4 5h16v11H9l-5 4z');
+    expect(component).not.toContain('m5 3 13 8-6 2-2 6z');
+  });
+
   it('wires every docs route template to canonical localized page actions', () => {
     const root = process.cwd();
     const en = readFileSync(
