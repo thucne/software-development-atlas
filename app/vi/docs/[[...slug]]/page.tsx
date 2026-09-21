@@ -1,10 +1,11 @@
+import { AtlasViewOptions } from '@/components/docs/atlas-view-options';
 import { EditOnGitHubButton } from '@/components/docs/edit-on-github-button';
 import { FlashcardDialog } from '@/components/docs/flashcard-dialog';
 import { getMDXComponents } from '@/components/mdx';
 import { withBasePath } from '@/lib/base-path';
 import { extractFlashcards } from '@/lib/content/flashcards';
 import { getFreshnessState } from '@/lib/content/freshness';
-import { createJsonLdArticle, createPageMetadata } from '@/lib/seo';
+import { canonicalUrl, createJsonLdArticle, createPageMetadata } from '@/lib/seo';
 import { source } from '@/lib/source';
 import { atlasLastUpdated, atlasMaintainer } from '@/lib/site-metadata';
 import {
@@ -13,7 +14,6 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
-  ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -41,6 +41,7 @@ export default async function Page(props: {
   );
   const markdownUrl = withBasePath(`${page.url}.md`);
   const aboutUrl = withBasePath('/docs/start-here/about');
+  const publicPageUrl = canonicalUrl(page.url);
   const githubUrl =
     `https://github.com/thucne/software-development-atlas/edit/main/` +
     `content/docs/${page.path}`;
@@ -120,9 +121,11 @@ export default async function Page(props: {
             <FlashcardDialog deck={flashcardDeck} locale="vi" />
           )}
           <EditOnGitHubButton href={githubUrl} label="Chỉnh sửa trên GitHub" />
-          <ViewOptionsPopover
+          <AtlasViewOptions
+            pageUrl={publicPageUrl}
             markdownUrl={markdownUrl}
             githubUrl={githubUrl}
+            locale="vi"
           />
         </div>
         <p className="mt-3 text-xs text-fd-muted-foreground">
