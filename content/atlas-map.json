@@ -71,7 +71,6 @@
         { "id": "backend-request-lifecycle", "title": "Backend Request Lifecycle", "targetDepth": "operate" },
         { "id": "api-design", "title": "API Design", "targetDepth": "operate" },
         { "id": "authentication-and-authorization", "title": "Authentication and Authorization", "targetDepth": "operate" },
-        { "id": "oauth-and-oidc", "title": "OAuth 2.0 and OpenID Connect", "targetDepth": "reason" },
         { "id": "sso-and-identity-federation", "title": "Single Sign-On and Identity Federation", "targetDepth": "reason" },
         { "id": "identity-provider-integration", "title": "Identity Provider Integration", "targetDepth": "operate" },
         { "id": "backend-concurrency", "title": "Backend Concurrency", "targetDepth": "reason" },

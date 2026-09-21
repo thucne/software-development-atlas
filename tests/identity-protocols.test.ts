@@ -30,14 +30,21 @@ function lesson(relativePath: string) {
 }
 
 describe('Identity protocols and Keycloak lessons', () => {
-  it('registers canonical concepts after Authentication & Authorization', () => {
+  it('keeps OAuth/OIDC at its existing Security home and adds the two missing identity concepts to Backend Engineering', () => {
     const atlas = JSON.parse(read('content/atlas-map.json'));
+    const security = atlas.domains.find((domain: { id: string }) => domain.id === 'security');
     const backend = atlas.domains.find((domain: { id: string }) => domain.id === 'backend-engineering');
-    const ids = backend.concepts.map((concept: { id: string }) => concept.id);
+    const securityIds = security.concepts.map((concept: { id: string }) => concept.id);
+    const backendIds = backend.concepts.map((concept: { id: string }) => concept.id);
+    const allIds = atlas.domains.flatMap((domain: { concepts: { id: string }[] }) =>
+      domain.concepts.map((concept) => concept.id),
+    );
 
-    const auth = ids.indexOf('authentication-and-authorization');
-    expect(ids.slice(auth + 1, auth + 4)).toEqual([
-      'oauth-and-oidc',
+    expect(securityIds).toContain('oauth-and-oidc');
+    expect(allIds.filter((id: string) => id === 'oauth-and-oidc')).toHaveLength(1);
+
+    const auth = backendIds.indexOf('authentication-and-authorization');
+    expect(backendIds.slice(auth + 1, auth + 3)).toEqual([
       'sso-and-identity-federation',
       'identity-provider-integration',
     ]);
