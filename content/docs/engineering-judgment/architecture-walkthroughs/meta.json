@@ -2,6 +2,7 @@
   "title": "Architecture Walkthroughs",
   "pages": [
     "reliable-checkout",
-    "reliable-file-processing-pipeline"
+    "reliable-file-processing-pipeline",
+    "frontend-authentication-architecture"
   ]
 }
