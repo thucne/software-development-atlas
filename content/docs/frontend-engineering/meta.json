@@ -12,6 +12,9 @@
     "legacy-frontend-assessment",
     "react-modernization",
     "dependency-archaeology",
-    "redux-everywhere"
+    "redux-everywhere",
+    "de-overengineering-frontend",
+    "incremental-frontend-migration",
+    "legacy-frontend-safety-nets"
   ]
 }
