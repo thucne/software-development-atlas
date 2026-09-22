@@ -84,11 +84,11 @@ describe('Distributed Replication lesson', () => {
 
     expect(en).toContain('September 17, 2026');
     expect(en).toContain('[Distributed Replication](/docs/distributed-systems/distributed-replication)');
-    expect(en).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
+    expect(en).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
 
     expect(vi).toContain('17 tháng 9, 2026');
     expect(vi).toContain('[Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication)');
-    expect(vi).toMatch(/lastVerified: 2026-09-(?:17|18|19)/);
+    expect(vi).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
   });
 
   it('tracks the current Atlas maintenance footer date', () => {

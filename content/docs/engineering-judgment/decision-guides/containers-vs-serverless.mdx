@@ -185,7 +185,11 @@ Scaling behavior is a service contract, not a synonym for serverless. A burst ca
 
 ### Ignoring downstream capacity
 
-> **Production scenario:** A retail team migrated an order-processing webhook from a small container pool to serverless functions. During a flash sale, incoming events spiked 40x. The serverless platform scaled smoothly to 1,500 concurrent execution environments—and promptly saturated the 150-connection limit on the primary transactional database. Every execution began timing out while waiting for a database connection, turning an autoscaling win into an immediate cascading outage.
+A retail team migrated an order-processing webhook from a small container pool to serverless functions to reduce idle cost and scale automatically:
+
+- **Impact:** During a flash sale, incoming events spiked 40x. The serverless platform scaled smoothly to 1,500 concurrent execution environments—and promptly saturated the 150-connection limit on the primary transactional database. Every execution began timing out while waiting for a database connection, turning an autoscaling win into an immediate cascading outage that crashed checkout.
+- **Root cause:** The team assumed compute autoscaling implies downstream infrastructure elasticity. In containers, connection pools are bounded (e.g. 10 containers × 10 connections = 100 connections); with serverless, every unconstrained concurrent invocation establishes independent database connections.
+- **Correct pattern:** Place a managed connection proxy (such as AWS RDS Proxy or PgBouncer) between serverless compute and the database, or configure maximum function concurrency limits to apply explicit backpressure.
 
 If compute grows from ten concurrent workers to a thousand, the database, queue, connection pool, or third-party API may not. Treat compute concurrency and downstream backpressure as one capacity design.
 

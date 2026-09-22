@@ -179,7 +179,13 @@ A large codebase may need module boundaries, build tooling, ownership, and depen
 
 ### Using independent databases as an ideology
 
-> **Production scenario:** A 15-engineer startup split their core application into 12 microservices before finding product-market fit. During a routine user registration flow, the `auth-service` succeeded in creating a credential, but the downstream `profile-service` timed out due to network jitter. Without a distributed transaction or saga recovery mechanism, the user was left in a zombie state—unable to log in and unable to re-register because the email was already taken. The team spent 30% of their engineering sprint time reconciling data across separate databases.
+A 15-engineer startup split their core application into 12 microservices before finding product-market fit. During a routine user registration flow, the `auth-service` succeeded in creating a credential, but the downstream `profile-service` timed out due to network jitter:
+
+- **Impact:** The user was left in a zombie state—unable to log in (profile missing) and unable to re-register because the email was already taken in `auth-service`. The engineering team spent 30% of their sprint time writing manual reconciliation scripts to clean data discrepancies across 12 separate databases.
+- **Root cause:** Introducing network and database boundaries without preparing for partial failure, distributed transactions, or eventual consistency.
+- **Correct pattern:**
+  1. For small teams without proven domain stability, keep registration inside a **Modular Monolith** to complete the workflow within a single ACID transaction (`BEGIN ... COMMIT`).
+  2. If separate microservices are mandatory, use a **Transactional Outbox** and reliable asynchronous event publishing via a broker (e.g. Kafka or RabbitMQ) so `profile-service` reliably receives the event and completes registration.
 
 Service-owned data can improve autonomy when a service truly owns its business capability. But cross-service workflows must then model consistency and recovery explicitly.
 

@@ -563,7 +563,7 @@ Checkout API có 30 replica. Team cấu hình cùng endpoint `/health` cho readi
 > **Tình huống:** `kubectl get pods` cho thấy cả bốn API Pod đều `Running`, nhưng request qua Service trả 503. Engineer kết luận Service implementation hoặc kube-proxy hỏng vì "mọi Pod đều đang chạy."
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 `Running` là Pod phase, không phải bằng chứng readiness hoặc Service membership.
 

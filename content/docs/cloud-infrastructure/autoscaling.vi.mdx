@@ -522,7 +522,7 @@ Order queue bình thường có 20 worker. Mỗi worker process 5 job concurrent
 > **Tình huống:** Traffic double. HPA chuyển desired replicas từ 20 lên 60 trong vài giây nhưng error rate vẫn cao 6 phút. Engineer kết luận autoscaling đã work và app chỉ cần hơn 60 replica.
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Desired replicas chỉ chứng minh HPA decision đã xảy ra.
 

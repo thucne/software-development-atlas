@@ -257,7 +257,7 @@ Correlation log, metric và trace với invocation/event ID cùng deployed versi
 > **Tình huống:** Một function initialize database client bên ngoài handler. Trong thời gian ít traffic, cùng environment xử lý nhiều request và client được tái sử dụng. Đội kết luận function giờ có persistent database session rồi lưu workflow state của user trong global memory để tránh một database write.
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Connection reuse có thể là performance optimization tốt, nhưng nó không thay đổi lifecycle contract. Provider có thể recycle environment, tạo thêm environment khi traffic burst hoặc route invocation kế tiếp sang nơi khác.
 

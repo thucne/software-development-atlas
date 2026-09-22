@@ -390,7 +390,7 @@ Một CI deployment role được create serverless function và có `iam:PassRo
 > **Tình huống:** Developer ở Account A có permission gọi `sts:AssumeRole` tới một role ở Account B. Permission policy của target role cho phép đọc sensitive bucket ở Account B. Developer kết luận role assumption chắc chắn thành công vì "cả hai phía đều có allow policy."
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Target role còn phải **trust / tin cậy** source principal (hoặc principal/account hợp lệ) trong role trust policy. Permission được request role assumption ở caller side không ép target role phải trust caller.
 

@@ -216,7 +216,7 @@ Một đội đóng gói queue worker bằng shell-form entrypoint. Trong rollin
 > **Tình huống:** Một service ghi report do người dùng tạo vào `/app/output` bên trong container. Platform thay container sau một sự kiện OOM. Container mới start từ đúng image digest cũ, nhưng report hôm qua biến mất. Đội kết luận image đã corrupt.
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Image hoàn toàn có thể vẫn đúng. Report là runtime state được ghi vào writable layer của container cũ. Tạo lại từ cùng image chỉ tái dựng immutable image content, không thể tái dựng writable layer đã bị xóa.
 

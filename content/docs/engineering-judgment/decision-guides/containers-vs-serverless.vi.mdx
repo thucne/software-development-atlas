@@ -117,6 +117,30 @@ Một công ty thương mại điện tử chuyển đổi webhook xử lý đơ
 
 ---
 
+## Rèn luyện mô hình tư duy
+
+> **Tình huống:** Một đội ngũ xây dựng dịch vụ thông báo nội bộ. Ứng dụng web của client duy trì kết nối WebSocket thường trực để nhận thông báo đẩy thời gian thực. Lưu lượng dự kiến chỉ vài tin nhắn mỗi giờ trên mỗi kết nối, với 50,000 client kết nối ở trạng thái chờ (idle) vào giờ cao điểm.
+>
+> Kỹ sư trưởng đề xuất: *"Hãy dùng serverless functions theo nhu cầu mà không cần hạ tầng container, vì lượng tin nhắn rất ít và chúng ta chỉ trả tiền khi tin nhắn thực sự được xử lý."*
+>
+> **Mô hình compute này có phù hợp với khối lượng công việc này không?**
+
+<details>
+<summary>Xem giải thích chi tiết</summary>
+
+**Tại sao đề xuất này chứa rủi ro lớn:**
+
+Dù việc *chuyển phát tin nhắn* mang tính rải rác và hướng sự kiện (event-driven), nhưng **mô hình kết nối** lại mở liên tục và có trạng thái (stateful):
+1. **Thời lượng kết nối:** WebSocket yêu cầu kết nối TCP trường tồn dài hạn. Môi trường thực thi serverless on-demand thường giới hạn thời gian chạy tối đa (thường dưới 15 phút) và tính phí theo thời gian thực thi tích cực. Việc duy trì 50,000 môi trường serverless chạy liên tục chỉ để giữ socket TCP chờ sẽ cực kỳ tốn kém và bất khả thi về mặt kỹ thuật.
+2. **Định danh tiến trình & Routing:** Để đẩy thông báo tới một client cụ thể, hệ thống phải chuyển tiếp tin nhắn tới đúng tiến trình đang giữ kết nối socket của client đó. Serverless functions không có định danh tiến trình ổn định hay địa chỉ mạng cố định để nhận push peer-to-peer, trừ khi kết hợp với một managed gateway chuyên biệt (như AWS API Gateway WebSocket API hoặc pub/sub proxy).
+
+**Kiến trúc phù hợp hơn:**
+- Dùng worker chạy bằng container được tối ưu cho I/O concurrency cao (nơi hàng nghìn socket chờ chỉ tiêu tốn lượng RAM/CPU rất nhỏ trong Node.js hoặc Go).
+- Hoặc tách riêng tầng kết nối bằng cách sử dụng dịch vụ quản lý kết nối chuyên dụng (như API Gateway WebSockets, Ably, Pusher) và chỉ kích hoạt serverless function ngắn hạn khi có sự kiện thực sự được phát hành.
+</details>
+
+---
+
 ## Checklist rà soát kiến trúc cho Kỹ sư
 
 - [ ] **Mô hình kết nối:** Ứng dụng có cần kết nối TCP trường tồn (như WebSocket, Socket.IO, gRPC server streaming) không? Nếu có, ưu tiên Container.

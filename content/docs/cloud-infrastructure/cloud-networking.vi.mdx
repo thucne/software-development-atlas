@@ -176,7 +176,7 @@ Một background worker chạy trong private subnet. Nó gọi `https://api.part
 **Cách khắc phục chuẩn:** Lần theo đường đi của gói tin từ worker: resolve destination, inspect effective route cho `0.0.0.0/0`, xác minh NAT/gateway path, kiểm tra egress policy, xác nhận return path, rồi mới test TCP/TLS và application behavior. Alert trên route/NAT drift và outbound failure thay vì dùng retry để che connectivity loss.
 
 <details>
-<summary>Mental-model check: hostname resolve được nhưng TCP 443 timeout. Nên kiểm tra gì tiếp?</summary>
+<summary>Kiểm tra mô hình tư duy: hostname resolve được nhưng TCP 443 timeout. Nên kiểm tra gì tiếp?</summary>
 
 Đừng tiếp tục sửa DNS chỉ vì đó là layer dễ nhìn thấy đầu tiên. Ghi lại destination IP đã resolve, inspect effective route của source workload tới IP đó, xác định next hop được chọn, kiểm tra NAT hoặc gateway nếu cần translation, kiểm tra egress và destination ingress policy, rồi xác nhận return path. Chỉ sau khi network reachability được chứng minh mới chuyển lên TLS và application authorization.
 

@@ -238,7 +238,13 @@ Search visibility can matter, but useful HTML before a large client runtime is r
 
 ### Ignoring hydration and client activation cost
 
-> **Production scenario:** An e-commerce team switched their product catalog from SSG to pure SSR to display live inventory badges. Under normal traffic, TTFB looked acceptable at 180ms. But during a marketing campaign, the SSR server made 4 unmemoized database queries per page render. Under 5,000 req/sec, the rendering servers overloaded the database, TTFB spiked from 180ms to 9.2 seconds, and the site effectively went down—even though 95% of the page content was identical for every visitor.
+An e-commerce team switched their product catalog from SSG to pure SSR to display live inventory badges. Under normal traffic, TTFB looked acceptable at 180ms. But during a marketing campaign, the SSR server made 4 unmemoized database queries per page render. Under 5,000 req/sec, the rendering servers overloaded the database, TTFB spiked from 180ms to 9.2 seconds, and the site effectively went down—even though 95% of the page content was identical for every visitor:
+
+- **Impact:** The store suffered a 45-minute outage during peak shopping hours, causing severe revenue loss and damaging search rankings.
+- **Root cause:** Abusing whole-page SSR for a small, volatile data field (stock counts), placing un-cached database queries directly onto the synchronous HTML render path.
+- **Correct pattern:** Adopt a **hybrid rendering architecture**:
+  1. Serve the shared product catalog skeleton via SSG/ISR from edge cache with TTFB < 50ms.
+  2. Fetch dynamic inventory status asynchronously on the client (CSR) using a short-lived cache (e.g. 10 seconds) or a lightweight WebSocket connection.
 
 Server-rendered HTML can still require substantial JavaScript before interactions work. React's `hydrateRoot()` requires the initial client output to match the server-rendered markup; mismatches are bugs, and React does not guarantee every mismatch will be patched automatically.
 

@@ -456,7 +456,7 @@ Service dùng PostgreSQL ở production nhưng chạy repository test trên in-m
 > **Tình huống:** Mọi database integration test chạy trong một transaction rồi rollback. Feature mới publish event chỉ từ after-commit hook. Test insert row và expect event nhưng event không bao giờ xuất hiện. Team có nên mock after-commit hook để giữ nguyên transaction strategy?
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Không, nếu test đó phải prove real commit-to-event integration.
 

@@ -347,7 +347,7 @@ Access log và metric phải giúp trả lời: **frontend nào nhận request n
 > **Tình huống:** Deployment script gửi SIGTERM tới backend process rồi lập tức deregister nó khỏi load balancer. Application cần tối đa 25 giây để hoàn tất existing request. Load balancer có deregistration/connection-draining window 60 giây. Đội kết luận cửa sổ 60 giây đảm bảo zero dropped request.
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Thứ tự đang sai. Connection draining chỉ bảo vệ in-flight work nếu backend còn sống trong khi load balancer ngừng gán traffic mới và existing work hoàn tất.
 

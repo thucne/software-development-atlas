@@ -350,7 +350,7 @@ Stateful service chạy trên VM A ở Zone A với zonal managed block volume. 
 > **Tình huống:** Một đội lưu user file trên object storage, mount bucket bằng FUSE adapter lên hai application VM rồi kết luận có thể đối xử bucket giống hệt NFS filesystem với POSIX locking và atomic directory rename.
 
 <details>
-<summary>Show the reasoning</summary>
+<summary>Xem giải thích chi tiết</summary>
 
 Mount chỉ thay đổi interface trình bày cho process; nó không nhất thiết thay đổi semantics của underlying object service.
 

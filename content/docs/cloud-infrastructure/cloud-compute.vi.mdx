@@ -191,7 +191,7 @@ Một media-processing worker chạy trên một VM lớn. Để giảm cost, te
 **Cách khắc phục chuẩn:** Lưu authoritative job state và checkpoint trên persistent service có durability contract rõ ràng. Chỉ dùng local SSD cho scratch/cache có thể bỏ. Version image, làm bootstrap lặp lại được, kiểm chứng replacement từ đầu và test stop/start, host loss cùng Spot-style interruption như lifecycle event bình thường thay vì chỉ là disaster case.
 
 <details>
-<summary>Show the reasoning: VM có persistent boot disk. Vậy bản thân VM đã durable chưa?</summary>
+<summary>Xem giải thích chi tiết: VM có persistent boot disk. Vậy bản thân VM đã durable chưa?</summary>
 
 Chưa. Disk và compute allocation là hai resource có failure/lifecycle semantics riêng. Persistent boot disk có thể sống qua stop hoặc VM replacement, nhưng physical host, memory content, local ephemeral disk, temporary public address và runtime state khác vẫn có thể đổi. Nếu application cần đúng một VM identity tồn tại mãi, recovery đang phụ thuộc vào một lời hứa cloud không đưa ra.
 
