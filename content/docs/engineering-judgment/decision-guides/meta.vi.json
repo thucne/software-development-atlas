@@ -4,6 +4,7 @@
     "csr-vs-ssr-vs-ssg",
     "monolith-vs-modular-monolith-vs-microservices",
     "containers-vs-serverless",
-    "queue-vs-event-stream"
+    "queue-vs-event-stream",
+    "frontend-modernization-upgrade-replace-wrap-delete"
   ]
 }
