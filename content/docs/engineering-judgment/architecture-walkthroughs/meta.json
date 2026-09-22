@@ -3,6 +3,7 @@
   "pages": [
     "reliable-checkout",
     "reliable-file-processing-pipeline",
-    "frontend-authentication-architecture"
+    "frontend-authentication-architecture",
+    "modernizing-seven-year-react-app"
   ]
 }
