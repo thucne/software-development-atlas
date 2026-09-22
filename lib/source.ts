@@ -33,7 +33,8 @@ function atlasStatusBadgesPlugin(): LoaderPlugin {
         const isNewRelease =
           (data.lastVerified === '2026-09-10' ||
             data.lastVerified === '2026-09-19' ||
-            data.lastVerified === '2026-09-21') &&
+            data.lastVerified === '2026-09-21' ||
+            data.lastVerified === '2026-09-22') &&
           data.category !== 'start-here';
         const badgeType = data.badge ?? (isNewRelease ? 'new' : undefined);
 

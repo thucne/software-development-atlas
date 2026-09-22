@@ -166,7 +166,7 @@ describe('Test Strategy lesson', () => {
     expect(vi).toContain('](/vi/docs/testing-quality/test-strategy)');
     expect(vi).toContain('lastVerified: 2026-09-19');
 
-    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-21'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 21, 2026');
+    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-22'");
+    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 22, 2026');
   });
 });
