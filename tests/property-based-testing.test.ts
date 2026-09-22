@@ -84,7 +84,7 @@ describe('Property-Based Testing lesson', () => {
     expect(en).toContain('[Property-Based Testing](/docs/testing-quality/property-based-testing)');
     expect(vi).toContain('21 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/testing-quality/property-based-testing)');
-    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-21'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 21, 2026');
+    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-22'");
+    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 22, 2026');
   });
 });

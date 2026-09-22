@@ -1,4 +1,17 @@
 {
   "title": "Kỹ thuật Frontend",
-  "pages": ["csr-ssr-ssg", "hydration", "server-and-client-components", "frontend-state-models", "frontend-data-fetching", "component-boundaries", "frontend-bundle-performance", "web-accessibility"]
+  "pages": [
+    "csr-ssr-ssg",
+    "hydration",
+    "server-and-client-components",
+    "frontend-state-models",
+    "frontend-data-fetching",
+    "component-boundaries",
+    "frontend-bundle-performance",
+    "web-accessibility",
+    "legacy-frontend-assessment",
+    "react-modernization",
+    "dependency-archaeology",
+    "redux-everywhere"
+  ]
 }

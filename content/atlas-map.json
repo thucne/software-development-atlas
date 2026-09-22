@@ -60,7 +60,8 @@
         { "id": "frontend-data-fetching", "title": "Frontend Data Fetching", "targetDepth": "reason" },
         { "id": "component-boundaries", "title": "Component Boundaries", "targetDepth": "reason" },
         { "id": "frontend-bundle-performance", "title": "Frontend Bundle Performance", "targetDepth": "reason" },
-        { "id": "web-accessibility", "title": "Web Accessibility", "targetDepth": "operate" }
+        { "id": "web-accessibility", "title": "Web Accessibility", "targetDepth": "operate" },
+        { "id": "frontend-modernization", "title": "Frontend Modernization", "targetDepth": "operate" }
       ]
     },
     {
