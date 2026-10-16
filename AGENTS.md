@@ -171,20 +171,6 @@ Atlas coverage currently means only that at least one substantive authored page 
 
 ## Before changing architecture
 
-Read `docs/superpowers/specs/2026-08-19-atlas-foundation-design.md`, the current roadmap, and any later approved design that governs the area being changed.
-
-For the knowledge model, read `docs/superpowers/specs/2026-09-09-atlas-knowledge-model-design.md`.
-
-For learning paths and coverage, read `docs/superpowers/specs/2026-09-09-learning-paths-coverage-design.md`.
-
-For Engineering Judgment content and its reusable primitive, read `docs/superpowers/specs/2026-09-09-engineering-judgment-design.md`.
-
-For content reliability and clarity changes, read `docs/superpowers/specs/2026-09-09-content-reliability-clarity-design.md`.
-
-For Atlas-wide teaching clarity and terminology support, read `docs/superpowers/specs/2026-09-09-teaching-clarity-system-design.md`.
-
-For the Atlas visual-medium, static teaching-illustration, localization, accessibility, and rollout contract, read `docs/superpowers/specs/2026-09-09-atlas-visual-demonstration-system-design.md`.
-
 Significant architectural changes should begin with an issue/design discussion rather than an implementation-first pull request.
 
 ## Implementation behavior
