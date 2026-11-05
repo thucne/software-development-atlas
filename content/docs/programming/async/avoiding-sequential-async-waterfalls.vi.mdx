@@ -4,7 +4,7 @@ description: Tối ưu hóa độ trễ bằng cách chạy đan xen các tác v
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - javascript
@@ -31,7 +31,7 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-Hãy tưởng tượng một trang bảng điều khiển (dashboard) cần tải 4 khối dữ liệu độc lập: hồ sơ người dùng, cờ tính năng (feature flags), phân quyền và thông báo hệ thống. Mỗi API phản hồi trong 100ms. Nếu viết bằng một chuỗi `await` tuần tự nối đuôi nhau, 4 lời gọi 100ms sẽ biến thành một "thác nước" kéo dài 400ms—làm chậm ứng dụng gấp 4 lần và hủy hoại trải nghiệm người dùng cùng các chỉ số Core Web Vitals (LCP và TTFB). Bốn tác vụ này hoàn toàn không phụ thuộc dữ liệu của nhau, nhưng luồng điều khiển lại bắt chúng xếp hàng như những quân cờ domino. Khởi chạy song song bằng `Promise.all()` hoặc tách biệt thời điểm khởi tạo Promise khỏi thời điểm await sẽ co tổng thời gian chờ về đúng bằng request chậm nhất: ~100ms.
+Ví dụ giả định: một dashboard cần tải bốn nhóm dữ liệu độc lập, mỗi request mất khoảng 100 ms. Nếu chờ từng request bằng `await` rồi mới bắt đầu request kế tiếp, tổng thời gian có thể gần 400 ms. Nếu khởi chạy cả bốn trước khi đợi kết quả, thời gian chờ có thể gần với request chậm nhất. Đó là lợi ích của việc gối đầu I/O, không phải bảo đảm tăng tốc CPU hay cải thiện Core Web Vitals theo một tỷ lệ cố định.
 
 > 💡 **Quy tắc bỏ túi:** Tách biệt thời điểm khởi tạo Promise khỏi thời điểm await kết quả. Hãy kích hoạt mọi tác vụ bất đồng bộ độc lập càng sớm càng tốt, và chỉ `await` tại đúng vị trí mà công việc phía sau thực sự cần đến dữ liệu đầu ra của tác vụ đó.
 
@@ -39,7 +39,7 @@ Hãy tưởng tượng một trang bảng điều khiển (dashboard) cần tả
 - **Tách biệt thời điểm gọi hàm và thời điểm await:** Gọi `const p = fetch(...)` là lệnh mạng đã lập tức được bắn đi; `await p` sau đó chỉ để thu nhận kết quả. Hãy kích hoạt sớm toàn bộ tác vụ độc lập rồi mới thu hoạch kết quả.
 - **Chạy gối đầu co độ trễ về đường găng (Critical Path):** Các tác vụ độc lập chạy đồng thời sẽ rút ngắn thời gian xử lý từ tổng số `sum(thời_lượng)` xuống xấp xỉ bằng `max(thời_lượng)`, xóa bỏ thời gian chờ nhân tạo.
 - **`Promise.all` không tự động hủy tác vụ nền:** Khi một Promise con thất bại, `Promise.all` lập tức reject (fail-fast), nhưng các tác vụ anh em đã khởi chạy vẫn âm thầm tiếp tục trừ khi được hủy chủ động bằng `AbortSignal`.
-- **Cạm bẫy chết người (Cơn bão Fan-out không giới hạn):** Vội vã thay thế vòng lặp bằng `await Promise.all(items.map(...))` khi xử lý hàng nghìn phần tử sẽ tạo ra cơn bão kết nối đồng thời, làm cạn kiệt connection pool của cơ sở dữ liệu, tràn socket mạng và đánh sập hạ tầng nội bộ. Luôn phải giới hạn mức độ đồng thời (bounded concurrency) khi độ bung tỏa lớn.
+- **Rủi ro fan-out không giới hạn:** Thay vòng lặp tuần tự bằng `Promise.all(items.map(...))` với hàng nghìn phần tử có thể vượt sức chịu tải của backend, connection pool hoặc dịch vụ bên thứ ba. Hãy đặt giới hạn concurrency theo số liệu đo được.
 
 <TermBox term="Async waterfall">
 **Async waterfall (Thác nước bất đồng bộ)** là hiện tượng các thao tác bất đồng bộ có thể chạy gối đầu thời gian nhưng lại bị bắt buộc chạy nối đuôi nhau do mã nguồn đặt `await` quá sớm.
@@ -137,6 +137,31 @@ const [flags, recommendations] = await Promise.all([
 
 <AtlasIllustration id="dag-critical-path" />
 
+## Khởi chạy việc độc lập sớm, vẫn giữ phụ thuộc cần thiết
+
+Nếu `organization` cần kết quả của `user`, hãy giữ quan hệ `user → organization`. Nhưng `flags` và `recommendations` chỉ cần `id`, nên có thể bắt đầu ngay:
+
+```ts
+const userPromise = getUser(id);
+const flagsPromise = getFeatureFlags(id);
+const recommendationsPromise = getRecommendations(id);
+
+const user = await userPromise;
+const organization = await getOrganization(user.organizationId);
+const [flags, recommendations] = await Promise.all([
+  flagsPromise,
+  recommendationsPromise,
+]);
+```
+
+Lưu ý rằng `Promise.all()` **không phải lệnh khởi chạy** các công việc đã tạo. Trong ví dụ này, việc khởi chạy xảy ra khi gọi các hàm trả về Promise. Nếu nghiệp vụ đòi bước xác thực thành công trước khi truy cập dữ liệu nhạy cảm, không được chuyển bước sau lên trước chỉ để giảm thời gian chờ.
+
+## Đo đường găng thay vì đếm số `await`
+
+Khi review một async waterfall, hãy đo lúc bắt đầu và kết thúc từng dependency, độ trễ toàn request, mức sử dụng connection pool và tỷ lệ lỗi. Một thay đổi giảm thời gian chờ cho từng request nhưng tạo quá nhiều yêu cầu đồng thời có thể làm hệ thống chậm hơn khi tải tăng.
+
+Nếu `Promise.all()` reject, các thao tác đã bắt đầu có thể vẫn tiếp tục. Cần quyết định rõ có hủy qua `AbortSignal`, tiếp tục thu thập kết quả, hay khôi phục từng nhánh. Thực thi tuần tự vẫn đúng khi có phụ thuộc dữ liệu, side effect cần thứ tự hoặc giới hạn tài nguyên.
+
 ## `Promise.all()` là công cụ, không phải quy tắc vạn năng
 
 `Promise.all(iterable)` trả về một Promise hoàn thành khi tất cả các Promise con đều hoàn thành. Kết quả trả về giữ nguyên thứ tự truyền vào ban đầu.
@@ -145,7 +170,7 @@ Tuy nhiên, cần đặc biệt lưu ý: **khi một Promise con bị reject, `P
 
 ## Cân nhắc trong môi trường Production
 
-### Tình huống thực tế: Cơn bão Fan-out đánh sập dịch vụ nội bộ
+### Tình huống minh họa (giả định): fan-out vượt khả năng chịu tải
 
 Một dịch vụ báo cáo phân tích cần truy xuất lịch sử giao dịch cho 2,000 thành viên tích cực. Một lập trình viên nhận thấy vòng lặp `for...await` chạy quá chậm nên đã thay thế bằng:
 ```ts
