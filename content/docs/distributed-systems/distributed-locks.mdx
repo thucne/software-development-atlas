@@ -4,7 +4,7 @@ description: Reason about distributed locks as lease-backed ownership protocols 
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, distributed-locks, leases, fencing, coordination]
 prerequisites: [partial-failure, timeouts, distributed-replication, consensus]
@@ -18,17 +18,17 @@ concepts:
 
 # Distributed Locks: Coordinate Exclusive Work with Leases and Fencing
 
-A backend worker acquires a distributed lock in Redis with a 30-second TTL to process a critical financial settlement. Ten seconds into the task, a severe Stop-The-World garbage collection pause freezes the entire JVM process for 45 seconds. While the worker thread is frozen in time, its lease quietly expires in Redis. A second worker detects the expired lock, claims it with a new lease, and successfully commits fresh updates to the database. Moments later, the first worker awakens from its GC coma, blissfully unaware that its lease has vanished. It proceeds to execute its delayed write—silently overwriting the second worker's valid changes and corrupting financial records.
+**Illustrative scenario (hypothetical):** Worker A holds a Redis TTL lock but pauses during garbage collection. After expiry, worker B acquires the lock and writes fresh data. A later resumes and may overwrite B unless the storage layer atomically verifies the write authority. This is a teaching scenario, not a reported incident.
 
-This scenario exposes the fundamental flaw of treating a distributed lock as a network-wide mutex. Without an end-to-end mechanism to validate whether the writer is still legitimate, mutual exclusion is merely an illusion.
+A lock coordinates ownership within its protocol. Correctness-sensitive data also requires **atomic enforcement at the target resource** such as a fencing epoch, version check or database constraint.
 
-> 💡 **Rule of thumb:** Distributed locks manage coordination order, but only monotonic fencing tokens validated at the target resource can guarantee mutual exclusion. Never assume a thread physically halts when its lease expires.
+> 💡 **Rule of thumb:** A lease does not stop a stale worker from executing. Protect correctness-sensitive effects **atomically at the target resource** with monotonically ordered fencing tokens or equivalent conditional-write/version checks. A Redis TTL lock does not itself issue fencing epochs.
 
 ## TL;DR
 
 - **A distributed lock is a lease-backed ownership protocol, not an in-process mutex:** Unlike local operating system mutexes backed by a unified scheduler, distributed locks grant time-bounded ownership over an unreliable network where processes pause, stall, and desynchronize.
-- **Lease expiration guarantees liveness, but cannot prevent stale execution:** TTLs prevent abandoned locks when holders crash, but GC pauses, CPU throttling, and network partitions can cause a holder to outlive its lease while its thread continues mutating external storage.
-- **Fencing tokens enforce correctness at the resource boundary:** Every acquired lock must carry a monotonically increasing fencing token. Downstream storage (databases, object stores) must reject any write bearing an older token than the latest one already applied.
+- **Lease expiry helps recovery when the coordinator is healthy:** TTL can release abandoned ownership, but cannot stop an old worker after a pause or roll back earlier side effects.
+- **Fencing acts at the target resource:** A trustworthy authority must issue ordered epochs and storage must reject stale epochs atomically with the write. Conditional versions, transactions or constraints can also own the invariant without a separate distributed lock.
 - **Safe release requires owner-aware compare-and-delete:** Releasing a lock by blindly deleting the key can delete another worker's newly acquired lock. Always verify that the stored owner token matches the caller's unique token before unlocking.
 - **Fatal pitfall:** Relying on client-side timers or lock object checks before writing to storage. Because time runs independently on each node and execution can pause at any instruction, checking "my lease hasn't expired yet" in memory does not prevent a delayed write from corrupting your database after a pause.
 
@@ -110,6 +110,8 @@ A process can stop renewing **without actually being dead**. Causes include:
 When that process resumes, it may still have code executing inside the old critical section.
 
 A timeout or TTL therefore answers "when may the coordinator grant ownership to someone else?" It does not physically cancel the previous process.
+
+**Redis lock caveat:** [Redis's distributed-lock documentation](https://redis.io/docs/latest/develop/use/patterns/distributed-locks/) uses random owner values for safe release, but a random owner value **is not** a monotonically increasing fencing token. Redis documents clock assumptions and recommends fencing for correctness-sensitive operations.
 
 ## Fencing tokens make stale holders rejectable
 
@@ -277,7 +279,7 @@ Practical rules:
 
 If a job legitimately takes longer than the initial TTL, renewal must be part of the protocol rather than a hopeful timer in application code.
 
-## Production scenario: a paused worker writes after its lease expired
+## Illustrative scenario (hypothetical): stale worker continues writing
 
 A document-processing service uses a 30-second distributed lock per document so only one worker publishes a generated artifact. Worker A acquires `document:842`, begins rendering, then the runtime hits a 45-second GC pause.
 
@@ -325,7 +327,7 @@ No. The lock object is only local memory and may represent stale ownership. The 
 
 ## Sources
 
-Primary sources checked on **2026-09-17**:
+Primary sources checked on **2026-11-05**:
 
 - [etcd — API reference: concurrency](https://etcd.io/docs/v3.7/dev-guide/api_concurrency_reference_v3/)
 - [etcd — How to create locks](https://etcd.io/docs/v3.7/tasks/developer/how-to-create-locks/)
