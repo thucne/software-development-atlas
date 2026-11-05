@@ -144,9 +144,7 @@ test('clean Markdown preserves the essential HTTP tracing model', async ({
   expect(response.headers()['content-type']).toContain('text/markdown');
   expect(markdown).toContain('# HTTP Request Lifecycle: From URL to Response');
   expect(markdown).toContain('not automatically a new network connection');
-  expect(markdown).toContain(
-    'Do **not** assume that every request repeats DNS resolution',
-  );
+  expect(markdown).toContain('Assuming each `fetch()` creates a fresh socket or handshake.');
   expect(markdown).toContain('A cached response is **fresh**');
   expect(markdown).toContain('A stored response is **stale**');
   expect(markdown).toContain('**Revalidation**');
