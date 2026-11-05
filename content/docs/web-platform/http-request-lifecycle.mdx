@@ -4,7 +4,7 @@ description: Trace how an HTTP request can use caches, reused connections, inter
 category: web-platform
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - http
@@ -35,15 +35,15 @@ concepts:
 
 ## TL;DR
 
-On a major launch day, an e-commerce checkout page experiences inexplicable 1.2-second latency spikes for first-time shoppers, while recurring users finish checkout in under 80ms. The team suspects slow database queries, but distributed APM traces reveal database time is under 15ms. The real bottleneck? An unpooled cold-request cascade: full recursive DNS lookup, TCP 3-way handshake, TLS 1.3 negotiation, and edge cache misses occurring on every unpooled API fetch.
+**Illustrative scenario (hypothetical):** A checkout page is slower for first-time visitors than for returning visitors. Application traces show little time in the database, prompting the team to inspect cache behavior, connection reuse and network setup. DNS, TCP/TLS/QUIC setup and intermediate caches can contribute different costs depending on the request path; do not assume a fresh DNS lookup or handshake happens for every call to `fetch()`.
 
-> 💡 **Rule of thumb:** **An HTTP request is a semantic exchange, not an automatic network connection.** A single request may complete in 0ms inside local memory (cache hit), traverse an existing persistent socket in 1-RTT, or incur multiple round trips across DNS, TCP, and TLS if connections are unpooled.
+> 💡 **Rule of thumb:** **An HTTP request is a semantic exchange, not automatically a new network connection.** A request can be satisfied locally by a fresh cache entry, use an existing connection, or require network and security setup. Which path occurs depends on cache state, connection reuse, transport protocol and deployment—not a single fixed number of round trips.
 
 - **Semantic contract vs. transport pipe:** HTTP standardizes request/response semantics (RFC 9110); transport layers (TCP, TLS, QUIC/UDP) provide the underlying byte stream.
 - **Four request path archetypes:** Paths branch early: fresh client cache hit (zero network), warm connection reuse (zero handshake), intermediary CDN hit (zero origin compute), or full cold setup.
 - **Protocol multiplexing:** HTTP/1.1 introduced keep-alive reuse; HTTP/2 added binary multiplexing over single TCP streams; HTTP/3 eliminated TCP head-of-line blocking using QUIC over UDP.
 - **Cache revalidation:** Intermediary CDNs and local caches evaluate `Cache-Control`, `ETag`, and `304 Not Modified` headers before request traffic ever touches origin application code.
-- **Fatal pitfall:** Treating every `fetch()` call as a self-contained operation without connection reuse or keep-alive agents—forcing the client or server runtime to tear down and recreate TCP/TLS handshakes on every outgoing network hop.
+- **Common diagnostic mistake:** Assuming each `fetch()` creates a fresh socket or handshake. Browsers manage connection reuse; server runtimes expose different pooling controls. Verify actual reuse and connection-setup timing rather than inferring them from the number of API calls.
 
 ## Start with four common request paths
 
@@ -258,7 +258,7 @@ Use it to answer:
 
 ## How to debug a slow or surprising request
 
-### Production scenario: The "phantom 200" and missing server logs
+### Illustrative production scenario (hypothetical): the "phantom 200" and missing server logs
 
 An engineering team receives customer bug reports: after updating user profile details, the web page continues displaying stale information. In DevTools Network panel, the engineer observes:
 - Status: `200 OK`
@@ -381,7 +381,7 @@ When debugging or changing code around an HTTP request, verify against this chec
 
 ## Sources
 
-Primary references verified on 2026-09-09:
+Primary references verified on 2026-11-05:
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
 - [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
