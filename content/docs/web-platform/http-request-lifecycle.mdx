@@ -43,7 +43,7 @@ concepts:
 - **Four request path archetypes:** Paths branch early: fresh client cache hit (zero network), warm connection reuse (zero handshake), intermediary CDN hit (zero origin compute), or full cold setup.
 - **Protocol multiplexing:** HTTP/1.1 introduced keep-alive reuse; HTTP/2 added binary multiplexing over single TCP streams; HTTP/3 eliminated TCP head-of-line blocking using QUIC over UDP.
 - **Cache revalidation:** Intermediary CDNs and local caches evaluate `Cache-Control`, `ETag`, and `304 Not Modified` headers before request traffic ever touches origin application code.
-- **Fatal pitfall:** Treating every `fetch()` call as a self-contained operation without connection reuse or keep-alive agents—forcing the client or server runtime to tear down and recreate TCP/TLS handshakes on every outgoing network hop.
+- **Common diagnostic mistake:** Assuming each `fetch()` creates a fresh socket or handshake. Browsers manage connection reuse; server runtimes expose different pooling controls. Verify actual reuse and connection-setup timing rather than inferring them from the number of API calls.
 
 ## Start with four common request paths
 
