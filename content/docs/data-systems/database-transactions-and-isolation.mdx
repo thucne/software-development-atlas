@@ -4,7 +4,7 @@ description: Learn how transaction boundaries, snapshots, isolation levels, lock
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -34,18 +34,16 @@ concepts:
 
 # Database Transactions & Isolation: Preserve Invariants Under Concurrency
 
-Imagine an emergency hospital staffing system where hospital policy strictly dictates: *"At least one on-call doctor must remain active in the emergency ward at all times."* At 03:00:00 AM, two doctors—Dr. Alice and Dr. Bob—both feel exhausted and simultaneously submit leave requests through their mobile apps. Two concurrent database transactions start at the exact same millisecond under PostgreSQL's `Repeatable Read` isolation level.
+**Illustrative scenario (hypothetical):** An on-call schedule must keep at least one doctor available. Two PostgreSQL `Repeatable Read` transactions both observe two available doctors, then each approves a different doctor's leave. Because they update distinct rows, both may commit even though the shared invariant is violated. This demonstrates **write skew**, not a sourced hospital incident.
 
-Transaction A queries the schedule, counts 2 active doctors, and concludes it is safe to approve Alice's leave. Transaction B queries the schedule, counts 2 active doctors, and concludes it is safe to approve Bob's leave. Because Alice and Bob update different rows, their writes never collide on row-level locks. Both transactions commit cleanly with zero errors. Within milliseconds, the emergency ward is left with **zero doctors on duty**.
-
-This is the notorious **Write Skew** anomaly. Both transactions made locally valid decisions based on isolated snapshots, yet their interleaved execution destroyed the global business invariant. Wrapping operations between `BEGIN` and `COMMIT` guarantees atomicity, but it does not make your application race-free. To preserve correctness under real-world concurrency, you must reason beyond raw atomicity—navigating `Read Committed`, `Repeatable Read`, explicit locking (`FOR UPDATE`), and `Serializable` isolation backed by automated retry loops on serialization failure `40001`.
+Database transactions provide local atomicity; concurrent business decisions also need a protected invariant through suitable isolation, constraints or deliberate locking of the resource representing that decision.
 
 > 💡 **Rule of thumb:** An atomic transaction only guarantees that writes commit or rollback together—not that concurrent decisions are correct. Invariants spanning multiple rows require explicit locking (`SELECT ... FOR UPDATE`), database constraints, or `Serializable` isolation backed by an application-level retry loop on SQLSTATE `40001`.
 
 ## TL;DR
 
-- **Atomicity is not Isolation:** `BEGIN` and `COMMIT` guarantee that all operations succeed or fail as a single unit. They do not prevent concurrent sessions from reading intermediate state or making conflicting decisions.
-- **Snapshot boundaries govern visibility:** Under `Read Committed`, each statement receives a fresh snapshot; under `Repeatable Read` and `Serializable`, the transaction locks in a stable snapshot at its first data-access statement.
+- **Atomicity is distinct from isolation:** A local transaction commits or rolls back its database writes as a unit, but this does not make concurrent decisions equivalent to a serial execution. PostgreSQL prevents dirty reads at its default isolation, yet `Repeatable Read` can still permit write skew.
+- **Snapshot scope is engine-specific:** In PostgreSQL, `Read Committed` takes a new snapshot per statement, while `Repeatable Read`/`Serializable` establish a stable snapshot when the transaction first accesses data. Do not infer identical implementation details for every database by isolation-level name alone.
 - **Write Skew breaks multi-row invariants:** `Repeatable Read` prevents dirty reads, non-repeatable reads, and phantom reads in PostgreSQL, but allows write skew when concurrent transactions modify disjoint rows based on overlapping reads.
 - **Serializable demands retry loops:** When running at `Serializable`, PostgreSQL monitors read/write dependency cycles and aborts transactions with serialization failure `40001`. The application must catch this error and retry the entire transaction from the start.
 - **Transactions stop at the database:** A database transaction cannot roll back external credit card charges or sent emails. Keep network I/O outside the transaction boundary and coordinate through the transactional outbox pattern.
@@ -198,6 +196,8 @@ Use bounded retries and observability. If serialization failures become frequent
 
 PostgreSQL documentation also recommends considering retry for deadlocks (`40P01`). Treat that as a separate failure class with the same core lesson: a dead transaction cannot be resumed from the middle.
 
+**Important:** `SELECT ... FOR UPDATE` locks selected rows, not the abstract predicate behind a `COUNT(*)` or an absent row. For cross-row invariants, lock a shared guard/parent row consistently, use a suitable constraint, or choose `Serializable` and retry the complete transaction after serialization failure.
+
 ## When explicit row locks are the clearer tool
 
 Sometimes a transaction intentionally coordinates around specific existing rows. `SELECT ... FOR UPDATE` can make that coordination explicit.
@@ -238,7 +238,7 @@ The database cannot roll back a successful card charge or an email that has alre
 
 For cross-system workflows, use patterns designed for partial failure: idempotency keys, durable state transitions, transactional outbox, reconciliation, and compensating actions where appropriate. Do not make the database transaction longer while pretending that external systems joined it.
 
-## Production scenario: the last-seat oversell
+## Illustrative scenario (hypothetical): overselling the last seat
 
 A ticket service stores one inventory row with `remaining = 1`. The application flow is:
 
