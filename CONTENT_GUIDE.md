@@ -255,6 +255,15 @@ Decision guides should emphasize constraints and comparison. Architecture walkth
 
 ## Writing style
 
+- Lead with the useful rule, then explain why.
+- Prefer concrete nouns and verbs over jargon.
+- Define terms before depending on them.
+- Distinguish facts, recommendations, and trade-offs.
+- State version-specific behavior explicitly.
+- Avoid absolute rules when the real answer is conditional.
+- Explain why an incorrect example fails.
+- Keep paragraphs and sections focused enough to reference directly.
+
 ### Incidents, evidence and editorial tone
 
 - **Mark illustrative situations honestly.** If an outage, timing number, cost multiple, conversion rate or team narrative was invented for teaching, label it *illustrative / hypothetical* (or *tình huống minh họa / giả định*). A dated or named production incident must link to a trustworthy original report where practical.
@@ -264,15 +273,6 @@ Decision guides should emphasize constraints and comparison. Architecture walkth
 - **Preserve bilingual learning-outcome parity.** EN and VI should provide equivalent important models, API/runtime qualifications, examples and exercises, without requiring equal file length or sentence-by-sentence translation.
 - **Audit the teaching path, not just completeness.** Begin with a minimal, checkable example or clear decision; introduce terminology and edge cases only when useful. Avoid duplicate TL;DR blocks and excessive incident preambles.
 - **Treat each reviewed pair as unfinished until verified.** Passing metadata checks and fixing prominent examples are not an end-to-end factual/editorial audit. Record scope, evidence and remaining gaps in the PR; use [the remediation register](./docs/content-quality-remediation.md) to track complete review.
-
-- Lead with the useful rule, then explain why.
-- Prefer concrete nouns and verbs over jargon.
-- Define terms before depending on them.
-- Distinguish facts, recommendations, and trade-offs.
-- State version-specific behavior explicitly.
-- Avoid absolute rules when the real answer is conditional.
-- Explain why an incorrect example fails.
-- Keep paragraphs and sections focused enough to reference directly.
 
 ## Atlas Teaching Contract
 
