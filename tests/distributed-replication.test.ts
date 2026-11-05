@@ -1,3 +1,4 @@
+import { expectFooterTracksChangelog, expectVerifiedAtOrAfter } from './helpers/changelog-freshness';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -84,15 +85,18 @@ describe('Distributed Replication lesson', () => {
 
     expect(en).toContain('September 17, 2026');
     expect(en).toContain('[Distributed Replication](/docs/distributed-systems/distributed-replication)');
-    expect(en).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(en, '2026-09-17');
 
     expect(vi).toContain('17 tháng 9, 2026');
     expect(vi).toContain('[Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication)');
-    expect(vi).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(vi, '2026-09-17');
   });
 
   it('tracks the current Atlas maintenance footer date', () => {
-    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-22'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 22, 2026');
+    expectFooterTracksChangelog(
+      read('lib/site-metadata.ts'),
+      read('content/docs/start-here/changelog.mdx'),
+      read('tests/e2e/docs-shell.spec.ts'),
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { expectFooterTracksChangelog } from './helpers/changelog-freshness';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -161,11 +162,10 @@ describe('frontend modernization foundations', () => {
       expect(vi).toContain(`](/vi/docs/frontend-engineering/${item.slug})`);
     }
 
-    expect(read('lib/site-metadata.ts')).toContain(
-      "atlasLastUpdated = '2026-09-22'",
-    );
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain(
-      'Atlas last updated Sep 22, 2026',
+    expectFooterTracksChangelog(
+      read('lib/site-metadata.ts'),
+      read('content/docs/start-here/changelog.mdx'),
+      read('tests/e2e/docs-shell.spec.ts'),
     );
   });
 });
