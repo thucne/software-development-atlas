@@ -1,10 +1,10 @@
 ---
 title: "Threat Modeling & Least Privilege: Thiết kế bảo mật trước khi sự cố xảy ra"
-description: Biến trust boundaries, threats và authorization rules thành mitigation cụ thể, có thể kiểm chứng và giảm blast radius khi hệ thống thay đổi.
+description: Xác định ranh giới tin cậy, mô hình hóa mối đe dọa và biến quy tắc phân quyền thành biện pháp giảm thiểu rủi ro có thể kiểm chứng.
 category: security
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - security
@@ -33,7 +33,9 @@ concepts:
 
 ## Tóm tắt
 
-Một nhân viên hỗ trợ khách hàng vô tình bấm vào liên kết độc hại trong email lừa đảo, làm lộ token phiên làm việc nội bộ. Chỉ trong vòng hai mươi phút, kẻ tấn công đã tải về toàn bộ cơ sở dữ liệu 10 triệu khách hàng từ S3 và xóa sạch các bản sao lưu production. Nguyên nhân? Ứng dụng hỗ trợ nội bộ được cấp một IAM role toàn quyền với cấu hình wildcard `s3:*` và `rds:*`, cùng với giả định rằng bất kỳ ai truy cập từ mạng VPN nội bộ đều mặc định đáng tin cậy mà không cần kiểm tra quyền trên từng đối tượng.
+**Tình huống giả định (không phải sự cố đã được xác minh):** Kẻ tấn công đánh cắp phiên đăng nhập của một nhân viên hỗ trợ rồi truy vấn hồ sơ khách hàng thuộc tổ chức khác. API chỉ kiểm tra người gọi đã đăng nhập, không kiểm tra họ có quyền đọc hồ sơ cụ thể đó hay không. Ở một ranh giới khác, dịch vụ backend được cấp quyền quá rộng đối với S3 và các API quản trị RDS. Nếu danh tính của **chính dịch vụ đó** bị xâm phạm, phạm vi thiệt hại sẽ lớn hơn. Việc mất phiên đăng nhập của nhân viên không tự động làm lộ thông tin xác thực IAM của dịch vụ. Các chi tiết trong ví dụ chỉ để minh họa, không phải số liệu sự cố thực tế.
+
+Cần phân biệt: `rds:*` cho phép các thao tác quản trị RDS trong phạm vi chính sách IAM, **không tự động cấp quyền đọc bảng bằng SQL**. Khi dùng xác thực IAM để kết nối cơ sở dữ liệu, hành động liên quan là `rds-db:connect`; người dùng và quyền trong cơ sở dữ liệu vẫn là một lớp kiểm soát riêng. Bài học chính là kiểm tra quyền trên từng đối tượng và thu hẹp quyền của từng dịch vụ.
 
 > 💡 **Quy tắc bỏ túi:** **Authentication chứng thực bạn là ai; Authorization và Least Privilege quyết định bạn được phép chạm vào cái gì.** Bảo mật sẽ sụp đổ khi sự tin tưởng được trao quyền mù quáng. Luôn áp dụng deny-by-default (chặn theo mặc định), thẩm định quyền hạn trên mỗi request đối với từng tài nguyên cụ thể, và cô lập phạm vi thiệt hại (blast radius) để sự cố của một token đơn lẻ không kéo sập toàn bộ hạ tầng.
 
@@ -41,11 +43,11 @@ Một nhân viên hỗ trợ khách hàng vô tình bấm vào liên kết độ
 - **Ranh giới tin cậy rõ ràng:** Vẽ rõ luồng dữ liệu xuyên qua các ranh giới mạng, ranh giới tiến trình và ranh giới tổ chức nơi mức độ tin cậy thay đổi; không bao giờ coi lưu lượng nội bộ là mặc định an toàn.
 - **Chặn theo mặc định (Deny-by-default) & kiểm tra liên tục:** Không cấp quyền trừ khi có quy tắc cho phép rõ ràng, và kiểm tra authorization trên **mỗi request** thay vì chỉ kiểm tra một lần lúc đăng nhập.
 - **Thu hẹp bán kính thiệt hại (Blast Radius):** Áp dụng quyền tối thiểu cho cả con người lẫn dịch vụ tự động (microservice, hàm serverless, CI runner) bằng cách giới hạn phạm vi IAM role và quyền database vào đúng công việc cần làm.
-- **Cạm bẫy chết người:** Tin tưởng tuyệt đối vào tường rào ngoại vi (VPN/firewall) và gán quyền wildcard (`*` trong policy) để dev cho tiện—tạo điều kiện cho kẻ xâm nhập leo thang đặc quyền từ một lỗ hổng nhỏ nhất thành thảm họa đánh cắp toàn bộ hệ thống.
+- **Sai lầm nguy hiểm:** Coi VPN hoặc tường lửa là đủ để thay thế kiểm tra quyền trên từng tài nguyên, hoặc cấp quyền IAM ký tự đại diện quá rộng chỉ để thuận tiện. Mức độ rủi ro phụ thuộc vào **quyền thực tế có hiệu lực**, bao gồm tài nguyên, điều kiện và các chính sách liên quan.
 
-## Model hệ thống trước khi liệt kê threat
+## Mô hình hóa hệ thống trước khi liệt kê mối đe dọa
 
-Bắt đầu từ hệ thống thật, không phải checklist vulnerability chung chung.
+Bắt đầu từ kiến trúc thực tế thay vì một danh sách lỗ hổng chung chung.
 
 ```mermaid
 flowchart LR
@@ -70,27 +72,27 @@ flowchart LR
 
 Ít nhất hãy ghi lại:
 
-- external actors và workloads;
-- processes/services;
-- sensitive data stores;
-- data flows và protocols;
-- credentials hoặc identities đi qua từng boundary;
-- trust assumptions sẽ nguy hiểm nếu hóa ra sai.
+- các tác nhân bên ngoài và những tác vụ chạy trong hệ thống;
+- các tiến trình và dịch vụ;
+- những kho lưu trữ dữ liệu nhạy cảm;
+- các luồng dữ liệu và giao thức;
+- danh tính và thông tin xác thực đi qua từng ranh giới;
+- những giả định về sự tin cậy có thể gây nguy hiểm nếu không đúng.
 
 <TermBox term="Trust boundary">
-**Trust boundary** là nơi data hoặc control đi qua giữa các context có trust assumption hoặc authority khác nhau.
+**Ranh giới tin cậy (trust boundary)** là điểm mà dữ liệu hoặc quyền điều khiển đi từ môi trường có mức độ tin cậy hoặc thẩm quyền này sang môi trường khác.
 
-**Tại sao quan trọng:** mỗi lần vượt boundary là một prompt để hỏi ai đã được authenticated, điều gì được authorized, input nào được chấp nhận, credential nào bị expose và chuyện gì xảy ra nếu phía bên kia bị compromise.
+**Vì sao quan trọng:** mỗi lần vượt ranh giới cần xác định ai đã được xác thực, quyền nào được cấp, dữ liệu đầu vào nào được chấp nhận, thông tin xác thực nào có thể bị lộ và hậu quả nếu phía bên kia bị xâm phạm.
 </TermBox>
 
-## Dùng threat-model loop bốn câu hỏi
+## Mô hình hóa mối đe dọa theo bốn câu hỏi
 
-Một threat model có thể nhẹ nhưng vẫn nghiêm túc:
+Mô hình đe dọa không nhất thiết phức tạp, nhưng cần trả lời rõ bốn câu hỏi:
 
-1. **Chúng ta đang làm gì?** Model system với flows, assets, identities và trust boundaries.
-2. **Điều gì có thể sai?** Xác định abuse cases hoặc threats trên chính những flow đó. STRIDE có thể là prompt, nhưng không phải mục tiêu cuối.
-3. **Chúng ta sẽ làm gì?** Chọn actionable mitigations có owner và outcome kiểm chứng được.
-4. **Đã đủ tốt chưa?** Review model, verify mitigation và cập nhật model khi system thay đổi.
+1. **Chúng ta đang xây dựng gì?** Mô tả hệ thống, luồng dữ liệu, tài sản, danh tính và ranh giới tin cậy.
+2. **Điều gì có thể xảy ra sai?** Tìm các cách lạm dụng và mối đe dọa đối với từng luồng. STRIDE là công cụ gợi ý, không phải mục tiêu cuối.
+3. **Chúng ta sẽ xử lý thế nào?** Với từng mối đe dọa đáng kể, chọn loại bỏ, giảm thiểu bằng biện pháp có người phụ trách và cách kiểm chứng, chuyển giao một phần tác động, hoặc chấp nhận rủi ro còn lại một cách có ghi nhận. Chuyển giao không đồng nghĩa rủi ro kỹ thuật biến mất.
+4. **Các biện pháp đã đủ tốt chưa?** Rà soát mô hình, kiểm chứng biện pháp và cập nhật khi hệ thống thay đổi.
 
 ```mermaid
 flowchart LR
@@ -102,19 +104,19 @@ flowchart LR
   C -->|no| K["Keep evidence current"]
 ```
 
-Threat model phải evolve khi thêm data store, identity provider, queue, admin path, third-party integration, privilege hoặc network boundary mới. “Review một lần trước launch” không phải security control bền vững.
+Mô hình cần được cập nhật khi thêm kho dữ liệu, nhà cung cấp danh tính, hàng đợi, chức năng quản trị, tích hợp bên thứ ba, quyền truy cập hoặc ranh giới mạng. Rà soát một lần trước khi phát hành không phải là cơ chế bảo vệ lâu dài.
 
-## Biến threat thành mitigation kiểm chứng được
+## Biến mối đe dọa thành biện pháp có thể kiểm chứng
 
 Xét flow `GET /accounts/:accountId`.
 
-Một mitigation yếu là:
+Một biện pháp quá yếu là:
 
 > User phải được authenticated.
 
-Điều đó không trả lời Alice có được đọc account của Bob không.
+Quy tắc đó chưa trả lời được Alice có được phép đọc tài khoản của Bob hay không.
 
-Mitigation mạnh hơn là:
+Biện pháp tốt hơn cần:
 
 - authenticate caller;
 - authorize action `read` trên **đúng account cụ thể**;
@@ -123,9 +125,9 @@ Mitigation mạnh hơn là:
 - log authorization failures mà không leak sensitive data;
 - test cả allowed và denied object relationships.
 
-Threat model chỉ thực sự hữu ích khi mitigation có thể implement và verify.
+Mô hình đe dọa chỉ thực sự hữu ích khi các biện pháp của nó có thể triển khai và kiểm chứng.
 
-## Authentication không phải authorization
+## Xác thực danh tính không đồng nghĩa với cấp quyền
 
 <TermBox term="Authorization">
 **Authentication** xác lập một entity là ai hoặc là gì. **Authorization** kiểm tra entity đó có được thực hiện action yêu cầu trên resource cụ thể hay không.
@@ -137,13 +139,13 @@ Một secure request path có dạng:
 
 ```text
 authenticate(identity)
-resource = load(request.resource_id)
+resource = load_minimal_policy_attributes(request.resource_id)
 if !authorize(identity, action, resource):
     deny
 perform(action, resource)
 ```
 
-Authorization decision phải nằm ở server-side boundary không thể bypass bằng cách sửa client. Ẩn button là UX, không phải access control.
+Quyết định cấp quyền phải được thực thi ở phía máy chủ, không thể vượt qua bằng cách sửa mã phía client. Trước khi kiểm tra quyền, chỉ tải những thuộc tính đáng tin cậy tối thiểu cần thiết để đánh giá chính sách; không trả dữ liệu được bảo vệ về cho người gọi. Với thao tác ghi hoặc tác vụ bất đồng bộ, cần kiểm soát quyền tại ranh giới thực thi tương ứng, bao gồm phạm vi tenant và thay đổi quyền theo thời gian. Ẩn nút trên giao diện không phải là biện pháp kiểm soát truy cập.
 
 ### Kiểm tra permission trên mỗi request
 
@@ -156,7 +158,7 @@ Kiểm tra cả hai chiều:
 
 Với API, authorize cả operation lẫn object. UUID khó đoán không thay thế ownership hoặc policy check.
 
-## Deny-by-default đóng các policy gap
+## Từ chối theo mặc định để tránh lỗ hổng chính sách
 
 Với **deny-by-default**, request không match explicit allow rule sẽ bị deny.
 
@@ -178,7 +180,7 @@ flowchart TD
 
 Availability có thể có đánh đổi riêng, nhưng authorization error không được vô tình trở thành privilege grant.
 
-## Least privilege là bài toán scope và lifetime
+## Quyền tối thiểu: giới hạn phạm vi và thời hạn
 
 NIST mô tả least privilege là giới hạn user hoặc process ở đúng minimum authorizations và resources cần để hoàn thành chức năng.
 
@@ -203,7 +205,7 @@ Ba dimension hữu ích:
 **Tại sao quan trọng:** least privilege không đảm bảo compromise sẽ không xảy ra. Nó giới hạn compromise có thể đi xa đến đâu sau đó.
 </TermBox>
 
-## Threat modeling và least privilege củng cố lẫn nhau
+## Mô hình đe dọa và quyền tối thiểu bổ trợ cho nhau
 
 Threat model có thể chỉ ra: “Nếu checkout service bị compromise, database credential của nó có thể sửa customer profiles và IAM records.”
 
@@ -220,9 +222,9 @@ flowchart LR
 
 Security control mạnh hơn khi threat model giải thích **vì sao** privilege tồn tại và automated checks chứng minh scope đó chưa rộng ra ngoài ý muốn.
 
-## Production scenario: support user đã authenticated nhưng đọc được mọi tenant
+## Tình huống vận hành giả định: nhân viên hỗ trợ đọc dữ liệu tenant khác
 
-Support portal thêm `GET /customers/:customerId`. UI chỉ hiển thị customer được assign cho support agent đã sign in, và endpoint yêu cầu employee session hợp lệ.
+**Đây là ví dụ được dựng để giảng giải, không phải một vụ xâm nhập đã được công bố.** Cổng hỗ trợ khách hàng bổ sung endpoint `GET /customers/:customerId`. Giao diện chỉ hiển thị khách hàng được phân công cho nhân viên đã đăng nhập; endpoint cũng yêu cầu phiên đăng nhập hợp lệ.
 
 **Hậu quả:** một agent đã authenticated đổi `customerId` trong URL và lấy được customer record của tenant khác. Service credential phía sau cũng có thể query billing tables không liên quan, khiến impact lớn hơn nếu service bị compromise.
 
@@ -245,7 +247,7 @@ Threat model cũng phải được cập nhật khi job thực sự cần datase
 
 </details>
 
-## Checklist production
+## Checklist trước khi vận hành
 
 - [ ] Model actors, services, data stores, data flows, identities và mọi trust boundary quan trọng.
 - [ ] Xác định threats trên kiến trúc thật, không chỉ dựa vào generic vulnerability categories.
@@ -258,7 +260,7 @@ Threat model cũng phải được cập nhật khi job thực sự cần datase
 - [ ] Xóa unused privileges thay vì tích lũy chúng cho nhu cầu tương lai chưa chắc có.
 - [ ] Review lại threat model khi trust boundaries, integrations, data flows hoặc privileges thay đổi.
 
-## Agent rule
+## Quy tắc cho agent
 
 Khi thay đổi identity, route, data flow, integration hoặc privileged action, hãy xác định trust boundary và authorization decision bị ảnh hưởng trước khi code. Ưu tiên **deny-by-default**, verify permissions trên mỗi request cho đúng action/resource, giảm privilege scope và lifetime, và thêm machine-checkable evidence cho mitigation. Đừng coi authentication thành bằng chứng authorization.
 
@@ -267,4 +269,6 @@ Khi thay đổi identity, route, data flow, integration hoặc privileged action
 - OWASP Cheat Sheet Series, **Threat Modeling**: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
 - OWASP Cheat Sheet Series, **Authorization**: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
 - NIST CSRC Glossary, **Least Privilege**: https://csrc.nist.gov/glossary/term/least_privilege
+- AWS RDS, **IAM policy for database access** (phân biệt `rds-db:connect` và `rds:`): https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html
+- AWS RDS, **RDS IAM management actions**: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/security_iam_service-with-iam.html
 - OWASP Top 10:2025, **A01 Broken Access Control**: https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/

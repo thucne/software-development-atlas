@@ -4,7 +4,7 @@ description: Turn trust boundaries, threats, and authorization rules into concre
 category: security
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - security
@@ -33,7 +33,9 @@ concepts:
 
 ## TL;DR
 
-A customer support contractor clicks a phishing link, compromising their session credentials. Within twenty minutes, the attacker downloads the company's entire 10-million-user database from S3 and wipes the production backups. Why? Because the internal support application ran under a single god-mode IAM role with `s3:*` and `rds:*` wildcard permissions, and the system assumed anyone authenticated behind the VPN was automatically trusted without per-resource authorization.
+**Illustrative scenario (not a reported incident):** A stolen support-agent session lets an attacker request another tenant's customer record because the API authenticates the caller but never checks authorization for that record. Separately, an over-privileged backend workload identity can read unrelated S3 objects and invoke broad RDS management APIs if *that workload identity* is compromised. These are distinct trust-boundary failures: stealing a support session does not automatically expose the workload's IAM credentials. The example uses no measured incident counts or timings.
+
+Crucially, `rds:*` authorizes RDS control-plane actions subject to the rest of the IAM policy; it does **not** by itself grant SQL access to database rows. IAM database login, where enabled, uses the separate `rds-db:connect` action and still depends on database users and grants. The underlying lesson is to apply object-level authorization and separately scope each workload's privileges.
 
 > 💡 **Rule of thumb:** **Authentication proves who you are; authorization and least privilege determine what you can touch.** Security collapses when trust is inherited transitively. Enforce deny-by-default, validate authorization on every request for specific resources, and constrain blast radiuses so the compromise of a single token cannot compromise the entire system.
 
@@ -41,7 +43,7 @@ A customer support contractor clicks a phishing link, compromising their session
 - **Explicit trust boundaries:** Map data flows across network, process, and organizational boundaries where trust levels change; never treat internal network traffic as implicitly safe.
 - **Deny-by-default & continuous evaluation:** Grant zero access unless an explicit rule permits it, and re-evaluate authorization on **every request** rather than assuming a valid login grants global object access.
 - **Blast radius containment:** Enforce least privilege for both humans and machines (services, serverless functions, CI/CD runners) by scoping IAM roles and database permissions strictly to needed operations.
-- **Fatal pitfall:** Relying on perimeter security (VPNs/firewalls) and granting wildcard permissions (`*` in IAM policies) for developer convenience—allowing any single compromised entry point to escalate into total infrastructure compromise.
+- **High-impact pitfall:** Trusting a VPN or firewall in place of resource authorization, or granting unscoped wildcard IAM permissions for convenience. Excessive *effective* privileges can enlarge the impact of a compromised identity; not every wildcard has the same scope because resources, conditions, and other policy controls also matter.
 
 ## Model the system before listing threats
 
@@ -89,7 +91,7 @@ A practical threat model can stay lightweight while still being rigorous:
 
 1. **What are we working on?** Build a system model with flows, assets, identities, and trust boundaries.
 2. **What can go wrong?** Identify abuse cases or threats against those concrete flows. STRIDE can be a prompt, but it is not the goal.
-3. **What are we going to do about it?** Choose actionable mitigations with an owner and testable outcome.
+3. **What are we going to do about it?** Choose a response for each material threat: avoid/eliminate it, mitigate it with an owner and testable outcome, transfer some impact, or explicitly accept residual risk. Transfer does not remove technical risk.
 4. **Did we do a good enough job?** Review the model, verify mitigations, and update it when the system changes.
 
 ```mermaid
@@ -137,13 +139,13 @@ A secure request path looks like:
 
 ```text
 authenticate(identity)
-resource = load(request.resource_id)
+resource = load_minimal_policy_attributes(request.resource_id)
 if !authorize(identity, action, resource):
     deny
 perform(action, resource)
 ```
 
-The authorization decision belongs at a server-side boundary that cannot be bypassed by changing client code. Hiding buttons is user experience, not access control.
+The authorization decision belongs at a server-side boundary that cannot be bypassed by changing client code. Load only the minimum trusted attributes needed for the policy before authorization; do not expose protected content to the caller before the allow decision. Mutations and asynchronous jobs need authorization at their own execution boundaries as appropriate, including tenant-scoped data access and protection against stale authorization assumptions. Hiding buttons is user experience, not access control.
 
 ### Validate permissions on every request
 
@@ -220,9 +222,9 @@ flowchart LR
 
 Security controls become stronger when the threat model explains **why** a privilege exists and automated checks prove it has not broadened accidentally.
 
-## Production scenario: authenticated support user reads every tenant
+## Hypothetical production scenario: authenticated support user reads another tenant's data
 
-A support portal introduces `GET /customers/:customerId`. The UI only shows customers assigned to the signed-in support agent, and the endpoint requires a valid employee session.
+**This is a constructed teaching case, not a documented breach.** A support portal introduces `GET /customers/:customerId`. The UI only shows customers assigned to the signed-in support agent, and the endpoint requires a valid employee session.
 
 **Impact:** an authenticated agent changes `customerId` in the URL and retrieves another tenant's customer record. The same service credential can also query unrelated billing tables, expanding the impact if the service is compromised.
 
@@ -267,4 +269,6 @@ When changing an identity, route, data flow, integration, or privileged action, 
 - OWASP Cheat Sheet Series, **Threat Modeling**: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
 - OWASP Cheat Sheet Series, **Authorization**: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
 - NIST CSRC Glossary, **Least Privilege**: https://csrc.nist.gov/glossary/term/least_privilege
+- AWS RDS, **IAM policy for database access** (distinguishes `rds-db:connect` from `rds:`): https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html
+- AWS RDS, **RDS IAM management actions**: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/security_iam_service-with-iam.html
 - OWASP Top 10:2025, **A01 Broken Access Control**: https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/
