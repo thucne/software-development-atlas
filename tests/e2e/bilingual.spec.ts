@@ -69,7 +69,7 @@ test.describe('Bilingual Documentation Experience', () => {
       page.getByRole('button', { name: 'Lộ trình học tập' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Đánh giá kỹ thuật' }),
+      page.getByRole('button', { name: 'Phán đoán kỹ thuật' }),
     ).toBeVisible();
   });
 
@@ -98,7 +98,7 @@ test.describe('Bilingual Documentation Experience', () => {
 
     await expect(
       page.getByRole('heading', {
-        name: 'Phân tích Kiến trúc Thanh toán Đáng tin cậy (Reliable Checkout)',
+        name: 'Luồng thanh toán đáng tin cậy — Phân tích kiến trúc',
         level: 1,
       }),
     ).toBeVisible();

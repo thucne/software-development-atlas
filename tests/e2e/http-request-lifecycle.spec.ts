@@ -143,7 +143,7 @@ test('clean Markdown preserves the essential HTTP tracing model', async ({
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
   expect(markdown).toContain('# HTTP Request Lifecycle: From URL to Response');
-  expect(markdown).toContain('not necessarily a new network connection');
+  expect(markdown).toContain('not automatically a new network connection');
   expect(markdown).toContain(
     'Do **not** assume that every request repeats DNS resolution',
   );

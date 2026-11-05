@@ -5,6 +5,8 @@ const port = process.env.PORT || 3005;
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
+  // Bound CI browsers while retaining complete per-route audits.
+  workers: process.env.CI ? 2 : undefined,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {

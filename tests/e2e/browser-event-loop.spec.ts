@@ -18,7 +18,7 @@ test('exposes the browser event loop lesson in docs navigation', async ({ page }
   await expect(lessonLink).toBeVisible();
   await lessonLink.click();
   await expect(page).toHaveURL(lessonPath);
-  await expect(page.getByRole('heading', { name: 'How the Browser Event Loop Actually Works' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Browser Event Loop: How Tasks, Microtasks, and Rendering Are Scheduled' })).toBeVisible();
 });
 
 test('explains difficult event-loop terminology visibly and in Markdown', async ({ page, request }) => {
@@ -125,7 +125,7 @@ test('clean Markdown preserves the essential event-loop model', async ({ request
   const markdown = await response.text();
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
-  expect(markdown).toContain('# How the Browser Event Loop Actually Works');
+  expect(markdown).toContain('# Browser Event Loop: How Tasks, Microtasks, and Rendering Are Scheduled');
   expect(markdown).toContain('one universal FIFO');
   expect(markdown).toContain('A timer delay is not an execution deadline.');
   expect(markdown).toContain('rendering opportunity');

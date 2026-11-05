@@ -149,7 +149,7 @@ test('clean Markdown preserves the essential Promise semantics', async ({
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
   expect(markdown).toContain('# Promises: Resolution, Chaining, and Failure');
-  expect(markdown).toContain('Resolved does not necessarily mean fulfilled');
+  expect(markdown).toContain('pending yet resolved');
   expect(markdown).toContain('returns a still-pending Promise/thenable');
   expect(markdown).toContain('Promise.allSettled');
   expect(markdown).toContain('Promise.any([])');
@@ -158,7 +158,7 @@ test('clean Markdown preserves the essential Promise semantics', async ({
   expect(markdown).toContain('Promise.try()');
   expect(markdown).toContain('not timing-equivalent');
   expect(markdown).toContain('A Promise models an eventual result');
-  expect(markdown).toContain('For standard Promise chaining, treat each `then()`, `catch()`, and `finally()` call as producing a separate downstream Promise.');
+  expect(markdown).toContain('Each `then()`, `catch()`, and `finally()` call normally returns a separate downstream Promise');
 });
 
 test('edit action targets the canonical promises source', async ({ page }) => {
