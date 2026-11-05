@@ -4,7 +4,7 @@ description: Trace a file from a scoped direct upload through object storage, du
 category: engineering-judgment
 level: advanced
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - cloud
@@ -39,19 +39,19 @@ concepts:
 
 ## Production crisis & TL;DR
 
-A user uploads a high-definition 4K video or complex 2.5 GB archive. Your backend application server parses the incoming `multipart/form-data` request and attempts to buffer the raw byte stream into memory. When three concurrent users trigger similar uploads, server RAM usage spikes to 100%. The operating system's Out-Of-Memory (OOM) killer abruptly terminates the application process. The container restarts in a crash loop, dropping in-flight HTTP connections across unrelated users and triggering a cascading service outage. Meanwhile, abandoned multi-part fragments accumulate quietly in cloud storage, driving up unexpected infrastructure costs.
+**Illustrative scenario (hypothetical):** A large-file endpoint buffers entire multipart uploads in application memory. Under concurrent uploads, memory can exceed process limits and cause unrelated requests to fail. The fundamental problem is unbounded buffering and concurrency, not a universal ban on transferring file bytes through an API.
 
-Treating application servers as byte relays for massive files is an operational disaster. A production-ready pipeline must bypass application servers entirely by issuing scoped presigned URLs directly to object storage, streaming and chunking transformations asynchronously within bounded memory, coordinating workers via queues equipped with dead-letter routing, and enforcing idempotency bound to immutable object versions.
+For large files and high-volume workloads, direct object-storage uploads through scoped presigned URLs often reduce web-tier load. A backend upload proxy can also be appropriate under explicit constraints when streaming, size limits, authorization and backpressure are designed. The pipeline still needs input validation, version-bound processing, duplicate safety and observable recovery.
 
-> 💡 **Rule of thumb:** Never route heavy file bytes through your application API servers. Authorize uploads via short-lived presigned URLs directly to object storage, stream chunks during processing within strict memory budgets, and coordinate background workers through durable queues equipped with dead-letter routing and version-bound idempotency.
+> 💡 **Rule of thumb:** Prefer scoped direct-to-object-storage uploads for large/high-volume files when feasible. If an API must relay bytes, use bounded streaming, payload limits, concurrency limits and backpressure—not whole-file buffering. Tie background processing to immutable object versions, validate untrusted inputs and make retries duplicate-safe.
 
 ### TL;DR
 
-- **Bypass application servers via direct scoped uploads:** Issue short-lived presigned URLs or capability tokens so clients upload bytes directly to object storage (such as Amazon S3), keeping web tier memory, CPU, and bandwidth consumption at zero.
+- **Choose direct uploads when they reduce unnecessary transit:** Short-lived presigned URLs let clients upload to object storage while keeping bulk bytes off the web tier. For required proxy flows, stream safely under bounded memory and bandwidth; direct uploads do not make API authorization or validation unnecessary.
 - **Bind processing jobs to immutable object versions:** Tie background worker jobs to unique asset IDs, immutable object version/generation identifiers, and checksums rather than mutable storage keys, eliminating race conditions from late-arriving notifications.
 - **Stream bytes and isolate untrusted inputs in quarantine:** Enforce strict per-worker memory and temporary disk budgets by streaming data instead of buffering entire gigabytes into RAM; keep newly uploaded files quarantined until size, format signatures, and security scans pass.
 - **Control system pressure with bounded concurrency:** Scale worker pools based on queue age, processing throughput, and resource saturation rather than raw backlog count, protecting downstream databases and transcoding engines from catastrophic overload.
-- **Fatal pitfall:** Buffering full multi-gigabyte files into web worker memory or treating a mutable object path (`/uploads/current.file`) as a reliable job identifier—this inevitably causes OOM container crashes under concurrent load and silent corruption when late-arriving completion notifications process overwritten file bytes.
+- **Failure mode to avoid:** Buffering multi-gigabyte files or keying jobs by mutable object paths can exhaust worker memory and make late events process the wrong version. Size, concurrency and version guarantees determine the risk.
 
 ## System goal and constraints
 

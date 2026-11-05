@@ -4,7 +4,7 @@ description: Suy luận về hiệu năng bundle frontend thông qua đồ thị
 category: frontend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [frontend, performance, javascript, bundling]
 prerequisites: [hydration, server-and-client-components, component-boundaries]
@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-Một nhóm phát triển phát hành một bản cập nhật "nhỏ" bổ sung tính năng xuất hóa đơn PDF bên trong modal cài đặt. Ngay hôm sau, Google Search Console đồng loạt báo động đỏ vì chỉ số Core Web Vitals tụt dốc thảm hại (INP tăng vọt lên 650ms, LCP chậm thêm 2,8 giây), kéo theo tỷ lệ chuyển đổi đơn hàng giảm 35%. Kiểm tra bằng công cụ phân tích bundle cho thấy một câu lệnh `import { pdfGenerator } from 'heavy-pdf-lib'` ở đầu file modal đã kéo theo 1.4MB thư viện xử lý canvas và font chữ vào thẳng bundle khởi động chính của *mọi người dùng trên toàn bộ các trang*. Nguyên nhân gốc rễ? Sử dụng static import cho các tính năng có điều kiện, làm nhiễm độc đồ thị phụ thuộc của client.
+**Tình huống minh họa (giả định):** Nhóm phát triển bổ sung tính năng xuất PDF ít khi được dùng. Sau bản phát hành, công cụ phân tích bundle cho thấy thư viện PDF có thể đã đi vào đường tải khởi động của một số route; nhóm cần đo lại dung lượng truyền tải, chi phí thực thi JavaScript và thời điểm tính năng được tải. Không thể kết luận mọi người dùng đều tải cùng một chunk hoặc quy một mức thay đổi Core Web Vitals nhất định chỉ từ một câu lệnh `import`.
 
 > 💡 **Quy tắc bỏ túi:** **Đoạn mã JavaScript nhanh nhất là đoạn mã không bao giờ phải tải xuống, phân tích cú pháp hay thực thi trong trình duyệt.** Dung lượng truyền tải qua mạng (brotli/gzip) mới chỉ là một nửa chi phí—công sức CPU giải nén, compile và chạy code trên luồng chính mới là thứ làm đơ giao diện (INP). Hãy cô lập các tính năng không bắt buộc đằng sau import động (`React.lazy`, `import()`) và áp đặt ngân sách bundle chặt chẽ trong CI.
 
 - **Tổng chi phí của JavaScript:** Dung lượng tải về (brotli/gzip) chỉ là giai đoạn một; giải nén, phân tích cú pháp (parse), biên dịch bytecode và thực thi trên luồng chính của CPU di động mới chiếm phần lớn độ trễ.
 - **Kỷ luật quản lý đồ thị phụ thuộc client:** Lần theo đồ thị import bắc cầu: một import tĩnh đơn lẻ bên trong file tiện ích dùng chung có thể kéo theo các gói thư viện khổng lồ của bên thứ ba vào mọi entry point.
 - **Chia mã chiến lược (Code Splitting):** Phân tách mã tại các ranh giới tự nhiên của route hoặc tương tác (ví dụ: modal, bộ soạn thảo rich-text, biểu đồ, công cụ xuất file) bằng `import()` động thay vì chia chunk ngẫu nhiên.
-- **Loại bỏ mã chết (Tree-shaking) hiệu quả:** Đảm bảo các gói hỗ trợ cú pháp ES module (`sideEffects: false`) và tránh các file barrel (`index.ts` export hàng trăm module) làm vô hiệu hóa khả năng loại bỏ mã chết của bundler.
-- **Cạm bẫy chết người:** Import tĩnh các thư viện bên thứ ba nặng nề (như Moment.js, Lodash, thư viện xuất PDF, Chart.js) ở đầu file của các component hiếm khi hiển thị—làm ô nhiễm bundle trên đường dẫn tới hạn (critical path) của 100% người dùng.
+- **Tree-shaking dựa trên bằng chứng:** Dùng cú pháp module và cấu hình bundler phù hợp; chỉ đặt `sideEffects: false` khi các module thực sự không có side effect cần giữ. CSS import, polyfill và mã đăng ký toàn cục có thể cần được khai báo là có side effect. Đánh giá barrel file qua sản phẩm build thực tế thay vì mặc định mọi re-export đều làm tree-shaking thất bại.
+- **Rủi ro cần đo:** Một import tĩnh từ tính năng ít dùng có thể kéo thêm dependency vào bundle khởi động nếu graph và cách bundler chia chunk dẫn tới điều đó. Cần xem output build thay vì mặc định ảnh hưởng 100% người dùng.
 
 <TermBox term="Đồ thị phụ thuộc client">
 **Đồ thị phụ thuộc client** là tập module bắc cầu mà một entry point phía browser có thể chạm tới qua các import. Một component rất nhỏ vẫn có thể kéo một library lớn vào browser nếu import chain của nó đi tới library đó.
@@ -350,7 +350,7 @@ Không. Defer chart là ứng viên mạnh vì capability này tùy chọn, như
 
 ## Sources
 
-Tài liệu chính được kiểm chứng vào **2026-09-16**:
+Tài liệu chính được kiểm chứng vào **2026-11-05**:
 
 - [React — `lazy`](https://react.dev/reference/react/lazy)
 - [React — Build a React app from Scratch: Code-splitting](https://react.dev/learn/build-a-react-app-from-scratch#code-splitting)

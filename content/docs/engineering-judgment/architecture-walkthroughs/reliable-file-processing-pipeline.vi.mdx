@@ -4,7 +4,7 @@ description: Theo dấu một tệp từ quyền tải lên có phạm vi hẹp 
 category: engineering-judgment
 level: advanced
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - cloud
@@ -39,11 +39,11 @@ concepts:
 
 ## Tình huống thực chiến & TL;DR
 
-Một người dùng tải lên tệp video 4K dung lượng 2.5 GB. Máy chủ API ứng dụng tiếp nhận request dạng `multipart/form-data` và cố gắng nạp (buffer) toàn bộ luồng byte vào bộ nhớ RAM của tiến trình. Cùng lúc đó, chỉ cần thêm 2-3 người dùng khác thực hiện thao tác tương tự, mức tiêu thụ bộ nhớ chạm đỉnh trần. Bộ điều phối Out-Of-Memory (OOM Killer) của hệ điều hành ngay lập tức can thiệp và cưỡng chế tắt tiến trình API. Toàn bộ container rơi vào vòng xoáy crash loop, hàng loạt kết nối HTTP đang phục vụ người dùng khác bị ngắt đột ngột, kéo theo sự cố gián đoạn dịch vụ diện rộng (cascading outage). Trong khi đó, các mảnh dữ liệu tải dở dang bị bỏ rơi âm thầm tích lũy trong kho lưu trữ, đẩy chi phí hạ tầng tăng vọt.
+**Tình huống minh họa (giả định):** Một API tải tệp lớn dùng `multipart/form-data` nhưng nạp toàn bộ tệp vào RAM trước khi xử lý. Khi nhiều tệp lớn đến đồng thời, mức sử dụng bộ nhớ có thể vượt giới hạn tiến trình, khiến request và các tác vụ khác thất bại. Vấn đề không nằm ở việc byte đi qua API trong mọi trường hợp, mà ở cách xử lý không giới hạn kích thước, bộ nhớ và số lần xử lý đồng thời.
 
-Biến máy chủ ứng dụng thành trạm trung chuyển byte thô (byte relay) cho các tệp khổng lồ là một sai lầm kiến trúc nghiêm trọng. Một pipeline xử lý tệp chuẩn production bắt buộc phải chuyển hướng luồng tải trực tiếp lên kho đối tượng (như Amazon S3) qua presigned URL có phạm vi hẹp, xử lý tệp theo dạng luồng (streaming) hoặc chia chunk bất đồng bộ trong ngân sách RAM hữu hạn, điều phối worker qua hàng đợi bền vững kèm Dead-Letter Queue (DLQ), và áp dụng cơ chế khử trùng lặp (idempotency) gắn chặt với phiên bản đối tượng bất biến.
+Với tệp lớn hoặc lưu lượng cao, tải trực tiếp lên kho đối tượng qua presigned URL thường giảm tải cho tầng API. Nếu API cần tiếp nhận dữ liệu vì yêu cầu kiểm tra hoặc tích hợp, có thể stream trong giới hạn rõ ràng; đồng thời thiết kế kiểm tra đầu vào, định danh phiên bản đối tượng, xử lý nền và phục hồi khi retry.
 
-> 💡 **Quy tắc bỏ túi:** Tuyệt đối không để dữ liệu tệp thô đi qua máy chủ API ứng dụng. Hãy cấp quyền tải lên trực tiếp thông qua presigned URL có phạm vi hẹp lên kho đối tượng (S3), xử lý tệp theo dạng luồng (streaming) trong ngân sách RAM giới hạn, và điều phối các worker xử lý nền thông qua hàng đợi bền vững có Dead-Letter Queue (DLQ) kèm cơ chế khử trùng lặp (idempotency) dựa trên phiên bản đối tượng bất biến.
+> 💡 **Quy tắc bỏ túi:** Với tệp lớn, ưu tiên upload trực tiếp lên object storage qua quyền có phạm vi và thời hạn phù hợp khi kiến trúc cho phép. Nếu tệp phải đi qua API, xử lý theo luồng và đặt giới hạn kích thước, RAM, tốc độ cùng concurrency. Dù chọn cách nào, worker cần xác minh định danh phiên bản đối tượng, giữ đầu vào trong vùng cách ly khi cần và xử lý retry an toàn.
 
 ### TL;DR
 
@@ -51,7 +51,7 @@ Biến máy chủ ứng dụng thành trạm trung chuyển byte thô (byte rela
 - **Ràng buộc công việc xử lý vào phiên bản đối tượng bất biến:** Liên kết job của worker nền với `asset_id`, định danh thế hệ/phiên bản đối tượng và mã băm kiểm tra (checksum) thay vì khóa lưu trữ có thể bị ghi đè, loại bỏ hoàn toàn tình huống chạy nhầm dữ liệu do thông báo sự kiện đến chậm.
 - **Xử lý dạng luồng (streaming) và cô lập tệp trong vùng cách ly:** Đặt ngân sách RAM và đĩa tạm chặt chẽ cho từng worker bằng cách đọc luồng thay vì nạp toàn bộ gigabyte vào bộ nhớ; giữ tệp mới tải trong vùng cách ly (quarantine) cho đến khi vượt qua khâu kiểm tra kích thước, chữ ký tệp và quét mã độc.
 - **Kiểm soát áp lực hệ thống bằng giới hạn song song (bounded concurrency):** Điều chỉnh quy mô cụm worker dựa trên tuổi của công việc trong hàng đợi (queue age), thông lượng và mức bão hòa tài nguyên thay vì chỉ đếm số lượng việc tồn đọng, ngăn chặn nguy cơ làm sập cơ sở dữ liệu và các dịch vụ chuyển đổi phía sau.
-- **Cạm bẫy chết người:** Nạp toàn bộ tệp nhiều gigabyte vào bộ nhớ RAM của web worker hoặc dùng chung một đường dẫn lưu trữ có thể thay đổi (`uploads/current.file`) làm định danh xử lý — cách làm này dẫn đến lỗi sập tiến trình do cạn RAM (OOM) và làm sai lệch dữ liệu âm thầm khi thông báo sự kiện đến muộn xử lý đè lên dữ liệu của tệp mới hơn.
+- **Rủi ro cần tránh:** Nạp toàn bộ tệp nhiều gigabyte vào RAM hoặc dùng một object key có thể bị ghi đè làm định danh xử lý khiến hệ thống dễ OOM và xử lý nhầm dữ liệu khi thông báo đến muộn; mức độ xảy ra phụ thuộc tải và giới hạn cấu hình.
 
 ## Mục tiêu hệ thống và các ràng buộc
 

@@ -4,7 +4,7 @@ description: Vận hành backend chống chịu bằng phân loại dependency, 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -34,9 +34,9 @@ concepts:
 
 ## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Vào lúc 14:15 ngày Black Friday, service gợi ý sản phẩm cá nhân hóa (recommendations)—một tính năng phụ không bắt buộc—bị nghẽn Garbage Collection, khiến độ trễ phản hồi p99 tăng vọt từ 50 ms lên 12 giây. Tại tầng API Gateway, mọi request xem chi tiết sản phẩm và thanh toán đều đang gọi đồng bộ sang service này. Do gateway sử dụng chung một connection pool duy nhất cho mọi dịch vụ ngoài mà không có vách ngăn cô lập, toàn bộ worker thread của gateway nhanh chóng bị giam cầm trong trạng thái chờ socket. Chỉ sau 90 giây, tất cả 500 thread của API Gateway kẹt cứng hoàn toàn. Gateway không thể nhận thêm bất kỳ kết nối mới nào: trang chủ sập, tìm kiếm tê liệt, và chức năng thanh toán hoàn toàn bất khả dụng. Một tính năng phụ đã kéo sập toàn bộ sàn thương mại điện tử.
+**Tình huống minh họa (giả định):** Một dịch vụ gợi ý sản phẩm không bắt buộc phản hồi chậm, nhưng gateway vẫn chờ nó trong luồng xem sản phẩm và thanh toán. Khi timeout quá dài, tài nguyên dùng chung không được cô lập và số request đồng thời tăng, độ trễ từ dependency có thể làm cạn pool và ảnh hưởng cả những chức năng quan trọng. Các số liệu như p99, số thread hoặc thời gian lan truyền cần lấy từ đo đạc thực tế, không nên coi là đặc điểm mặc định của mô hình này.
 
-Thảm họa này chính là hiện tượng sập đổ dây chuyền (cascading failure) kinh điển trong kiến trúc phân tán. Khi service gọi phía trên kiên nhẫn chờ đợi vô hạn một dependency đang hấp hối phía dưới, sự chậm trễ cục bộ sẽ nhanh chóng lây nhiễm qua ranh giới mạng, vắt kiệt connection pool, thread pool và bộ nhớ. Thiết kế service có sức chống chịu (service resilience) không phải là ảo tưởng rằng hệ thống phụ trợ sẽ không bao giờ lỗi; mà là đảm bảo rằng khi một dependency gặp sự cố, bán kính thiệt hại (blast radius) phải được khống chế tuyệt đối. Kiến trúc kiên cường sử dụng Circuit Breaker (ngắt mạch) để fail-fast ngừng gọi vô ích, Bulkhead (vách ngăn khoang tàu) để cô lập tài nguyên, và Fallback (phương án dự phòng có kiểm soát) để duy trì nghiệp vụ sống còn.
+Khả năng chống chịu nghĩa là xác định ranh giới lỗi, chia ngân sách thời gian, giới hạn concurrency, cô lập tài nguyên cho dependency tùy chọn và chỉ dùng fallback khi ngữ nghĩa nghiệp vụ cho phép. Circuit breaker, retry budget và load shedding là công cụ phải cấu hình theo tải thật, không phải bộ mẫu bảo đảm hệ thống không bao giờ lỗi.
 
 Trình tự vận hành chuẩn mực:
 
