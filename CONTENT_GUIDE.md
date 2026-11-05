@@ -255,6 +255,16 @@ Decision guides should emphasize constraints and comparison. Architecture walkth
 
 ## Writing style
 
+### Incidents, evidence and editorial tone
+
+- **Mark illustrative situations honestly.** If an outage, timing number, cost multiple, conversion rate or team narrative was invented for teaching, label it *illustrative / hypothetical* (or *tình huống minh họa / giả định*). A dated or named production incident must link to a trustworthy original report where practical.
+- **Do not make hypotheticals sound like case studies.** Choose only the numbers needed to demonstrate a mechanism. Keep examples plausible and avoid fabricated precision, sensational consequences or emotionally charged details that do not change the reasoning.
+- **Use scoped rather than absolute advice.** Phrases such as *always*, *never*, *100%*, *must* and their Vietnamese counterparts require a genuine specification guarantee or an explicitly stated operational boundary. Put qualifying conditions next to the claim.
+- **Write Vietnamese for Vietnamese readers.** Preserve technical terms and identifiers when they provide precision, but write ordinary explanatory clauses naturally; avoid piling English verbs and nouns into Vietnamese syntax.
+- **Preserve bilingual learning-outcome parity.** EN and VI should provide equivalent important models, API/runtime qualifications, examples and exercises, without requiring equal file length or sentence-by-sentence translation.
+- **Audit the teaching path, not just completeness.** Begin with a minimal, checkable example or clear decision; introduce terminology and edge cases only when useful. Avoid duplicate TL;DR blocks and excessive incident preambles.
+- **Treat each reviewed pair as unfinished until verified.** Passing metadata checks and fixing prominent examples are not an end-to-end factual/editorial audit. Record scope, evidence and remaining gaps in the PR; use [the remediation register](./docs/content-quality-remediation.md) to track complete review.
+
 - Lead with the useful rule, then explain why.
 - Prefer concrete nouns and verbs over jargon.
 - Define terms before depending on them.
