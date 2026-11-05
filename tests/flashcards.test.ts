@@ -78,7 +78,8 @@ describe('Flashcards Extraction Engine', () => {
     expect(ruleCard.quote).toContain('`.finally()` cũng trả về Promise mới');
 
     expect(incidentCard.badge).toBe('Thực tế Production');
-    expect(incidentCard.content).toContain('thẻ từ chối');
+    expect(incidentCard.content).toContain('dịch vụ thanh toán');
+    expect(incidentCard.content).toContain('`.catch()`');
 
     expect(pitfallCard.badge).toBe('Cạm bẫy chết người');
     expect(pitfallCard.title).toContain('Lỗi bị nuốt trọn');
