@@ -42,6 +42,18 @@ jobs:
       - name: Test lesson contracts and content freshness
         run: pnpm test
 
+      - name: Inventory all substantive English/Vietnamese lessons
+        run: pnpm audit:content
+
+      - name: Publish content triage inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-content-inventory
+          path: .audit/content-inventory.*
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Lint
         run: pnpm lint
 
