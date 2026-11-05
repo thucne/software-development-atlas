@@ -35,9 +35,9 @@ concepts:
 
 ## TL;DR
 
-On a major launch day, an e-commerce checkout page experiences inexplicable 1.2-second latency spikes for first-time shoppers, while recurring users finish checkout in under 80ms. The team suspects slow database queries, but distributed APM traces reveal database time is under 15ms. The real bottleneck? An unpooled cold-request cascade: full recursive DNS lookup, TCP 3-way handshake, TLS 1.3 negotiation, and edge cache misses occurring on every unpooled API fetch.
+**Illustrative scenario (hypothetical):** A checkout page is slower for first-time visitors than for returning visitors. Application traces show little time in the database, prompting the team to inspect cache behavior, connection reuse and network setup. DNS, TCP/TLS/QUIC setup and intermediate caches can contribute different costs depending on the request path; do not assume a fresh DNS lookup or handshake happens for every call to `fetch()`.
 
-> 💡 **Rule of thumb:** **An HTTP request is a semantic exchange, not an automatic network connection.** A single request may complete in 0ms inside local memory (cache hit), traverse an existing persistent socket in 1-RTT, or incur multiple round trips across DNS, TCP, and TLS if connections are unpooled.
+> 💡 **Rule of thumb:** **An HTTP request is a semantic exchange, not automatically a new network connection.** A request can be satisfied locally by a fresh cache entry, use an existing connection, or require network and security setup. Which path occurs depends on cache state, connection reuse, transport protocol and deployment—not a single fixed number of round trips.
 
 - **Semantic contract vs. transport pipe:** HTTP standardizes request/response semantics (RFC 9110); transport layers (TCP, TLS, QUIC/UDP) provide the underlying byte stream.
 - **Four request path archetypes:** Paths branch early: fresh client cache hit (zero network), warm connection reuse (zero handshake), intermediary CDN hit (zero origin compute), or full cold setup.
