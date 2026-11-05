@@ -4,7 +4,7 @@ description: "Understand SSO and identity federation by separating application s
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [authentication, sso, federation, oidc, saml, cas]
 prerequisites: [authentication-and-authorization, oauth-and-oidc]
@@ -193,6 +193,8 @@ The application or API still owns questions such as:
 
 A successful SSO login is not a business authorization decision.
 
+**Logout is not an atomic transaction across applications.** Clearing App A's cookie does not automatically revoke the IdP session, App B's session, or already issued access tokens. OIDC front-/back-channel logout and SAML logout depend on participant support, protocol configuration and notification delivery; an offline RP can retain local state. Document whether “Sign out” means one application session or a best-effort coordinated logout.
+
 ## 9. Logout has multiple scopes
 
 “Logout” can mean several different operations:
@@ -220,7 +222,7 @@ flowchart LR
   Q -->|Yes| N[Primary authentication may be required]
 ```
 
-## Production micro-scenario: “logout keeps logging me back in”
+## Illustrative scenario (hypothetical): repeated login after logout
 
 An employee clicks Logout in a frontend application. The app deletes only its local cookie and redirects to the home page. The next protected route starts OIDC login again. The OpenID Provider still has an active SSO session, so it immediately redirects back with a new authorization response and the app creates a new local session.
 

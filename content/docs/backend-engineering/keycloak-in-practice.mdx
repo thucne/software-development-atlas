@@ -4,7 +4,7 @@ description: "Map OAuth, OIDC, SSO, and authorization concepts onto Keycloak rea
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 120
 topics: [authentication, keycloak, oidc, sso, authorization, frontend]
 prerequisites: [oauth-and-oidc, sso-and-identity-federation]
@@ -24,7 +24,7 @@ Keycloak becomes much easier when you stop treating its Admin Console as a vocab
 
 A **realm** is a security domain. A **client** represents an application/service interacting with Keycloak. **Client scopes** and **protocol mappers** control what claims/roles appear in tokens and assertions. Realm/client roles are authorization inputs, not automatic permission checks in your business API.
 
-For a browser-only JavaScript application, Keycloak documents the client as public because browser code cannot keep client credentials confidential. The Keycloak JavaScript adapter uses OIDC, defaults to Authorization Code flow, and current documentation uses PKCE S256 by default.
+For browser-only JavaScript, configure a **public client**: a shipped bundle cannot keep a client secret confidential. The [current Keycloak JS adapter](https://www.keycloak.org/securing-apps/javascript-adapter) defaults to Standard (Authorization Code) flow with `pkceMethod: 'S256'`. This default is **adapter-version-dependent**, not a guarantee across all Keycloak releases or custom integrations; verify your installed version and configuration.
 
 > 💡 **Rule of thumb:** Configure Keycloak from the outside in: **realm trust boundary → client type and redirect origins → login flow → token contents → API validation → application authorization**.
 
@@ -127,6 +127,8 @@ For a SPA, the most common dangerous convenience is an overly broad redirect/ori
 Prefer exact or tightly bounded application origins and callbacks. Wildcards expand where authorization responses may be delivered and can turn unrelated application routing or hosting mistakes into token/code leakage paths.
 
 Keycloak's JavaScript adapter documentation explicitly recommends keeping `Valid Redirect URIs` and `Web Origins` as specific as possible.
+
+**Verify actual adapter behavior:** Across Keycloak server or `keycloak-js` upgrades, test effective `flow`, `pkceMethod` and registered redirect URIs rather than inferring them from a screenshot. PKCE does not turn a SPA into a confidential client. Resource APIs still validate access-token issuer/audience/purpose and apply per-object authorization.
 
 ## 5. Understand Keycloak JS without treating it as magic
 
@@ -253,7 +255,7 @@ A BFF architecture can keep OAuth tokens on the server side and give the browser
 
 Keycloak works with either shape. The choice is an application architecture decision, not a checkbox in Keycloak.
 
-## Production micro-scenario: the “admin” token crosses every boundary
+## Illustrative scenario (hypothetical): the admin token crosses boundaries
 
 A team creates one realm role named `admin`, leaves broad role scope enabled for multiple clients, and configures several APIs to accept any JWT signed by the realm. A frontend receives a token intended for one client and successfully calls an unrelated administrative API because that API checks only signature and the presence of `admin`.
 

@@ -4,7 +4,7 @@ description: "Xây dựng mô hình tư duy thân thiện với frontend về OA
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [authentication, oauth, oidc, browser-security, tokens, frontend]
 prerequisites: [authentication-and-authorization]
@@ -22,13 +22,13 @@ concepts:
 
 OAuth 2.0 là một **framework phân quyền**: nó cho phép một client nhận quyền hạn có giới hạn để gọi tài nguyên được bảo vệ. OpenID Connect (OIDC) bổ sung **lớp danh tính** để client biết ai vừa được xác thực. Hai chuẩn liên quan chặt chẽ nhưng không trả lời cùng một câu hỏi.
 
-Với ứng dụng chạy trên trình duyệt, hướng dẫn IETF hiện hành khuyến nghị **Authorization Code kết hợp PKCE**. Trình duyệt chuyển hướng tới authorization server, nhận một authorization code ngắn hạn rồi đổi code đó bằng verifier riêng cho transaction. Frontend bundle là **public client**: nó không thể giữ client secret một cách bí mật.
+Với public client chạy trong trình duyệt, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1.1) **yêu cầu PKCE** khi dùng Authorization Code; với confidential client, RFC khuyến nghị dùng PKCE. Đây là ràng buộc dành cho client trong protocol chứ không phải bằng chứng danh tính người dùng. Trình duyệt chuyển hướng tới authorization server, nhận một authorization code ngắn hạn rồi đổi code đó bằng verifier riêng cho transaction. Frontend bundle là **public client**: nó không thể giữ client secret một cách bí mật.
 
 > 💡 **Quy tắc bỏ túi:** Luôn tách bốn câu hỏi: **ai đã được xác thực, client nào xin quyền, access token dành cho resource server nào, và token đó đại diện cho quyền hạn gì**.
 
 - **OAuth tự thân không phải giao thức đăng nhập.** Nó ủy quyền truy cập; OIDC bổ sung ngữ nghĩa xác thực và ID Token.
 - **ID Token ≠ Access Token.** ID Token dành cho client; access token dành cho resource server.
-- **PKCE ràng buộc authorization code với client instance khởi tạo luồng.**
+- **PKCE ràng buộc code exchange với authorization request qua verifier riêng:** `S256` khiến attacker không thể suy ra verifier từ challenge. Nó **không xác thực danh tính của public client** và không thay cho kiểm tra issuer, redirect URI, audience hay quyền truy cập tài nguyên.
 - **Decode ≠ validate.** Đọc được JSON của JWT không chứng minh chữ ký, issuer, audience, expiry hay mục đích sử dụng.
 - **Sai lầm chí mạng:** Xem “có token hợp lệ” là “được phép truy cập object này”. Business authorization vẫn phải được thực thi tại API/resource boundary.
 
@@ -195,6 +195,8 @@ Client validate ID Token phải theo OIDC-specific validation, gồm issuer, aud
 
 Browser không nên tự phát minh mô hình bảo mật “decode rồi tin”.
 
+**Những biện pháp này có thể cùng bảo vệ một số loại tấn công.** [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1) cho phép dựa vào PKCE hoặc OIDC `nonce` để phòng CSRF trong điều kiện giao thức tương ứng được triển khai và kiểm tra đúng; nếu không, dùng `state` một lần gắn chắc với phiên trình duyệt. Khi client tích hợp **nhiều authorization server**, còn phải chống mix-up bằng issuer trong authorization response (`iss` theo RFC 9207) hoặc biện pháp tương đương. `state`, `nonce` và PKCE **không thay thế** issuer validation và exact redirect-URI matching.
+
 ## 8. `state`, `nonce` và PKCE giải quyết vấn đề khác nhau
 
 Ba giá trị này dễ bị nhớ chung là “random string”, nhưng vai trò khác nhau.
@@ -217,7 +219,7 @@ Tài liệu trình bày chúng theo thứ tự mức bảo mật giảm dần. B
 
 Hãy chọn architecture có chủ đích; đừng mặc định “SPA” đồng nghĩa “token phải nằm trong localStorage”.
 
-## Kịch bản production: ID Token bị gửi sang API
+## Tình huống minh họa (giả định): gửi ID Token sang API
 
 Đội frontend triển khai OIDC login và nhận cả ID Token lẫn access token. Vì cả hai đều trông như JWT, interceptor gửi ID Token trong `Authorization: Bearer ...` tới Orders API. API chỉ kiểm tra chữ ký đến từ trusted issuer rồi chấp nhận.
 
