@@ -4,7 +4,7 @@ description: Nhận diện consensus như bài toán điều phối để chọn
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, consensus, quorum, raft, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, distributed-replication]
@@ -18,19 +18,19 @@ concepts:
 
 # Đồng thuận phân tán: Thống nhất một lịch sử đã commit khi có lỗi
 
-Trong một cụm phân tán gồm 5 node gánh vác sổ cái dữ liệu trọng yếu, 2 node bất ngờ sập nguồn hoàn toàn sau một sự cố điện lưới trung tâm dữ liệu. 3 node còn lại vẫn liên tục nhận các lệnh ghi dồn dập từ client. Làm thế nào để 3 node này luôn đạt được sự đồng thuận tuyệt đối về một sự thật duy nhất của dữ liệu—không bế tắc (deadlock), không chia rẽ bè phái, và không bao giờ đánh mất một giao dịch đã chốt? Đó chính là bài toán cốt lõi của đồng thuận phân tán (consensus): xác lập sự thống nhất về một chuỗi trạng thái có thứ tự qua mạng bất đồng bộ, nơi các thành viên có thể chậm trễ hoặc lăn ra chết bất kỳ lúc nào.
+**Tình huống minh họa (giả định):** Trong cụm Raft 5 node, 2 node không liên lạc được. Ba node còn lại chỉ có thể commit nếu đủ quorum trao đổi và đáp ứng điều kiện bầu leader, kiểm tra log. Nếu mất quorum, thao tác ghi cần consensus phải dừng hoặc thất bại; node từng làm leader không có quyền bỏ qua giao thức.
 
-Đồng thuận bảo đảm các node độc lập **thống nhất một giá trị hoặc một lịch sử có thứ tự dù message bị trễ và một số node gặp lỗi**. Việc sao chép dữ liệu thô chỉ là điều kiện cần; hệ thống cần một bảo chứng toán học để khẳng định chân lý.
+Consensus bảo toàn **lịch sử đã commit** trong mô hình lỗi crash/partition được hỗ trợ, không bảo đảm mọi request luôn được phục vụ hoặc miễn nhiễm lỗi triển khai.
 
-> 💡 **Quy tắc bỏ túi:** Sao chép giúp phân tán dữ liệu, nhưng đồng thuận mới là thứ xác lập chân lý. Khi cụm mất quorum đa số, hãy chủ động dừng ghi (fail closed) ngay lập tức—tuyệt đối không bao giờ phá vỡ ranh giới commit để phục vụ các lệnh ghi ở nhánh thiểu số bị cô lập.
+> 💡 **Quy tắc bỏ túi:** Majority quorum giao nhau là điều kiện cần nhưng không phải toàn bộ bằng chứng safety. Raft còn có quy tắc bầu theo log mới nhất, log matching và current-term commit để bảo đảm leader mới giữ lịch sử đã commit.
 
 ## Tóm tắt
 
 - **Đồng thuận là thống nhất lịch sử đã commit; sao chép không tự động là đồng thuận:** Việc gửi các entry nhật ký sang follower chỉ là sao chép; giao thức đồng thuận (consensus) bắt buộc các node phải thống nhất xem lịch sử nào có thẩm quyền tối cao và thiết lập ranh giới commit không thể chối cãi.
-- **Giao thoa Quorum bảo đảm tính an toàn qua các nhiệm kỳ:** Cụm $N$ node cần một quorum đa số ($\lfloor N/2 \rfloor + 1$) để bầu leader hoặc chốt lệnh ghi. Vì hai tập đa số bất kỳ luôn giao nhau ít nhất một node, nhiệm kỳ mới luôn kế thừa trọn vẹn toàn bộ các mục log đã được commit trước đó.
-- **Bầu leader phân định quyền lực theo nhiệm kỳ logic (term/epoch):** Các giao thức như Raft dùng quy trình bầu cử leader và số nhiệm kỳ tăng đơn điệu để bảo đảm chỉ có một coordinator duy nhất được phép xếp thứ tự nhật ký sao chép tại một thời điểm.
+- **Quorum intersection đi kèm quy tắc Raft:** Hai majority có giao điểm, nhưng phép đếm không tự chứng minh leader mới chứa mọi entry đã commit. Quy tắc vote theo log, log matching và current-term commit mới hoàn thiện lập luận.
+- **Election theo term:** Node bị cô lập có thể vẫn tin mình là leader, nhưng không thể commit nếu thiếu quorum. Safety không yêu cầu mọi node đồng thời nhìn thấy cùng một leader duy nhất.
 - **An toàn (Safety) luôn xếp trên tiến triển (Liveness) khi phân vùng mạng:** Khi đứt mạng chia cắt cụm 5 node thành nhánh đa số (3 node) và nhánh thiểu số (2 node), nhánh đa số tiếp tục tiến triển còn nhánh thiểu số bắt buộc phải từ chối ghi để ngăn chặn phân kỳ lịch sử.
-- **Cạm bẫy chết người:** Đánh đồng một mục log vừa ghi đĩa cục bộ với một trạng thái đã commit. Nếu leader vừa append một entry vào log của mình rồi crash trước khi kịp đạt quorum xác nhận, entry đó chưa hề được commit và chắc chắn sẽ bị leader nhiệm kỳ mới đè bẹp và xóa sạch.
+- **Rủi ro:** Xem entry mới append cục bộ nhưng chưa commit là quyết định nghiệp vụ bền vững. Entry chưa commit **có thể bị ghi đè** sau khi leader đổi; chỉ trả thành công khi đạt điều kiện commit.
 
 ```mermaid
 flowchart LR
@@ -125,6 +125,8 @@ Một entry **chưa commit / uncommitted** có thể biến mất hoặc bị gh
 
 Tài liệu failure hiện tại của etcd minh họa đúng boundary này: sau leader failure, write đã gửi nhưng chưa commit có thể mất, trong khi write đã committed được consensus rule bảo toàn.
 
+**Giao nhau không đủ để kết luận commit.** [Bài báo Raft](https://pdos.csail.mit.edu/6.824/papers/raft-extended.pdf) cho thấy entry của nhiệm kỳ trước có thể đã nằm trên đa số node nhưng vẫn không thể được leader coi là commit chỉ bằng phép đếm đó. Raft commit trực tiếp entry **nhiệm kỳ hiện tại** theo quorum, còn entry cũ commit gián tiếp qua log matching.
+
 ## Quorum intersection khiến hai majority không thể tách rời hoàn toàn
 
 Với majority quorum đơn giản, bất kỳ hai đa số hợp lệ nào cũng có ít nhất một member giao nhau.
@@ -218,7 +220,7 @@ Giữ các boundary này tách biệt:
 - delivery semantics mô tả xử lý message lặp hoặc bỏ sót;
 - business correctness phụ thuộc vào cách effect đi qua các boundary đó.
 
-## Kịch bản production: leader cũ bị cô lập vẫn nhận write cấu hình
+## Kịch bản minh họa (giả định): leader cũ tự nhận quyền commit
 
 Một control-plane service lưu routing configuration trong consensus group 5 member. Một network failure cô lập hai member, bao gồm leader cũ, khỏi ba member còn lại.
 
