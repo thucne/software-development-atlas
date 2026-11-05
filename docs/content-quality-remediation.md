@@ -8,6 +8,52 @@ Make every published English/Vietnamese lesson technically reliable, equally use
 
 **Baseline (2026-11-05, main):** 95 substantive English MDX lessons and 95 Vietnamese companions across 13 authored sections, not counting guides/navigation pages. The canonical map contains 128 concepts; published article count and concept coverage are *not* measures of quality. A structural sweep of the 95 VI pages is complete; a full claim-by-claim and code-example review is **not** complete.
 
+## Execution goal and measurable scorecard
+
+**North-star result:** a complete **95/95 audited English–Vietnamese lesson pairs**, each with an end-to-end record proving factual correctness, bilingual learning-outcome parity, editorial quality, source transparency, and verification. Work is not complete merely because a lesson was edited. Keep substantive depth intact.
+
+**Baseline recorded November 05, 2026:**
+
+| Metric | Current baseline | Completion target |
+| --- | ---: | ---: |
+| Published EN/VI lesson pairs | 95 | 95 reviewed |
+| Pairs with some partial correctness/editorial changes | 13 | 95 fully audited (not the same metric) |
+| Pairs with a complete per-pair audit and linked evidence | 0 verified | **95** |
+| Unresolved P0 correctness findings | Unknown until full sweep | **0** |
+| Automated GitHub Actions PR validation workflows | 0 at baseline | Reproducible checks configured and passing |
+| Release-level verification | Not performed for all prior PRs | Tests, lint, typecheck, build, and applicable E2E verified at final main commit |
+
+**Status:** open. No estimated finish date is implied; prioritize proven results over a rushed checkbox count. Previous partial changes: #113, #114, #115, #118; authoring-policy alignment: #117.
+
+### Delivery waves — exact per-lesson checklists on GitHub
+
+| Wave | Priority | Sections | Pairs | Work tracker |
+| --- | --- | --- | ---: | --- |
+| 1 · Correctness-critical systems | P0 | Backend, Distributed Systems, Data Systems, Security | 36 | [#119](https://github.com/thucne/software-development-atlas/issues/119) |
+| 2 · Runtime and platform contracts | P0/P1 | Cloud Infrastructure, Delivery Operations, Web Platform, Programming | 17 | [#120](https://github.com/thucne/software-development-atlas/issues/120) |
+| 3 · Client and verification quality | P1 | Frontend Engineering, Testing & Quality, AI-native Engineering | 22 | [#121](https://github.com/thucne/software-development-atlas/issues/121) |
+| 4 · Architecture and decisions | P1/P2 | Software Architecture, Engineering Judgment | 20 | [#122](https://github.com/thucne/software-development-atlas/issues/122) |
+| **Total** | | **All 13 authored sections** | **95** | [Master goal #116](https://github.com/thucne/software-development-atlas/issues/116) |
+
+Each wave includes the full pair-by-pair checklist. The 13 partially changed pairs are included, not excluded: they require full re-reading and verification just like the remaining 82.
+
+### Sequencing and PR contract
+
+1. **Enable reliable validation early:** establish a reproducible pull-request workflow for `pnpm test`, `pnpm lint`, `pnpm typecheck`, and `pnpm build`; run applicable `pnpm test:e2e` for UI-heavy lesson edits. Baseline repository has no GitHub Actions workflow.
+2. **Close correctness findings first:** review P0 systems content and remediate semantics, version/provider constraints, code/diagram mistakes and misleading absolute claims.
+3. **Review whole EN/VI pairs together:** small PRs of 2–5 related pairs are a review-friendly default, not a strict quota. In each PR, correct factual claims, restore parity, improve natural language, simplify teaching and source evidence together so one article is not endlessly reworked.
+4. **Review curriculum connections:** distinguish lessons with overlapping learning goals, check learning paths and crosslinks, and separately propose useful missing concepts. New lessons are not required simply to increase coverage statistics.
+5. **Run the final gate:** all 95 pair checklists closed with evidence; no unresolved P0 errors; required checks pass on the exact final main commit; report the outcomes and remaining non-blocking exceptions. Only then close master issue #116.
+
+### Final acceptance — must be demonstrated, not assumed
+
+- [ ] 95/95 lesson pairs audited end-to-end, with review evidence and source links in merged PRs or linked reports.
+- [ ] EN/VI outcomes, examples, caveats and exercises equivalent; language natural and clear for the stated audience.
+- [ ] All identified P0 technical defects resolved, with verified specs/provider behavior and tested consequential examples.
+- [ ] Incident and metric provenance clear: primary-source real-world evidence or explicitly labeled hypothetical examples.
+- [ ] All required validations executed and passing on the final commit; blocked or unrun checks prevent a completion claim.
+- [ ] Quality/report evidence reconciled in the [master checklist](https://github.com/thucne/software-development-atlas/issues/116), which is closed only after the wave trackers #119–#122 are complete.
+
 ## Definition of done (per EN/VI pair)
 
 - [ ] **Correctness:** review all prominent claims, rule-of-thumb statements, code, examples, tables and diagrams. Distinguish standards guarantees from provider behavior and conditional heuristics. Reproduce consequential examples or cite a normative/primary source; resolve every identified factual error in **both** languages.
