@@ -4,7 +4,7 @@ description: Operate transactional outbox pipelines by committing business state
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, transactional-outbox, messaging, transactions, reliability]
 prerequisites: [database-transactions, message-queues, delivery-semantics, idempotency]
@@ -18,18 +18,18 @@ concepts:
 
 # Transactional Outbox: Publish Events Without a Dual-Write Gap
 
-During a high-traffic flash sale, an e-commerce checkout handler processes a customer's payment webhook. The application marks the order as `PAID` in PostgreSQL, commits the transaction, and prepares to call `messageBroker.publish('OrderPaid')`. But right in the 3-millisecond window between the database commit and the network call, the container runtime kills the pod due to an out-of-memory (OOM) eviction. The database durably records the customer's payment, but the event vanishes into thin air. Fulfillment never packs the order, inventory counts drift, and furious customers bombard support demanding their merchandise. The system state has been torn in half by a **dual-write gap**.
+**Illustrative scenario (hypothetical):** An application commits an order as `PAID` in PostgreSQL, then stops before it calls the broker to publish `OrderPaid`. The database is correct locally, but no durable publication intent exists for recovery. Fulfillment may never learn that the order was paid. The alleged flash sale and three-millisecond gap are not reported incident measurements.
 
-When an operation must both update internal database state and notify the outside world, executing them as two independent calls across network boundaries makes partial failure inevitable.
+A **transactional outbox** stores business state and the intent to publish inside **one local database transaction**. A relay publishes after commit. This closes the application's uncoordinated dual-write gap; it does not guarantee exactly-once processing by a broker or external consumer.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** You cannot achieve atomicity across two independent storage engines without distributed transactions. Instead of reaching for fragile 2PC coordination, commit the business state and the publication intent into the same local database transaction, and let an asynchronous relay handle message dispatch.
+> 💡 **Rule of thumb:** For a database change followed by broker publication, consider an outbox so the business state and **durable publication intent** commit in one local transaction. A relay publishes later and can retry or publish duplicates; consumers need idempotency or reconciliation. This is not a distributed transaction between the database and broker.
 
 - **The dual-write gap** is an inevitable failure mode whenever an application attempts two uncoordinated writes (e.g., database commit and message broker publish); one can always succeed while the other fails.
-- **Transactional outbox guarantees atomicity locally:** By persisting business data mutations and an **outbox record containing the publication intent in the same database transaction**, both succeed or roll back together.
-- **Asynchronous relaying decouples latency:** A dedicated background worker—either a database poller leveraging `SELECT ... FOR UPDATE SKIP LOCKED` or a Change Data Capture (CDC) engine like Debezium—relays committed outbox rows to the broker outside the user request lifecycle.
-- **At-least-once delivery requires idempotency:** Because relay retries and network hiccups can cause duplicate publications, downstream message consumers must enforce idempotency using stable event IDs.
+- **Atomicity is local to the database:** The business change and outbox record commit or roll back together if they share one database transaction. Broker delivery, consumer effects and third-party operations remain independent failure boundaries.
+- **The relay is an operational subsystem:** Polling workers or CDC such as Debezium publish committed rows. This removes synchronous broker publication from the request path but does not eliminate outbox-write latency, relay retries, backlog or monitoring costs.
+- **Publication can repeat:** Relay retries and crashes can cause duplicate messages; consumers need stable event identities and a business-effect idempotency or reconciliation strategy within their own boundaries.
 - **Fatal pitfall:** Reversing the write sequence—publishing to the broker *before* committing the database transaction—creates disastrous "phantom events", causing downstream systems to ship goods or charge money for orders whose database transactions ultimately roll back.
 
 ```mermaid
@@ -196,7 +196,7 @@ For observability, at minimum track:
 
 The oldest-event age is often more actionable than backlog count alone: ten records stuck for two hours can be worse than ten thousand records draining normally.
 
-## Production micro-scenario: payment committed, event disappeared
+## Illustrative scenario (hypothetical): payment committed, event absent
 
 A checkout service updates `orders.status = 'PAID'`, commits, then publishes `OrderPaid` to a broker. During a deploy, the process is terminated in the few milliseconds after the database commit but before the publish call executes.
 
@@ -212,6 +212,13 @@ A checkout service updates `orders.status = 'PAID'`, commits, then publishes `Or
 Publishing before the database commit only inverts the failure. A rollback can leave downstream systems acting on an event whose business state never became durable. The outbox works because the atomic boundary is reduced to one local database transaction, while communication becomes recoverable asynchronous work.
 
 </details>
+
+
+### Polling and CDC relays have different outbox-table contracts
+
+A **polling relay** may own row status or claim leases and update rows after publication, depending on its database transaction and lease design. The **Debezium Outbox Event Router** expects the outbox table to be **insert-oriented**; `UPDATE` operations may trigger the configured `table.op.invalid.behavior` warning/error handling. Do not apply a polling worker's update-in-place row-state design unchanged to a table consumed by Debezium's outbox SMT.
+
+See [Debezium Outbox Event Router](https://debezium.io/documentation/reference/transformations/outbox-event-router.html). The event ID can be emitted into a header and an aggregate ID can be used as a partitioning key; neither makes external side effects atomic.
 
 ## Polling versus CDC
 

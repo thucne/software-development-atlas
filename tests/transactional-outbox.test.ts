@@ -37,7 +37,7 @@ describe('Transactional Outbox lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: operate');
       expect(source, relativePath).toMatch(/concepts:\n  - transactional-outbox\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-09-17');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
 
       const termBoxes = (source.match(/<TermBox/g) ?? []).length;
       expect(termBoxes, relativePath).toBeGreaterThanOrEqual(2);
