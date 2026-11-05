@@ -4,7 +4,7 @@ description: Operate accessible web interfaces with semantic HTML, accessible na
 category: frontend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [frontend, accessibility, html, ux]
 prerequisites: [component-boundaries, frontend-bundle-performance]
@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-A financial services firm redesigns its web checkout with sleek, borderless custom dropdowns built from `<div>` tags and `onClick` handlers. The next month, the company receives a civil rights accessibility lawsuit: screen reader users cannot find or activate the checkout trigger, keyboard-only power users get trapped in an un-focusable modal loop, and form validation errors only highlight input borders in light red without text descriptions or live region announcements. A ten-minute manual audit with `Tab` and VoiceOver could have prevented months of legal liability.
+**Illustrative scenario (hypothetical):** A checkout flow uses clickable `<div>` elements, fails to manage dialog focus and communicates validation errors only through border color. Keyboard and screen-reader users may be unable to complete checkout. This demonstrates an accessibility failure to test with keyboard workflows, assistive technology and relevant WCAG criteria; it is not a reported legal case.
 
-> 💡 **Rule of thumb:** **Use semantic HTML first; ARIA is a supplement, not a substitute for native controls.** If a native `<button>`, `<input>`, or `<dialog>` element exists, use it. Native controls give you keyboard navigation (`Space`, `Enter`, arrows), accessible names, focus states, and screen reader announcements for free without custom ARIA emulation.
+> 💡 **Rule of thumb:** **Prefer semantic native HTML over recreating controls with ARIA.** A native `<button>` provides button semantics and keyboard activation; composite widgets such as menus and listboxes still have specific arrow-key patterns, while dialogs require appropriate focus behavior. Native HTML does not automatically supply every keyboard pattern or correct labeling in every context.
 
 - **Semantic HTML baseline:** Native elements provide built-in focusability, keyboard events, and accessible roles without custom JavaScript or synthetic event handlers.
 - **Accessible name & description:** Ensure every interactive control has an unambiguous accessible name via visible text, `<label for>`, or `aria-label`/`aria-labelledby`.
 - **Keyboard operability & visible focus:** Ensure every user flow is fully operable using only the keyboard (`Tab`, `Shift+Tab`, `Enter`, `Escape`), with visible focus indicators and modal focus management.
 - **Perceivable forms & live regions:** Associate error messages with inputs using `aria-describedby` and `aria-invalid`; announce dynamic async updates with `aria-live="polite"` or `role="status"`.
-- **Fatal pitfall:** Building interactive controls out of non-semantic tags (`<div onClick={...}>`) without `tabIndex="0"`, keyboard listeners, or accessible labels—rendering critical features completely invisible and inoperable to assistive technology users.
+- **Common failure mode:** A clickable `<div>` lacks the native role, focus behavior and keyboard activation of a real button. Adding an isolated `tabindex` or ARIA role does not implement the full interaction contract; verify real keyboard and assistive-technology behavior.
 
 <TermBox term="Accessible name">
 An **accessible name** is the text assistive technology uses to identify a control or region. It can come from visible text, a `<label>`, `aria-labelledby`, or in narrower cases `aria-label`. A control that looks obvious visually can still be unusable if its accessible name is missing or misleading.
@@ -308,7 +308,7 @@ No. ARIA exposes semantics and state, but the role also implies an interaction c
 
 ## Sources
 
-Primary guidance verified on **2026-09-16**:
+Primary guidance verified on **2026-11-05**:
 
 - [W3C — Web Content Accessibility Guidelines (WCAG) 2.2](https://www.w3.org/TR/WCAG22/)
 - [W3C WAI — What's New in WCAG 2.2](https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/)

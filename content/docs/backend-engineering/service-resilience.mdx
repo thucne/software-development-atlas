@@ -4,7 +4,7 @@ description: Operate resilient backend services by classifying dependencies, bud
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -34,9 +34,9 @@ concepts:
 
 ## TL;DR & Production Incident Hook
 
-At 2:15 PM on Black Friday, a non-critical personalization recommendation service in a major e-commerce platform begins experiencing severe garbage collection pauses, causing its p99 response latency to degrade from 50 ms to 12 seconds. Every product detail page and checkout request in the upstream API Gateway synchronously waits for these recommendations. Because the gateway uses a single shared HTTP connection pool without isolation, outbound worker threads quickly become tied up waiting on stalled recommendation sockets. Within 90 seconds, all 500 worker threads in the API Gateway are completely saturated. The gateway stops accepting new connections: homepages freeze, search fails, and checkout is completely down. A minor, optional feature brought down the entire e-commerce empire.
+**Illustrative scenario (hypothetical):** A non-critical recommendation service becomes slow while upstream checkout and product routes synchronously depend on it. Without bounded waits and isolation, stalled requests may saturate shared pools and affect critical paths. The actual p99, worker count and propagation time depend on the implementation and workload; no single incident metric is inherent to this pattern.
 
-This disaster is the classic anatomy of a cascading failure in distributed systems. When upstream callers wait indefinitely on degraded downstream dependencies, local slowdowns metastasize across network boundaries, exhausting finite thread pools, database connections, and memory. Building resilient backend services does not mean praying that remote dependencies never fail; it means ensuring that when an external dependency inevitably stumbles, the blast radius is strictly contained. Resilient architectures deploy Circuit Breakers to fail fast and stop futile calls, Bulkheads (compartmentalized resource pools) to isolate capacity, and graceful Fallbacks to preserve core business functionality.
+Resilience means making failure boundaries explicit, allocating end-to-end time budgets, bounding concurrency, isolating optional dependencies and using fallback only when business correctness permits. Circuit breakers, retry budgets and load shedding are conditional mechanisms that must be validated under real traffic, not guarantees of zero outages.
 
 Use this operational sequence:
 

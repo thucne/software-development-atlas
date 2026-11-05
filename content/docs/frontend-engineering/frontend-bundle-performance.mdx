@@ -4,7 +4,7 @@ description: Reason about frontend bundle performance through client dependency 
 category: frontend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [frontend, performance, javascript, bundling]
 prerequisites: [hydration, server-and-client-components, component-boundaries]
@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-A frontend team ships a "minor release" adding an export-to-PDF button inside an account settings modal. The next day, Google Search Console alerts of catastrophic Core Web Vitals regressions (INP spikes to 650ms, LCP degrades by 2.8s), causing a 35% drop in organic search conversions. A bundle analyzer reveals that a top-level `import { pdfGenerator } from 'heavy-pdf-lib'` in the modal file dragged 1.4MB of un-tree-shaken font metrics and canvas dependencies into the main critical bundle for *every single visitor on every route*. The root cause? Top-level static imports of conditional features that contaminated the client dependency graph.
+**Illustrative scenario (hypothetical):** A team adds an occasionally used PDF export feature. A production bundle analysis suggests PDF dependencies may have entered the startup path for some routes, so the team measures transferred bytes, JavaScript execution and the feature's loading boundary. A static import alone does not prove every route ships the same chunk or establish a particular conversion-rate change.
 
 > 💡 **Rule of thumb:** **The fastest JavaScript is the code the browser never downloads, parses, or compiles.** Byte transfer over the network is only half the cost—parsing and executing JavaScript on the main thread consumes CPU and blocks user interaction (INP). Keep conditional features behind dynamic imports (`React.lazy`, `import()`) and enforce CI bundle budgets.
 
 - **Total cost of JavaScript:** Download bytes (brotli/gzip transfer) is only phase one; decompression, AST parsing, bytecode compilation, and main-thread execution on mobile CPUs dominate total user latency.
 - **Client dependency graph discipline:** Track the transitive import graph: a single static import inside a shared utility file can pull massive third-party packages into every entry point.
 - **Strategic code splitting:** Split code at natural route and interaction boundaries (e.g. modals, rich text editors, charts, export tools) using dynamic `import()` rather than arbitrary chunk slicing.
-- **Effective tree-shaking:** Ensure packages support ES module syntax (`sideEffects: false`) and avoid barrel files (`index.ts` re-exporting hundreds of modules) that defeat bundler dead-code elimination.
-- **Fatal pitfall:** Top-level static imports of heavy third-party libraries (e.g. Moment.js, Lodash, PDF engines, Chart.js) inside components that are rarely rendered—poisoning the critical path bundle for 100% of website users.
+- **Effective tree-shaking requires correct side-effect metadata:** ESM helps static analysis, but set `sideEffects: false` only when those modules truly have no required side effects. CSS imports and global registrations may need exceptions; check production output before treating a barrel re-export as a proven optimization blocker.
+- **Measured pitfall:** A static import can bring rarely used code into startup bundles depending on the dependency graph and bundler configuration. Verify actual route chunks before claiming every visitor downloads it.
 
 <TermBox term="Client dependency graph">
 The **client dependency graph** is the transitive set of modules that a browser-facing entry point can reach through imports. A tiny component can still pull a large library into the browser if its import chain crosses into that library.
@@ -350,7 +350,7 @@ No. Deferring the chart is a strong candidate because the capability is optional
 
 ## Sources
 
-Primary references verified on **2026-09-16**:
+Primary references verified on **2026-11-05**:
 
 - [React — `lazy`](https://react.dev/reference/react/lazy)
 - [React — Build a React app from Scratch: Code-splitting](https://react.dev/learn/build-a-react-app-from-scratch#code-splitting)

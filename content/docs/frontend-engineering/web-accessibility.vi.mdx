@@ -4,7 +4,7 @@ description: Vận hành giao diện web có khả năng truy cập bằng HTML 
 category: frontend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [frontend, accessibility, html, ux]
 prerequisites: [component-boundaries, frontend-bundle-performance]
@@ -20,15 +20,15 @@ concepts:
 
 ## TL;DR
 
-Một công ty dịch vụ tài chính thiết kế lại trang thanh toán bằng các dropdown tùy biến làm hoàn toàn bằng thẻ `<div>` và sự kiện `onClick`. Tháng sau, công ty đối mặt với đơn kiện vi phạm quyền tiếp cận thông tin: người dùng khiếm thị dùng trình đọc màn hình không thể tìm thấy nút thanh toán, người dùng điều hướng bằng bàn phím bị kẹt cứng trong modal không thể thoát ra, còn thông báo lỗi form chỉ đổi viền đỏ nhạt mà không hề có nhãn chữ hay thông báo động (live region). Chỉ mười phút kiểm thử thủ công bằng phím `Tab` và VoiceOver đã có thể ngăn chặn rủi ro pháp lý kéo dài nhiều tháng.
+**Tình huống minh họa (giả định):** Một trang thanh toán dùng phần tử `<div>` với `onClick` để làm nút bấm, trong khi hộp thoại không quản lý focus và thông báo lỗi biểu mẫu chỉ đổi màu viền. Người dùng điều khiển bằng bàn phím hoặc trình đọc màn hình có thể không hoàn tất được thanh toán. Đây là ví dụ về lỗ hổng thiết kế cần kiểm tra bằng bàn phím, công nghệ hỗ trợ và các tiêu chí WCAG phù hợp, không phải vụ kiện có thật.
 
-> 💡 **Quy tắc bỏ túi:** **Ưu tiên HTML ngữ nghĩa trước tiên; ARIA chỉ là phần bổ trợ, không thể thay thế control gốc.** Nếu phần tử HTML gốc (`<button>`, `<input>`, `<dialog>`) đã hỗ trợ, hãy dùng nó. Thẻ HTML gốc cung cấp miễn phí khả năng điều hướng bàn phím (`Space`, `Enter`, phím mũi tên), tên truy cập, quản lý focus và tương thích hoàn hảo với trình đọc màn hình mà không cần giả lập ARIA phức tạp.
+> 💡 **Quy tắc bỏ túi:** **Ưu tiên phần tử HTML ngữ nghĩa trước khi tự dựng control bằng ARIA.** `<button>` hỗ trợ focus và kích hoạt bằng bàn phím, còn các widget phức hợp như menu, listbox và hộp thoại vẫn cần kiểm tra đúng mô hình phím, focus và tên có thể truy cập. Native HTML không tự đảm bảo mọi mũi tên điều hướng hay mọi yêu cầu về quản lý focus.
 
 - **Nền tảng HTML ngữ nghĩa:** Các phần tử gốc cung cấp sẵn khả năng focus, sự kiện bàn phím và vai trò trợ năng chuẩn hóa mà không cần viết thêm JavaScript hay sự kiện giả lập.
 - **Tên và mô tả truy cập (Accessible Name & Description):** Đảm bảo mọi control tương tác đều có tên truy cập rõ ràng qua văn bản hiển thị, `<label for>`, hoặc thuộc tính `aria-label`/`aria-labelledby`.
 - **Khả năng vận hành bằng bàn phím & hiển thị focus:** Đảm bảo toàn bộ luồng tác vụ có thể thực hiện chỉ bằng bàn phím (`Tab`, `Shift+Tab`, `Enter`, `Escape`), giữ chỉ báo focus rõ ràng và bẫy focus trong modal.
 - **Biểu mẫu dễ cảm nhận & vùng live region:** Gắn kết thông báo lỗi với ô nhập liệu bằng `aria-describedby` và `aria-invalid`; thông báo các cập nhật dữ liệu động bằng `aria-live="polite"` hoặc `role="status"`.
-- **Cạm bẫy chết người:** Xây dựng các nút bấm hay menu bằng thẻ phi ngữ nghĩa (`<div onClick={...}>`) mà không có `tabIndex="0"`, thiếu lắng nghe phím bấm và nhãn trợ năng—khiến tính năng hoàn toàn vô hình và tê liệt đối với người dùng công nghệ hỗ trợ.
+- **Rủi ro chính:** Một `<div onClick={...}>` không tự có vai trò, tên, focus và hành vi bàn phím như nút bấm. Thêm `tabIndex` hoặc `role` riêng lẻ cũng chưa đủ; cần đúng hành vi tương tác và kiểm thử thực tế.
 
 <TermBox term="Accessible name">
 **Accessible name** là tên mà công nghệ hỗ trợ dùng để nhận diện control hoặc region. Nó có thể đến từ text hiển thị, `<label>`, `aria-labelledby` hoặc trong trường hợp hẹp hơn là `aria-label`. Một control nhìn rất rõ bằng mắt vẫn có thể không dùng được nếu tên có thể truy cập bị thiếu hoặc sai intent.
@@ -308,7 +308,7 @@ Không. ARIA expose semantics và state, nhưng role cũng kéo theo interaction
 
 ## Sources
 
-Nguồn chính được kiểm chứng vào **2026-09-16**:
+Nguồn chính được kiểm chứng vào **2026-11-05**:
 
 - [W3C — Web Content Accessibility Guidelines (WCAG) 2.2](https://www.w3.org/TR/WCAG22/)
 - [W3C WAI — What's New in WCAG 2.2](https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/)

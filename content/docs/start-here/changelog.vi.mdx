@@ -55,6 +55,14 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 - [Containers vs Serverless](/vi/docs/engineering-judgment/decision-guides/containers-vs-serverless): Phân biệt container và mô hình vận hành; thêm ràng buộc quyết định, kiến trúc kết hợp, trade-off và nguồn chính thức. Sửa khẳng định tuyệt đối về WebSocket và timeout theo sản phẩm.
 - [Vòng đời HTTP Request](/vi/docs/web-platform/http-request-lifecycle): Bổ sung tạo request, Fetch policy, các tầng trung gian, xử lý response, phương pháp điều tra và ngữ nghĩa retry. Ghi nhãn ví dụ giả định và tránh mặc định mỗi `fetch()` thiết lập kết nối mới.
 
+
+#### Tình huống minh họa và các khẳng định cần điều kiện
+- [Hiệu năng Bundle Frontend](/vi/docs/frontend-engineering/frontend-bundle-performance): Ghi rõ tình huống giả định, bỏ tỷ lệ hiệu năng/chuyển đổi không có nguồn và cảnh báo chỉ dùng `sideEffects: false` khi an toàn.
+- [Khả năng truy cập Web](/vi/docs/frontend-engineering/web-accessibility): Bỏ ví dụ vụ kiện không có nguồn; làm rõ phần tử HTML gốc không tự giải quyết mọi yêu cầu phím mũi tên và quản lý focus.
+- [Luồng xử lý tệp tin cậy](/vi/docs/engineering-judgment/architecture-walkthroughs/reliable-file-processing-pipeline): Tách hướng dẫn direct-to-object-storage cho file lớn khỏi trường hợp API proxy có streaming và giới hạn tài nguyên.
+- [Khả năng chống chịu của service](/vi/docs/backend-engineering/service-resilience): Chuyển sự cố với số liệu cụ thể thành tình huống giả định; nhấn mạnh ngân sách thời gian và cô lập có điều kiện.
+- [Vòng lặp kiểm chứng](/vi/docs/ai-native-engineering/verification-loops-and-machine-checkable-guardrails): Phân biệt CI xanh với bằng chứng đầy đủ; không đổi test chỉ để che lỗi nhưng cho phép cập nhật khi yêu cầu được duyệt thay đổi.
+
 ---
 
 ### Ngày 22 tháng 09 năm 2026 · Judgment & Walkthrough cho Modernization Frontend
