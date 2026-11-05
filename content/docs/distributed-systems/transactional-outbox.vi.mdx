@@ -4,7 +4,7 @@ description: Vận hành transactional outbox bằng cách commit trạng thái 
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, transactional-outbox, messaging, transactions, reliability]
 prerequisites: [database-transactions, message-queues, delivery-semantics, idempotency]
@@ -18,18 +18,18 @@ concepts:
 
 # Transactional Outbox: Phát sự kiện mà không tạo khoảng trống dual-write
 
-Trong một đợt flash sale nghẹt thở, handler xử lý thanh toán nhận webhook từ cổng ngân hàng. Ứng dụng cập nhật trạng thái đơn hàng thành `PAID` trong database PostgreSQL, commit transaction thành công, rồi chuẩn bị gọi lệnh `messageBroker.publish('OrderPaid')`. Nhưng đúng trong khoảng trống 3 mili-giây định mệnh giữa lúc database vừa commit xong và trước khi lời gọi mạng kịp kích hoạt, container pod bị hệ thống Kubernetes thu hồi tài nguyên (OOM eviction) và sập nguồn tức tưởi. Kết quả: Database ghi nhận khách hàng đã trả tiền, nhưng sự kiện phát đi bị biến mất không dấu vết. Bộ phận kho vận không bao giờ nhận được lệnh đóng gói hàng, số lượng tồn kho bị lệch lạc, và khách hàng phẫn nộ dội bão khiếu nại lên tổng đài hỗ trợ. Trạng thái hệ thống đã bị xé toạc làm đôi bởi **lỗi ghi kép (dual-write gap)**.
+**Ví dụ minh họa (giả định):** Ứng dụng cập nhật đơn hàng thành `PAID` và commit trong PostgreSQL. Trước khi kịp gọi broker để phát `OrderPaid`, tiến trình bị dừng. Database đã đổi trạng thái, nhưng không tồn tại ý định phát sự kiện bền vững để phục hồi; hệ thống kho vận có thể không biết đơn đã thanh toán. Mốc “3 ms” hay một đợt flash sale cụ thể không phải dữ kiện từ postmortem.
 
-Khi một tác vụ vừa phải cập nhật cơ sở dữ liệu nội bộ vừa phải thông báo cho thế giới bên ngoài qua mạng, việc thực hiện hai thao tác ghi độc lập chắc chắn sẽ dẫn đến thảm họa lỗi cục bộ (partial failure).
+**Transactional outbox** đặt dữ liệu nghiệp vụ và ý định phát event trong **cùng transaction cục bộ**, rồi dùng relay gửi sau commit. Mô hình này đóng khoảng trống dual-write của ứng dụng, nhưng không bảo đảm broker hay consumer sẽ xử lý mọi hiệu ứng exactly-once.
 
 ## TL;DR
 
-> 💡 **Quy tắc bỏ túi:** Tuyệt đối không thể commit nguyên tử đồng thời giữa hai hệ thống lưu trữ độc lập mà không dùng điều phối phân tán đắt đỏ. Thay vì sa lầy vào giao dịch phân tán 2PC nặng nề, hãy ghi trạng thái nghiệp vụ và ý định phát sự kiện vào cùng một database transaction cục bộ, rồi để một tiến trình relay chuyển tiếp bất đồng bộ.
+> 💡 **Quy tắc bỏ túi:** Nếu ứng dụng cần đồng thời ghi trạng thái nghiệp vụ vào database và phát thông báo qua broker, hãy cân nhắc outbox để commit **dữ liệu và ý định phát** trong cùng transaction cục bộ. Relay thực hiện phát sau đó, có thể retry và phát trùng; consumer cần chống lặp hoặc đối soát. Đây không phải giao dịch phân tán giữa database và broker.
 
 - **Khoảng trống ghi kép (Dual-write gap):** Việc cập nhật database và phát event lên broker như hai thao tác tách biệt không bao giờ đạt tính nguyên tử; một bên thành công thì bên còn lại hoàn toàn có thể sập.
-- **Transactional outbox giải quyết triệt để tính nguyên tử:** Bằng cách lưu thay đổi nghiệp vụ và một **bản ghi outbox chứa ý định phát sự kiện trong cùng một database transaction**, bảo đảm cả hai cùng commit thành công hoặc cùng rollback.
-- **Bộ chuyển tiếp bất đồng bộ (Relay):** Sử dụng cơ chế polling worker (với `SELECT ... FOR UPDATE SKIP LOCKED`) hoặc Change Data Capture (CDC / Debezium) để quét các bản ghi outbox đã commit và đẩy sang broker, giải phóng hoàn toàn độ trễ của request người dùng.
-- **Chấp nhận phát lại (At-least-once):** Do cơ chế retry của relay khi mạng chập chờn, event có thể bị phát lại nhiều lần; vì vậy downstream consumer bắt buộc phải xử lý lũy đẳng (idempotent) dựa trên event ID ổn định.
+- **Atomicity chỉ nằm trong database cục bộ:** Khi business change và outbox record nằm trong **cùng transaction**, chúng cùng commit hoặc rollback theo khả năng của database. Broker publish, consumer effect và dịch vụ bên thứ ba vẫn là các ranh giới độc lập.
+- **Relay là hệ thống cần vận hành:** Polling worker hoặc CDC như Debezium phát các bản ghi đã commit. Việc tách publish ra khỏi request giúp giảm phụ thuộc đồng bộ vào broker, nhưng không xóa chi phí ghi outbox, commit, retry và giám sát.
+- **Thiết kế cho khả năng phát lại:** Relay có thể publish nhiều lần sau lỗi mạng hoặc crash; consumer phải bảo vệ hiệu ứng nghiệp vụ bằng event ID ổn định, transaction cục bộ phù hợp hoặc cơ chế idempotency bên ngoài.
 - **Cạm bẫy chết người:** Đảo ngược thứ tự thực thi (phát event lên message broker trước rồi mới commit database) sẽ tạo ra "sự kiện ma" (phantom event) nguy hiểm — các dịch vụ hạ nguồn vội vã trừ tiền hoặc xuất kho cho những đơn hàng mà transaction database sau đó lại bị rollback thất bại.
 
 ```mermaid
@@ -196,7 +196,7 @@ Về observability, tối thiểu theo dõi:
 
 Tuổi của event cũ nhất thường actionable hơn backlog count đơn thuần: mười record bị kẹt hai giờ có thể nghiêm trọng hơn mười nghìn record đang drain bình thường.
 
-## Kịch bản production thực chiến: Đã commit thanh toán, sự kiện bốc hơi
+## Tình huống minh họa (giả định): commit xong nhưng mất sự kiện
 
 Dịch vụ checkout cập nhật `orders.status = 'PAID'`, commit vào database PostgreSQL, rồi chuẩn bị gọi lệnh publish `OrderPaid` lên message broker. Đúng lúc đó, quá trình deploy phiên bản mới kích hoạt khiến tiến trình cũ bị ngắt đột ngột (SIGKILL) chỉ vài mili-giây sau khi database vừa commit nhưng trước khi hàm publish kịp chạy.
 
@@ -212,6 +212,13 @@ Dịch vụ checkout cập nhật `orders.status = 'PAID'`, commit vào database
 Việc đổi thứ tự (publish lên broker trước rồi mới commit database) chỉ đảo ngược thảm họa chứ không hề giải quyết được bài toán. Một lỗi rollback database sau đó sẽ khiến các hệ thống hạ nguồn xử lý một sự kiện ma mà trạng thái nghiệp vụ thực tế chưa từng tồn tại bền vững. Transactional outbox thành công vì nó thu hẹp ranh giới nguyên tử về duy nhất một local database transaction, đồng thời biến việc giao tiếp mạng thành một tác vụ bất đồng bộ có khả năng tự phục hồi.
 
 </details>
+
+
+### Polling relay và CDC relay không dùng chung cách cập nhật bảng
+
+Với **polling relay**, ứng dụng có thể thiết kế bảng outbox có trạng thái/lease để worker đánh dấu bản ghi đã publish, tùy cơ chế transaction và khóa. Với **Debezium Outbox Event Router**, tài liệu chính thức kỳ vọng bảng outbox chủ yếu nhận thao tác `INSERT`; cập nhật `UPDATE` có thể bị cảnh báo hoặc xử lý theo cấu hình `table.op.invalid.behavior`. Không áp dụng cơ chế đánh dấu trạng thái bằng `UPDATE` của polling relay cho bảng dùng trực tiếp với Debezium SMT nếu chưa kiểm tra hợp đồng sản phẩm.
+
+Nguồn: [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/transformations/outbox-event-router.html). Event ID có thể được đưa vào message header và `aggregateid` có thể làm partition key; chúng hỗ trợ chống lặp và thứ tự trong phạm vi broker, không biến mọi side effect thành atomic.
 
 ## Polling hay CDC
 

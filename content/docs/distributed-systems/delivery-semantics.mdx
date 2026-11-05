@@ -4,7 +4,7 @@ description: Reason about at-most-once, at-least-once, and scoped exactly-once g
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, messaging, delivery-semantics, acknowledgements, idempotency]
 prerequisites: [partial-failure, retries-and-backoff, idempotency, message-queues]
@@ -18,19 +18,19 @@ concepts:
 
 # Delivery Semantics: Reason About Loss, Duplicates, and Effects
 
-At 2:00 AM, an intermittent network glitch drops a single TCP acknowledgement packet between your consumer and the message broker. The broker assumes the message was never processed and immediately schedules a redelivery. Seconds later, your payment consumer ingests the same event a second time, charging a customer's credit card twice and dispatching duplicate confirmation emails. During the subsequent post-mortem, an engineer protests: *"Why did this happen? Our message broker documentation claims guaranteed delivery!"*
+**Illustrative scenario (hypothetical):** A consumer records a payment event in its database but loses its broker connection before the acknowledgement is confirmed. Under the broker's delivery contract, the same message may be delivered again. Without recognizing the same business operation, the consumer may repeat a payment-related effect or notification. This is a teaching scenario, not a documented incident.
 
-Distributed systems do not operate on magic; they operate over unreliable networks. When network partitions, crashes, or timeouts occur, the fundamental mechanics of message handoff dictate what can and cannot be guaranteed.
+Delivery semantics describe **message-handling guarantees within a defined boundary**. A redelivered message and a repeated **business side effect** are different phenomena; the latter depends on consumer transactions and deduplication.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** Delivery guarantees belong to the network transport, but deduplication belongs to the business entity. Never rely on a message broker to guarantee "exactly-once" business side effects without an idempotent consumer.
+> 💡 **Rule of thumb:** A broker can guarantee message handoff only within a defined boundary; business-effect correctness needs separate protection. With at-least-once delivery, **design for possible duplicates**—not inevitable duplicates on every message. Ask exactly which operations a vendor's “exactly-once” contract covers.
 
-- **At-most-once:** Prioritizes throughput and zero duplicate risk over durability. Messages are dispatched without retries; if a crash occurs during transit or handling, the message is permanently lost.
-- **At-least-once:** The pragmatic production default for reliable messaging. The broker retransmits messages until an explicit acknowledgement (ACK) is received, meaning **duplicate deliveries are inevitable** under real-world network turbulence.
+- **At-most-once:** Within the stated broker/consumer handoff boundary, a message is not intentionally redelivered. This avoids protocol-level retries but permits message loss; it does not guarantee that the business effect occurs exactly once.
+- **At-least-once:** Once accepted durably under the system's delivery contract and operational assumptions, a message may be redelivered until its acknowledgement is observed. **Duplicates are possible**, not inevitable for every message; consumers must tolerate repeated delivery.
 - **"Exactly-once" processing:** A strictly bounded abstraction (such as Apache Kafka's transactional stream processing), never a universal guarantee covering external databases, third-party payment APIs, or email providers.
 - **Ordering is decoupled from delivery:** At-least-once retries frequently disrupt message arrival sequences; partition-level or key-level serialization and monotonic versioning must be handled explicitly.
-- **Fatal pitfall:** Acknowledging an event before the database commit drops messages forever if the process crashes; acknowledging after the commit without an idempotent consumer or inbox table causes duplicate financial or operational side effects upon redelivery.
+- **Failure boundary:** Acknowledging before committing an effect can lose work on a crash. Acknowledging afterward can lead to duplicate effects on redelivery unless the consumer makes the business operation idempotent.
 
 ```mermaid
 flowchart LR
@@ -100,6 +100,13 @@ A stream processor may atomically commit consumed offsets and derived records in
 
 Apache Kafka’s current design documentation explicitly separates publishing durability from consuming semantics and notes that strong end-to-end semantics require coordination with the destination.
 
+
+### Broker acknowledgements and effect deduplication are separate
+
+- [RabbitMQ](https://www.rabbitmq.com/docs/confirms) requeues manually acknowledged messages that remain unacked when a consumer channel or connection closes. That depends on broker state and the configured acknowledgement mode.
+- [Amazon SQS Standard](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html) provides at-least-once delivery and **may** duplicate or reorder messages; not every message is duplicated.
+- Persist a stable `event_id` or business-operation identity **atomically with the protected database change**. External payment/email effects require their own downstream idempotency or reconciliation contract; writing a local ID alone cannot roll back a remote call.
+
 ## Make duplicate processing converge
 
 At-least-once delivery becomes safe when repeated processing converges on the same logical result.
@@ -156,7 +163,7 @@ A DLQ is not a correctness strategy by itself. Operators still need:
 - a way to prevent replay from duplicating effects;
 - alerting on growth and age.
 
-## Production scenario
+## Illustrative scenario (hypothetical)
 
 A payment service emits `OrderPaid(eventId=evt-42, orderId=o-17)`. A fulfillment consumer inserts a shipment row, then acknowledges the message.
 
@@ -211,7 +218,7 @@ Before accepting a messaging guarantee, recover the full failure boundary: produ
 
 ## Sources
 
-Primary references verified on **2026-09-16**:
+Primary references verified on **2026-11-05**:
 
 - [Apache Kafka 4.0 Design — Message Delivery Semantics](https://kafka.apache.org/40/design/design/)
 - [RabbitMQ — Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/docs/confirms)

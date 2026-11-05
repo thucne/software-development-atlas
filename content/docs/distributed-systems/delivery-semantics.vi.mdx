@@ -4,7 +4,7 @@ description: Suy luận về at-most-once, at-least-once và guarantee exactly-o
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, messaging, delivery-semantics, acknowledgements, idempotency]
 prerequisites: [partial-failure, retries-and-backoff, idempotency, message-queues]
@@ -18,19 +18,19 @@ concepts:
 
 # Ngữ nghĩa giao nhận: Suy luận về mất mát, trùng lặp và hiệu ứng
 
-2 giờ sáng, một sự cố chập chờn mạng thoáng qua làm rơi mất gói tin xác nhận (ACK) giữa consumer và message broker. Broker đinh ninh message chưa tới đích nên lập tức kích hoạt cơ chế phát lại (redelivery). Chỉ vài giây sau, consumer phụ trách thanh toán nhận lại đúng sự kiện đó, trừ tiền thẻ tín dụng của khách hàng lần thứ hai và gửi đi 2 email xác nhận. Trong buổi họp mổ xẻ sự cố (post-mortem), kỹ sư ngơ ngác phân trần: *"Sao lại bị xử lý lặp được? Message broker của chúng ta cam kết giao nhận đáng tin cậy cơ mà!"*
+**Tình huống minh họa (giả định):** Consumer xử lý một sự kiện thanh toán, lưu kết quả vào database rồi mất kết nối trước khi broker nhận được ACK. Theo hợp đồng giao nhận của hệ thống, broker có thể giao lại cùng thông điệp. Nếu bước xử lý thứ hai không nhận ra cùng một thao tác nghiệp vụ, việc ghi nhận thanh toán hoặc gửi thông báo có thể bị lặp. Đây không phải báo cáo sự cố thực tế.
 
-Hệ thống phân tán không vận hành bằng phép màu mà chạy trên hạ tầng mạng vốn dĩ không đáng tin cậy. Khi xảy ra phân mảnh mạng (network partition), tiến trình sập (crash) hay quá thời gian chờ (timeout), ngữ nghĩa giao nhận (delivery semantics) chính là ranh giới kỹ thuật vạch rõ điều hệ thống đảm bảo và điều ứng dụng bắt buộc phải tự xử lý.
+Ngữ nghĩa giao nhận mô tả **phạm vi và điều kiện giao/nhận thông điệp**. Cần phân biệt giao lại thông điệp với việc thực hiện lại **hiệu ứng nghiệp vụ**, vốn phụ thuộc vào transaction và khả năng lọc trùng của consumer.
 
 ## TL;DR
 
-> 💡 **Quy tắc bỏ túi:** Ngữ nghĩa giao nhận là cam kết của tầng truyền tải mạng, còn lọc trùng là trách nhiệm của thực thể nghiệp vụ. Tuyệt đối không phó mặc cho message broker bảo đảm "chính xác một lần" đối với các tác dụng phụ nghiệp vụ nếu consumer không được thiết kế lũy đẳng (idempotent).
+> 💡 **Quy tắc bỏ túi:** Broker có thể bảo đảm việc phát hoặc giao message theo phạm vi xác định; tính đúng đắn của **hiệu ứng nghiệp vụ** cần được bảo vệ riêng. Với at-least-once, hãy **thiết kế cho khả năng nhận trùng**, không mặc định lần nào cũng có trùng. Luôn hỏi “exactly-once đối với bước nào?” trước khi áp dụng bảo đảm của Kafka, SQS hoặc broker khác.
 
-- **At-most-once (tối đa một lần):** Ưu tiên thông lượng tối đa và triệt tiêu nguy cơ trùng lặp; message có thể bị mất trắng khi xảy ra sự cố, nhưng hệ thống cam kết không bao giờ chủ động phát lại.
-- **At-least-once (ít nhất một lần):** Lựa chọn thực chiến chuẩn mực cho các tác vụ cần độ bền vững. Broker kiên trì phát lại cho tới khi nhận được xác nhận (ACK), đồng nghĩa **trùng lặp là điều tất yếu** khi mạng chập chờn hoặc tiến trình xử lý sập.
+- **At-most-once (tối đa một lần):** Trong phạm vi cơ chế giao nhận được mô tả, broker/consumer không chủ động phát lại message khi chưa được xử lý. Điều này tránh redelivery do chính giao thức ấy, nhưng message có thể mất và không tự bảo đảm hiệu ứng nghiệp vụ diễn ra đúng một lần.
+- **At-least-once (ít nhất một lần):** Khi thông điệp đã được hệ thống chấp nhận bền vững và các điều kiện vận hành giữ đúng, hệ thống có thể giao lại nếu chưa xác nhận xử lý. **Message có thể bị nhận nhiều lần**, không có nghĩa mọi message chắc chắn bị giao trùng hoặc mọi side effect đều lặp.
 - **Exactly-once (chính xác một lần):** Chỉ là một trừu tượng có phạm vi giới hạn nghiêm ngặt (như transactional stream nội bộ của Apache Kafka); hoàn toàn không có cơ chế thần kỳ nào tự động bảo đảm chính xác một lần xuyên qua database bên ngoài, cổng thanh toán hay email.
 - **Thứ tự độc lập với giao nhận:** Việc phát lại trong at-least-once thường xuyên làm đảo lộn thứ tự đến của message; cần dựa vào partition key hoặc sequence tăng đơn điệu (monotonic) thay vì kỳ vọng thứ tự toàn cục.
-- **Cạm bẫy chết người:** Xác nhận (ACK) trước khi commit database sẽ làm mất dữ liệu vĩnh viễn nếu tiến trình sập; ngược lại, ACK sau commit mà thiếu consumer lũy đẳng hoặc bảng inbox sẽ gây trừ tiền hai lần hoặc tạo đơn hàng trùng lặp khi broker phát lại.
+- **Rủi ro cần tránh:** ACK trước khi commit hiệu ứng nghiệp vụ có thể làm mất công việc nếu consumer sập; ACK sau commit mà thiếu idempotency có thể khiến cùng message tạo hiệu ứng trùng khi broker giao lại.
 
 ```mermaid
 flowchart LR
@@ -99,6 +99,13 @@ Không có thứ gọi là "chính xác một lần" toàn năng xuyên suốt m
 
 Một hệ thống stream processing như Apache Kafka có thể commit nguyên tử offset đã tiêu thụ và các record kết quả sinh ra trong cùng một transaction nội bộ của Kafka. Amazon SQS FIFO có thể lọc trùng các lần producer retry trong cửa sổ thời gian 5 phút. Nhưng không có hệ thống nào trong số đó tự biến một lời gọi API thanh toán bên thứ ba, một email gửi ra ngoài hay một lệnh webhook thành hiệu ứng chính xác một lần. Để đảm bảo kết quả kinh doanh cuối cùng chỉ diễn ra đúng một lần, consumer bắt buộc phải có cơ chế lọc trùng tự thân.
 
+
+### Phạm vi của ACK và duplicate
+
+- [RabbitMQ](https://www.rabbitmq.com/docs/confirms) tự động đưa các delivery chưa ACK trở lại hàng đợi khi channel/connection của consumer dùng manual ACK bị đóng; quá trình phát lại phụ thuộc vào điều kiện cụ thể của broker.
+- [Amazon SQS Standard](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html) bảo đảm at-least-once và **có thể** giao bản sao hoặc đảo thứ tự, không phải mọi message đều bị giao trùng.
+- Tầng consumer nên giữ `event_id` hoặc business-operation ID ổn định; bảo vệ việc ghi nhận ID **trong cùng transaction** với thay đổi dữ liệu cần chống lặp. Đối với thanh toán/email bên thứ ba, cần thêm hợp đồng idempotency hoặc đối soát ở ranh giới đó.
+
 ## Làm duplicate processing hội tụ
 
 Vì at-least-once chắc chắn sẽ phát lại message, hệ thống chỉ an toàn khi các lần xử lý lặp lại đều hội tụ về cùng một trạng thái nghiệp vụ duy nhất.
@@ -152,7 +159,7 @@ Vòng lặp retry vô tận với một **message độc (poison message)** sẽ
 - Thiết lập quy trình replay DLQ chặt chẽ, bảo đảm các message chạy lại vẫn mang ID gốc để tránh nhân bản tác dụng phụ nghiệp vụ.
 - Thiết lập cảnh báo chủ động (alerting) khi dung lượng DLQ hoặc tuổi thọ message trong DLQ tăng đột biến.
 
-## Kịch bản production thực chiến: Trừ tiền thành công, giao hàng nhân đôi
+## Kịch bản minh họa (giả định): xử lý trùng sau ACK bị mất
 
 Một dịch vụ thanh toán phát ra sự kiện: `OrderPaid(eventId="evt-42", orderId="ord-17")`. Worker phía kho vận (fulfillment) nhận event, chèn một bản ghi vận chuyển vào database, rồi chuẩn bị gửi tín hiệu xác nhận (ACK) về message broker.
 
@@ -205,7 +212,7 @@ Khi đánh giá hoặc viết code tích hợp message broker, không bao giờ 
 
 ## Nguồn
 
-Nguồn chính kiểm tra ngày **2026-09-16**:
+Nguồn chính kiểm tra ngày **2026-11-05**:
 
 - [Apache Kafka 4.0 Design — Message Delivery Semantics](https://kafka.apache.org/40/design/design/)
 - [RabbitMQ — Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/docs/confirms)

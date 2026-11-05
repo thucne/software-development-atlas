@@ -38,6 +38,11 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ### November 05, 2026
 
+#### Wave 1 — Delivery semantics & transactional outbox
+- [Delivery Semantics](/docs/distributed-systems/delivery-semantics): Distinguish possible from inevitable duplicates, ACK boundaries, scoped delivery guarantees and business effects.
+- [Transactional Outbox](/docs/distributed-systems/transactional-outbox): Keep atomicity local, mark incident hypothetical and differentiate polling updates from Debezium CDC conventions.
+ · EN/VI technical semantics corrections
+
 #### Wave 1 — Timeouts, retries and backoff
 - [Timeouts](/docs/distributed-systems/timeouts): Distinguish timeouts, deadlines and SLOs; label hypothetical incident and clarify operational scope.
 - [Retries and Backoff](/docs/distributed-systems/retries-and-backoff): Clarify that `429`/`503` do not guarantee useful retries; apply `Retry-After` within deadline and safe-replay contracts.
