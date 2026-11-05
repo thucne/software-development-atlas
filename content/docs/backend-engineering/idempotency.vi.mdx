@@ -4,7 +4,7 @@ description: Vận hành API và worker idempotent bằng định danh thao tác
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,15 +31,15 @@ concepts:
 
 # Idempotency: Biến retry thành thao tác an toàn dù kết quả không chắc chắn
 
-Một khách hàng đang đứng trong thang máy với kết nối 4G chập chờn nhấn nút "Thanh toán ngay" cho đơn hàng 2 triệu đồng. Yêu cầu đầu tiên chạm tới máy chủ thanh toán và trừ tiền thành công qua cổng thanh toán, nhưng đúng lúc đó cột sóng điện thoại chuyển trạm khiến kết nối TCP chiều về bị đứt đoạn trước khi phản hồi `200 OK` kịp truyền tới điện thoại. Ứng dụng di động xoay vòng tròn chờ đợi, báo lỗi timeout sau 5 giây và tự động kích hoạt cơ chế gửi lại (retry). Người dùng sốt ruột cũng bấm liên tiếp thêm hai lần nữa. Trong vòng 10 giây, máy chủ nhận liên tiếp 3 request thanh toán giống hệt nhau. Nếu thiếu một ranh giới lũy đẳng (idempotency) thực thụ, thẻ của khách hàng sẽ bị trừ 6 triệu đồng với 3 tin nhắn trừ tiền dồn dập, kéo theo sự giận dữ của người dùng, tranh chấp thanh toán và chi phí đối soát hoàn tiền đắt đỏ.
+**Tình huống minh họa (giả định, không phải báo cáo sự cố thực tế):** Một khách hàng đang đứng trong thang máy với kết nối 4G chập chờn nhấn nút "Thanh toán ngay" cho đơn hàng 2 triệu đồng. Yêu cầu đầu tiên chạm tới máy chủ thanh toán và trừ tiền thành công qua cổng thanh toán, nhưng đúng lúc đó cột sóng điện thoại chuyển trạm khiến kết nối TCP chiều về bị đứt đoạn trước khi phản hồi `200 OK` kịp truyền tới điện thoại. Ứng dụng di động xoay vòng tròn chờ đợi, báo lỗi timeout sau 5 giây và tự động kích hoạt cơ chế gửi lại (retry). Người dùng sốt ruột cũng bấm liên tiếp thêm hai lần nữa. Trong vòng 10 giây, máy chủ nhận liên tiếp 3 request thanh toán giống hệt nhau. Nếu thiếu một ranh giới lũy đẳng (idempotency) thực thụ, thẻ của khách hàng sẽ bị trừ 6 triệu đồng với 3 tin nhắn trừ tiền dồn dập, kéo theo sự giận dữ của người dùng, tranh chấp thanh toán và chi phí đối soát hoàn tiền đắt đỏ.
 
-Trong mạng phân tán, lỗi timeout vốn dĩ mang tính chất mơ hồ: bạn không thể biết thao tác bị đứt gãy trước khi tới máy chủ, trong khi đang xử lý, hay trên đường trả về kết quả. **Tính lũy đẳng (Idempotency)** chính là giao ước kiến trúc biến việc thử lại khi gặp sự cố không chắc chắn thành một thao tác an toàn tuyệt đối.
+Trong mạng phân tán, lỗi timeout vốn dĩ mang tính chất mơ hồ: bạn không thể biết thao tác bị đứt gãy trước khi tới máy chủ, trong khi đang xử lý, hay trên đường trả về kết quả. **Tính lũy đẳng (Idempotency)** chính là giao ước kiến trúc biến việc thử lại khi gặp sự cố không chắc chắn thành một thao tác có thể thử lại an toàn trong phạm vi hợp đồng đã thiết kế.
 
 ## TL;DR
 
-> 💡 **Quy tắc bỏ túi:** Thao tác an toàn (safe operation như `GET`) không làm thay đổi trạng thái máy chủ, còn thao tác lũy đẳng (idempotent operation như `PUT` hoặc `POST` có bảo vệ) có thể thay đổi dữ liệu một lần duy nhất và trả về cùng kết quả logic ở mọi lần gọi lại. Hãy luôn reserve Idempotency Key một cách nguyên tử bằng ràng buộc duy nhất (unique constraint) kết hợp băm fingerprint payload trước khi kích hoạt bất kỳ tác dụng phụ không thể đảo ngược nào.
+> 💡 **Quy tắc bỏ túi:** Phương thức HTTP an toàn như `GET` mang ngữ nghĩa chỉ đọc, dù máy chủ vẫn có thể ghi log hoặc số liệu vận hành. Phương thức lũy đẳng như `PUT` giữ nguyên **hiệu ứng dự kiến** khi lặp lại request giống nhau; mã phản hồi và log không nhất thiết giống hệt. Với thao tác nghiệp vụ cần retry an toàn, hãy ghi nhận Idempotency Key có phạm vi rõ ràng theo cách nguyên tử và bảo vệ từng tác dụng phụ bên ngoài transaction.
 
-- **Ranh giới an toàn (Safe) và lũy đẳng (Idempotent):** Phương thức an toàn (`GET`, `HEAD`) không bao giờ làm biến đổi tài nguyên. Thao tác lũy đẳng (`PUT`, `DELETE` hoặc `POST` được thiết kế chuẩn) cho phép thay đổi dữ liệu ở lần đầu, nhưng bảo đảm việc lặp lại cùng lệnh đó sẽ không phát sinh thêm bất kỳ hiệu ứng nghiệp vụ nào.
+- **An toàn và lũy đẳng là hai thuộc tính khác nhau:** `GET`, `HEAD` có ngữ nghĩa yêu cầu chỉ đọc; máy chủ vẫn có thể ghi log. `PUT`, `DELETE` và các phương thức an toàn là lũy đẳng theo HTTP: lặp lại request giữ nguyên hiệu ứng dự kiến, không nhất thiết trả cùng response hoặc không tạo log. `POST` có thể được ứng dụng bổ sung hợp đồng retry riêng.
 - **Định danh thao tác logic ổn định:** Client phải sinh `Idempotency-Key` một lần duy nhất khi hành động nghiệp vụ bắt đầu và tái sử dụng đúng key đó cho mọi nỗ lực thử lại; việc sinh UUID ngẫu nhiên mới ở mỗi lần retry qua mạng sẽ phá vỡ hoàn toàn cơ chế lọc trùng.
 - **Reservation nguyên tử kết hợp băm fingerprint:** Lưu bản ghi idempotency vào database bằng `INSERT ... ON CONFLICT` với unique constraint, kết hợp mã băm SHA-256 (fingerprint) của payload chuẩn hóa; từ chối ngay lập tức trường hợp cùng key nhưng payload khác để ngăn chặn xung đột hoặc sửa đổi tham số bất thường.
 - **Điều phối hiệu ứng bên ngoài (External side effects):** Transaction cơ sở dữ liệu cục bộ không thể rollback cổng thanh toán bên thứ ba hay nhà cung cấp email; cần truyền downstream idempotency key hoặc ghi nhận trạng thái bền vững trước khi gọi ra ngoài.
@@ -69,7 +69,7 @@ sequenceDiagram
 
 ## 1. Idempotency của HTTP method hữu ích nhưng chưa đủ cho application
 
-RFC 9110 định nghĩa một HTTP method là idempotent khi nhiều request giống hệt nhau có cùng **hiệu ứng dự kiến** như một request. Safe methods, `PUT` và `DELETE` được định nghĩa là idempotent theo semantics của method.
+RFC 9110 định nghĩa một HTTP method là idempotent khi nhiều request giống hệt nhau có cùng **hiệu ứng dự kiến** như một request. Các phương thức an toàn, `PUT` và `DELETE` được định nghĩa là lũy đẳng theo ngữ nghĩa HTTP. RFC 9110 cho phép các hiệu ứng phụ như ghi access log và nêu rõ phản hồi giữa các lần gọi có thể khác nhau.
 
 Điều đó không có nghĩa mọi implementation tự động đúng. Một handler `PUT` vẫn charge thẻ mỗi lần chạy đã thêm side effect không idempotent phía sau một method contract idempotent.
 

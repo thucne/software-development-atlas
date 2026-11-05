@@ -112,7 +112,7 @@ describe('Containers lesson', () => {
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/containers)');
     expect(vi).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
 
-    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-09-22'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Sep 22, 2026');
+    expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-11-05'");
+    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Nov 5, 2026');
   });
 });

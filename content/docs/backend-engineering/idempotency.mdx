@@ -4,7 +4,7 @@ description: Operate idempotent APIs and workers through logical-operation ident
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,15 +31,15 @@ concepts:
 
 # Idempotency: Make Retries Safe Across Ambiguous Outcomes
 
-A customer standing inside an elevator with an unstable cellular connection taps the "Pay Now" button for a \$200 order. The initial request reaches the checkout service, charges the card through the payment provider, and prepares a response—but a sudden cellular tower handover drops the connection before the 200 OK reaches the phone. The client app observes a network timeout after 5 seconds and automatically retries. The nervous customer also taps the button two more times in rapid succession. Within 10 seconds, three identical payment requests land on your API. Without an explicit idempotency architecture, the customer is billed three separate times (\$600 total), resulting in three duplicate bank alerts, an angry dispute, and hours of customer support remediation.
+**Illustrative scenario (hypothetical, not a reported incident):** A customer standing inside an elevator with an unstable cellular connection taps the "Pay Now" button for a \$200 order. The initial request reaches the checkout service, charges the card through the payment provider, and prepares a response—but a sudden cellular tower handover drops the connection before the 200 OK reaches the phone. The client app observes a network timeout after 5 seconds and automatically retries. The nervous customer also taps the button two more times in rapid succession. Within 10 seconds, three identical payment requests land on your API. Without an explicit idempotency architecture, the customer is billed three separate times (\$600 total), resulting in three duplicate bank alerts, an angry dispute, and hours of customer support remediation.
 
 In distributed networks, network timeouts are fundamentally ambiguous: you cannot infer whether the connection severed before the server received the command, during execution, or on the response path. **Idempotency** is the foundational distributed systems contract that makes retrying safe across this uncertainty.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** Safe operations (like `GET`) never modify server state, whereas idempotent operations (like `PUT` or a protected `POST`) may mutate state on the first execution and safely return identical logical outcomes on every replay. Always reserve an Idempotency Key atomically with a unique constraint and payload fingerprint before executing irreversible side effects.
+> 💡 **Rule of thumb:** A safe HTTP method such as `GET` requests read-only behavior; incidental server-side logging does not make it unsafe. An idempotent method such as `PUT` has the same **intended effect** after repeated identical requests, even if response status or audit logs differ. For retry-safe business commands, reserve a scoped Idempotency Key atomically and protect every non-transactional side effect.
 
-- **Safe vs Idempotent operations:** Safe methods (`GET`, `HEAD`) never mutate resources. Idempotent operations (`PUT`, `DELETE`, or custom `POST` endpoints) can alter state on the initial execution, but guarantee that repeating the identical command produces no additional business side effects.
+- **Safe vs Idempotent operations:** `GET` and `HEAD` have read-only request semantics, but incidental logging and metrics may still occur. `PUT`, `DELETE` and safe methods are idempotent by HTTP semantics: repeats have the same intended effect, **not necessarily identical responses or zero observable side effects**. A guarded `POST` may provide an application-specific retry contract.
 - **Stable logical-operation identity:** The client must generate the `Idempotency-Key` exactly once when the business command is initiated and reuse that identical key across all retries; generating a new random UUID per network retry completely bypasses deduplication.
 - **Atomic reservation with fingerprinting:** Atomically reserve the scoped key in the datastore using a unique constraint (`INSERT ... ON CONFLICT`) along with a cryptographic SHA-256 fingerprint of the normalized request payload; reject any request presenting the same key with a different payload to prevent key collisions or malicious payload tampering.
 - **External side-effect boundaries:** A local database transaction cannot roll back an external payment gateway, SMS dispatch, or third-party webhook; propagate downstream idempotency keys or record durable intents before executing remote calls.
@@ -69,7 +69,7 @@ sequenceDiagram
 
 ## 1. HTTP method idempotency is useful, but it is not the whole application story
 
-RFC 9110 defines an HTTP method as idempotent when multiple identical requests have the same **intended effect** as one request. Safe methods, `PUT`, and `DELETE` are defined as idempotent by their method semantics.
+RFC 9110 defines an HTTP method as idempotent when multiple identical requests have the same **intended effect** as one request. Safe methods, `PUT`, and `DELETE` are defined as idempotent by their method semantics. RFC 9110 allows incidental effects such as access logging and explicitly notes that repeated responses can differ.
 
 That does not mean every implementation is automatically correct. A `PUT` handler that charges a card every time it runs has introduced a non-idempotent side effect behind an idempotent method contract.
 

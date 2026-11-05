@@ -4,7 +4,7 @@ description: Reason about Promise states, resolution, chaining, error recovery, 
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - javascript
@@ -35,7 +35,7 @@ concepts:
 
 A Promise is not the background operation running on the runtime thread—it is a **claim ticket** (like an order buzzer handed to you at a counter) representing an eventual outcome. Conflating the ticket with the background engine or misunderstanding how chain handlers shape downstream Promises causes catastrophic production outages. In one notable incident, an error handler inside a `.catch()` block merely logged a declined credit card and returned cleanly (`undefined`), silently fulfilling the downstream Promise and prompting the warehouse to dispatch goods to a customer whose payment had completely failed.
 
-> 💡 **Rule of thumb:** Every call to `.then()`, `.catch()`, or `.finally()` creates a brand-new downstream Promise whose fate is determined solely by what its handler returns or throws. When diagnosing an async pipeline, always trace forward through downstream Promises rather than assuming the source Promise mutates.
+> 💡 **Rule of thumb:** `.then()` and `.catch()` create downstream Promises whose handlers can transform values or errors. `.finally()` also returns a new Promise, but normally preserves the prior value or rejection reason; it only changes the outcome if cleanup throws or rejects. Trace the downstream Promise without assuming the source mutates.
 
 - **A Promise is a receipt for a future value, not the running task:** Rejecting or abandoning a Promise does not cancel in-flight network sockets, database queries, or OS threads.
 - **Resolved does not mean fulfilled:** A Promise is *resolved* when its eventual fate is locked. It can be **pending yet resolved** if it has adopted another still-pending Promise.
@@ -662,7 +662,7 @@ settleInner(10);
 
 ## Agent rule
 
-> **For standard Promise chaining, treat each `then()`, `catch()`, and `finally()` call as producing a separate downstream Promise. Determine that downstream outcome from the relevant handler: returning a value fulfills it, throwing rejects it, and returning a Promise/thenable makes it adopt that outcome. Do not equate resolved with fulfilled, do not assume rejection cancels underlying work, and choose combinators according to the success/failure contract you need.**
+> **Each `then()`, `catch()`, and `finally()` call normally returns a separate downstream Promise. For `then()`/`catch()`, a returned value fulfills downstream, a thrown error rejects it, and a Promise/thenable is adopted. A normally completed `finally()` preserves the earlier outcome; thrown or rejected cleanup overrides it. Do not equate resolved with fulfilled, assume rejection cancels work, or choose a combinator without checking its failure contract.**
 
 When changing Promise-heavy code, verify against this checklist:
 
@@ -684,7 +684,7 @@ When changing Promise-heavy code, verify against this checklist:
 
 ## Primary sources
 
-This lesson was last verified on **2026-09-10** and is classified as **evolving** with a 180-day review target.
+This lesson was last verified on **2026-11-05** and is classified as **evolving** with a 180-day review target.
 
 - [ECMAScript 2026 — Promise Objects](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise-objects) — normative Promise states, resolution, constructor behavior, combinators, `Promise.try()`, `Promise.withResolvers()`, and prototype methods.
 - [ECMAScript 2026 — `Promise.resolve()` / `PromiseResolve`](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.resolve) — normative identity behavior for same-constructor Promises and creation of a new resolving Promise otherwise.

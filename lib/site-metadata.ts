@@ -4,4 +4,4 @@ export const atlasMaintainer = {
   githubUrl: 'https://github.com/thucne',
 } as const;
 
-export const atlasLastUpdated = '2026-09-22';
+export const atlasLastUpdated = '2026-11-05';
