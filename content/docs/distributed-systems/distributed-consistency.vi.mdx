@@ -4,7 +4,7 @@ description: Suy luận về stale read, session guarantee, causal order, linear
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, consistency, replication, stale-reads, linearizability]
 prerequisites: [partial-failure, delivery-semantics, database-replication]
@@ -18,18 +18,18 @@ concepts:
 
 # Tính nhất quán phân tán: Suy luận về điều các reader có thể quan sát
 
-Khách hàng vừa đổi địa chỉ giao hàng của đơn hàng vừa đặt và bấm "Lưu thay đổi". API ghi thành công vào database PostgreSQL primary, phản hồi mã `200 OK`, rồi chuyển hướng trình duyệt sang trang tóm tắt đơn hàng. Thế nhưng, request tải trang ngay sau đó lại được bộ cân bằng tải điều phối vào một read replica đang bị trễ sao chép (replica lag) 900 mili-giây. Màn hình hiện ra địa chỉ *cũ mèm*! Khách hàng hoang mang tột độ tưởng hệ thống bị lỗi, cuống cuồng sửa lại và bấm lưu liên tiếp ba lần. Bộ phận kho vận nhận một loạt cập nhật xung đột, còn đội ngũ hỗ trợ khách hàng nhận được email khiếu nại gay gắt: *"Website làm mất địa chỉ giao hàng của tôi!"* Thực tế không hề có byte dữ liệu nào bị mất hay hỏng trên đĩa—hệ thống chỉ vừa vi phạm hợp đồng nhất quán đọc-sau-khi-ghi (read-your-writes).
+**Tình huống minh họa (giả định):** Một khách hàng đổi địa chỉ giao hàng. API commit trên primary, nhưng lượt đọc tiếp theo qua replica còn chậm đồng bộ vẫn hiện địa chỉ cũ. Dữ liệu primary có thể vẫn đúng: ứng dụng chưa đáp ứng kỳ vọng **read-your-writes** của người dùng. Đây không phải sự cố đã xác minh với số liệu replica lag thực tế.
 
-Tính nhất quán phân tán không phải là một ô checkbox tiếp thị hay thuộc tính phần cứng của ổ đĩa. Nó xác định ranh giới về mặt thời gian và quan hệ nhân quả đối với những gì người quan sát (reader) được phép thấy khi dữ liệu được nhân bản trên nhiều máy chủ khác nhau.
+Consistency là hợp đồng về phiên bản và thứ tự mà reader có thể quan sát; không đồng nghĩa với durability hay transaction isolation.
 
 ## TL;DR
 
 > 💡 **Quy tắc bỏ túi:** Tính nhất quán không phải là dữ liệu có an toàn trên đĩa hay không (đó là tính bền vững - durability), mà là người đọc được phép thấy trạng thái nào xuyên suốt không gian và thời gian. Hãy luôn thiết kế dựa trên hợp đồng quan sát (observable contract) rõ ràng thay vì những nhãn mác tiếp thị mơ hồ như "nhất quán mạnh" hay "nhất quán cuối cùng".
 
 - **Nhất quán là một hợp đồng quan sát (Observable contract):** Quy định rõ người đọc được phép thấy những thao tác ghi đã commit nào, theo thứ tự nhân quả ra sao và độ cũ (staleness) tối đa cho phép giữa các bản sao dữ liệu.
-- **Nhất quán cuối cùng (Eventual consistency) không đồng nghĩa với dữ liệu mới tức thì:** Các replica chắc chắn sẽ hội tụ khi ngừng ghi, nhưng nếu thiếu cam kết theo phiên (session guarantees), người dùng hoàn toàn có thể đọc phải dữ liệu cũ hoặc thấy dữ liệu nhảy ngược về quá khứ.
-- **Session guarantee giải quyết ức chế thực tế của người dùng:** Các mô hình như **read-your-writes** (đọc được chính thay đổi mình vừa ghi) và **monotonic reads** (đọc đơn điệu, không bao giờ thụt lùi về phiên bản cũ hơn) dẹp bỏ trải nghiệm quái đản mà không phải đánh đổi độ trễ và tính sẵn sàng của linearizability toàn cục.
-- **Linearizability (tính tuyến tính):** Cam kết nghiêm ngặt theo thời gian thực; mọi thao tác đọc/ghi đều có hiệu lực nguyên tử tại một thời điểm duy nhất trên đồng hồ chuẩn, hành xử như thể toàn hệ thống chỉ có một bản sao duy nhất.
+- **Eventual consistency phụ thuộc điều kiện hội tụ:** Replica có thể lệch tạm thời; hội tụ cần cập nhật tiếp tục được truyền, conflict được giải quyết và các node bị lỗi được phục hồi trước khi mất dữ liệu quan trọng. Repair/retention có thể cần được vận hành riêng.
+- **Session guarantee giảm anomaly theo phiên:** Read-your-writes và monotonic reads giúp ngăn đọc lùi, nhưng có thể cần token, version, route tới primary hoặc chờ replica; không tự miễn trừ chi phí về độ trễ và tính sẵn sàng.
+- **Linearizability là điều kiện lịch sử thời gian thực:** Mỗi operation hoàn tất phải có thể được xem như có hiệu lực nguyên tử tại một điểm **giữa lời gọi và phản hồi**, bảo toàn thứ tự các operation không chồng lấn. Nó **không yêu cầu đồng hồ toàn cục đã đồng bộ**.
 - **Cạm bẫy chết người:** Xem nhẹ độ trễ replica lag như một chi tiết hạ tầng vô hại thay vì gắn session token hoặc version fence để route lượt đọc sau ghi, dẫn đến việc người dùng tưởng mất dữ liệu và liên tục thao tác lặp lại gây nghẽn hệ thống.
 
 ```mermaid
@@ -61,6 +61,8 @@ Hãy tách các chiều sau:
 | Isolation | Các transaction đồng thời trông như tương tác với nhau ra sao? |
 
 **Consistency và isolation có liên quan nhưng không đồng nghĩa.** Isolation chủ yếu nói về cách các transaction đồng thời được biểu diễn trong một logical database history. Distributed consistency nói về điều observer thấy qua replica, session và thời gian.
+
+**Không giả định mọi replica tự hội tụ vô điều kiện.** [Apache Cassandra — Repair](https://cassandra.apache.org/doc/stable/cassandra/managing/operating/repair.html) giải thích hinted handoff là best effort và repair có thể cần do operator chạy; bỏ qua những bước này có thể để lại replica lệch lâu dài.
 
 ## Eventual consistency cho phép bất đồng tạm thời
 
@@ -216,7 +218,7 @@ Khi không có partition, hệ thống vẫn đánh đổi latency, coordination
 
 Guarantee mạnh hơn có thể tốn latency hoặc coordination hơn. Guarantee yếu hơn có thể đẩy complexity sang reconciliation và UX của application.
 
-## Kịch bản production thực chiến: Cập nhật thành công, trang xác nhận vẫn hiện dữ liệu cũ
+## Kịch bản minh họa (giả định): cập nhật xong nhưng đọc bản cũ
 
 Người dùng đổi địa chỉ giao hàng trên đơn hàng vừa đặt. API ghi vào database PostgreSQL primary và trả về phản hồi thành công. Trình duyệt lập tức tải trang xác nhận, nhưng request GET đó bị bộ cân bằng tải điều hướng sang một read replica đang bị trễ sao chép (replica lag) 900 ms.
 
@@ -276,7 +278,7 @@ Hoàn toàn không. Lượt ghi có thể đã được lưu trữ bền vững 
 
 ## Nguồn
 
-Nguồn chính kiểm tra ngày **2026-09-16**:
+Nguồn chính kiểm tra ngày **2026-11-05**:
 
 - [Amazon DynamoDB — Read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html)
 - [Azure Cosmos DB — Consistency level choices](https://learn.microsoft.com/en-us/azure/cosmos-db/consistency-levels)
