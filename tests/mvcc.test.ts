@@ -35,7 +35,7 @@ describe('MVCC lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - mvcc\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-09-10');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');

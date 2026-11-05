@@ -4,7 +4,7 @@ description: Học cách ranh giới transaction, snapshot, isolation level, loc
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -34,18 +34,16 @@ concepts:
 
 # Transaction & Isolation: Đảm bảo tính nhất quán khi có đồng thời
 
-Hãy hình dung hệ thống trực ban của một bệnh viện cấp cứu với quy định sinh tử: *"Luôn luôn phải có ít nhất một bác sĩ trực tại khoa bất kể thời điểm nào."* Đúng 03:00:00 sáng, hai bác sĩ trực là Alice và Bob đều kiệt sức và nộp đơn xin nghỉ cùng một giây qua ứng dụng di động. Hai transaction cơ sở dữ liệu đồng thời được mở trên PostgreSQL ở mức cô lập `Repeatable Read`.
+**Tình huống minh họa (giả định):** Hệ thống lịch trực yêu cầu luôn có ít nhất một bác sĩ trực. Hai transaction PostgreSQL ở `Repeatable Read` cùng đọc thấy hai người đang trực, sau đó mỗi transaction cho một người khác nhau nghỉ. Vì ghi lên hai row khác nhau, cả hai có thể commit dù ràng buộc toàn cục đã bị phá vỡ. Đây là **write skew**, không phải một sự cố bệnh viện được xác minh.
 
-Transaction A truy vấn lịch trực, đếm thấy 2 bác sĩ đang trực, thỏa mãn điều kiện nên duyệt cho Alice nghỉ. Cùng thời điểm đó, transaction B cũng truy vấn lịch trực, đếm thấy 2 bác sĩ đang trực, thỏa mãn điều kiện nên duyệt cho Bob nghỉ. Do Alice và Bob cập nhật trên hai dòng dữ liệu hoàn toàn khác nhau, cơ chế khóa hàng (row-level lock) không hề phát sinh xung đột. Cả hai transaction commit trót lọt không một lỗi nhỏ. Chỉ một phần nghìn giây sau, khoa cấp cứu rơi vào thảm kịch: **không còn bất kỳ bác sĩ nào trực ban**.
-
-Đó chính là thảm họa **Write Skew** kinh điển. Cả hai transaction đều ra quyết định hoàn toàn hợp lệ trên snapshot cục bộ của mình, nhưng sự xen kẽ đồng thời của chúng đã phá hủy hoàn toàn ràng buộc bất biến (invariant) cốt lõi của hệ thống. Đặt câu lệnh giữa `BEGIN` và `COMMIT` chỉ mang lại tính nguyên tử (atomicity), chứ tuyệt đối không giúp ứng dụng miễn nhiễm với race condition. Để làm chủ hệ thống chịu tải cao, bạn phải phân biệt rạch ròi giữa `Read Committed`, `Repeatable Read`, vận dụng khóa tường minh (`FOR UPDATE`) và mức cô lập `Serializable` đi kèm vòng lặp retry loop xử lý mã lỗi serialization failure `40001`.
+Transaction bảo vệ tính nguyên tử của thay đổi dữ liệu trong database, nhưng các quyết định đồng thời cần thêm cơ chế bảo vệ invariant: isolation phù hợp, constraint hoặc khóa trên tài nguyên đại diện cho quyết định chung.
 
 > 💡 **Quy tắc bỏ túi:** Một transaction mang tính nguyên tử (atomic) chỉ đảm bảo các thao tác ghi cùng thành công hoặc cùng thất bại—chứ không bảo đảm các quyết định đồng thời là an toàn. Nếu ràng buộc bất biến (invariant) trải dài trên nhiều hàng, bạn bắt buộc phải dùng khóa tường minh (`SELECT ... FOR UPDATE`), database constraint, hoặc mức cô lập `Serializable` đi kèm vòng lặp retry khi gặp mã lỗi `40001`.
 
 ## Tóm tắt
 
-- **Atomicity không đồng nghĩa với Isolation:** `BEGIN` và `COMMIT` chỉ cam kết các thao tác ghi cùng thành công hoặc cùng rollback. Ranh giới này không ngăn được các session chạy song song đọc dữ liệu trung gian hoặc đưa ra những quyết định xung đột.
-- **Ranh giới snapshot quyết định tính khả kiến (visibility):** Trong `Read Committed`, mỗi câu lệnh SQL nhận một snapshot dữ liệu mới; trong khi ở `Repeatable Read` và `Serializable`, transaction giữ nguyên một snapshot ổn định duy nhất từ câu lệnh truy vấn dữ liệu đầu tiên.
+- **Atomicity khác Isolation:** `BEGIN`/`COMMIT` gom thao tác ghi thành một đơn vị commit/rollback của database; điều đó không tự khiến lịch sử các transaction đồng thời tương đương chạy tuần tự. PostgreSQL đã ngăn dirty reads ở isolation mặc định, nhưng write skew vẫn có thể xảy ra ở `Repeatable Read`.
+- **Phạm vi snapshot phụ thuộc DB và isolation:** Trong PostgreSQL, `Read Committed` lấy snapshot mới cho từng statement; `Repeatable Read`/`Serializable` giữ snapshot đã thiết lập khi thực hiện truy vấn dữ liệu đầu tiên. Không suy ra hành vi tương tự ở mọi engine chỉ từ tên isolation level.
 - **Write Skew phá vỡ các invariant liên hàng:** `Repeatable Read` trong PostgreSQL triệt tiêu hoàn toàn dirty read, non-repeatable read và phantom read, nhưng vẫn để lọt lỗi write skew khi các transaction chỉnh sửa các hàng độc lập dựa trên tập dữ liệu đọc chung.
 - **Serializable bắt buộc phải có retry loop:** Khi chạy ở mức `Serializable`, PostgreSQL chủ động theo dõi các chu trình phụ thuộc đọc/ghi và lập tức ngắt một transaction bằng mã lỗi serialization failure `40001`. Ứng dụng phải bắt mã lỗi này và thử lại toàn bộ transaction từ đầu.
 - **Transaction dừng lại ở ranh giới database:** Cơ sở dữ liệu không thể rollback tiền đã trừ qua cổng thanh toán hay email đã gửi cho khách hàng. Tuyệt đối không đưa network I/O vào trong transaction; hãy dùng pattern Transactional Outbox.
@@ -198,6 +196,8 @@ Dùng retry có giới hạn và có observability. Nếu serialization failure 
 
 PostgreSQL cũng khuyến nghị cân nhắc retry deadlock (`40P01`). Đây là failure class khác nhưng cùng lesson cốt lõi: transaction đã chết không thể tiếp tục từ giữa.
 
+**Lưu ý:** `SELECT ... FOR UPDATE` chỉ khóa những row thực sự được chọn; một phép `COUNT(*)` hay điều kiện “không có row nào” không tự tạo khóa cho toàn bộ predicate. Nếu invariant phụ thuộc nhiều row, hãy khóa row tổng hợp/đại diện trong mọi transaction, dùng constraint phù hợp hoặc chọn `Serializable` và xử lý retry trên toàn transaction.
+
 ## Khi explicit row lock là công cụ rõ ràng hơn
 
 Một số transaction cố ý phối hợp quanh các hàng hiện có cụ thể. `SELECT ... FOR UPDATE` có thể làm coordination đó explicit.
@@ -238,7 +238,7 @@ Database không thể rollback một card charge đã thành công hay email đ�
 
 Với cross-system workflow, dùng pattern dành cho partial failure: idempotency key, durable state transition, transactional outbox, reconciliation và compensating action khi phù hợp. Đừng kéo transaction dài hơn trong khi giả định external system đã tham gia vào nó.
 
-## Kịch bản production: oversell ghế cuối cùng
+## Tình huống minh họa (giả định): bán vượt ghế cuối cùng
 
 Một ticket service lưu inventory trong một hàng với `remaining = 1`. Application flow:
 

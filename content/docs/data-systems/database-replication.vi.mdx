@@ -4,7 +4,7 @@ description: Suy luận về database replication qua WAL shipping, contract com
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -32,21 +32,19 @@ concepts:
 
 # Database Replication: Suy luận về bản sao, độ trễ và failover
 
-Khách hàng vừa đổi mật khẩu tài khoản hoặc hoàn tất giao dịch chuyển tiền trị giá 10 triệu đồng. Ứng dụng nhận phản hồi 200 OK từ primary database và ngay lập tức redirect khách sang trang cài đặt hoặc hóa đơn chi tiết. Nhưng bộ định tuyến phía backend lại điều hướng câu truy vấn `GET` này sang một read replica bất đồng bộ đang chịu đỉnh điểm `replica lag` tới 800ms dưới tải cao.
+**Tình huống minh họa (giả định):** Người dùng đổi mật khẩu hoặc hoàn thành đơn hàng; primary đã xác nhận giao dịch, nhưng lượt đọc kế tiếp được route tới standby chưa replay WAL tương ứng. Giao diện hiển thị dữ liệu cũ. Đây là ví dụ về read-after-write bị vi phạm, không phải một sự cố có số liệu replica lag hay doanh thu đã được kiểm chứng.
 
-Replica này vẫn chưa kịp nhận hoặc replay bản ghi write-ahead log (`WAL`) tương ứng từ primary. Trang web hiển thị mật khẩu cũ hoặc báo trạng thái giao dịch "Chưa thanh toán / Thất bại". Khách hàng hoang mang tột độ, tưởng rằng tiền trong tài khoản đã bốc hơi, liên tục tải lại trang và gọi điện khiếu nại khiến tổng đài chăm sóc khách hàng rơi vào tình trạng quá tải.
-
-Trong kiến trúc cơ sở dữ liệu phân tán, việc sao chép byte dữ liệu qua cơ chế streaming `WAL` là phần việc đơn giản nhất. Thách thức kỹ thuật thực sự nằm ở việc kiểm soát các bản hợp đồng nhất quán: thấu hiểu rằng replica bất đồng bộ về bản chất là mô hình *nhất quán sau cùng (eventual consistency)*, bảo đảm tính nhất quán nhân quả đọc ngay sau ghi (`read-after-write`), cân nhắc giữa chi phí độ trễ và độ an toàn của replication đồng bộ (`synchronous_commit = on` so với `remote_apply`), ngăn chặn nguy cơ cạn kiệt ổ cứng `pg_wal` do replication slot bị treo, và điều phối quy trình `failover` có cơ chế cô lập triệt để (split-brain fencing / STONITH) nhằm không bao giờ để hai node cùng nhận quyền ghi (hai primary).
+Trong PostgreSQL, replication là quá trình đưa WAL tới standby, lưu và replay. Các mốc **primary commit, standby receipt, durable flush, replay và visibility** khác nhau. Khi đặt yêu cầu tính đúng đắn, cần xác định mô hình ACK, topology, retention WAL và quyền ghi sau failover.
 
 > 💡 **Quy tắc bỏ túi:** Read replica bất đồng bộ không phải là bản sao tức thời—nó là một luồng dữ liệu nhất quán sau cùng (eventual consistency) luôn có độ trễ (replica lag) so với WAL của primary. Tuyệt đối không điều hướng luồng đọc ngay sau khi ghi (read-after-write) hoặc kiểm tra phân quyền nhạy cảm sang replica mà không có token nhân quả hoặc route thẳng về primary; và tuyệt đối không bao giờ kích hoạt failover mà thiếu cơ chế cô lập triệt để (fencing / STONITH) nhằm triệt tiêu thảm họa split-brain.
 
 ## Tóm tắt
 
 - **Streaming WAL là một pipeline nhiều giai đoạn:** WAL record trải qua các mốc tiến độ độc lập: tạo trên primary, gửi qua mạng, standby nhận, flush xuống ổ cứng và replay vào bộ nhớ/đĩa. Một transaction commit xong trên primary hoàn toàn không có nghĩa dữ liệu đã lập tức visible trên standby.
-- **Durability khác biệt với Visibility trong commit đồng bộ:** `synchronous_commit = on` chỉ cam kết standby đã flush WAL an toàn xuống đĩa; truy vấn trên standby vẫn chưa thể thấy dữ liệu mới nếu chưa replay. Chỉ `synchronous_commit = remote_apply` mới cam kết truy vấn đọc trên standby thấy ngay dữ liệu vừa commit.
+- **Durability và visibility phải gắn với cấu hình:** `synchronous_commit = on` chỉ chờ standby flush WAL khi đã cấu hình synchronous standby bằng `synchronous_standby_names`; nếu không, nó chỉ chờ flush cục bộ. `remote_apply` chờ replay trên các standby đồng bộ được chọn, **không** bảo đảm mọi replica hoặc mọi cache đọc thấy ngay.
 - **Đọc-ngay-sau-khi-ghi (read-after-write) đòi hỏi chiến lược routing có chủ đích:** Do replica bất đồng bộ luôn có `replica lag`, ứng dụng chuẩn xác phải route các truy vấn đọc quan trọng về primary trong một khoảng thời gian, dùng causal token, hoặc kiểm tra offset trước khi phục vụ request kế tiếp của user.
-- **Replication slot bảo vệ standby nhưng đe dọa đĩa cứng primary:** Slot đảm bảo primary giữ lại toàn bộ WAL cho tới khi replica đọc xong. Nếu standby bị ngắt kết nối hoặc treo, thư mục `pg_wal` trên primary sẽ phình to không giới hạn và làm sập database trừ khi được giám sát và cấu hình hạn mức retention.
-- **Failover là việc chuyển giao quyền lực đòi hỏi kỹ thuật Fencing:** Promote một standby lên làm primary mà không cô lập primary cũ (fencing) sẽ dẫn tới thảm họa split-brain, khiến cả hai node cùng nhận ghi và làm phân rã dữ liệu vĩnh viễn. Cơ chế STONITH (Shoot The Other Node In The Head) là bắt buộc trong môi trường high-availability.
+- **Replication slot có retention policy:** Slot có thể giữ WAL mà consumer chưa nhận. Với `max_slot_wal_keep_size = -1` (mặc định), dung lượng giữ có thể không giới hạn; nếu cấu hình cap, WAL cũ có thể bị xóa tại checkpoint và slot/consumer không tiếp tục được nếu rơi quá xa.
+- **Failover cần rào quyền ghi cũ:** STONITH là một cách cô lập node, không phải cơ chế duy nhất cho mọi topology. Cần bảo đảm primary cũ không còn thay đổi authoritative state bằng storage fencing, epoch/lease hoặc thực sự ngắt quyền ghi; chỉ đổi DNS không đủ.
 - **Cạm bẫy chết người:** Xem read replica bất đồng bộ như bản sao tức thời cho các trang redirect ngay sau khi ghi dữ liệu. Nếu không có cơ chế điều hướng dính (sticky routing) về primary hoặc kiểm tra checkpoint nhân quả, người dùng sẽ đọc phải dữ liệu cũ, hoang mang nộp đơn khiếu nại hoặc bấm thanh toán trùng lặp.
 
 Với physical streaming replication của PostgreSQL, hãy dùng mental model này:
@@ -291,6 +289,8 @@ standby cần old row version lâu hơn
 
 Hãy xem `hot_standby_feedback = on` như operational policy cần monitoring, không phải magic switch “ngừng replica query error”.
 
+**Chú ý tham số `max_slot_wal_keep_size`:** [PostgreSQL Replication Configuration](https://www.postgresql.org/docs/current/runtime-config-replication.html) nêu rõ `-1` cho phép giữ WAL không giới hạn; cap chỉ được áp dụng ở checkpoint, và consumer quá xa có thể mất WAL cần thiết. Theo dõi `pg_replication_slots` cùng dung lượng `pg_wal`, đừng xem replication slot như bảo đảm vô hạn không có chi phí.
+
 ## 10. Replication slot bảo vệ continuity bằng cách giữ WAL còn cần
 
 <TermBox term="Replication slot">
@@ -410,7 +410,7 @@ Nếu regional standby lag hoặc unavailable, downstream replica kế thừa de
 
 Khi sự cố review, hãy vẽ replication graph thật thay vì chỉ nói “chúng ta có ba replica”.
 
-## 16. Tình huống production: write thành công nhưng read kế tiếp nói rằng chưa có
+## 16. Tình huống minh họa (giả định): đọc dữ liệu cũ sau commit
 
 Một API tạo project trên primary, trả `201 Created`, rồi frontend lập tức load project page. Generic read routing gửi GET sang asynchronous standby đang lag 1,8 giây trong một write burst.
 
