@@ -32,7 +32,7 @@ describe('Flashcards Extraction Engine', () => {
     // Card 1: Rule of Thumb
     expect(ruleCard.type).toBe('rule-of-thumb');
     expect(ruleCard.badge).toBe('Rule of Thumb');
-    expect(ruleCard.quote).toContain('Every call to `.then()`');
+    expect(ruleCard.quote).toContain('`.finally()` also returns a new Promise');
 
     // Card 2: Incident
     expect(incidentCard.type).toBe('incident');
@@ -75,7 +75,7 @@ describe('Flashcards Extraction Engine', () => {
     const [ruleCard, incidentCard, pitfallCard, takeawaysCard] = deck.cards;
 
     expect(ruleCard.badge).toBe('Quy tắc vàng');
-    expect(ruleCard.quote).toContain('Mỗi lệnh `.then()`');
+    expect(ruleCard.quote).toContain('`.finally()` cũng trả về Promise mới');
 
     expect(incidentCard.badge).toBe('Thực tế Production');
     expect(incidentCard.content).toContain('thẻ từ chối');
