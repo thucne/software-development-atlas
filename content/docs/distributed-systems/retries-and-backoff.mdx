@@ -4,7 +4,7 @@ description: Operate retries with safety, bounded attempts, backoff, jitter, own
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-15
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, reliability, retries, backoff, jitter]
 prerequisites: [partial-failure, timeouts, idempotency]
@@ -20,15 +20,17 @@ concepts:
 
 ## TL;DR
 
-Picture a congested highway exit during the evening rush hour. A minor fender bender slows traffic to a crawl. Instead of yielding and merging smoothly, every driver behind the jam floors the accelerator, swerves around, and rams back into the merge lane simultaneously every two seconds on the dot. The result is catastrophic gridlock: a brief, manageable slowdown instantly detonates into an impassable, multi-mile pileup. In distributed systems, this exact failure mode is known as a **retry storm**—where well-intentioned automated retries weaponize client traffic and DDoS an already struggling downstream service straight into an unrecoverable outage.
+**Illustrative scenario (hypothetical):** A struggling service returns temporary errors. When thousands of clients immediately retry or all wait the same fixed delay, their recovery traffic may create another burst before the service recovers. This is a **retry storm**; its severity depends on client count, retry limits, resource capacity and load-shedding policy.
 
-> 💡 **Rule of thumb:** Retry only transient failures on idempotent operations within the remaining deadline; always apply exponential backoff with full jitter and designate a single retry owner.
+A retry is useful only when failure may be transient, replay is safe, there is useful deadline remaining and the dependency can tolerate more work. HTTP status alone is not enough.
 
-- **Classify before retrying:** Retries are only effective against **transient** transport blips, rate-limiting throttle responses (`429`), or temporary server overload (`503`). Deterministic errors (malformed input, invalid credentials, business logic violations) will never self-heal and must never be retried.
+> 💡 **Rule of thumb:** Retry only when a failure is plausibly transient, replay is safe and the remaining deadline and retry budget justify more work. Bounded exponential backoff with jitter is often a good fleet-wide default, not an unconditional protocol rule. Coordinate one retry owner, including SDK attempts.
+
+- **Classify before retrying:** `429` can reflect a quota that will not reset within this request's useful lifetime; `503` can persist. Neither status automatically means retrying will help. Do not repeat deterministic authentication, validation or business failures unchanged.
 - **Idempotency is non-negotiable for state mutations:** A network retry is a brand new attempt, not an undo action. Retrying an ambiguous write without an **idempotency key** or reconciliation path will create duplicate charges, double-booked seats, and ghost inventory entries.
-- **Exponential backoff with full jitter:** Immediate retries batter degraded services. Space successive attempts with **exponential backoff**, and always inject randomized **jitter** to break resonance so an entire fleet of clients never retries in locked phase.
+- **Backoff and jitter by policy:** Capped exponential backoff with jitter is a common strategy for spreading retries, not an immutable requirement for every protocol. Enforce attempt/time caps, and apply valid server delay hints only if they still fit the request's useful deadline.
 - **Single retry owner:** Establish clear **retry ownership** at a single architectural boundary. If the client, API gateway, and intermediate microservice each independently configure 3 retries, a single failed query multiplies into `3 × 3 × 3 = 27` destructive attempts on the deepest database layer.
-- **Fatal pitfall:** **Uncoordinated multi-layer retries with fixed intervals.** Nesting un-jittered retry loops across upstream tiers creates an exponential feedback loop that transforms a 200 ms downstream latency fluctuation into a total cascading outage.
+- **High-risk pattern:** Independent retries at several layers can multiply downstream attempts. If three layers each permit three total tries, a single request can cause up to `3 × 3 × 3 = 27` attempts at the last dependency when every branch gets that far.
 
 ```mermaid
 flowchart LR
@@ -48,7 +50,7 @@ A failure is **retryable** when a later attempt can change the outcome. Temporar
 | Signal | Default decision |
 | --- | --- |
 | transient transport error | retry if safety and budget hold |
-| `429` / `503` | back off; honor valid `Retry-After` |
+| `429` / `503` | check quota, overload, request safety and deadline; use valid `Retry-After` only when another attempt remains useful |
 | auth / validation / business rejection | do not retry unchanged input |
 | ambiguous write timeout | require idempotency or reconciliation |
 
@@ -66,7 +68,7 @@ If attempt one may have committed, a new logical request can duplicate a payment
 100 ms -> 200 ms -> 400 ms -> capped delay
 ```
 
-**Exponential backoff** spaces attempts farther apart. **Jitter** randomizes waits so a fleet does not wake together. Bound attempts and delay, and never sleep past the remaining deadline.
+**Exponential backoff** spaces attempts farther apart; **jitter** helps prevent a synchronized fleet. Bound the number of attempts, delay and total elapsed time. If a valid `Retry-After` delay exceeds the remaining deadline, **do not retry within the current request**; let the caller report a result or schedule a separate operation only if its semantics allow it.
 
 ```mermaid
 sequenceDiagram
@@ -81,6 +83,13 @@ sequenceDiagram
   B->>S: retry
 ```
 
+
+### `Retry-After` is a hint, not a new deadline
+
+Under [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3), `Retry-After` can be a non-negative delay in seconds or an HTTP date. It suggests when to send a follow-up request; it **does not make an unsafe operation safe to repeat**, and is not mandatory on every `429` or `503`. A valid hint that exceeds the remaining deadline means the current request should stop retrying.
+
+For example, when the caller has **250 ms** left and receives `Retry-After: 2`, waiting two seconds cannot fit inside that request's deadline. A later background operation needs its own explicit semantics and, for payment-like writes, a stable idempotency contract.
+
 ## Choose one retry owner
 
 If Client, Service A, and Service B each allow three total attempts, one original request can drive `3 × 3 × 3 = 27` attempts at the deepest dependency. Pick the layer with context to judge value, safety, and remaining deadline. Existing SDK retries count too.
@@ -93,7 +102,7 @@ A **retry storm** is overload amplified by retries: recovery traffic becomes par
 
 During broad failure, a shared **retry budget** or **token bucket** can suppress retries. AWS SDK standard mode uses a token-backed retry quota. Observe original requests separately from attempts, retry reason, exhausted budget, and saturation.
 
-## Production scenario
+## Illustrative scenario (hypothetical)
 
 A gateway calls Checkout → Inventory → database. During a latency spike every layer retries twice, uses deterministic backoff, and reservation writes lack stable idempotency identity.
 
@@ -127,6 +136,9 @@ No. Recover existing retry layers, choose one owner, and coordinate the total at
 
 Before adding retries, recover failure class, operation safety, deadline, existing retries, ownership, bounds, backoff/jitter, server hints, fleet budget, and telemetry. Reject uncoordinated retry loops.
 
+
+This lesson is the **operating guide for retry eligibility, backoff, jitter, ownership and fleet load**. For time-budget mechanics see [Timeouts](/docs/distributed-systems/timeouts); for the partial-failure synthesis see [Timeouts, Retries & Backoff](/docs/distributed-systems/timeouts-retries-and-backoff).
+
 ## Sources
 
-Primary references verified on **2026-09-15**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), and [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
+Primary references verified on **2026-11-05**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), and [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
