@@ -4,7 +4,7 @@ description: Vận hành một yêu cầu phía máy chủ từ cổng vào qua 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -27,13 +27,13 @@ concepts:
   - backend-request-lifecycle
 ---
 
-## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
+## Tóm tắt — một request, nhiều ranh giới lỗi
 
-Hãy hình dung một đợt mở bán vé ca nhạc lớn: 10.000 người dùng bấm thanh toán cùng lúc. Đột ngột, toàn bộ cụm API backend tê liệt. CPU máy chủ chỉ vỏn vẹn 15%, RAM vẫn còn trống hàng chục GB, nhưng toàn bộ người dùng đều nhận về lỗi `504 Gateway Timeout`.
+**Tình huống thanh toán giả định (không phải sự cố đã được xác minh):** Handler thanh toán mở giao dịch cơ sở dữ liệu rồi gọi HTTP sang nhà cung cấp thanh toán trước khi commit. Khi dịch vụ bên ngoài phản hồi chậm, handler có thể giữ connection và lock của cơ sở dữ liệu trong lúc chờ. Nếu đủ nhiều request cùng bị giữ lại, connection pool có thể cạn dù CPU ứng dụng chưa cao. Gateway phía trước **có thể** trả `504 Gateway Timeout` nếu không nhận phản hồi kịp thời từ upstream; một số client có thể ngắt kết nối hoặc gặp lỗi khác. Ví dụ không khẳng định lưu lượng thực tế, phần trăm CPU, kích thước pool hay thời gian gián đoạn cụ thể.
 
-Biên bản mổ xẻ sự cố (post-mortem) phơi bày một thảm kịch kinh điển trong vòng đời request: Tầng reverse proxy (như Nginx hoặc Envoy) giữ cấu hình mặc định `proxy_read_timeout 60s`, trong khi backend gọi sang cổng thanh toán bên thứ ba mà không thiết lập hạn chót (deadline). Một sự cố gián đoạn mạng kéo dài 5 giây từ cổng thanh toán đã giam giữ hàng trăm worker thread backend trên các kết nối TCP treo lơ lửng. Chỉ sau 30 giây, 200 kết nối trong database connection pool cạn kiệt sạch bách vì các transaction bị giữ mở để chờ phản hồi từ bên ngoài. Mọi request mới đi vào—từ kiểm tra sức khỏe hệ thống (health check) đến đọc dữ liệu cơ bản—bị dồn ứ tại hàng đợi socket của hệ điều hành cho tới khi toàn bộ cụm máy chủ sụp đổ trong im lặng.
+Cần xác định timeout theo thành phần và cấu hình triển khai. Chẳng hạn, `proxy_read_timeout` của NGINX HTTP proxy có giá trị mặc định `60s`, nhưng đo khoảng cách **giữa hai lần đọc liên tiếp từ upstream**, **không phải** hạn chót 60 giây cho toàn bộ phản hồi. Không thể dùng nó thay cho deadline toàn request, timeout truy vấn cơ sở dữ liệu hay timeout RPC. Envoy có các cấu hình timeout riêng.
 
-Một request phía máy chủ không bao giờ chỉ là một hàm controller đón nhận JSON body. Đó là một hành trình khép kín, một đơn vị công việc có thời hạn thuê tài nguyên (resource lease) nghiêm ngặt đi qua tầng truyền tải (TCP/TLS), bộ phân tích cú pháp HTTP, chuỗi middleware, các cổng xác thực - phân quyền, giao dịch cơ sở dữ liệu và bàn giao bất đồng bộ. Làm chủ vòng đời yêu cầu chính là kiểm soát chặt chẽ từng ranh giới tin cậy, thời gian sống và bằng chứng vận hành trên mỗi chặng đường của dữ liệu.
+Request phía máy chủ đi qua các ranh giới truyền tải, tin cậy, nghiệp vụ, lưu trữ bền vững và bàn giao công việc bất đồng bộ. Cần xác định rõ ngân sách tài nguyên, kiểm tra phân quyền, kết quả đã commit và hợp đồng phản hồi—đặc biệt khi dịch vụ phụ thuộc chậm hoặc client rời đi.
 
 ```mermaid
 flowchart LR
@@ -47,14 +47,14 @@ flowchart LR
   T --> A[Bàn giao bất đồng bộ bền vững]
 ```
 
-> 💡 **Quy tắc bỏ túi:** Một request phía backend là một khoản thuê tài nguyên có hạn—tuyệt đối không mở transaction cơ sở dữ liệu trước khi kiểm tra đầu vào, không cấp timeout độc lập ở từng tầng, và không bao giờ trả HTTP 200 trước khi trạng thái bền vững đã được commit.
+> 💡 **Quy tắc bỏ túi:** Dùng ngân sách thời gian toàn request, truyền phần thời gian còn lại khi có thể. Giữ giao dịch chỉ quanh bất biến cần bảo vệ. Với phản hồi khẳng định đã ghi thành công, phải xác định commit đã thành công; với `202 Accepted`, cần tiếp nhận công việc bền vững nhưng không hứa đã xử lý xong. Timeout hay cancellation không chứng minh đã hoàn tác commit hoặc hiệu ứng bên ngoài.
 
 ### TL;DR 2.0
-- **Hành trình toàn vẹn của một request:** Request đi qua một đường ống tuần tự nghiêm ngặt: tiếp nhận tại cổng vào (TCP/TLS/HTTP), kiểm tra hình dạng đầu vào, xác thực danh tính, phân quyền tài nguyên, thực thi nghiệp vụ cốt lõi, lưu trữ giao dịch bền vững, ánh xạ lỗi/kết quả và bàn giao bất đồng bộ.
+- **Các giai đoạn và nhánh tùy chọn:** Request ghi thường đi qua ingress, validation, authentication, authorization, xử lý nghiệp vụ, lưu trữ và ánh xạ phản hồi; request đọc không nhất thiết mở giao dịch hay tạo job bất đồng bộ. Sắp xếp các bước theo ranh giới tin cậy và nhất quán thực tế.
 - **Ranh giới tin cậy độc lập:** Cổng vào chỉ xác thực tính toàn vẹn cú pháp truyền tải. Các bất biến nghiệp vụ và trạng thái cạnh tranh chỉ được phép xử lý sâu bên trong domain logic và giao dịch cơ sở dữ liệu.
-- **Ngân sách thời gian (Deadline Budget) & Lan truyền hủy bỏ:** Toàn bộ vòng đời phải chia sẻ một deadline duy nhất; từng lời gọi downstream chỉ được dùng phần thời gian còn lại. Khi client ngắt kết nối hoặc hết hạn, tín hiệu hủy (cancellation) phải lập tức dừng ngay các truy vấn DB và RPC phía sau để tránh lãng phí tài nguyên.
-- **Phản hồi phải đúng sự thật dữ liệu:** Chỉ trả về phản hồi thành công (`200 OK` / `201 Created`) sau khi trạng thái đã ghi nhận bền vững (commit) vào cơ sở dữ liệu. Các tác vụ phụ sau commit (email, webhook) phải được chuyển giao qua cơ chế bền vững (outbox pattern/hàng đợi) thay vì chạy nền trong bộ nhớ tiến trình.
-- **Cạm bẫy chết người:** Bỏ quên cấu hình socket timeout giữa reverse proxy và backend hoặc mở transaction giữ connection pool cơ sở dữ liệu trong khi chờ API bên thứ ba, khiến worker thread bị giam giữ 60s làm cạn kiệt tài nguyên toàn hệ thống trong tích tắc.
+- **Deadline và cơ chế hủy có hợp tác:** Tính timeout lời gọi phụ thuộc từ ngân sách còn lại khi được hỗ trợ; truyền tín hiệu hủy tới thao tác DB/RPC có cơ chế nhận hủy. Client ngắt kết nối, timeout hay yêu cầu hủy không bảo đảm dừng ngay một tác vụ đang chạy hoặc hoàn tác hiệu ứng đã xảy ra.
+- **Phản hồi đúng sự thật, bàn giao bền vững:** Nếu phản hồi thành công hàm ý dữ liệu đã commit, phải xác minh kết quả commit thay vì tin vào lời hứa trong bộ nhớ. Nếu chỉ tiếp nhận tác vụ bất đồng bộ, lưu ý định bền vững trước khi trả `202` và cung cấp cách xem trạng thái; các hiệu ứng quan trọng cần bản ghi công việc/outbox và consumer xử lý idempotent.
+- **Lỗi có tác động lớn:** Giữ transaction mở trong khi chờ HTTP đến dịch vụ ngoài có thể làm cạn connection hoặc giữ lock quá lâu. Timeout đọc tại proxy không phải deadline đầu-cuối; hậu quả phụ thuộc vào lưu lượng đồng thời, ngân sách thời gian và cách triển khai thực tế.
 
 <TermBox term="Ngữ cảnh yêu cầu">
 **Ngữ cảnh yêu cầu** là tập nhỏ thông tin chỉ sống trong một yêu cầu: trạng thái hủy/hạn chót, principal đã xác thực, định danh yêu cầu hoặc tương quan, ngữ cảnh dấu vết và một lượng siêu dữ liệu được chọn lọc.
@@ -121,8 +121,8 @@ Quy tắc vận hành:
 
 - suy ra timeout phụ thuộc từ ngân sách còn lại thay vì cấp cho mỗi tầng một timeout đầy đủ mới;
 - không khởi chạy công việc tùy chọn khi ngân sách hữu ích còn quá ít;
-- lan truyền hủy tới thao tác cơ sở dữ liệu/mạng khi runtime hỗ trợ;
-- không giả định hủy sẽ hoàn tác một hệ thống bên ngoài có thể đã ghi nhận công việc;
+- lan truyền hủy tới thao tác cơ sở dữ liệu/mạng khi runtime hỗ trợ; hủy là cơ chế hợp tác nên thao tác đang chạy có thể không nhận tín hiệu hoặc đã hoàn tất;
+- coi timeout, mất kết nối và phản hồi commit/RPC không rõ kết quả là **trạng thái chưa xác định**, không phải bằng chứng rollback. Dùng idempotency key hoặc tra cứu trạng thái bền vững trước khi client retry request có hiệu ứng quan trọng;
 - ghi nhận riêng kết quả hết hạn/hủy khỏi lỗi máy chủ thông thường.
 
 Hủy bỏ là kiểm soát tài nguyên, không phải rollback phân tán.
@@ -149,28 +149,31 @@ Tránh cực đoan ngược lại: một “tầng dịch vụ” chỉ đổi t
 
 Chỉ mở giao dịch cơ sở dữ liệu quanh phần trạng thái phải thay đổi nguyên tử. Không mặc định mở giao dịch từ lúc yêu cầu vừa vào.
 
-Một ranh giới giao dịch tốt thường bắt đầu sau các bước kiểm tra đầu vào/xác thực rẻ tiền và kết thúc ngay khi trạng thái bắt buộc đã được commit bền vững.
+Giao dịch thường bắt đầu sau những bước kiểm tra đầu vào và xác thực ít tốn kém, rồi kết thúc khi trạng thái cần thiết được commit. Tuy nhiên, phân quyền dựa trên dữ liệu có thể thay đổi đôi khi phải được kiểm tra lại hoặc khóa dữ liệu **bên trong giao dịch** để tránh race giữa lúc kiểm tra và lúc sử dụng. Sơ đồ khái niệm không áp đặt một thứ tự duy nhất cho mọi endpoint.
 
 ```mermaid
 sequenceDiagram
+  participant C as Client
   participant H as Handler
   participant DB as Cơ sở dữ liệu
-  participant Q as Bàn giao bền vững
-  participant W as Bộ xử lý bất đồng bộ
+  participant Q as Bộ chuyển tiếp outbox
+  participant W as Worker bất đồng bộ
 
-  H->>DB: bắt đầu giao dịch
-  H->>DB: đọc/kiểm tra/cập nhật bất biến
-  H->>DB: lưu bàn giao bền vững nếu cần
-  H->>DB: commit
-  DB-->>H: đã ghi nhận
-  H-->>H: ánh xạ phản hồi
-  Q-->>W: chuyển giao sau khi commit
-  W->>W: thực hiện tác dụng phụ bất đồng bộ
+  C->>H: request
+  H->>DB: BEGIN, phân quyền, kiểm tra, cập nhật
+  H->>DB: ghi outbox trong cùng giao dịch
+  H->>DB: COMMIT
+  DB-->>H: kết quả commit xác định
+  H-->>C: 201 đã ghi hoặc 202 đã tiếp nhận
+  Q->>DB: đọc outbox đã commit
+  DB-->>Q: bản ghi
+  Q->>W: chuyển giao (có thể lặp)
+  W->>W: chống trùng rồi xử lý
 ```
 
 Không giữ giao dịch mở trong khi chờ lời gọi HTTP từ xa chậm trừ khi bất biến thực sự cần sự phối hợp đó và bạn hiểu chi phí khóa/năng lực. Giao dịch cơ sở dữ liệu không thể hoàn tác nguyên tử email, nhà cung cấp thanh toán, webhook hay một dịch vụ độc lập khác.
 
-Nếu tác dụng phụ phải chắc chắn diễn ra chỉ sau khi trạng thái bền vững được ghi nhận, hãy lưu một bàn giao bền vững trong cùng giao dịch khi có thể (ví dụ bản ghi outbox/công việc), rồi chạy tác dụng phụ bất đồng bộ sau khi commit.
+Nếu cần thử thực hiện hiệu ứng bên ngoài sau khi trạng thái bền vững được commit, hãy ghi bản ghi công việc/outbox trong cùng giao dịch khi có thể. Bộ chuyển tiếp có thể retry và gửi trùng, nên consumer phải xử lý idempotent; outbox **không bảo đảm** hiệu ứng bên ngoài chỉ diễn ra đúng một lần. Nếu không nhận được kết quả commit rõ ràng, phải đối soát trạng thái trước khi thử lại toàn bộ thao tác ghi.
 
 ## 7. Tách ngữ nghĩa phản hồi khỏi lỗi nội bộ
 
@@ -187,11 +190,12 @@ Ví dụ:
 | Kết quả nội bộ | Hướng HTTP thường dùng | Ghi chú |
 | --- | --- | --- |
 | yêu cầu sai hình dạng | 400 | không phân tích/kiểm tra được |
-| chưa xác thực | 401 | cần hoặc sai thông tin xác thực |
+| chưa xác thực | 401 | RFC 9110 yêu cầu `WWW-Authenticate` với challenge phù hợp |
 | đã xác thực nhưng bị cấm | 403 | principal đã biết nhưng hành động bị từ chối |
 | không có tài nguyên | 404 | cân nhắc không làm lộ sự tồn tại theo chính sách |
 | xung đột bất biến | 409 | hữu ích cho xung đột trạng thái/phiên bản |
 | đã nhận công việc bất đồng bộ | 202 | xử lý chưa hoàn tất |
+| gateway không nhận phản hồi upstream kịp thời | 504 | mã do gateway phát ra, không phải mọi timeout ứng dụng đều là 504 |
 | lỗi phụ thuộc/máy chủ bất ngờ | 5xx | ghi bằng chứng nội bộ, trả chi tiết an toàn |
 
 RFC 9110 định nghĩa ngữ nghĩa mã trạng thái HTTP; RFC 9457 định nghĩa định dạng problem details chuẩn cho lỗi API máy đọc được. Hai đặc tả này không thay thế việc thiết kế loại lỗi nghiệp vụ và mức chi tiết an toàn của riêng API.
@@ -208,7 +212,7 @@ Có ba nhóm hữu ích:
 
 Tránh hứa “fire and forget” bằng cách khởi chạy một tác vụ trong tiến trình rồi trả `200`. Tiến trình có thể khởi động lại, co giãn xuống hoặc bị dừng ngay sau phản hồi. Nếu tác dụng phụ quan trọng, phải bàn giao quyền sở hữu một cách bền vững.
 
-HTTP `202 Accepted` cố ý không cam kết hoàn tất: nó chỉ nói yêu cầu đã được chấp nhận để xử lý. Nếu máy khách cần theo dõi hoàn tất bất đồng bộ, hãy cung cấp tài nguyên trạng thái hoặc hợp đồng tương đương.
+HTTP `202 Accepted` chỉ nói request đã được chấp nhận để xử lý, không bảo đảm sẽ hoàn tất thành công. Nếu API hứa đã tiếp nhận công việc một cách bền vững, phải commit job/ý định trước; cung cấp tài nguyên trạng thái hoặc cách tra cứu có kiểm tra phân quyền để client theo dõi tiến độ và đối soát khi bị timeout.
 
 ## 9. Mang bằng chứng xuyên suốt vòng đời
 
@@ -240,15 +244,15 @@ Tối thiểu, người vận hành cần phân biệt được:
 - hoàn tất đồng bộ thành công;
 - bàn giao bất đồng bộ đã được chấp nhận.
 
-## Sự cố thực tế: phản hồi báo thành công trước khi trạng thái bền vững tồn tại
+## Tình huống giả định: phản hồi thành công trước khi có dữ liệu bền vững
 
-> **Tình huống:** Một handler kiểm tra đơn hàng, bắt đầu ghi cơ sở dữ liệu, khởi chạy tác vụ nền trong tiến trình để phát sự kiện xác nhận, rồi trả `200 OK` trước khi chờ commit cơ sở dữ liệu. Khi tải cao, commit thất bại nhưng tác vụ nền vẫn phát sự kiện.
+> **Ví dụ được dựng để giảng giải, không phải sự cố đã xác minh:** Handler kiểm tra đơn hàng, bắt đầu ghi DB, chạy một tác vụ trong tiến trình để phát sự kiện xác nhận và trả `200 OK` trước khi chờ commit. Nếu commit thất bại nhưng tác vụ vẫn phát sự kiện, phản hồi và sự kiện đều khẳng định sai rằng đơn hàng đã tồn tại.
 
 **Hậu quả:** Khách hàng nhận xác nhận cho đơn hàng chưa tồn tại bền vững. Hệ thống phía sau thấy sự kiện cho trạng thái không có thật, trong khi log API lại cho thấy phản hồi thành công.
 
 **Nguyên nhân cốt lõi:** Vòng đời không có ranh giới rõ để phản hồi thành công trở thành sự thật. Trạng thái bền vững, tác dụng phụ bất đồng bộ và ánh xạ phản hồi HTTP được phép chạy đua độc lập.
 
-**Cách khắc phục chuẩn:** Xác định bất biến trước. Commit trạng thái cần thiết để phản hồi thành công là đúng trước khi trả thành công. Nếu tác dụng phụ phải theo sau commit, lưu bàn giao bền vững của nó trong giao dịch khi có thể và xử lý bất đồng bộ sau khi commit. Ánh xạ lỗi commit thành lỗi máy chủ/phụ thuộc thay vì trả thành công.
+**Cách khắc phục chuẩn:** Xác định bất biến trước. Commit trạng thái cần thiết và bản ghi bàn giao bền vững cùng giao dịch trước khi nói thao tác ghi đã hoàn tất; chỉ phát sự kiện từ outbox đã commit, với consumer chống xử lý trùng. Ánh xạ lỗi commit đã xác định vào phản hồi phù hợp. Nếu mất kết nối trước khi biết kết quả commit, coi kết quả là **chưa xác định**: đối soát bằng ID đơn hàng/job ổn định trước khi retry, không tự suy diễn đã rollback.
 
 ## Danh sách kiểm tra vận hành vòng đời
 
@@ -260,7 +264,8 @@ Tối thiểu, người vận hành cần phân biệt được:
 - [ ] **Hủy:** Công việc phía sau có dừng được khi kết quả không còn hữu ích không?
 - [ ] **Ranh giới nghiệp vụ:** Quy tắc lõi có chạy được mà không cần đối tượng HTTP thô hay quyết định mã trạng thái không?
 - [ ] **Giao dịch:** Giao dịch cơ sở dữ liệu có bao đúng bất biến nguyên tử và kết thúc sớm không?
-- [ ] **Sau khi commit:** Tác dụng phụ bên ngoài quan trọng có quyền sở hữu bền vững trước khi chạy bất đồng bộ không?
+- [ ] **Sau khi commit:** Tác dụng phụ bên ngoài quan trọng có quyền sở hữu bền vững trước khi chạy bất đồng bộ, với consumer chống trùng không?
+- [ ] **Kết quả chưa rõ:** Nếu client/DB timeout nhưng thao tác có thể đã commit, caller có đối soát bằng ID ổn định trước khi retry được không?
 - [ ] **Ánh xạ lỗi:** Lỗi đã biết có được ánh xạ thành ngữ nghĩa ổn định cho máy khách không?
 - [ ] **Tính đúng của phản hồi:** Mọi thứ cần thiết để phản hồi là đúng đã hoàn tất trước khi trả thành công chưa?
 - [ ] **Bằng chứng:** `request_id`/trace có giúp dựng lại từ chối, thời gian phụ thuộc, kết quả giao dịch và bàn giao bất đồng bộ không?
@@ -276,7 +281,7 @@ Công việc cơ sở dữ liệu cần để phản hồi nói đúng sự th�
 
 Email không nên kéo dài giao dịch cơ sở dữ liệu hay nhận một timeout hai giây hoàn toàn mới sau khi ngân sách yêu cầu đã hết. Nếu email phải được gửi, hãy lưu bàn giao công việc/email bền vững cùng trạng thái commit khi phù hợp, commit, trả kết quả đồng bộ, rồi để bộ xử lý bất đồng bộ gửi email với chính sách thử lại/hạn chót riêng.
 
-Nếu cơ sở dữ liệu không thể commit trong ngân sách còn lại, trả kết quả lỗi/hết hạn phù hợp; không trả thành công rồi hy vọng commit sẽ xong sau đó.
+Nếu DB chắc chắn thất bại hoặc rollback, trả lỗi phù hợp. Nếu hết deadline **khi chưa biết kết quả commit**, trả trạng thái timeout/chưa xác định theo hợp đồng thay vì báo thành công và yêu cầu tra cứu/idempotency trước lần thử tiếp theo. Mất phản hồi không chứng minh commit đã thất bại.
 </details>
 
 ## Quy tắc cho agent
@@ -288,3 +293,6 @@ Khi thay đổi một đường xử lý yêu cầu phía máy chủ, đừng ch
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
 - [W3C — Trace Context](https://www.w3.org/TR/trace-context/)
+- [NGINX HTTP proxy module — proxy_read_timeout](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout)
+- [Go — Canceling in-progress database operations](https://go.dev/doc/database/cancel-operations)
+- [AWS Prescriptive Guidance — Transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)

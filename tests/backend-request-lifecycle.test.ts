@@ -61,4 +61,30 @@ describe('Backend Request Lifecycle lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('preserves verified deadline, timeout, outbox and response-boundary caveats in both languages', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [filename, source] of [
+      [lessonPaths.en, en],
+      [lessonPaths.vi, vi],
+    ] as const) {
+      expect(source, filename).toContain('lastVerified: 2026-11-05');
+      expect(source, filename).toContain('proxy_read_timeout');
+      expect(source, filename).toContain('WWW-Authenticate');
+      expect(source, filename).toContain('504');
+      expect(source, filename).toContain('202 Accepted');
+      expect(source, filename).toContain('https://go.dev/doc/database/cancel-operations');
+      expect(source, filename).toContain('https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout');
+      expect(source, filename).toContain('https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html');
+      expect(source, filename).toMatch(/idempotent/i);
+      expect(source, filename).toMatch(/outbox/i);
+    }
+    expect(en).toContain('not a documented outage');
+    expect(vi).toContain('không phải sự cố đã được xác minh');
+    expect(en).toContain('ambiguous');
+    expect(vi).toContain('chưa xác định');
+    expect((en.match(/^\`\`\`mermaid$/gm) ?? []).length)
+      .toBe((vi.match(/^\`\`\`mermaid$/gm) ?? []).length);
+  });
 });
