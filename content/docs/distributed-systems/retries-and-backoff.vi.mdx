@@ -4,7 +4,7 @@ description: Vận hành retry an toàn với backoff, jitter, ownership và gi�
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-15
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, reliability, retries, backoff, jitter]
 prerequisites: [partial-failure, timeouts, idempotency]
@@ -20,15 +20,17 @@ concepts:
 
 ## Tóm tắt
 
-Hãy hình dung một lối thoát hiểm trên đường cao tốc đang xảy ra ùn tắc nhẹ vào giờ cao điểm. Thay vì kiên nhẫn giảm tốc độ và nhường nhau từng làn, hàng trăm tài xế phía sau đồng loạt nhấn ga, lạng lách và liên tục lao thẳng vào điểm nghẽn cùng một nhịp cứ mỗi hai giây một lần. Hậu quả tức thì là tê liệt toàn diện: một sự cố va chạm nhỏ ban đầu bị biến thành một bãi đỗ xe bất đắc dĩ kéo dài hàng cây số. Trong kiến trúc hệ thống phân tán, kịch bản kinh hoàng này lặp lại y hệt dưới cái tên **cơn bão thử lại (retry storm)**—nơi các đoạn mã retry tự động với ý đồ tốt vô tình biến chính lưu lượng của hệ thống thành một đợt tấn công từ chối dịch vụ (DDoS) đánh sập hoàn toàn service phía sau đang thoi thóp.
+**Ví dụ minh họa (giả định):** Một dịch vụ đang quá tải trả lỗi tạm thời. Nếu hàng nghìn client thử lại ngay hoặc cùng chờ đúng một khoảng cố định, lượng request thử lại có thể tạo đợt tải mới trước khi downstream kịp phục hồi. Đây là **retry storm**; mức độ thực tế phụ thuộc vào số client, số lần thử, tài nguyên và chính sách điều áp.
 
-> 💡 **Quy tắc bỏ túi:** Chỉ thử lại các lỗi tạm thời trên thao tác idempotent trong giới hạn deadline còn lại; bắt buộc dùng exponential backoff kèm jitter và chỉ định duy nhất một tầng sở hữu retry.
+Retry chỉ có ích khi lỗi có khả năng hết, thao tác được phép lặp lại và vẫn còn đủ deadline. Hãy phân biệt *trạng thái HTTP*, *tính an toàn khi lặp*, *ngân sách retry* và *khả năng chịu tải của downstream*.
 
-- **Phân loại lỗi trước khi retry:** Chỉ retry các lỗi đường truyền mạng **tạm thời (transient)**, phản hồi chạm giới hạn tần suất (`429`), hoặc máy chủ quá tải nhất thời (`503`). Tuyệt đối không retry các lỗi có tính xác định (deterministic) như sai định dạng dữ liệu, sai quyền truy cập hay vi phạm logic nghiệp vụ vì chúng sẽ **không tự hết**.
+> 💡 **Quy tắc bỏ túi:** Chỉ retry khi lỗi có khả năng tạm thời, thao tác có hợp đồng lặp an toàn và còn đủ deadline cùng retry budget. Backoff có giới hạn kèm jitter thường giúp phân tán tải; cần một điểm chịu trách nhiệm điều phối toàn bộ lần thử, bao gồm cả retry mặc định của SDK.
+
+- **Đánh giá khả năng phục hồi trước khi retry:** `429` có thể biểu thị quota chưa được cấp lại, còn `503` có thể kéo dài; không tự kết luận cả hai đều hết lỗi nếu thử lại. Với lỗi xác thực, validation hoặc business rejection, không lặp cùng request nếu không có thay đổi có ý nghĩa.
 - **Tính idempotent là bắt buộc đối với thao tác ghi:** Một lần retry qua mạng là một nỗ lực mới, không phải cỗ máy quay ngược thời gian. Với các thao tác ghi dữ liệu, bắt buộc phải có **định danh yêu cầu (idempotency key)** hoặc cơ chế **đối soát (reconciliation)** để ngăn chặn việc trừ tiền lặp hoặc đặt trùng chỗ khi request đầu tiên đã commit thành công.
-- **Giãn cách lũy thừa kèm độ lệch ngẫu nhiên (jitter):** Không bao giờ retry ngay tức khắc. Bắt buộc áp dụng **exponential backoff** để kéo giãn thời gian chờ, đồng thời chèn thêm **jitter** ngẫu nhiên nhằm phân tán lưu lượng, ngăn chặn việc cả một cụm client cùng thức dậy và dội tải vào hệ thống cùng một giây.
+- **Backoff và jitter theo tải:** Capped exponential backoff có jitter là lựa chọn phổ biến để giảm các đợt thử lại đồng bộ, nhưng không phải cam kết áp dụng cho mọi giao thức. Đặt giới hạn thời gian, số lần thử và tôn trọng thời điểm server đề nghị nếu hợp lệ và còn trong deadline.
 - **Chỉ định duy nhất một chủ sở hữu retry (retry owner):** Xác lập rõ quyền sở hữu retry tại một tầng duy nhất trong kiến trúc. Nếu Client, API Gateway và Service trung gian đều độc lập retry 3 lần, một request lỗi từ người dùng sẽ bị khuếch đại thành `3 × 3 × 3 = 27` lượt gọi dồn dập vào tầng database sâu nhất.
-- **Cạm bẫy chết người:** **Retry mù quáng ở nhiều tầng với khoảng thời gian cố định.** Việc lồng ghép các vòng lặp retry thiếu jitter qua các tầng microservice sẽ tạo ra vòng lặp khuếch đại phản hồi, biến một biến động độ trễ 200 ms của downstream thành sự cố sập nguồn toàn diện của toàn bộ hạ tầng.
+- **Rủi ro lớn:** Các lớp retry độc lập có thể nhân tải lên nhiều lần. Nếu mỗi trong ba tầng thực hiện tối đa ba attempt, một request có thể tạo tới `3 × 3 × 3 = 27` attempt ở dependency cuối khi mọi lần thử đều đi tới đó.
 
 ```mermaid
 flowchart LR
@@ -48,7 +50,7 @@ Failure **retryable** khi attempt sau có thể đổi outcome. Transport tạm 
 | Tín hiệu | Quyết định mặc định |
 | --- | --- |
 | transient transport error | retry nếu an toàn và còn budget |
-| `429` / `503` | back off; tôn trọng `Retry-After` hợp lệ |
+| `429` / `503` | cân nhắc khả năng phục hồi, quota và tải; chỉ retry nếu thao tác an toàn, còn ngân sách; xử lý `Retry-After` hợp lệ |
 | auth / validation / business rejection | không retry input không đổi |
 | timeout sau write có outcome mơ hồ | cần idempotency hoặc reconciliation |
 
@@ -66,7 +68,7 @@ Nếu attempt đầu có thể đã commit, request mới có thể tạo effect
 100 ms -> 200 ms -> 400 ms -> capped delay
 ```
 
-**Exponential backoff** giãn attempt; **jitter** ngẫu nhiên hóa wait để fleet không thức cùng lúc. Cap attempt/delay và không sleep quá deadline còn lại.
+**Exponential backoff** giãn các lần thử; **jitter** giúp các client không thử lại cùng nhịp. Đặt giới hạn số attempt, delay và tổng thời gian. Nếu `Retry-After` yêu cầu chờ lâu hơn deadline còn lại, **không thử lại trong request hiện tại**; để caller quyết định báo lỗi hoặc lên lịch một công việc mới nếu nghiệp vụ cho phép.
 
 ```mermaid
 sequenceDiagram
@@ -81,6 +83,13 @@ sequenceDiagram
   B->>S: retry
 ```
 
+
+### Phân biệt `Retry-After` và retry budget
+
+Theo [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3), `Retry-After` có thể là số giây không âm hoặc một ngày giờ HTTP. Header này là gợi ý thời điểm gửi request sau, **không tự cho phép retry một thao tác không an toàn**; trên `429` và `503` nó cũng không phải header bắt buộc. Nếu thời điểm được gợi ý đã vượt deadline hiện tại hoặc quota vẫn chưa sẵn sàng, cần dừng và trả quyền quyết định cho caller.
+
+Ví dụ: request chỉ còn **250 ms** nhưng server đưa `Retry-After: 2` (hai giây). Không thể đợi hai giây rồi coi đó là một attempt thuộc request 250 ms. Với thao tác thanh toán, chỉ tổ chức retry ở một job mới nếu giao thức nghiệp vụ có idempotency và cho phép xử lý về sau.
+
 ## Chọn một retry owner
 
 Nếu Client, Service A và Service B đều cho ba total attempt, một request gốc có thể tạo `3 × 3 × 3 = 27` attempt. Chọn một **retry owner** có đủ context; tính cả SDK retry.
@@ -93,7 +102,7 @@ Nếu Client, Service A và Service B đều cho ba total attempt, một request
 
 Khi failure lan rộng, **retry budget** hoặc **token bucket** có thể giảm retry. Quan sát request gốc tách khỏi số attempt, cùng lý do retry, cạn budget và saturation.
 
-## Kịch bản production
+## Kịch bản minh họa (giả định)
 
 Gateway gọi Checkout → Inventory → database. Khi latency tăng, mọi layer retry hai lần, dùng deterministic backoff và write thiếu stable idempotency identity.
 
@@ -127,6 +136,9 @@ Không. Trước tiên hãy tìm toàn bộ retry hiện có, chọn một owner
 
 Trước khi thêm retry, hãy tìm failure class, safety, deadline, retry hiện có, ownership, bounds, backoff/jitter, server hint, fleet budget và telemetry.
 
+
+Bài này dành cho **chính sách retry, backoff, jitter, retry ownership và tải**. Để đặt ranh giới thời gian đúng, xem [Timeouts](/vi/docs/distributed-systems/timeouts). Để hiểu vì sao response bị mất không chứng minh một write thất bại, xem [bài tổng hợp Partial Failure và Retry](/vi/docs/distributed-systems/timeouts-retries-and-backoff).
+
 ## Nguồn
 
-Nguồn chính kiểm tra ngày **2026-09-15**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
+Nguồn chính kiểm tra ngày **2026-11-05**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).

@@ -43,6 +43,12 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 - [Transactional Outbox](/docs/distributed-systems/transactional-outbox): Keep atomicity local, mark incident hypothetical and differentiate polling updates from Debezium CDC conventions.
  · EN/VI technical semantics corrections
 
+#### Wave 1 — Timeouts, retries and backoff
+- [Timeouts](/docs/distributed-systems/timeouts): Distinguish timeouts, deadlines and SLOs; label hypothetical incident and clarify operational scope.
+- [Retries and Backoff](/docs/distributed-systems/retries-and-backoff): Clarify that `429`/`503` do not guarantee useful retries; apply `Retry-After` within deadline and safe-replay contracts.
+- [Timeouts, Retries & Backoff](/docs/distributed-systems/timeouts-retries-and-backoff): Replace unsupported incident specifics with an illustrative scenario and define its distinct partial-failure learning outcome.
+ · EN/VI technical semantics corrections
+
 #### Correctness and bilingual learning outcomes
 - [Promises](/docs/programming/async/promises): Distinguish `.finally()` cleanup transparency from `.then()`/`.catch()` return-value behavior and align the Vietnamese example.
 - [Idempotency](/docs/backend-engineering/idempotency): Separate HTTP safe/idempotent semantics from incidental server logging and response identity; label the illustrative incident.

@@ -4,7 +4,7 @@ description: Đặt, truyền, quan sát và tinh chỉnh timeout để dependen
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-12
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, reliability, timeouts, deadlines]
 prerequisites: [partial-failure, service-resilience]
@@ -20,15 +20,17 @@ concepts:
 
 ## Tóm tắt
 
-3 giờ 15 phút sáng ngày hội mua sắm Mega Sale. Một sự cố chập chờn trên tuyến cáp quang biển khiến độ trễ kết nối tới một microservice gợi ý sản phẩm tăng thêm 400 ms. Ngay lập tức, toàn bộ dàn API Gateway mặt tiền sập nguồn theo hiệu ứng domino. CPU máy chủ chỉ nhàn nhã ở mức 12%, nhưng toàn bộ ứng dụng bị tê liệt, các luồng xử lý (worker threads) đầy nghẹt, connection pool cạn kiệt và load balancer liên tục trả mã lỗi 504 Gateway Timeout. Thủ phạm là gì? Một thiết lập mặc định tưởng chừng vô hại trên từng HTTP client: `timeout = 30s` không cấu hình chi tiết. Thay vì giải phóng tài nguyên tức thì khi phía dưới suy thoái, 5.000 worker thread đã bị giam cầm trong vô vọng để chờ đợi những kết nối không bao giờ có thể hoàn tất trước khi người dùng tắt trình duyệt. Timeout không chỉ là một tham số cấu hình—đó là một bản giao kèo nghiêm ngặt về **tài nguyên hữu hạn của hệ thống**.
+**Tình huống minh họa (giả định):** Một dịch vụ gợi ý sản phẩm phản hồi chậm, trong khi gateway sử dụng timeout chung 30 giây cho từng lần gọi. Dù request của người dùng chỉ còn ít thời gian hữu ích, gateway vẫn chờ dependency và giữ tài nguyên lâu hơn cần thiết. Không thể suy ra số worker bị chặn hoặc thời gian sập hệ thống từ một giá trị timeout: cần đo loại timeout, số request đồng thời và độ trễ thực tế.
 
-> 💡 **Quy tắc bỏ túi:** Đừng bao giờ đặt một con số timeout tĩnh độc lập mà không rõ giai đoạn socket; luôn luôn lan truyền hạn chót (deadline) toàn trình và ngân sách thời gian còn lại qua từng chặng gọi.
+Một **timeout** giới hạn thời gian chờ của một thao tác hoặc một giai đoạn; **deadline** xác định thời điểm toàn bộ request phải dừng chờ để tránh tiếp tục tiêu tốn tài nguyên vô ích. Timeout không chứng minh server chưa thực hiện thao tác.
 
-- **Phạm vi timeout vs. Hạn chót toàn trình:** **Timeout** giới hạn thời gian một kết nối hoặc giai đoạn socket đơn lẻ được phép chờ; **hạn chót (deadline)** là mốc thời gian tuyệt đối mà sau thời điểm đó, toàn bộ kết quả nghiệp vụ không còn bất kỳ giá trị nào đối với người dùng.
+> 💡 **Quy tắc bỏ túi:** Trước khi đặt timeout, xác định nó đo phần nào của request (connect, response, đọc body hay toàn bộ call). Với thao tác có deadline toàn trình, truyền thời gian còn lại tới từng dependency, giữ phần dự phòng cho xử lý cục bộ và dừng công việc khi không còn hữu ích. Deadline là quyết định về mục tiêu/request, không phải giá trị mặc định của từng socket.
+
+- **Phạm vi timeout khác với deadline:** Timeout giới hạn thời gian đợi một phase hoặc thao tác; deadline là hạn chót của request end-to-end. SLO độ trễ dùng để thiết kế chính sách nhưng không nhất thiết bằng deadline cứng cho từng request.
 - **Bóc tách từng giai đoạn socket:** Không có giá trị `timeout` chung chung nào đủ an toàn. Một kết nối trải qua phân giải **DNS**, bắt tay TCP **connect**, thương lượng **TLS**, **ghi** request, chờ **header** phản hồi và **đọc** body. Connect timeout không chặn được lỗi treo khi đọc body; socket read timeout lại có thể tự động reset mỗi khi có một byte dữ liệu mới truyền tới.
-- **Lan truyền ngân sách thời gian còn lại (remaining budget):** Tuyệt đối không cấp lại nguyên vẹn thời gian chờ ban đầu cho các service phía sau. Mỗi hop gọi chỉ được tiêu thụ phần **ngân sách còn lại** sau khi đã trừ hao thời gian xử lý cục bộ và thời gian gửi response.
+- **Truyền ngân sách còn lại:** Khi đã thiết lập deadline end-to-end, mỗi lần gọi tiếp theo phải dùng thời gian còn lại sau khi trừ thời gian đã tiêu thụ và phần dự phòng cục bộ. Không tự cấp một timeout mới dài hơn toàn bộ khoảng còn giá trị.
 - **Hủy bỏ (cancellation) không phải hoàn tác (rollback):** Khi hết hạn chót, phát tín hiệu **hủy** ngay lập tức để downstream ngừng lãng phí tài nguyên tính toán, nhưng luôn ghi nhớ rằng việc hủy không tự động hoàn tác các thay đổi đã ghi bền vững vào cơ sở dữ liệu.
-- **Cạm bẫy chết người:** **Cấp mới toàn bộ hạn mức timeout ở mỗi chặng gọi.** Nếu cam kết SLO với người dùng là 1 giây, nhưng ba microservice nối tiếp nhau đều tự cấp mới 1 giây timeout, tổng thời gian chờ có thể bị kéo dài lên 3 giây—biến một đợt biến động độ trễ đuôi (tail latency) nhỏ thành thảm họa chiếm dụng toàn bộ connection pool của hệ thống.
+- **Lỗi cần tránh:** Cấp lại timeout đầy đủ ở từng hop làm tổng thời gian chờ vượt deadline của request; mức ảnh hưởng lên pool và người dùng phụ thuộc mức tải và cách runtime giữ tài nguyên.
 
 ```mermaid
 flowchart LR
@@ -133,7 +135,7 @@ Trace cần giúp operator phân biệt “không connect được” với “s
 **Timeout giả** xảy ra khi call có thể hoàn tất thành công nhưng threshold của caller hết trước. Một lượng false timeout có thể là chủ ý; tỷ lệ chấp nhận được phải được đo và công khai.
 </TermBox>
 
-## Tình huống production
+## Tình huống minh họa (giả định)
 
 Một API có user SLO 1 giây. Nó gọi Service A rồi Service B theo chuỗi. Mỗi client dùng default overall timeout 1 giây, và Service B còn có connect/read timeout 1 giây. Khi latency tăng, upstream request tiếp tục chờ lâu hơn budget có ích trong khi worker và socket vẫn bị giữ.
 
@@ -169,6 +171,9 @@ Không. Downstream budget tối đa chỉ khoảng 240 ms, thường còn thấp
 
 Khi được yêu cầu “set timeout”, trước tiên phải khôi phục SLO/deadline end-to-end, exact timeout scope của client, phân phối độ trễ downstream, tỷ lệ timeout giả chấp nhận được, cách truyền remaining budget, local reserve, cancellation behavior và telemetry. Đừng chọn con số trước khi biết nó đang giới hạn điều gì.
 
+
+Bài này tập trung vào **phạm vi timeout, ngân sách thời gian và cancellation**. Sau khi biết request còn bao nhiêu thời gian, đọc [Retries and Backoff](/vi/docs/distributed-systems/retries-and-backoff) để quyết định có nên dùng ngân sách đó cho lần thử mới hay không. Bài [Timeouts, Retries & Backoff](/vi/docs/distributed-systems/timeouts-retries-and-backoff) là phần tổng hợp lý luận về partial failure, không thay thế checklist vận hành riêng.
+
 ## Khái niệm liên quan
 
 - **Partial Failure** — giải thích vì sao timeout không chứng minh write thất bại.
@@ -178,7 +183,7 @@ Khi được yêu cầu “set timeout”, trước tiên phải khôi phục SL
 
 ## Nguồn
 
-Tài liệu primary được kiểm tra ngày **2026-09-12**:
+Tài liệu primary được kiểm tra ngày **2026-11-05**:
 
 - [gRPC — Deadlines](https://grpc.io/docs/guides/deadlines/)
 - [gRPC — Core concepts: deadlines, termination, cancellation](https://grpc.io/docs/what-is-grpc/core-concepts/)

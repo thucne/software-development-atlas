@@ -43,6 +43,12 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 - [Transactional Outbox](/vi/docs/distributed-systems/transactional-outbox): Giới hạn atomicity ở transaction cục bộ, ghi nhãn ví dụ giả định, làm rõ polling khác CDC Debezium.
  · Hiệu chỉnh ngữ nghĩa kỹ thuật EN/VI
 
+#### Wave 1 — Timeout, Retry và Backoff
+- [Timeouts](/vi/docs/distributed-systems/timeouts): Phân biệt timeout với deadline và SLO, ghi nhãn sự cố giả định, làm rõ phạm vi bài vận hành.
+- [Retries and Backoff](/vi/docs/distributed-systems/retries-and-backoff): Làm rõ `429`/`503` không bảo đảm retry hữu ích; `Retry-After` phải phù hợp deadline và an toàn khi lặp; bổ sung nguồn RFC.
+- [Timeouts, Retries & Backoff](/vi/docs/distributed-systems/timeouts-retries-and-backoff): Thay ví dụ sự cố không có nguồn bằng kịch bản giả định và phân biệt kết quả học tập với hai bài chuyên sâu.
+ · Hiệu chỉnh ngữ nghĩa kỹ thuật EN/VI
+
 #### Độ chính xác và tính tương đương giữa hai ngôn ngữ
 - [Promises](/vi/docs/programming/async/promises): Làm rõ `.finally()` giữ nguyên kết quả khi dọn dẹp thành công; bổ sung giải thích và ví dụ tương ứng.
 - [Idempotency](/vi/docs/backend-engineering/idempotency): Tách ngữ nghĩa HTTP safe/idempotent khỏi log máy chủ và kết quả phản hồi; ghi nhãn tình huống giả định.
