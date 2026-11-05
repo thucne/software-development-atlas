@@ -25,6 +25,17 @@ Make every published English/Vietnamese lesson technically reliable, equally use
 
 **Status:** open. No estimated finish date is implied; prioritize proven results over a rushed checkbox count. Previous partial changes: #113, #114, #115, #118; authoring-policy alignment: #117.
 
+### Current execution status — first Wave 1 batches
+
+**Verified progress, November 05, 2026:** **18/95** pairs have targeted changes; **77/95** pairs have not yet been edited in this remediation program; **0/95** pairs have been certified under the complete end-to-end rubric. The 13-pair baseline above is a historical snapshot, not today's current value.
+
+- [#126](https://github.com/thucne/software-development-atlas/pull/126) — merged: 3 EN/VI pairs (`Timeouts`, `Retries and Backoff`, legacy combined guide). Corrected retry/deadline semantics, conditional advice, illustrative incidents and overlapping lesson roles. [Actions run 41991702335](https://github.com/thucne/software-development-atlas/actions/runs/41991702335): unit/content tests, lint, typecheck and build **passed**.
+- [#127](https://github.com/thucne/software-development-atlas/pull/127) — merged: 2 EN/VI pairs (`Delivery Semantics`, `Transactional Outbox`). Corrected at-least-once duplicate nuance and the scope of outbox atomicity; distinguished polling from Debezium CDC. [Actions run 41992339373](https://github.com/thucne/software-development-atlas/actions/runs/41992339373): unit/content tests, lint, typecheck and build **passed**.
+- [#125](https://github.com/thucne/software-development-atlas/pull/125) — **draft, not merged:** proposed Playwright E2E expansion. [Actions run 41991396867](https://github.com/thucne/software-development-atlas/actions/runs/41991396867) passed unit/lint/typecheck/build but **failed Playwright E2E** (71 passed, 9 failed). Keep this gate open. Failures are tracked in [#128](https://github.com/thucne/software-development-atlas/issues/128).
+- [#119](https://github.com/thucne/software-development-atlas/issues/119) remains open: these five pairs are **partially corrected, not fully audited**. All 36 checkboxes in Wave 1 remain unchecked until the full review evidence exists.
+
+This status report never substitutes a successful unit/build run for a successful browser E2E run.
+
 ### Delivery waves — exact per-lesson checklists on GitHub
 
 | Wave | Priority | Sections | Pairs | Work tracker |
@@ -35,7 +46,7 @@ Make every published English/Vietnamese lesson technically reliable, equally use
 | 4 · Architecture and decisions | P1/P2 | Software Architecture, Engineering Judgment | 20 | [#122](https://github.com/thucne/software-development-atlas/issues/122) |
 | **Total** | | **All 13 authored sections** | **95** | [Master goal #116](https://github.com/thucne/software-development-atlas/issues/116) |
 
-Each wave includes the full pair-by-pair checklist. The 13 partially changed pairs are included, not excluded: they require full re-reading and verification just like the remaining 82.
+Each wave includes the full pair-by-pair checklist. The 18 partially changed pairs remain included and unchecked: they require the full verification rubric just like the remaining 77 unedited pairs.
 
 ### Sequencing and PR contract
 
