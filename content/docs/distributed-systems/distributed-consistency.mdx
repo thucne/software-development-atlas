@@ -4,7 +4,7 @@ description: Reason about stale reads, session guarantees, causal order, lineari
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-16
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, consistency, replication, stale-reads, linearizability]
 prerequisites: [partial-failure, delivery-semantics, database-replication]
@@ -18,18 +18,18 @@ concepts:
 
 # Distributed Consistency: Reason About What Different Readers Can Observe
 
-A customer edits their shipping address on an e-commerce order and clicks "Save Changes". The API commits the update to the primary PostgreSQL database, responds with `200 OK`, and immediately redirects the user to the order summary page. But the browser's subsequent `GET` request is routed by an unsuspecting load balancer to a read replica trailing with 900 milliseconds of replication lag. The screen renders the customer's *old* address. In a panic, assuming the site glitched, the user re-enters the address and submits the form three more times. Downstream logistics receives multiple conflicting updates, and customer support gets an irate ticket: *"Your website lost my shipping details!"* No data was actually dropped or corrupted on disk—the architecture simply broke its observable read contract.
+**Illustrative scenario (hypothetical):** A customer changes a shipping address. The API commits it on the primary but the next read hits a lagging replica and displays the old address. The primary may still be correct: the application missed the user's expected **read-your-writes** behavior. This is not a sourced production incident or a measured lag.
 
-Distributed consistency is not a marketing checkbox or a property of disk storage. It defines the temporal and causal boundaries of what different observers are allowed to see when state is replicated across multiple machines.
+Consistency is a contract on which versions and orders readers can observe, distinct from durability and transaction isolation.
 
 ## TL;DR
 
 > 💡 **Rule of thumb:** Consistency is not whether data is safely written to disk (that is durability), but what an observer is permitted to see across space, time, and replicas. Always design around observable read contracts rather than vague vendor marketing labels like "strong" or "eventual".
 
 - **Consistency is an observable read contract:** It governs which committed writes a reader can observe, in what causal order, and how much staleness is permissible across replicated nodes.
-- **Eventual consistency is not timely consistency:** Dispersed replicas will converge eventually once writes cease, but without explicit session guarantees, individual users can observe stale reads or see state travel backward in time.
-- **Session guarantees eliminate user-facing anomalies:** Contracts like **read-your-writes** (guaranteeing clients see their own mutations) and **monotonic reads** (preventing users from observing older versions after seeing newer ones) resolve core UX pain without the crushing latency and availability penalty of global linearizability.
-- **Linearizability is a strict real-time contract:** It guarantees that all read and write operations appear to execute atomically at a single instant on a universal clock, emulating a single-copy system across the cluster.
+- **Eventual convergence has assumptions:** Replicas may disagree temporarily; convergence requires updates and repairs to propagate, conflicts to resolve, and failures to recover without unrecoverable retention gaps. Operators must account for repair schedules and tombstone lifetimes.
+- **Session guarantees address specific anomalies:** Read-your-writes and monotonic reads can protect session observations, but require routing/version tokens, waiting for replicas or primary reads. They have explicit cost and availability implications.
+- **Linearizability is a real-time history condition:** Each completed operation appears atomic at a point **between its invocation and response**, preserving the order of non-overlapping operations. It **does not require a synchronized universal clock**.
 - **Fatal pitfall:** Treating asynchronous replication lag as a harmless internal infrastructure detail instead of pinning post-write reads with session tokens or version fences, triggering phantom rollbacks and duplicate user submissions.
 
 ```mermaid
@@ -61,6 +61,8 @@ Separate these dimensions:
 | Isolation | How do concurrent transactions appear to interact? |
 
 **Consistency and isolation are related but not interchangeable.** Isolation is primarily about concurrent transaction interleavings on one logical database history. Distributed consistency is about what observers see across replicas, sessions, and time.
+
+**Convergence is not unconditional.** [Apache Cassandra repair documentation](https://cassandra.apache.org/doc/stable/cassandra/managing/operating/repair.html) notes that hinted handoff is best effort and periodic operator-run repair is needed; missed updates can otherwise persist.
 
 ## Eventual consistency allows temporary disagreement
 
@@ -216,7 +218,7 @@ Do not start with a database checkbox. Start with the user-visible invariant.
 
 A stronger guarantee can cost more latency or coordination. A weaker guarantee can push complexity into application reconciliation and UX.
 
-## Production scenario: successful update, stale confirmation page
+## Illustrative scenario (hypothetical): stale read after a successful update
 
 A user changes the shipping address on an order. The API writes to the primary database and returns success. The browser immediately loads the confirmation page, but that GET is routed to a read replica that is 900 ms behind.
 
@@ -276,7 +278,7 @@ No. The write may have been durably committed while the remote read path was all
 
 ## Sources
 
-Primary sources checked on **2026-09-16**:
+Primary sources checked on **2026-11-05**:
 
 - [Amazon DynamoDB — Read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html)
 - [Azure Cosmos DB — Consistency level choices](https://learn.microsoft.com/en-us/azure/cosmos-db/consistency-levels)

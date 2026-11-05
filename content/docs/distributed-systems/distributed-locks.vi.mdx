@@ -4,7 +4,7 @@ description: Suy luận về khóa phân tán như giao thức quyền sở hữ
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, distributed-locks, leases, fencing, coordination]
 prerequisites: [partial-failure, timeouts, distributed-replication, consensus]
@@ -18,17 +18,17 @@ concepts:
 
 # Khóa phân tán: Điều phối công việc độc quyền bằng lease và fencing
 
-Một worker backend acquire thành công khóa phân tán trên Redis với thời hạn TTL 30 giây để xử lý đối soát giao dịch tài chính. Mới chạy được 10 giây, máy ảo JVM bất ngờ dính một đợt dừng toàn bộ tiến trình (Stop-The-World GC) kéo dài tới 45 giây. Trong khi worker thread bị "đóng băng" thời gian, thời hạn lease trên Redis lặng lẽ hết hạn. Một worker thứ hai phát hiện khóa trống, lập tức acquire một lease mới và ghi dữ liệu thành công xuống cơ sở dữ liệu. Đúng lúc này, worker thứ nhất bừng tỉnh sau cơn ngủ GC, ngây thơ tin rằng mình vẫn là bên giữ khóa hợp pháp, và lập tức đẩy gói ghi cũ xuống database—phá nát toàn bộ dữ liệu chuẩn mà worker thứ hai vừa cập nhật.
+**Tình huống minh họa (giả định):** Worker A giữ Redis lock TTL 30 giây rồi bị dừng vì GC. Lease hết hạn; worker B nhận lock mới và ghi dữ liệu. Khi A chạy lại, một lệnh ghi cũ vẫn có thể ghi đè nếu storage không kiểm tra quyền ghi tại đích. Đây là mô hình lỗi, không phải postmortem hoặc số liệu sản xuất.
 
-Sự cố thực tế này lột trần ảo tưởng nguy hiểm: xem khóa phân tán như một mutex luồng trải dài qua mạng. Nếu không có cơ chế rào chắn kiểm soát tại đích lưu trữ, tính loại trừ tương hỗ (mutual exclusion) phân tán chỉ là một ảo giác mong manh.
+Lock điều phối quyền sở hữu trong phạm vi giao thức; tính đúng đắn của dữ liệu cần **kiểm tra điều kiện nguyên tử tại resource** — chẳng hạn fencing token, version hoặc database constraint.
 
-> 💡 **Quy tắc bỏ túi:** Khóa phân tán chỉ điều phối thứ tự cấp quyền, nhưng chỉ có token rào chắn tăng đơn điệu được kiểm tra tại tài nguyên đích mới bảo đảm được tính độc quyền dữ liệu. Đừng bao giờ giả định một thread sẽ tự động dừng chạy khi thời hạn lease của nó kết thúc.
+> 💡 **Quy tắc bỏ túi:** Lease không ngăn worker cũ tiếp tục chạy. Với dữ liệu cần an toàn nghiêm ngặt, phải bảo vệ invariant **nguyên tử ngay tại resource**, qua fencing token tăng đơn điệu hoặc một cơ chế ghi có điều kiện tương đương. Redis lock TTL thường không tự phát hành fencing token.
 
 ## Tóm tắt
 
 - **Khóa phân tán là giao thức sở hữu dựa trên lease, không phải mutex cục bộ:** Khác với mutex của hệ điều hành vốn có chung scheduler ép luồng dừng lại, khóa phân tán chỉ cấp quyền sở hữu có thời hạn qua mạng không đáng tin cậy—nơi các tiến trình có thể tạm dừng, lag mạng hoặc mất phiên làm việc bất cứ lúc nào.
-- **Hết hạn lease giải quyết bài toán tiến triển (liveness), không ngăn chặn được thực thi cũ:** TTL giúp giải phóng các khóa bị bỏ rơi khi worker crash, nhưng các đợt GC pause, tranh chấp CPU hay nghẽn mạng có thể khiến worker vượt quá thời hạn lease trong khi thread ứng dụng vẫn tiếp tục chạy tiếp.
-- **Token rào chắn (fencing token) thiết lập ranh giới an toàn tại tài nguyên đích:** Mỗi lần cấp khóa thành công bắt buộc phải đi kèm một số thứ tự tăng đơn điệu. Hệ thống lưu trữ đích (database, kho file) phải kiên quyết từ chối mọi thao tác mang token cũ hơn token cao nhất từng ghi nhận.
+- **Lease hỗ trợ phục hồi khi backend còn hoạt động:** TTL có thể giải phóng lock bị bỏ rơi; nó không buộc thread cũ dừng hoặc hoàn tác effect đã ghi.
+- **Fencing ở ranh giới dữ liệu:** Nếu sử dụng fencing, authority phải cấp token theo thứ tự tăng đơn điệu và resource phải từ chối stale token **nguyên tử trong thao tác ghi**. Một version check, transaction hoặc constraint cũng có thể bảo vệ invariant mà không cần distributed lock riêng.
 - **Giải phóng khóa an toàn bắt buộc phải kiểm tra danh tính chủ sở hữu:** Thao tác xóa khóa mù quáng khi hoàn thành công việc có thể vô tình xóa nhầm khóa của một worker mới vừa acquire sau khi lease hết hạn. Luôn sử dụng thao tác xóa có so sánh (compare-and-delete) dựa trên token sở hữu duy nhất.
 - **Cạm bẫy chết người:** Tin tưởng tuyệt đối vào đồng hồ local hoặc biến cờ kiểm tra trong bộ nhớ trước khi ghi xuống database. Vì thời gian trôi lệch nhau trên từng máy và tiến trình có thể bị khựng lại tại bất kỳ dòng lệnh nào, việc kiểm tra "lease vẫn còn hạn trong RAM" không thể ngăn một thread bị lag thức dậy và phá hỏng cơ sở dữ liệu.
 
@@ -110,6 +110,8 @@ Process có thể ngừng renew **mà chưa chết**. Nguyên nhân gồm:
 Khi process chạy lại, code trong vùng tới hạn cũ có thể vẫn tiếp tục.
 
 Timeout hoặc TTL vì thế chỉ trả lời "khi nào coordinator được phép cấp ownership cho người khác?" Nó không thể vật lý cancel process cũ.
+
+**Chú ý với Redis:** [Tài liệu Redis về distributed locks](https://redis.io/docs/latest/develop/use/patterns/distributed-locks/) dùng token ngẫu nhiên để giải phóng lock đúng owner. Token ngẫu nhiên **không** phải fencing token tăng đơn điệu. Redis cũng công khai giả định về đồng hồ và khuyến nghị fencing cho dữ liệu cần tính nhất quán.
 
 ## Fencing token giúp stale holder bị từ chối
 
@@ -277,7 +279,7 @@ Rule thực dụng:
 
 Nếu job hợp lệ chạy lâu hơn TTL ban đầu, renewal phải là một phần của protocol thay vì timer hy vọng trong application code.
 
-## Kịch bản production: worker bị pause vẫn ghi sau khi lease hết hạn
+## Kịch bản minh họa (giả định): worker cũ tiếp tục ghi
 
 Một service xử lý tài liệu dùng distributed lock 30 giây theo từng document để chỉ một worker publish generated artifact. Worker A acquire `document:842`, bắt đầu render, rồi runtime bị GC pause 45 giây.
 
@@ -325,7 +327,7 @@ Không. Lock object chỉ là local memory và có thể đại diện cho owner
 
 ## Nguồn
 
-Nguồn chính được kiểm tra ngày **2026-09-17**:
+Nguồn chính được kiểm tra ngày **2026-11-05**:
 
 - [etcd — API reference: concurrency](https://etcd.io/docs/v3.7/dev-guide/api_concurrency_reference_v3/)
 - [etcd — How to create locks](https://etcd.io/docs/v3.7/tasks/developer/how-to-create-locks/)
