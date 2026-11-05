@@ -5,8 +5,8 @@ Run once on demand:
     pnpm audit:content
 
 This reads the local canonical MDX tree without external APIs and writes
-- .audit/content-inventory.md (human-readable report)
-- .audit/content-inventory.json (machine-readable triage)
+- audit-reports/content-inventory.md (human-readable report)
+- audit-reports/content-inventory.json (machine-readable triage)
 
 GitHub Actions also appends the report to the job summary and retains it as an artifact for 14 days. When additional substantive lessons are created, the script discovers them from contentType rather than freezing a 95-item registry.
 

@@ -5,7 +5,7 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } f
 import { join, relative, resolve } from 'node:path';
 
 const root = resolve(process.cwd(), 'content/docs');
-const outputDir = resolve(process.cwd(), '.audit');
+const outputDir = resolve(process.cwd(), 'audit-reports');
 const tick = String.fromCharCode(96);
 const fence = tick.repeat(3);
 
