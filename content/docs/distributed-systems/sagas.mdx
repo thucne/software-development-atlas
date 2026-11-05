@@ -20,7 +20,7 @@ concepts:
 
 **Illustrative scenario (hypothetical):** A travel package includes a flight and hotel. A ticket is issued before the hotel booking fails. Rolling back the hotel's local transaction cannot reverse the airline's ticket or a completed external charge. Recovery needs an appropriate **business compensation**, where contract terms allow it, or manual escalation.
 
-A Saga coordinates **local transactions** using durable workflow state and recovery decisions. It is an alternative when distributed transactions are unavailable or unsuitable, not a replacement with equivalent ACID atomicity and isolation.
+A Saga coordinates a **sequence of local transactions** using durable workflow state and explicit recovery decisions. It is an alternative when distributed transactions are unavailable or unsuitable, not a replacement with equivalent ACID atomicity and isolation.
 
 > 💡 **Rule of thumb:** Distributed workflows cannot turn back time with ACID rollbacks. Structure your workflow around an explicit pivot point: compensate backwards before the point of no return, and push forward with idempotent retries after it.
 
