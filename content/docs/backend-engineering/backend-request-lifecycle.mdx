@@ -4,7 +4,7 @@ description: Operate a backend request from ingress through validation, identity
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -27,13 +27,13 @@ concepts:
   - backend-request-lifecycle
 ---
 
-## TL;DR & Production Incident Hook
+## TL;DR — one request, several failure boundaries
 
-Imagine 10,000 concurrent users hitting an e-commerce checkout endpoint during a peak flash sale. Suddenly, the entire API cluster stops responding. The servers are not out of memory and CPU utilization hovers at a modest 12%, yet every client request hangs until returning `504 Gateway Timeout`.
+**Hypothetical checkout incident (not a documented outage):** A checkout handler opens a database transaction, then makes a payment-provider HTTP call before committing. When the provider becomes slow, the handler can hold database connections and locks while waiting. Under enough concurrency, a connection pool may fill even while application CPU looks healthy. An upstream gateway **might** respond with `504 Gateway Timeout` if it does not receive a timely response from its upstream; other clients may disconnect or see a different failure. This example asserts no measured QPS, CPU usage, pool size, outage duration, or payment-provider incident.
 
-The post-mortem reveals a textbook request lifecycle catastrophe: the upstream reverse proxy (such as Nginx or Envoy) had its default socket read timeout left at 60 seconds, while downstream payment gateway calls lacked deadline propagation. A momentary 5-second latency spike from the payment provider held backend worker threads captive waiting on open network sockets. Within 30 seconds, all 200 connections in the database connection pool were locked by stalled transactions awaiting external responses. Every application worker thread became blocked, and newly arriving requests—from mission-critical checkouts to lightweight health checks—piled up in OS socket listen queues until the entire backend silently collapsed.
+The timeout behavior depends on actual components and configuration. For example, NGINX's `proxy_read_timeout` defaults to `60s` for the HTTP proxy module, but measures the interval **between consecutive upstream reads**, **not** a 60-second deadline for an entire response. It is not interchangeable with an application request deadline, a database query timeout, or an RPC timeout. An Envoy deployment has its own separately configured timeouts.
 
-A backend request is not merely a controller method handling a JSON payload. It is a perishable, tightly bounded unit of work executing across untrusted networks, transport protocols (TCP/TLS), routing middleware, identity verifiers, transactional datastores, and asynchronous event streams. Operating this lifecycle requires deliberate control over every boundary, deadline, and side effect from ingress to egress.
+A backend request crosses transport parsing, trust, domain, persistence and asynchronous-ownership boundaries. The design objective is to make each resource budget, authorization decision, durable outcome and response contract explicit—especially when a downstream service is slow or a caller disappears.
 
 ```mermaid
 flowchart LR
@@ -47,14 +47,14 @@ flowchart LR
   T --> A[Durable async handoff]
 ```
 
-> 💡 **Rule of thumb:** A backend request is a bounded, perishable lease on system resources—never open a database transaction before boundary validation, never grant layer-independent timeouts, and never return HTTP 200 before durable state commits.
+> 💡 **Rule of thumb:** Use a request-wide budget and propagate its remaining time when possible. Keep transactions only around the invariant they must protect. For a response that claims a write has committed, verify that commit; for an asynchronous `202 Accepted`, durably accept the work without falsely claiming completion. A timeout or cancellation does not prove that external effects or a database commit were undone.
 
 ### TL;DR 2.0
-- **The request as an end-to-end pipeline:** Every request traverses a strict operational boundary: transport ingress (TCP/TLS/HTTP parsing), boundary validation, identity authentication, resource authorization, business domain execution, transactional persistence, response/error mapping, and asynchronous dispatch.
+- **Request stages and optional branches:** A write request often crosses ingress, validation, authentication, authorization, domain work, persistence and response mapping; a read request need not open a transaction or enqueue asynchronous work. Order operations according to the real trust and consistency boundary.
 - **Boundaries define correctness:** Parse transport formats at ingress, validate syntactic schemas at the boundary, and evaluate business invariants only inside domain logic. Never treat parsed transport headers as business truth.
-- **Unified deadline budget & cancellation:** Propagate a single request-wide deadline context across all database queries and remote RPCs. If a client drops the connection or time runs out, cancel downstream processing immediately to prevent zombie resource leaks.
-- **Truthful persistence before response:** Never return `200 OK` or `201 Created` based on in-memory assumptions. Complete database transaction commits before serializing success responses, and isolate post-commit side effects behind durable outbox stores rather than unmonitored in-memory promises.
-- **Fatal pitfall:** Neglecting socket read timeouts between reverse proxies and backend workers or holding database transactions open across external third-party HTTP calls, instantly starving thread pools and connection pools and causing cascading service failure.
+- **End-to-end deadlines and cooperative cancellation:** Derive dependent call budgets from the remaining request budget where supported. Propagate cancellation to cooperative DB/RPC operations; a disconnect, cancellation request or timeout is not guaranteed to stop an already-running operation or undo an accepted side effect.
+- **Truthful response and durable handoff:** If success means data was committed, verify the commit rather than trusting an in-memory promise. For accepted asynchronous work, persist the intent before returning `202` and offer observable status; process important side effects through durable work records or an outbox, with idempotent consumers.
+- **High-impact failure mode:** Holding database transactions open across slow external HTTP calls can exhaust connections or prolong locks. Proxy read timeouts are not end-to-end deadlines; failure modes and resource exhaustion depend on measured concurrency, budgets and actual deployment behavior.
 
 <TermBox term="Request context">
 A **request context** is the small set of scoped information carried through one request: cancellation/deadline state, authenticated principal, request or correlation identifiers, trace context, and carefully selected metadata.
@@ -111,8 +111,8 @@ Operational rules:
 
 - derive dependency timeouts from remaining request budget instead of giving every layer a fresh full timeout;
 - stop launching optional work when useful budget is nearly gone;
-- propagate cancellation to database/network operations where supported;
-- do not assume cancellation rolls back an external system that may already have committed;
+- propagate cancellation to database/network operations where supported; cancellation is cooperative and an in-flight call may ignore the signal or finish first;
+- treat timeout, disconnect and an ambiguous commit/remote response as **unknown outcomes**, not proof of rollback. Expose an idempotency key or durable status lookup before client retries consequential requests;
 - record deadline/cancellation distinctly from ordinary server failures.
 
 Cancellation is resource control, not distributed rollback.
@@ -135,28 +135,31 @@ Avoid a “service layer” that only renames controller methods without owning 
 
 ## 6. Make the transaction boundary match the invariant
 
-Open a database transaction only around state that must change atomically. Do not begin it at request ingress by default. Cheap validation and identity checks usually happen before the transaction; commit as soon as the required durable state is complete.
+Open a database transaction only around state that must change atomically. Do not begin it at request ingress by default. Cheap validation and identity checks usually happen before the transaction; commit as soon as the required durable state is complete. However, authorization against mutable data can require rechecking or locking it **inside** the transaction to prevent a time-of-check/time-of-use race. Do not treat the conceptual diagram as a mandatory order for every endpoint.
 
 ```mermaid
 sequenceDiagram
+  participant C as Client
   participant H as Handler
   participant DB as Database
-  participant Q as Durable handoff
+  participant Q as Outbox relay
   participant W as Async worker
 
-  H->>DB: begin transaction
-  H->>DB: read/check/update invariant
-  H->>DB: persist durable handoff if needed
-  H->>DB: commit
-  DB-->>H: committed
-  H-->>H: map response
-  Q-->>W: deliver after commit
-  W->>W: perform asynchronous side effect
+  C->>H: request
+  H->>DB: BEGIN, authorize/check, update state
+  H->>DB: insert outbox record in same transaction
+  H->>DB: COMMIT
+  DB-->>H: known commit result
+  H-->>C: truthful 201 or accepted 202
+  Q->>DB: read committed outbox record
+  DB-->>Q: record
+  Q->>W: deliver (at least once)
+  W->>W: deduplicate then process
 ```
 
 Do not hold a transaction open while waiting on slow remote calls unless the invariant truly requires it and the lock/capacity cost is understood. A database transaction cannot atomically roll back email, a payment provider, webhook delivery, or another independent service.
 
-If a side effect must eventually happen only after durable state commits, persist a durable handoff in the same transaction when possible, then perform the effect asynchronously after commit.
+If a side effect must be attempted after durable state commits, persist a durable handoff (for example an outbox record) in the same transaction when possible. A relay can retry and deliver duplicates, so the consumer needs idempotent processing; an outbox does **not** guarantee exactly-once external effects. Treat ambiguous commit acknowledgments as unknown outcomes and reconcile before retrying the entire write.
 
 ## 7. Separate response semantics from internal failures
 
@@ -169,11 +172,12 @@ If a side effect must eventually happen only after durable state commits, persis
 | Internal outcome | Typical HTTP direction | Notes |
 | --- | --- | --- |
 | malformed request | 400 | request cannot be parsed or validated |
-| unauthenticated | 401 | authentication required or invalid |
+| unauthenticated | 401 | requires applicable `WWW-Authenticate` challenge under RFC 9110 |
 | authenticated but forbidden | 403 | identity known, action denied |
 | target absent | 404 | policy may intentionally avoid revealing existence |
 | invariant conflict | 409 | useful for state/version conflicts |
 | accepted async work | 202 | processing is not complete |
+| upstream timeout observed by a gateway | 504 | emitted by an intermediary when the upstream does not respond in time; not every application timeout is 504 |
 | unexpected dependency/server failure | 5xx | preserve internal evidence; return safe detail |
 
 RFC 9110 defines HTTP status semantics. RFC 9457 defines a standard problem-details format for machine-readable API errors. Neither replaces domain-specific problem types and safe disclosure rules.
@@ -190,7 +194,7 @@ There are three useful buckets:
 
 Avoid “fire and forget” promises created by launching an in-process task and returning `200`. The process can restart, scale down, or terminate after the response. If the effect matters, transfer ownership durably.
 
-HTTP `202 Accepted` is intentionally noncommittal: processing was accepted, not completed. Provide a status resource or equivalent contract when callers need to observe asynchronous completion.
+HTTP `202 Accepted` is intentionally noncommittal: processing was accepted, not completed, and it might never complete successfully. When the API claims durable acceptance, commit the job/intent first; return a status resource or equivalent authorized lookup so callers can observe progress and reconcile timeouts. Protect each status lookup with resource-level authorization.
 
 ## 9. Carry evidence through the lifecycle
 
@@ -212,15 +216,15 @@ Do not put secrets, bearer tokens, whole request bodies, or unnecessary personal
 
 Operators should be able to distinguish validation/auth rejection, domain conflict, deadline/cancellation, dependency failure, transaction failure, synchronous success, and accepted asynchronous handoff.
 
-## Production failure: success was returned before durable state existed
+## Hypothetical failure: success returned before durable state existed
 
-> **Scenario:** A handler validated an order, started a database write, launched an in-process background task to publish a confirmation event, and returned `200 OK` before awaiting database commit. Under load, the commit failed while the background task still published the event.
+> **Constructed scenario, not a reported incident:** A handler validates an order, starts a database write, launches an in-process task to publish a confirmation event, and returns `200 OK` before awaiting commit. If the commit fails but the task publishes an event, the response and event both incorrectly claim the order exists.
 
 **Impact:** Customers received confirmation for orders that did not exist durably. Downstream consumers observed events for missing state while API logs recorded successful responses.
 
 **Root cause:** The lifecycle had no explicit truthful-response boundary. Durable state, asynchronous side effects, and HTTP response mapping were allowed to race independently.
 
-**Correct pattern:** Define the invariant first. Commit the state required for a truthful success response before returning success. If a side effect must follow the commit, persist its durable handoff inside the transaction when possible and process it asynchronously after commit. Map commit failures to an appropriate failure instead of success.
+**Correct pattern:** Define the invariant first. Commit required state and durable handoff together before claiming a completed write; emit external events only through committed outbox work, with idempotent consumers. Map known commit failures to an appropriate response. If the connection fails before the commit result is known, treat the outcome as **ambiguous**: reconcile via stable job/order identity before retry rather than claiming rollback.
 
 ## Operate the lifecycle as a checklist
 
@@ -232,7 +236,8 @@ Operators should be able to distinguish validation/auth rejection, domain confli
 - [ ] **Cancellation:** Can downstream work stop when the result is no longer useful?
 - [ ] **Domain boundary:** Can core rules run without raw HTTP objects or status-code decisions?
 - [ ] **Transaction:** Does the transaction cover exactly the atomic invariant and end promptly?
-- [ ] **After commit:** Are important side effects durably owned before they run asynchronously?
+- [ ] **After commit:** Are important side effects durably owned before they run asynchronously, with duplicate-safe consumers?
+- [ ] **Ambiguous outcome:** If a client or database times out after the write may have committed, can the caller reconcile by stable identity before retry?
 - [ ] **Error mapping:** Are known failures mapped to stable client-visible semantics?
 - [ ] **Response truth:** Has everything needed to make the response truthful completed before success is returned?
 - [ ] **Evidence:** Can `request_id`/trace correlation reconstruct rejection, dependency time, transaction outcome, and async handoff?
@@ -248,7 +253,7 @@ The database work required to make the response truthful belongs inside the boun
 
 The email should not extend the transaction or receive a fresh two-second timeout after the request budget is exhausted. If delivery matters, persist a durable email/job handoff with the committed state, commit, return the synchronous result, then let an asynchronous worker send it using its own retry/deadline policy.
 
-If the database cannot commit within the remaining budget, return the appropriate failure/timeout outcome; do not return success and hope the commit finishes later.
+If the database definitely fails or rolls back, return the appropriate failure. If the deadline expires **without a known commit result**, return a documented *unknown/timeout* outcome rather than success and require safe idempotency/status reconciliation before another attempt. A lost response does not prove a lost commit.
 </details>
 
 ## Agent rule
@@ -260,3 +265,6 @@ When changing a backend request path, do not reason only about the happy-path ha
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
 - [W3C — Trace Context](https://www.w3.org/TR/trace-context/)
+- [NGINX HTTP proxy module — proxy_read_timeout](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout)
+- [Go — Canceling in-progress database operations](https://go.dev/doc/database/cancel-operations)
+- [AWS Prescriptive Guidance — Transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
