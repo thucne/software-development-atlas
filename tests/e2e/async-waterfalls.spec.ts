@@ -23,7 +23,7 @@ test('exposes the async waterfalls lesson in docs navigation', async ({ page }) 
   await lessonLink.click();
   await expect(page).toHaveURL(lessonPath);
   await expect(
-    page.getByRole('heading', { name: 'Avoiding Sequential Async Waterfalls' }),
+    page.getByRole('heading', { name: 'Async Waterfalls: Overlap Independent Work Without Breaking Dependencies' }),
   ).toBeVisible();
 });
 
@@ -85,7 +85,7 @@ test('clean Markdown preserves the essential explanation', async ({ request }) =
 
   expect(response.ok()).toBeTruthy();
   expect(response.headers()['content-type']).toContain('text/markdown');
-  expect(markdown).toContain('# Avoiding Sequential Async Waterfalls');
+  expect(markdown).toContain('# Async Waterfalls: Overlap Independent Work Without Breaking Dependencies');
   expect(markdown).toContain('800 + 400 + 300 = 1500ms');
   expect(markdown).toContain('max(800, 400, 300) = 800ms');
   expect(markdown).toContain('Do not introduce unbounded concurrency');

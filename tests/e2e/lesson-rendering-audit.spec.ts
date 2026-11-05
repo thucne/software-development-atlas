@@ -84,30 +84,43 @@ test('promise state values share one aligned value column', async ({ page }) => 
   expect(Math.max(...xPositions) - Math.min(...xPositions)).toBeLessThanOrEqual(1);
 });
 
-test('all authored docs routes render without document-level horizontal overflow', async ({
-  page,
-}) => {
-  const failures: string[] = [];
+// Every authored route remains covered, but small independent cases prevent the
+// original 190+-page serial audit from exceeding Playwright's per-test timeout.
+// Keep the same response, visible heading, and measured document overflow checks.
+const auditChunkSize = 6;
+const routeChunks = Array.from(
+  { length: Math.ceil(authoredRoutes.length / auditChunkSize) },
+  (_, chunk) => authoredRoutes.slice(chunk * auditChunkSize, (chunk + 1) * auditChunkSize),
+);
 
-  for (const route of authoredRoutes) {
-    const response = await page.goto(route);
-    if (!response?.ok()) {
-      failures.push(`${route}: HTTP ${response?.status() ?? 'no response'}`);
-      continue;
-    }
+test.describe('authored docs responsive-layout audit', () => {
+  for (const [index, routes] of routeChunks.entries()) {
+    test(`all authored routes ${index * auditChunkSize + 1}–${index * auditChunkSize + routes.length} render without document overflow`, async ({
+      page,
+    }) => {
+      const failures: string[] = [];
 
-    const heading = page.locator('h1').first();
-    if (!(await heading.isVisible())) {
-      failures.push(`${route}: missing visible h1`);
-    }
+      for (const route of routes) {
+        const response = await page.goto(route);
+        if (!response?.ok()) {
+          failures.push(`${route}: HTTP ${response?.status() ?? 'no response'}`);
+          continue;
+        }
 
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    if (overflow > 1) {
-      failures.push(`${route}: document overflows horizontally by ${overflow}px`);
-    }
+        const heading = page.locator('h1').first();
+        if (!(await heading.isVisible())) {
+          failures.push(`${route}: missing visible h1`);
+        }
+
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        if (overflow > 1) {
+          failures.push(`${route}: document overflows horizontally by ${overflow}px`);
+        }
+      }
+
+      expect(failures).toEqual([]);
+    });
   }
-
-  expect(failures).toEqual([]);
 });
