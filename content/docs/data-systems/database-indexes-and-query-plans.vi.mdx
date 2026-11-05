@@ -4,7 +4,7 @@ description: Hiểu khi nào chỉ mục có ích, cách bộ lập kế hoạch
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -32,19 +32,19 @@ concepts:
 
 # Chỉ mục & Kế hoạch truy vấn: Chọn đường truy cập dựa trên bằng chứng
 
-12 giờ đêm ngày hội mua sắm Mega Sale, kênh trực chiến sự cố réo chuông liên hồi: CPU database chạm ngưỡng 100%, IOPS đọc đĩa quá tải, và thời gian phản hồi của API vọt từ 15 mili-giây lên 50 giây. Kỹ sư trực ca vội vã kiểm tra và tự tin khẳng định: "Hệ thống đã có chỉ mục rồi mà, hôm qua em vừa tạo `CREATE INDEX idx_orders_status_created ON orders (status, created_at);`!". Nhưng dấu vết câu lệnh truy vấn khẩn cấp đã lột trần sự cố tai hại: câu lệnh lấy danh sách đơn hàng của người dùng chỉ lọc theo `WHERE created_at >= NOW() - INTERVAL '1 day'`, hoàn toàn bỏ qua cột đứng đầu `status`. Vi phạm **quy tắc tiền tố ngoài cùng bên trái (leftmost prefix rule)** của composite B-tree index khiến bộ lập kế hoạch tối ưu chi phí của PostgreSQL bỏ qua chỉ mục hoàn toàn và chuyển sang quét tuần tự (`Seq Scan`) toàn bộ 80 triệu dòng dữ liệu trên đĩa. Tai hại hơn, một kỹ sư khác vừa đưa lên tính năng tìm kiếm bằng `WHERE email LIKE '%@gmail.com'`; ký tự đại diện `%` đứng đầu đã vô hiệu hóa hoàn toàn cơ chế duyệt nhị phân của B-tree, kích hoạt thêm một đợt quét toàn bảng cho mỗi ký tự người dùng gõ vào, bóp nghẹt I/O và đánh sập hoàn toàn database.
+**Tình huống minh họa (giả định):** Trong đợt giảm giá lớn, truy vấn chậm dần khi bảng đơn hàng tăng kích thước. Cơ sở dữ liệu có chỉ mục ghép `(status, created_at)`, nhưng truy vấn chậm chỉ lọc theo `created_at`. Vì không có điều kiện trên cột dẫn đầu `status`, chỉ mục đó có thể kém hiệu quả; với khối lượng dữ liệu trong ví dụ, PostgreSQL chọn quét tuần tự (`Seq Scan`). **Đây là kết quả của một kế hoạch cụ thể, không phải luật cấm dùng chỉ mục khi thiếu điều kiện trên cột đầu.** PostgreSQL vẫn có thể dùng B-tree nhiều cột cho điều kiện trên cột sau, kể cả tối ưu skip scan ở phiên bản hỗ trợ nếu planner thấy có lợi. Một truy vấn khác với `WHERE email LIKE '%@gmail.com'` cũng không tận dụng hiệu quả tìm kiếm theo tiền tố của B-tree thông thường. Hãy đọc `EXPLAIN (ANALYZE, BUFFERS)` và thống kê thực tế trước khi quyết định thêm chỉ mục.
 
-Những sự cố này phơi bày một sự thật cốt tử: thêm index mà không thấu hiểu execution plan và access path thực chất chỉ là hành động phỏng đoán mù quáng khi đối mặt với áp lực production.
+Ví dụ này cho thấy một nguyên tắc quan trọng: thêm index mà không thấu hiểu execution plan và access path thực chất chỉ là hành động phỏng đoán mù quáng khi đối mặt với áp lực production.
 
 ## Tóm tắt
 
-> 💡 **Quy tắc bỏ túi:** Chỉ mục không phải cây đũa thần tự động tăng tốc; nó chỉ cung cấp thêm một đường truy cập (access path). Bộ lập kế hoạch dựa trên chi phí sẽ chọn quét tuần tự (Seq Scan) bất cứ khi nào việc đọc trực tiếp trang dữ liệu bảng được ước lượng là rẻ hơn. Hãy thiết kế chỉ mục tuân thủ chặt chẽ leftmost prefix, kiểm tra độ chọn lọc (selectivity) của predicate, và luôn dùng EXPLAIN (ANALYZE, BUFFERS) để đo lường công việc thực tế trước và sau mỗi lần thay đổi schema.
+> 💡 **Quy tắc bỏ túi:** Chỉ mục cung cấp thêm đường truy cập, không tự động làm truy vấn nhanh hơn. Planner có thể chọn `Seq Scan` nếu ước lượng chi phí thấp hơn. Điều kiện trên cột dẫn đầu là nguyên tắc thiết kế B-tree hữu ích, **không phải quy tắc cấm tuyệt đối**. Hãy kiểm tra kế hoạch thực tế bằng `EXPLAIN (ANALYZE, BUFFERS)`.
 
 - **Chỉ mục cung cấp đường truy cập, không bảo đảm tốc độ tuyệt đối:** Index đơn thuần là một tuyến đường di chuyển thay thế. Bộ lập kế hoạch truy vấn (query planner) sẽ đánh giá các đường truy cập dựa trên thống kê bảng và độ chọn lọc, sẵn sàng chọn `Seq Scan` nếu tập dữ liệu cần đọc chiếm tỷ lệ lớn trong bảng.
-- **Chỉ mục ghép B-tree đòi hỏi tuân thủ leftmost prefix:** Một composite index trên `(status, created_at)` chỉ có thể thu hẹp không gian tìm kiếm nếu các cột khóa dẫn đầu được ràng buộc. Việc chỉ lọc theo `created_at` hoặc dùng biểu thức làm mất tính sargable (như `LIKE '%text'` hay `DATE(created_at)`) sẽ ngăn cản planner duyệt cây B-tree.
+- **Thứ tự cột B-tree ảnh hưởng hiệu quả, không quyết định tuyệt đối khả năng sử dụng:** Điều kiện trên cột đầu thường giúp thu hẹp vùng quét hiệu quả hơn. PostgreSQL vẫn có thể sử dụng chỉ mục ghép cho điều kiện trên cột sau; skip scan có thể hữu ích khi phiên bản và chi phí cho phép. Với `LIKE '%text'`, việc tìm chuỗi con thường cần chiến lược khác thay vì kỳ vọng B-tree tìm theo tiền tố.
 - **Phân biệt rõ ràng cơ chế các kiểu quét vật lý:** Hiểu bản chất chi phí giữa `Seq Scan` (đọc thô các block heap trên đĩa), `Index Scan` (duyệt lá B-tree rồi lấy từng tuple từ heap), `Index Only Scan` (trả dữ liệu trực tiếp từ trang index khi visibility map cho phép mà không cần chạm vào heap), và `Bitmap Index Scan` (gom con trỏ tuple rồi gom cụm đọc heap theo lô).
 - **Kiểm toán độ lệch ước lượng số hàng (cardinality estimate):** Trong `EXPLAIN ANALYZE`, khoảng cách giữa số hàng ước lượng (estimated rows) và số hàng thực tế (actual rows) là tín hiệu chẩn đoán quan trọng nhất. Nếu planner dự đoán 10 hàng nhưng thực tế phải xử lý 500.000 hàng, nó sẽ chọn các thuật toán join lồng nhau hoặc sắp xếp tràn bộ nhớ đầy thảm họa.
-- **Cạm bẫy chết người:** Tạo composite index `(status, created_at)` nhưng truy vấn chỉ tìm kiếm theo `created_at` hoặc dùng `LIKE '%text'`, lầm tưởng index sẽ tự động tăng tốc, khiến database bỏ qua index và quét toàn bộ bảng (`Seq Scan`) làm sập hệ thống giữa giờ cao điểm.
+- **Sai lầm thường gặp:** Cho rằng chỉ mục `(status, created_at)` chắc chắn tăng tốc truy vấn chỉ lọc theo `created_at`, hoặc B-tree thông thường xử lý hiệu quả tìm kiếm chuỗi con có `%` đứng đầu. Hãy xem kế hoạch, ước lượng số hàng và I/O trước khi kết luận.
 
 Ba thói quen vận hành quan trọng:
 
@@ -351,7 +351,7 @@ Dùng lộ trình [Backend Systems](/vi/docs/learning-paths/backend-systems) đ�
 
 ## Nguồn
 
-Các tài liệu PostgreSQL chính thức được xác minh ngày **2026-09-10**:
+Các tài liệu PostgreSQL chính thức được xác minh ngày **2026-11-05**:
 
 - [PostgreSQL documentation — Indexes](https://www.postgresql.org/docs/current/indexes.html)
 - [PostgreSQL documentation — Multicolumn Indexes](https://www.postgresql.org/docs/current/indexes-multicolumn.html)

@@ -4,7 +4,7 @@ description: Understand when indexes help, how a cost-based planner chooses scan
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -32,19 +32,19 @@ concepts:
 
 # Database Indexes & Query Plans: Choose Access Paths with Evidence
 
-At midnight during a major flash sale, the on-call pager screams: database CPU utilization hits 100%, disk read IOPS saturate, and API response times skyrocket from 15 milliseconds to 50 seconds. The on-call engineer scrambles to investigate, confident that indexing was already solved: "We added a composite index yesterday: `CREATE INDEX idx_orders_status_created ON orders (status, created_at);`!" But an emergency query trace exposes the catastrophe. The customer feed query filtered exclusively on `WHERE created_at >= NOW() - INTERVAL '1 day'`, omitting the leading `status` column entirely. Because the query violated the **leftmost prefix rule** of B-tree composite indexes, the PostgreSQL cost-based optimizer bypassed the index and triggered a brutal sequential scan (`Seq Scan`) across 80 million rows on spinning disks. Compounding the damage, another developer pushed a search endpoint using `WHERE email LIKE '%@gmail.com'`; the leading wildcard rendered B-tree binary traversal impossible, forcing another full-table scan on every keystroke and knocking the database completely offline.
+**Illustrative scenario (hypothetical):** During a flash sale, query latency rises as the orders table grows. A composite index `(status, created_at)` exists, but the slow query filters only on `created_at`. Without a bound on the leading `status` column, that index can be a less efficient access path; on this workload the PostgreSQL planner chooses a sequential scan. That is a **plan observation, not a universal leftmost-prefix prohibition**: a multicolumn B-tree may still be used for conditions on later columns, including skip scan when supported and cost-effective. A separate search with `WHERE email LIKE '%@gmail.com'` also cannot use ordinary B-tree prefix matching effectively. Check `EXPLAIN (ANALYZE, BUFFERS)` and workload statistics before prescribing an index.
 
-These outages reveal a crucial truth: adding indexes without understanding query plans and access paths is just guessing under pressure.
+This example illustrates a practical lesson: adding indexes without understanding query plans and access paths is just guessing under pressure.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** An index is not an automatic speed button; it is merely an access path. The database cost-based planner will choose a sequential scan whenever reading table pages directly is estimated to be cheaper. Shape indexes around the leftmost prefix rule, check predicate selectivity, and verify execution reality with `EXPLAIN (ANALYZE, BUFFERS)` before and after every schema change.
+> 💡 **Rule of thumb:** An index offers an access path, not an automatic performance guarantee. A cost-based planner can choose a sequential scan when it estimates that path to be cheaper. Use leading-column predicates as a useful B-tree design heuristic—not an absolute restriction—and verify the selected plan with `EXPLAIN (ANALYZE, BUFFERS)`.
 
 - **Indexes offer access paths, not guaranteed speed:** An index is simply an alternative navigation route. The query planner evaluates candidate paths against table statistics and selectivity, preferring a `Seq Scan` whenever filtering touches a large percentage of heap pages.
-- **B-tree composite indexes demand the leftmost prefix:** A multicolumn index on `(status, created_at)` only narrows search space if leading columns are restricted. Filtering by `created_at` alone or applying non-sargable expressions (like `LIKE '%text'` or `DATE(created_at)`) prevents the optimizer from walking B-tree index branches.
+- **B-tree column order changes efficiency, not basic eligibility:** Leading-column constraints usually narrow an index scan more efficiently. PostgreSQL may still scan a multicolumn B-tree for predicates on later columns, and skip scan may help in supported versions when cost-effective. A leading-wildcard `LIKE '%text'` generally needs a different search strategy rather than ordinary B-tree prefix matching.
 - **Differentiate physical scan mechanics:** Distinguish between a `Seq Scan` (reading raw heap blocks), an `Index Scan` (navigating B-tree leaves then fetching tuples from the heap), an `Index Only Scan` (retrieving required columns directly from index pages when visibility maps allow), and a `Bitmap Index Scan` (gathering tuple pointers and sorting heap page reads).
 - **Audit cardinality estimate discrepancies:** In `EXPLAIN ANALYZE`, the gap between estimated rows and actual rows is the most critical diagnostic signal. If the optimizer projects 10 rows but encounters 500,000, it selects catastrophic nested loops or memory-spilling sorts based on false assumptions.
-- **Fatal pitfall:** Creating a composite index `(status, created_at)` while queries filter only by `created_at` or use leading wildcards (`LIKE '%text'`), assuming the index will automatically accelerate searches, only for the optimizer to fall back to a full `Seq Scan` that exhausts disk I/O and crashes the database during peak traffic.
+- **Common pitfall:** Assuming an index on `(status, created_at)` guarantees fast `created_at`-only queries, or that ordinary B-tree indexes accelerate leading-wildcard substring matches. Read the actual plan, cardinality estimates and I/O evidence first.
 
 Operate with three habits:
 
@@ -351,7 +351,7 @@ Use the [Backend Systems](/docs/learning-paths/backend-systems) path to place in
 
 ## Sources
 
-Primary PostgreSQL references verified on **2026-09-10**:
+Primary PostgreSQL references verified on **2026-11-05**:
 
 - [PostgreSQL documentation — Indexes](https://www.postgresql.org/docs/current/indexes.html)
 - [PostgreSQL documentation — Multicolumn Indexes](https://www.postgresql.org/docs/current/indexes-multicolumn.html)

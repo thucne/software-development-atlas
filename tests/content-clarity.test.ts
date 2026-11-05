@@ -27,7 +27,7 @@ describe('Atlas content reliability migration', () => {
       read('content/docs/programming/async/how-the-browser-event-loop-works.mdx'),
     ).toContain('lastVerified: 2026-09-09');
     expect(read('content/docs/programming/async/promises.mdx')).toContain(
-      'lastVerified: 2026-09-10',
+      'lastVerified: 2026-11-05',
     );
   });
 

@@ -4,7 +4,7 @@ description: "Xây dựng mô hình tư duy chuẩn xác về trạng thái Prom
 category: programming
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - javascript
@@ -35,7 +35,7 @@ concepts:
 
 Promise không phải là tiến trình đang chạy ngầm trong hệ thống—nó chỉ là một **chiếc vé hẹn (claim ticket)** đại diện cho kết quả trong tương lai. Nhầm lẫn tai hại này, kết hợp với việc xem nhẹ cơ chế sinh Promise mới của chuỗi handler, từng tạo nên những sự cố production kinh hoàng: một dịch vụ thanh toán bắt lỗi thẻ từ chối trong `.catch()`, chỉ ghi log rồi kết thúc mà không ném lại lỗi, khiến hàm ngầm trả về `undefined`. Promise downstream lập tức chuyển sang trạng thái Fulfilled, kích hoạt bước tiếp theo và xuất kho gửi hàng cho khách dù giao dịch bị từ chối 100%.
 
-> 💡 **Quy tắc bỏ túi:** Mỗi lệnh `.then()`, `.catch()` hay `.finally()` đều tạo ra một Promise downstream hoàn toàn mới. Số phận của nó do giá trị trả về (`return`) hoặc ngoại lệ (`throw`) trong handler quyết định. Muốn bắt bệnh chuỗi bất đồng bộ, hãy truy vết Promise downstream, tuyệt đối không nhìn vào Promise gốc ban đầu.
+> 💡 **Quy tắc bỏ túi:** `.then()` và `.catch()` tạo Promise mới; giá trị trả về hoặc lỗi do handler ném ra có thể quyết định kết quả của chuỗi. `.finally()` cũng trả về Promise mới, nhưng thông thường giữ nguyên giá trị thành công hoặc lý do thất bại trước đó. Chỉ khi bước dọn dẹp ném lỗi hoặc trả về Promise bị từ chối thì kết quả mới thay đổi. Khi gỡ lỗi, hãy theo dõi từng Promise trong chuỗi.
 
 - **Promise là chiếc vé hẹn lấy kết quả, không phải tác vụ đang chạy:** Reject hay bỏ rơi Promise không hề tự động hủy bỏ socket mạng, câu truy vấn database hay worker thread đang thực thi dưới nền.
 - **Resolved không đồng nghĩa với Fulfilled:** Một Promise được xem là "resolved" khi số phận của nó đã được niêm phong. Nó hoàn toàn có thể ở trạng thái **pending nhưng đã resolved** nếu đang nhận nuôi (adopt) một Promise con chưa settled.
@@ -186,6 +186,27 @@ Nếu `fetchCart()` reject và `emptyCart()` trả về `{ items: [] }`, `render
 
 ---
 
+## `.finally()` giữ nguyên kết quả nếu dọn dẹp thành công
+
+`.finally(onFinally)` phù hợp để dọn dẹp tài nguyên sau cả thành công lẫn thất bại. Hàm `onFinally` không nhận giá trị kết quả hoặc lý do lỗi. Khác với handler của `.then()` và `.catch()`, **giá trị thông thường được trả về từ `.finally()` không thay thế kết quả trước đó**.
+
+```js
+const success = await Promise.resolve(2).finally(() => 77);
+// success === 2: giá trị 77 bị bỏ qua
+
+try {
+  await Promise.reject(new Error("original")).finally(() => 77);
+} catch (error) {
+  console.log(error.message); // "original"
+}
+
+await Promise.resolve("ok").finally(() => {
+  throw new Error("cleanup failed");
+}); // reject với "cleanup failed"
+```
+
+Nếu bước dọn dẹp trả về một Promise chưa hoàn tất, Promise downstream chờ bước dọn dẹp settle. Khi cleanup bị reject hoặc ném lỗi, lỗi cleanup thay thế kết quả ban đầu. Không nên dùng `.finally()` để sửa dữ liệu thành công hoặc phục hồi lỗi; hãy dùng `.then()` hoặc `.catch()` cho mục đích đó.
+
 ## Bốn Combinators chuẩn theo mục đích thiết kế
 
 <TermBox term="Promise Combinator">
@@ -313,6 +334,8 @@ Trước khi đưa mã nguồn sử dụng Promise vào production, hãy đối 
 ---
 
 ## Tài liệu quy chuẩn
+
+- [MDN — Promise.prototype.finally()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally) — giữ nguyên trạng thái ban đầu nếu cleanup thành công, và tác động của cleanup khi thất bại.
 
 - [ECMAScript Language Specification (ECMA-262) — Promise Objects](https://tc39.es/ecma262/#sec-promise-objects) — Đặc tả quy chuẩn ngôn ngữ về vòng đời, trạng thái và thuật toán Promise Resolution.
 - [MDN Web Docs — Using Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — Hướng dẫn thực hành chuẩn mực từ Mozilla Developer Network.
