@@ -33,7 +33,7 @@ concepts:
 
 ## Tóm tắt nhanh (TL;DR)
 
-Promise không phải là tiến trình đang chạy ngầm trong hệ thống—nó chỉ là một **chiếc vé hẹn (claim ticket)** đại diện cho kết quả trong tương lai. Nhầm lẫn tai hại này, kết hợp với việc xem nhẹ cơ chế sinh Promise mới của chuỗi handler, từng tạo nên những sự cố production kinh hoàng: một dịch vụ thanh toán bắt lỗi thẻ từ chối trong `.catch()`, chỉ ghi log rồi kết thúc mà không ném lại lỗi, khiến hàm ngầm trả về `undefined`. Promise downstream lập tức chuyển sang trạng thái Fulfilled, kích hoạt bước tiếp theo và xuất kho gửi hàng cho khách dù giao dịch bị từ chối 100%.
+Promise là đối tượng đại diện cho một kết quả trong tương lai, không phải chính tác vụ đang chạy. Mỗi mắt xích trong chuỗi handler tạo một Promise mới. Trong một tình huống giả định, nếu dịch vụ thanh toán chỉ ghi log lỗi ở `.catch()` mà không ném lại lỗi, bước xử lý tiếp theo có thể hiểu nhầm giao dịch đã thành công. Để tránh lỗi này, cần nắm rõ trạng thái, cơ chế nhận kết quả và cách lỗi lan truyền qua chuỗi Promise.
 
 > 💡 **Quy tắc bỏ túi:** `.then()` và `.catch()` tạo Promise mới; giá trị trả về hoặc lỗi do handler ném ra có thể quyết định kết quả của chuỗi. `.finally()` cũng trả về Promise mới, nhưng thông thường giữ nguyên giá trị thành công hoặc lý do thất bại trước đó. Chỉ khi bước dọn dẹp ném lỗi hoặc trả về Promise bị từ chối thì kết quả mới thay đổi. Khi gỡ lỗi, hãy theo dõi từng Promise trong chuỗi.
 
@@ -224,6 +224,70 @@ Một **Promise Combinator** là một phương thức tĩnh nhận vào một m
 
 ---
 
+## Executor chạy ngay, handler chạy trong microtask
+
+Hàm `executor` truyền vào `new Promise(executor)` chạy đồng bộ lúc tạo Promise. Handler của `.then()` không chạy ngay trong cùng câu lệnh, mà được xếp lịch sau phần mã đồng bộ.
+
+```js
+console.log("A");
+const promise = new Promise((resolve) => {
+  console.log("B");
+  resolve(42);
+});
+promise.then((value) => console.log(value));
+console.log("C");
+// Kết quả: A, B, C, 42
+```
+
+Đừng nhầm việc **tạo một Promise** với việc đợi kết quả. Tác vụ mạng hoặc tác dụng phụ có thể đã bắt đầu ngay khi gọi hàm trả về Promise.
+
+## Nhận nuôi Promise và đối tượng thenable
+
+Nếu handler trả về một Promise hoặc thenable (đối tượng có phương thức `then`), Promise downstream tiếp nhận kết quả cuối cùng của đối tượng đó. Một Promise đã `resolved` vẫn có thể `pending` khi đang chờ Promise khác.
+
+```js
+const inner = Promise.resolve("done");
+console.log(Promise.resolve(inner) === inner); // true: cùng constructor
+
+const outer = new Promise((resolve) => resolve(inner));
+console.log(outer === inner); // false: outer là đối tượng khác
+console.log(await outer); // "done"
+```
+
+Không dùng `Promise.resolve(inner)` như ví dụ bắt buộc tạo một Promise ngoài mới. Với `inner` là Promise của cùng constructor, `Promise.resolve(inner)` trả về chính `inner`.
+
+## Nhánh song song khác với chuỗi phụ thuộc
+
+Gắn hai `.then()` vào cùng một Promise sẽ tạo hai nhánh, không phải hai bước tuần tự:
+
+```js
+const userPromise = fetchUser();
+const profile = userPromise.then((user) => fetchProfile(user.id));
+const permissions = userPromise.then((user) => fetchPermissions(user.id));
+const [profileData, access] = await Promise.all([profile, permissions]);
+```
+
+Nếu phải kiểm tra quyền **trước khi** lấy hồ sơ, hãy viết phụ thuộc đó thành chuỗi rõ ràng thay vì coi thứ tự đăng ký handler là ràng buộc nghiệp vụ.
+
+## Input rỗng và các API mới
+
+`Promise.all([])` và `Promise.allSettled([])` hoàn thành với `[]`; `Promise.any([])` bị reject bằng `AggregateError`; `Promise.race([])` vẫn pending. Điều này quan trọng khi danh sách công việc được tạo động.
+
+`Promise.withResolvers()` trả về `{ promise, resolve, reject }` để điều khiển việc hoàn thành Promise từ một nơi khác. `Promise.try(fn)` gọi `fn` đồng bộ và chuyển giá trị hoặc lỗi do callback tạo ra thành kết quả Promise. Cần kiểm tra khả năng hỗ trợ theo môi trường chạy; không giả định mọi runtime đều có hai API này.
+
+## `async`/`await`, cancellation và quyền sở hữu tác vụ
+
+`await` giúp viết luồng xử lý dễ đọc, nhưng không tự hủy tác vụ hoặc giới hạn số lượng yêu cầu đang chạy. `Promise.all()` cũng không hủy các Promise còn lại khi một Promise bị reject. Khi API hỗ trợ hủy, hãy truyền `AbortSignal` vào tác vụ thực sự:
+
+```js
+const controller = new AbortController();
+const request = fetch("/api/report", { signal: controller.signal });
+// Khi người dùng bỏ thao tác: controller.abort();
+const response = await request;
+```
+
+Hủy ở client không đồng nghĩa với việc mọi side effect đã xảy ra trên server được rollback.
+
 ## Sự cố thực tế cần tránh
 
 ### Kịch bản thực tế: "Lỗi bị nuốt trọn" (Swallowed Error) dẫn đến giao hàng miễn phí
@@ -337,5 +401,8 @@ Trước khi đưa mã nguồn sử dụng Promise vào production, hãy đối 
 
 - [MDN — Promise.prototype.finally()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally) — giữ nguyên trạng thái ban đầu nếu cleanup thành công, và tác động của cleanup khi thất bại.
 
+- [MDN — Promise.withResolvers()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) — tách thời điểm tạo và hoàn thành Promise.
+- [MDN — Promise.try()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/try) — chuyển kết quả hoặc lỗi callback thành Promise.
+- [MDN — Promise.all()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all) — combinator và input rỗng.
 - [ECMAScript Language Specification (ECMA-262) — Promise Objects](https://tc39.es/ecma262/#sec-promise-objects) — Đặc tả quy chuẩn ngôn ngữ về vòng đời, trạng thái và thuật toán Promise Resolution.
 - [MDN Web Docs — Using Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises) — Hướng dẫn thực hành chuẩn mực từ Mozilla Developer Network.

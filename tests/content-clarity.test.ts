@@ -22,10 +22,10 @@ describe('Atlas content reliability migration', () => {
   it('records verification dates for the migrated deep dives', () => {
     expect(
       read('content/docs/programming/async/avoiding-sequential-async-waterfalls.mdx'),
-    ).toContain('lastVerified: 2026-09-09');
+    ).toContain('lastVerified: 2026-11-05');
     expect(
       read('content/docs/programming/async/how-the-browser-event-loop-works.mdx'),
-    ).toContain('lastVerified: 2026-09-09');
+    ).toContain('lastVerified: 2026-11-05');
     expect(read('content/docs/programming/async/promises.mdx')).toContain(
       'lastVerified: 2026-11-05',
     );
