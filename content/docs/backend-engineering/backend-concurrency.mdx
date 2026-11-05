@@ -4,7 +4,7 @@ description: Reason about overlapping backend work by identifying invariants, ra
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -32,19 +32,19 @@ concepts:
 
 # Backend Concurrency: Preserve Invariants When Requests Overlap
 
-During a midnight flash sale, an account with a \$100 balance receives two withdrawal requests of \$50 within milliseconds of each other. The load balancer routes them to two different application replicas. Both worker processes execute `SELECT balance FROM accounts WHERE id = 42`, both observe `balance = 100`, both confirm `100 >= 50`, and both subsequently issue `UPDATE accounts SET balance = 50 WHERE id = 42`. The customer successfully withdraws \$100, yet the account balance settles at \$50—half the money literally vanished into thin air. In the morning post-mortem, an engineer protests: *"Both requests ran inside database transactions!"*
+**Illustrative concurrency failure (not a reported financial incident):** Suppose an account starts with a $100 balance. Two $50 withdrawal requests on different application replicas both read `balance = 100`, both approve their own withdrawal, and each later writes the previously calculated value `50`. If both payouts were actually executed, the account would have paid out $100 but the stored balance would incorrectly remain **$50 instead of $0**. The system would under-record the debit by $50; the funds did not mysteriously “vanish”. This constructed example assumes both operations are accepted, no cross-request idempotency protection is in place, and the database permits both stale computed writes to commit (for example under PostgreSQL `READ COMMITTED`). It is not evidence of a real breach or of transaction behavior under every isolation level.
 
-This is the brutal reality of backend concurrency: transactions without proper isolation or coordination do not prevent concurrent interleavings from violating business invariants. Concurrency bugs begin the moment two units of work can overlap while touching state that matters to the same invariant. They do not need to execute on different CPU cores. Two async tasks, two threads, two processes, or two service replicas can all create concurrency bugs if correctness depends on timing.
+Concurrency bugs arise when overlapping work reads state, makes decisions and commits effects without a mechanism that preserves the full business invariant. `BEGIN`/`COMMIT` alone does not mean a read-check-write sequence is serializable; transaction isolation, constraints, atomic conditional updates or shared coordination determine which interleavings can succeed. Two asynchronous tasks can race even on one CPU core; separate replicas widen the coordination scope.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** Never coordinate cross-replica business invariants with process-local locks; enforce the critical section where the durable state lives through atomic conditional updates, optimistic locking with monotonic versions, or pessimistic locks (`SELECT FOR UPDATE`).
+> 💡 **Rule of thumb:** A process-local lock cannot enforce a cross-replica invariant. Prefer a datastore-owned atomic conditional update or constraint, or use transactions with the appropriate isolation and locking. If the workflow includes external side effects, separately design durable intent, retry and deduplication boundaries.
 
 - **Invariants define coordination boundaries:** Concurrency is not about whether two CPU cores execute simultaneously, but whether overlapping operations violate business invariants (such as non-negative balances or strict inventory caps).
 - **Process-local locks stop at the process boundary:** An in-memory mutex (`sync.Mutex`, language locks) cannot coordinate across multiple container instances, serverless functions, or background workers sharing a database.
 - **Coordination primitives by contention:** Use atomic conditional writes (`UPDATE ... WHERE balance >= 50`) for simple numeric transitions, optimistic concurrency (`version = version + 1`) for low-contention document edits, and pessimistic locking (`SELECT ... FOR UPDATE`) when conflict retries would cause disastrous retry storms.
 - **Contention is an unmodeled queue:** When hundreds of requests fight over the same critical section, lock wait times spike, connection pools saturate, and latency degrades; shrink critical sections rather than weakening invariants.
-- **Fatal pitfall:** Relying on naive read-check-write application patterns (`SELECT balance` -> check in code -> `UPDATE balance`) without atomic conditional transitions or pessimistic locks, allowing concurrent operations to interleave, overwrite each other, and cause catastrophic lost updates.
+- **High-impact pitfall:** A stale read-check-write pattern (`SELECT balance` → app check → write a previously computed balance) can approve both operations and overwrite one debit under permissive isolation. Preserve both the database invariant and the separately committed business effects.
 
 ```mermaid
 flowchart LR
@@ -158,7 +158,19 @@ WHERE sku = $1
 RETURNING remaining;
 ```
 
-Now the datastore decides whether the transition is valid at the same boundary where it applies the write.
+Now the datastore decides whether the transition is valid at the same boundary where it applies the write. **Check the returned row count:** zero rows means the attempted decrement was not applied (the SKU may be missing or its remaining count may be zero). Do not report success or schedule a side effect merely because the SQL statement returned without throwing.
+
+For the opening bank-balance example, a PostgreSQL-style single-row transition is:
+
+```sql
+UPDATE accounts
+SET balance = balance - $1
+WHERE id = $2
+  AND balance >= $1
+RETURNING balance;
+```
+
+Bind `$1` to the positive withdrawal amount and `$2` to the account ID; authorize the account separately. Exactly one returned row means the **balance change** was applied in the transaction, not that an external payout has succeeded. Persist the withdrawal intent and any outbox work atomically with the balance update where possible; a remote payment service cannot be rolled back merely by rolling back the database transaction.
 
 Atomicity is always relative to a boundary. A language-level atomic increment can protect one memory location but not automatically protect:
 
@@ -204,7 +216,7 @@ WHERE id = $2
   AND version = $3;
 ```
 
-If zero rows are updated, another writer changed the document first. The application can then:
+If zero rows are updated, the version did not match **or the document was absent**; distinguish those cases before returning the API's documented `404` or conflict response. The application can then:
 
 - re-read and retry when the operation is safely recomputable;
 - surface a conflict so a human can reconcile edits;
@@ -299,7 +311,7 @@ But `BEGIN`/`COMMIT` alone does not prove safety. You still need to reason about
 - whether Serializable isolation may abort an unsafe interleaving;
 - whether the application retries the **whole transaction** when required.
 
-PostgreSQL documentation explicitly treats serialization failures as expected outcomes at stronger isolation levels, and recommends retrying the complete transaction logic rather than only one failed statement. PostgreSQL also documents that explicit locks can deadlock and recommends consistent lock acquisition order as a primary defense.
+PostgreSQL 18 documents that `READ COMMITTED` can permit stale read-check-write decisions, whereas stronger isolation can abort some conflicting transactions. SQLSTATE `40001` denotes `serialization_failure`; `40P01` denotes `deadlock_detected`. Retry the **whole transaction and its decision logic** with bounded attempts, not just the failed SQL statement. Do not automatically replay a remote side effect that might have completed before a retry. PostgreSQL also documents that explicit locks can deadlock and recommends consistent lock acquisition order as a primary defense.
 
 That is why this lesson focuses on selecting the coordination scope, while **Database Transactions & Isolation** goes deeper on datastore-specific transaction semantics.
 
@@ -331,7 +343,7 @@ Do not “fix” deadlocks by removing locks without restoring the invariant ano
 
 ## 10. Contention is a queue, whether you drew one or not
 
-If 500 requests require one exclusive critical section, only one can hold it at a time. The other 499 are effectively queued somewhere: in the application, runtime, connection pool, database, or lock manager.
+If 500 requests arrive together and require one exclusive critical section, only one can hold it at a time. Up to 499 others must wait, be rejected or be backpressured somewhere: in the application, runtime, connection pool, database, or lock manager.
 
 That means concurrency design is also capacity design.
 
@@ -356,9 +368,9 @@ When contention is high, possible improvements include:
 
 The wrong optimization is to weaken the invariant because “the race is unlikely.”
 
-## Production scenario: duplicate exports across six replicas
+## Hypothetical production scenario: duplicate exports across replicas
 
-A reporting API allows only one active export per `(tenant_id, report_id)`. To prevent duplicate expensive jobs, each application process keeps an in-memory mutex keyed by that pair.
+**Constructed teaching case, not a documented incident:** A reporting API runs on six replicas and allows only one active export per `(tenant_id, report_id)`. To prevent duplicate expensive jobs, each application process keeps an in-memory mutex keyed by that pair.
 
 During a traffic spike, two identical requests arrive nearly together. The load balancer sends them to different replicas.
 
@@ -376,6 +388,16 @@ Both requests succeed because the two mutexes never coordinate with each other.
 **Root cause:** the invariant “at most one active export per tenant/report” was durable and cross-replica, but the coordination primitive was process-local. The application protected the wrong scope. The read-then-create sequence also had no shared atomic uniqueness boundary.
 
 **Correct pattern:** make the invariant enforceable where the shared state lives—for example, with a datastore uniqueness/conditional-create rule covering active exports, or another atomic ownership record. Treat a process-local mutex only as an optional contention optimization. If duplicate client delivery is also possible, give the request/job a durable idempotency identity. Schedule background work from committed durable state so a retry cannot create an untracked second job.
+
+For PostgreSQL, a **partial unique index** can implement one active export per pair, assuming status transitions are made transactionally:
+
+```sql
+CREATE UNIQUE INDEX one_active_export_per_report
+ON exports (tenant_id, report_id)
+WHERE status IN ('queued', 'running');
+```
+
+A second insert or status transition that conflicts with the active row fails with a uniqueness violation; handle that as an existing-job/conflict response, not as a successful second export. A partial unique index is PostgreSQL-specific, not a portable SQL guarantee. Define which statuses count as active, and ensure job scheduling uses the committed row (for example via a transactional outbox) so a worker crash cannot silently drop the work.
 
 The lesson is broader than exports: **coordination must live at least as widely as the invariant it protects**.
 
@@ -451,11 +473,13 @@ Continue through the [Backend Systems](/docs/learning-paths/backend-systems) pat
 
 ## Sources
 
-Primary references verified on **2026-09-10**:
+Primary references reviewed on **2026-11-05** (PostgreSQL 18/current):
 
 - [Go Memory Model](https://go.dev/ref/mem) — a concrete language memory model illustrating why concurrent access to shared mutable state requires synchronization.
 - [PostgreSQL documentation — Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
 - [PostgreSQL documentation — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html)
 - [PostgreSQL documentation — Serialization Failure Handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html)
+- [PostgreSQL documentation — UPDATE / RETURNING](https://www.postgresql.org/docs/current/sql-update.html)
+- [PostgreSQL documentation — Partial Indexes](https://www.postgresql.org/docs/current/indexes-partial.html)
 
 This lesson is **evolving** with a 180-day review target. The invariant-first reasoning model is durable, while runtime primitives, datastore behavior, and operational guidance continue to evolve.

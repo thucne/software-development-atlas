@@ -4,7 +4,7 @@ description: Lập luận về công việc phía máy chủ chồng lấn bằn
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -32,19 +32,19 @@ concepts:
 
 # Đồng thời phía máy chủ: Đảm bảo tính đúng đắn khi các request chồng chéo
 
-Trong một đợt mở bán flash sale lúc nửa đêm, tài khoản khách hàng có số dư 100 USD nhận đồng thời hai yêu cầu rút 50 USD chỉ cách nhau vài phần nghìn giây. Bộ cân bằng tải phân phối hai request này tới hai replica ứng dụng khác nhau. Cả hai tiến trình worker cùng thực thi `SELECT balance FROM accounts WHERE id = 42`, cùng đọc được `balance = 100`, cùng kiểm tra `100 >= 50` thỏa mãn, và cùng gửi lệnh `UPDATE accounts SET balance = 50 WHERE id = 42`. Khách hàng rút trót lọt 100 USD nhưng số dư tài khoản chỉ bị trừ 50 USD — 50% số tiền đã bốc hơi vào hư không. Trong buổi họp mổ xẻ sự cố (post-mortem), kỹ sư hoang mang phân trần: *"Cả hai request đều đã được bọc cẩn thận trong transaction cơ sở dữ liệu cơ mà!"*
+**Ví dụ giả định về xử lý đồng thời (không phải sự cố tài chính có thật):** Một tài khoản bắt đầu với số dư 100 USD. Hai yêu cầu rút 50 USD được xử lý ở hai bản sao ứng dụng; cả hai cùng đọc `balance = 100`, cùng chấp nhận yêu cầu và sau đó ghi giá trị đã tính trước là `50`. Nếu cả hai khoản tiền đều thực sự được chi trả, tài khoản đã chi 100 USD nhưng số dư lưu trong cơ sở dữ liệu lại là **50 USD thay vì 0 USD**. Hệ thống ghi thiếu 50 USD đã bị trừ, chứ không phải tiền tự nhiên “bốc hơi”. Ví dụ này giả định cả hai giao dịch được chấp nhận, không có bảo vệ idempotency xuyên request và cơ sở dữ liệu cho phép hai phép ghi dùng giá trị cũ cùng commit (chẳng hạn PostgreSQL `READ COMMITTED`). Đây không phải báo cáo sự cố thật và cũng không mô tả mọi mức cô lập giao dịch.
 
-Đây chính là hiện thực khốc liệt của xử lý đồng thời (backend concurrency): transaction mà thiếu mức cô lập phù hợp hoặc cơ chế điều phối chuẩn xác thì không thể ngăn chặn các thao tác xen kẽ phá vỡ bất biến nghiệp vụ. Lỗi đồng thời xuất hiện ngay khi hai đơn vị công việc cùng chạm vào trạng thái định đoạt một bất biến. Chúng không cần chạy trên hai lõi CPU khác nhau. Hai tác vụ bất đồng bộ, hai luồng, hai tiến trình hay hai replica dịch vụ đều có thể tạo lỗi nếu tính đúng đắn phụ thuộc vào thời điểm thực thi.
+Lỗi đồng thời xuất hiện khi các thao tác chồng lấn cùng đọc trạng thái, ra quyết định và ghi hiệu ứng nhưng thiếu cơ chế bảo vệ bất biến nghiệp vụ. Chỉ thêm `BEGIN`/`COMMIT` không làm chuỗi đọc–kiểm tra–ghi tự động có tính tuần tự; mức cô lập, ràng buộc, phép ghi có điều kiện nguyên tử hoặc điều phối dùng chung mới quyết định các thao tác nào được phép thành công. Ngay cả tác vụ bất đồng bộ trên một lõi CPU cũng có thể gặp race; nhiều replica làm phạm vi điều phối rộng hơn.
 
 ## TL;DR
 
-> 💡 **Quy tắc bỏ túi:** Tuyệt đối không bảo vệ bất biến nghiệp vụ đa bản sao bằng khóa cục bộ trong bộ nhớ tiến trình; hãy thực thi vùng tới hạn ngay tại nơi lưu trữ trạng thái bền vững bằng atomic conditional write, khóa lạc quan (optimistic locking) với phiên bản, hoặc khóa bi quan (`SELECT FOR UPDATE`).
+> 💡 **Quy tắc bỏ túi:** Khóa chỉ nằm trong một tiến trình không bảo vệ được bất biến xuyên nhiều bản sao. Ưu tiên phép ghi có điều kiện nguyên tử hoặc ràng buộc tại kho dữ liệu, hoặc giao dịch với mức cô lập và cơ chế khóa phù hợp. Nếu workflow còn gọi dịch vụ bên ngoài, phải thiết kế riêng trạng thái ý định bền vững, retry và chống xử lý trùng.
 
 - **Bất biến xác định ranh giới phối hợp:** Lập trình đồng thời không chỉ là hai luồng CPU chạy cùng tích tắc, mà là bảo đảm các thao tác xen kẽ không phá vỡ bất biến nghiệp vụ (như số dư không âm, tồn kho flash sale không bán vượt số lượng thực tế).
 - **Khóa nội bộ dừng lại ở ranh giới tiến trình:** Mutex trong bộ nhớ (`sync.Mutex`, `lock`) vô dụng khi ứng dụng chạy trên nhiều pod/container hoặc worker; ranh giới bảo vệ bắt buộc phải đặt tại kho dữ liệu dùng chung.
 - **Lựa chọn chiến lược điều phối theo độ tranh chấp:** Ưu tiên phép ghi có điều kiện nguyên tử (`UPDATE ... WHERE balance >= 50`) cho số đếm đơn giản, khóa lạc quan (`version = version + 1`) khi tranh chấp thấp, hoặc khóa bi quan (`SELECT ... FOR UPDATE`) khi xung đột cao và chi phí thử lại (retry) quá đắt.
 - **Tranh chấp tài nguyên bản chất là một hàng đợi ngầm:** Khi hàng trăm request cùng giành một vùng tới hạn, thời gian chờ khóa tăng vọt và làm cạn kiệt connection pool; hãy thu nhỏ vùng tới hạn thay vì nới lỏng bất biến để đánh đổi thông lượng ảo.
-- **Cạm bẫy chết người:** Áp dụng mô hình đọc-kiểm tra-ghi ngây thơ (`SELECT balance` -> kiểm tra trên code -> `UPDATE balance`) mà không khóa hàng hay dùng phép ghi nguyên tử, khiến các request đồng thời ghi đè lẫn nhau gây mất cập nhật (lost update) hoặc thất thoát tiền bạc/tồn kho nghiêm trọng.
+- **Lỗi nguy hiểm:** Chuỗi đọc–kiểm tra–ghi bằng giá trị đã tính trước (`SELECT balance` → kiểm tra trong ứng dụng → ghi số dư cũ đã tính) có thể cùng chấp nhận hai yêu cầu và ghi đè một khoản trừ khi mức cô lập không đủ mạnh. Phải bảo vệ cả bất biến trong cơ sở dữ liệu lẫn các hiệu ứng nghiệp vụ được ghi nhận riêng.
 
 ```mermaid
 flowchart LR
@@ -158,7 +158,19 @@ WHERE sku = $1
 RETURNING remaining;
 ```
 
-Lúc này kho dữ liệu quyết định chuyển trạng thái có hợp lệ hay không ngay tại ranh giới nó thực hiện phép ghi.
+Lúc này kho dữ liệu quyết định chuyển trạng thái có hợp lệ hay không ngay tại ranh giới nó thực hiện phép ghi. **Phải kiểm tra số hàng được trả về:** không có hàng nào nghĩa là phép trừ chưa được áp dụng (có thể không tồn tại SKU hoặc số lượng đã hết). Không báo thành công hay kích hoạt hiệu ứng bên ngoài chỉ vì câu SQL không ném lỗi.
+
+Với ví dụ số dư tài khoản đầu bài, có thể dùng một phép chuyển trạng thái trên một hàng theo kiểu PostgreSQL:
+
+```sql
+UPDATE accounts
+SET balance = balance - $1
+WHERE id = $2
+  AND balance >= $1
+RETURNING balance;
+```
+
+Gán `$1` là số tiền rút dương và `$2` là ID tài khoản; việc phân quyền tài khoản vẫn phải kiểm tra riêng. Một hàng được trả về chỉ xác nhận **số dư đã được cập nhật trong giao dịch**, không chứng minh dịch vụ thanh toán ngoài hệ thống đã chi tiền. Khi có thể, ghi ý định rút tiền bền vững và công việc outbox cùng giao dịch với phép cập nhật số dư; không thể hoàn tác giao dịch ở dịch vụ thanh toán chỉ bằng rollback cơ sở dữ liệu.
 
 Tính nguyên tử luôn gắn với một ranh giới. Một phép tăng nguyên tử ở mức ngôn ngữ có thể bảo vệ một ô nhớ nhưng không tự động bảo vệ:
 
@@ -204,7 +216,7 @@ WHERE id = $2
   AND version = $3;
 ```
 
-Nếu không hàng nào được cập nhật, một phía ghi khác đã thay đổi tài liệu trước. Ứng dụng có thể:
+Nếu không có hàng nào được cập nhật thì **phiên bản không khớp hoặc tài liệu không tồn tại**; cần phân biệt hai trường hợp trước khi trả mã `404` hoặc phản hồi xung đột theo hợp đồng API. Ứng dụng có thể:
 
 - đọc lại và thử lại nếu thao tác có thể tính lại an toàn;
 - trả xung đột để người dùng hòa giải thay đổi;
@@ -299,7 +311,7 @@ Nhưng chỉ có `BEGIN`/`COMMIT` không chứng minh an toàn. Vẫn phải ph�
 - mức `Serializable` có thể abort cách xen kẽ không an toàn không;
 - ứng dụng có thử lại **toàn bộ giao dịch** khi cần không.
 
-Tài liệu PostgreSQL coi serialization failure là kết quả dự kiến ở các mức cô lập mạnh hơn và yêu cầu thử lại toàn bộ logic giao dịch thay vì chỉ một câu lệnh thất bại. Tài liệu này cũng nêu rõ khóa tường minh có thể tạo bế tắc và khuyến nghị lấy nhiều khóa theo một thứ tự nhất quán.
+Tài liệu PostgreSQL 18 mô tả việc `READ COMMITTED` có thể cho phép quyết định đọc–kiểm tra–ghi dựa trên dữ liệu cũ, trong khi mức cô lập mạnh hơn có thể hủy giao dịch khi xung đột. SQLSTATE `40001` là `serialization_failure`, còn `40P01` là `deadlock_detected`. Khi retry, phải chạy lại **toàn bộ giao dịch và logic ra quyết định** với số lần thử có giới hạn, không chỉ thử lại một câu SQL bị lỗi. Không tự động lặp hiệu ứng ở dịch vụ ngoài nếu hiệu ứng đó có thể đã thành công. PostgreSQL cũng khuyến nghị lấy nhiều khóa theo cùng thứ tự để hạn chế bế tắc.
 
 Vì vậy bài này tập trung vào việc chọn phạm vi phối hợp, còn **Database Transactions & Isolation** đi sâu vào semantics của giao dịch trong kho dữ liệu.
 
@@ -331,7 +343,7 @@ Các biện pháp thường dùng:
 
 ## 10. Tranh chấp chính là một hàng đợi, dù sơ đồ của bạn có vẽ nó hay không
 
-Nếu 500 yêu cầu đều cần cùng một vùng tới hạn độc quyền, chỉ một yêu cầu giữ được nó tại một thời điểm. 499 yêu cầu còn lại thực chất đang xếp hàng ở đâu đó: trong ứng dụng, runtime, connection pool, cơ sở dữ liệu hoặc lock manager.
+Nếu 500 yêu cầu đến cùng lúc và đều cần một vùng tới hạn độc quyền, chỉ một yêu cầu giữ được nó tại một thời điểm. Tối đa 499 yêu cầu còn lại phải chờ, bị từ chối hoặc chịu cơ chế điều tiết tải ở đâu đó: trong ứng dụng, runtime, connection pool, cơ sở dữ liệu hoặc lock manager.
 
 Vì vậy thiết kế đồng thời cũng là thiết kế năng lực.
 
@@ -356,9 +368,9 @@ Khi tranh chấp cao, có thể:
 
 Tối ưu sai là nới lỏng bất biến với lý do “race hiếm khi xảy ra”.
 
-## Tình huống production: xuất báo cáo trùng trên sáu bản sao
+## Tình huống vận hành giả định: xuất báo cáo trùng trên nhiều bản sao
 
-Một API báo cáo chỉ cho phép một bản xuất đang hoạt động trên mỗi `(tenant_id, report_id)`. Để tránh tạo nhiều job tốn tài nguyên, mỗi tiến trình ứng dụng giữ một mutex trong bộ nhớ theo cặp khóa này.
+**Ví dụ minh họa, không phải sự cố được công bố:** API xuất báo cáo chạy trên sáu bản sao và chỉ cho phép một bản xuất đang hoạt động trên mỗi `(tenant_id, report_id)`. Để tránh tạo job tốn tài nguyên trùng nhau, mỗi tiến trình ứng dụng giữ một mutex trong bộ nhớ theo cặp khóa này.
 
 Trong lúc lưu lượng tăng, hai yêu cầu giống nhau đến gần như cùng lúc. Bộ cân bằng tải đưa chúng tới hai bản sao khác nhau.
 
@@ -376,6 +388,16 @@ Cả hai đều thành công vì hai mutex chưa bao giờ phối hợp với nh
 **Nguyên nhân cốt lõi:** bất biến “tối đa một bản xuất đang hoạt động cho mỗi tenant/report” là bền vững và xuyên nhiều bản sao, nhưng primitive phối hợp chỉ nằm trong một tiến trình. Ứng dụng bảo vệ sai phạm vi. Chuỗi đọc-rồi-tạo cũng không có ranh giới duy nhất nguyên tử dùng chung.
 
 **Cách khắc phục chuẩn:** thực thi bất biến tại nơi trạng thái dùng chung được sở hữu, chẳng hạn bằng ràng buộc duy nhất hoặc conditional create trong kho dữ liệu cho export đang hoạt động, hoặc một bản ghi quyền sở hữu có tính nguyên tử tương đương. Chỉ xem mutex cục bộ là tối ưu hóa tranh chấp tùy chọn. Nếu client có thể gửi lặp, cấp định danh idempotency bền vững cho yêu cầu/job. Lên lịch công việc nền từ trạng thái bền vững đã commit để retry không tạo một job thứ hai không được theo dõi.
+
+Với PostgreSQL, có thể dùng **partial unique index** để bảo đảm mỗi cặp chỉ có một bản xuất đang hoạt động, với điều kiện việc chuyển trạng thái job diễn ra trong giao dịch phù hợp:
+
+```sql
+CREATE UNIQUE INDEX one_active_export_per_report
+ON exports (tenant_id, report_id)
+WHERE status IN ('queued', 'running');
+```
+
+Nếu một thao tác chèn hoặc chuyển trạng thái làm trùng hàng đang hoạt động, cơ sở dữ liệu trả lỗi duy nhất; API cần xử lý thành kết quả job đã tồn tại hoặc xung đột, không báo rằng một job thứ hai đã tạo thành công. Partial unique index là khả năng riêng của PostgreSQL, không phải bảo đảm của mọi hệ SQL. Cần định nghĩa chính xác trạng thái nào là đang hoạt động và lên lịch worker từ hàng đã commit (chẳng hạn qua transactional outbox) để tránh làm mất việc khi worker crash.
 
 Bài học tổng quát là: **phạm vi phối hợp phải ít nhất rộng bằng phạm vi của bất biến mà nó bảo vệ**.
 
@@ -451,11 +473,13 @@ Tiếp tục theo lộ trình [Backend Systems](/vi/docs/learning-paths/backend-
 
 ## Nguồn
 
-Các nguồn chính được kiểm tra ngày **2026-09-10**:
+Các nguồn chính được rà soát ngày **2026-11-05** (PostgreSQL 18/current):
 
 - [Go Memory Model](https://go.dev/ref/mem) — mô hình bộ nhớ của một ngôn ngữ cụ thể, minh họa vì sao truy cập đồng thời vào trạng thái thay đổi dùng chung cần cơ chế đồng bộ.
 - [PostgreSQL documentation — Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
 - [PostgreSQL documentation — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html)
 - [PostgreSQL documentation — Serialization Failure Handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html)
+- [PostgreSQL documentation — UPDATE / RETURNING](https://www.postgresql.org/docs/current/sql-update.html)
+- [PostgreSQL documentation — Partial Indexes](https://www.postgresql.org/docs/current/indexes-partial.html)
 
 Bài này ở trạng thái **evolving** với chu kỳ rà soát mục tiêu 180 ngày. Mô hình lập luận bắt đầu từ bất biến là bền vững, còn primitive runtime, hành vi kho dữ liệu và hướng dẫn vận hành vẫn tiếp tục thay đổi.
