@@ -4,7 +4,7 @@ description: Lập luận về cache ứng dụng như trạng thái dẫn xuấ
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Cache ứng dụng: Chấp nhận dữ liệu chưa cập nhật để giảm tải có chủ đích
 
-8 giờ tối ngày Siêu Sale Black Friday. Trang sản phẩm hot nhất của sàn thương mại điện tử đang xử lý 50.000 request mỗi giây một cách mượt mà nhờ tỷ lệ cache hit lên tới 99,8%. Bất thình lình, key cache của sản phẩm này chạm ngưỡng TTL và hết hạn. Trong một tích tắc, 10.000 request đồng thời ập xuống đâm thủng lớp cache trống rỗng và lao thẳng vào cơ sở dữ liệu quan hệ chính. Connection pool cạn kiệt ngay lập tức, CPU database vọt lên 100%, độ trễ truy vấn từ 5 mili-giây nhảy vọt lên 30 giây, và cơ sở dữ liệu bốc cháy khiến toàn bộ nền tảng sập nguồn (cascading outage). Cơ sở dữ liệu quá tải không phải vì lượng truy cập tăng gấp đôi, mà vì lớp cache bốc hơi cho đúng một key nóng vào thời điểm nhạy cảm nhất.
+**Ví dụ giả định, không phải báo cáo sự cố thực tế:** Một endpoint xem chi tiết sản phẩm có lưu bản ghi được truy cập nhiều trong cache dùng chung. Khi bản ghi hết hạn, nhiều request đến gần nhau có thể cùng cache miss và gửi các truy vấn độc lập xuống cơ sở dữ liệu. Nếu đủ nhiều truy vấn xảy ra đồng thời, nguồn dữ liệu có thể cạn connection hoặc CPU, làm tăng độ trễ hay gây timeout. Mức độ ảnh hưởng phụ thuộc vào lưu lượng, số lượt miss đồng thời, năng lực của nguồn và chi phí truy vấn; ví dụ này không đưa ra số liệu sự cố đã được đo lường.
 
-Đó chính là thảm họa **Cache Stampede** (hay hiện tượng *dồn tải kiểu bầy đàn - thundering herd*). Cache ứng dụng không phải lá chắn thần kỳ để che giấu điểm yếu của cơ sở dữ liệu. Nếu thiếu các chiến lược phân tầng rõ ràng (như Cache-Aside và Write-Through), kỹ thuật phân tán TTL jitter và cơ chế khóa mutex khi tính toán miss, một hệ thống cache thiếu phối hợp có thể biến lưu lượng bình thường thành quả bom phá hủy hạ tầng.
+Hiện tượng đó được gọi là **cache stampede** (*thundering herd*, dồn tải khi cache miss). Cache-aside chỉ là cách tải dữ liệu, không tự ngăn được dồn tải. Có thể cân nhắc gộp các lượt tải trùng nhau, làm nóng cache, làm mới sớm, thêm jitter vào TTL hoặc phục vụ dữ liệu cũ có giới hạn nếu yêu cầu độ tươi cho phép. Single-flight trong một tiến trình chỉ gộp request của chính tiến trình đó.
 
 ## TL;DR
 
-> 💡 **Quy tắc bỏ túi:** Coi cache là trạng thái dẫn xuất tạm thời, tuyệt đối không xem là nguồn dữ liệu chuẩn. Hãy bảo vệ khóa nóng bằng cơ chế khóa mutex (single-flight) kết hợp TTL jitter, và luôn vô hiệu hóa hoặc xóa cache *sau khi* transaction cơ sở dữ liệu đã commit thành công.
+> 💡 **Quy tắc bỏ túi:** Với cache-aside, dữ liệu bền vững là nguồn chuẩn; cache chỉ là bản sao có thể tái tạo. Xác định giới hạn độ cũ và tải khi cache miss, thường vô hiệu hóa *sau khi* dữ liệu chuẩn commit. Thứ tự đó chưa bảo đảm đọc được dữ liệu mới ngay sau khi ghi và vẫn có thể có race do reader bị trì hoãn.
 
 - **Nguồn dữ liệu chuẩn (Source of Truth):** Cache chỉ tồn tại để giảm tải các phép tính hoặc truy vấn tốn kém. Mất cache hay cache bị xóa (eviction) chỉ được phép làm giảm hiệu năng và tăng độ trễ, tuyệt đối không được làm biến dạng hay mất mát sự thật nghiệp vụ.
-- **Mô hình phối hợp:** **Cache-Aside** (đọc đứng bên / lazy loading) đọc cache trước, truy vấn database khi miss rồi ghi bù vào cache; **Write-Through** cập nhật đồng thời cache và database; **Write-Behind** ghi vào cache trước rồi bất đồng bộ đẩy xuống database để tối ưu tốc độ ghi nhưng chấp nhận rủi ro mất dữ liệu nếu sự cố xảy ra.
+- **Mỗi kiểu cache có cam kết độ bền khác nhau:** **Cache-Aside** tải lại dữ liệu chuẩn khi miss; **Write-Through** phối hợp ghi nguồn và cache nhưng không mặc nhiên tạo thành một giao dịch nguyên tử; **Write-Behind** có thể xác nhận ghi trước khi nguồn bền vững commit nên mất dữ liệu đang chờ khi có sự cố. Không coi dữ liệu Write-Behind là bản sao tùy ý bỏ đi nếu nó tạm thời giữ bản duy nhất đã được xác nhận.
 - **Khóa cache là ranh giới đúng-sai:** Mọi chiều dữ liệu tác động tới kết quả (tenant_id, phân quyền người dùng, đơn vị tiền tệ, bản địa hóa, phiên bản schema) bắt buộc phải nằm trong cache key; bỏ sót một chiều sẽ dẫn đến nguy cơ rò rỉ dữ liệu chéo giữa các khách hàng.
-- **Chống dồn tải (Cache Stampede) là bắt buộc:** Bảo vệ các khóa nóng khỏi hiện tượng bầy đàn bằng khóa mutex / single-flight (gộp hàng nghìn miss đồng thời thành một lần đọc database duy nhất), làm mới chủ động (refresh-ahead) và phân tán TTL jitter ngẫu nhiên để tránh hết hạn đồng loạt.
-- **Cạm bẫy chết người:** Xóa hoặc vô hiệu hóa cache *trước khi* commit transaction cơ sở dữ liệu, tạo ra kẽ hở tranh chấp (race condition) để một tiến trình đọc lấy dữ liệu cũ chưa commit từ database rồi ghi ngược lại vào cache, khiến dữ liệu sai lệch bị giam giữ vĩnh viễn cho tới khi hết TTL.
+- **Chống dồn tải phụ thuộc vào workload:** Với khóa nóng, cân nhắc gộp các request trùng nhau trong từng tiến trình hoặc toàn hệ thống, giới hạn số truy vấn tới nguồn, làm mới sớm và thêm jitter vào TTL. Jitter phân tán thời điểm hết hạn của *các khóa khác nhau*, không tự chặn nhiều request cùng miss *một khóa* vừa hết hạn.
+- **Race cần xử lý:** Vô hiệu hóa *trước* khi commit có thể khiến dữ liệu cũ được ghi lại vào cache. Vô hiệu hóa *sau* commit thường tốt hơn, nhưng reader đã tải dữ liệu cũ vẫn có thể ghi cache sau lần vô hiệu hóa. Khi cần, phải kiểm tra phiên bản, phối hợp thao tác điền cache hoặc công bố giới hạn độ cũ.
 
 ```mermaid
 flowchart LR
@@ -177,7 +177,15 @@ reader: cache miss -> đọc giá trị cũ từ DB -> ghi lại cache cũ
 writer: commit giá trị mới
 ```
 
-Lúc này dữ liệu cũ có thể sống đến khi TTL hết hoặc có lần vô hiệu hóa khác. Hãy coi vô hiệu hóa là bài toán concurrency, không chỉ là một lệnh cache.
+Lúc này dữ liệu cũ có thể sống đến khi TTL hết hoặc có lần vô hiệu hóa khác. **Ngay cả khi vô hiệu hóa sau commit, race vẫn có thể xảy ra**:
+
+```text
+reader: cache miss -> tải phiên bản 1 từ DB -> tạm dừng
+writer: commit phiên bản 2 -> DEL khóa cache
+reader: tiếp tục -> SET cache về phiên bản 1
+```
+
+Reader bị trì hoãn có thể ghi lại dữ liệu cũ *sau* lệnh xóa thành công. Với trang sản phẩm chấp nhận độ cũ có giới hạn, TTL cùng việc theo dõi vô hiệu hóa có thể là đủ. Với yêu cầu dữ liệu mới nghiêm ngặt hơn, cần ghi cache có kiểm tra phiên bản, cách xác định phiên bản hiện hành đáng tin cậy hoặc đọc trực tiếp nguồn chuẩn tại điểm ra quyết định. Chỉ gắn phiên bản vào khóa không bảo vệ được một con trỏ phiên bản đang bị ghi đè bởi reader cũ. Hãy coi vô hiệu hóa là bài toán đồng thời, không chỉ là một lệnh cache.
 
 Với view dẫn xuất phức tạp, vô hiệu hóa đồng bộ mọi khóa phụ thuộc có thể không thực tế. Các lựa chọn khác gồm khóa có phiên bản, tag phụ thuộc, sự kiện vô hiệu hóa bền vững hoặc chấp nhận một cửa sổ độ cũ đã được ghi rõ. Mỗi lựa chọn chuyển độ phức tạp sang một chỗ khác.
 
@@ -369,10 +377,14 @@ Tiếp tục theo lộ trình [Backend Systems](/vi/docs/learning-paths/backend-
 
 ## Nguồn tham khảo
 
-Các tài liệu Redis chính được kiểm tra ngày **2026-09-10**:
+Các nguồn hướng dẫn chính được rà soát ngày **2026-11-05**:
 
 - [Redis documentation — Cache-aside](https://redis.io/docs/latest/develop/use-cases/cache-aside/)
 - [Redis documentation — Cache-aside với Node.js](https://redis.io/docs/latest/develop/use-cases/cache-aside/nodejs/)
+- [AWS — Caching Best Practices](https://aws.amazon.com/caching/best-practices/) — cache-aside, write-through, TTL, thundering herd and jitter.
+- [Microsoft Azure Architecture Center — Cache-Aside Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside) — eventual consistency and bounded freshness.
+- [Microsoft Azure Architecture Center — Caching Guidance](https://learn.microsoft.com/en-us/azure/architecture/best-practices/caching) — invalidation ordering and capacity-aware fallback.
+
 
 Các nguồn này là ví dụ cụ thể, không phải yêu cầu phải dùng Redis. Mô hình lập luận cache đứng bên áp dụng được cho cache trong tiến trình, cache key-value dùng chung, kết quả tính toán được ghi nhớ và các lớp trạng thái dẫn xuất khác với đặc tính vận hành khác nhau.
 
