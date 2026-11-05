@@ -4,7 +4,7 @@ description: Recognize consensus as the coordination problem of choosing one com
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, consensus, quorum, raft, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, distributed-replication]
@@ -18,19 +18,19 @@ concepts:
 
 # Consensus: Agree on One Committed History Through Failure
 
-Picture a 5-node distributed cluster powering a critical ledger. Without warning, two nodes lose power completely in a datacenter blackout. The surviving three nodes continue getting hammered with write requests from frantic clients. How do these nodes guarantee they consistently agree on one committed history—without deadlocking, without splitting into rival factions, and without ever committing contradictory states? This is the fundamental challenge of consensus: establishing agreement on an authoritative sequence of state transitions across asynchronous, partition-prone networks where participants can crash at any instant.
+**Illustrative scenario (hypothetical):** In a five-member Raft cluster, two nodes become unreachable. The remaining three can commit new entries only if they communicate and meet Raft's election and log requirements. Without quorum, consensus-protected writes cannot safely commit; a former leader cannot bypass the protocol.
 
-Consensus ensures that independent nodes **agree on one value or ordered history even when messages are delayed and some nodes fail**. Replicating raw bytes is not enough; the cluster needs a mathematical guarantee of agreement.
+Consensus preserves **committed history** under its supported crash/partition failure model, not perpetual availability or freedom from software defects.
 
-> 💡 **Rule of thumb:** Replication distributes copies, but consensus establishes truth. If your cluster loses its majority quorum, fail closed immediately—never invent local bypasses to serve writes from an isolated minority.
+> 💡 **Rule of thumb:** Majority intersection is necessary, not the entire Raft safety argument. Up-to-date-log voting, log matching and current-term commit rules ensure later leaders preserve committed history.
 
 ## TL;DR
 
 - **Consensus is agreement on committed history; replication is not consensus:** Merely shipping log entries to followers does not mean nodes agreed on which history is authoritative; consensus protocols establish an undeniable commit boundary.
-- **Quorum intersection guarantees safety across terms:** An $N$-node cluster requires a majority quorum ($\lfloor N/2 \rfloor + 1$) to elect a leader or commit log entries. Because any two majorities overlap by at least one node, the newest term is guaranteed to inherit all previously committed entries.
-- **Leader election organizes time into epochs:** Protocols like Raft use leader election and monotonic terms to ensure only one authoritative coordinator sequences the replicated log at any given time.
+- **Quorum intersection plus Raft's safety rules:** Majorities overlap, but overlap alone does not establish leader completeness. Up-to-date-log election restrictions, log matching and current-term commit conditions are also required.
+- **Terms and old leaders:** An isolated former leader may still believe it is leader. It cannot commit without quorum; safety does not require every process to simultaneously agree who holds leadership.
 - **Safety always trumps liveness under partition:** When a network partition divides a 5-member cluster into a majority (3 nodes) and a minority (2 nodes), the majority continues making progress while the minority must reject writes to prevent split-brain history.
-- **Fatal pitfall:** Treating uncommitted entries as durable state. If a leader appends an entry to its local log and crashes before replicating it to a quorum, that entry is uncommitted and will be irrevocably overwritten by the next elected leader.
+- **Failure mode:** Treating a locally appended but uncommitted log entry as a durable business decision. An uncommitted entry **may be overwritten** after a leader change; only acknowledge after the protocol's commit condition.
 
 ```mermaid
 flowchart LR
@@ -125,6 +125,8 @@ An **uncommitted** entry may disappear or be overwritten after a leadership chan
 
 Current etcd failure documentation illustrates this boundary: after leader failure, previously sent but uncommitted writes may be lost, while committed writes are preserved by the consensus rules.
 
+**Quorum overlap is not a stand-alone commit certificate.** The [Raft paper](https://pdos.csail.mit.edu/6.824/papers/raft-extended.pdf) shows that an earlier-term entry may be replicated to a majority without being safely declared committed merely by counting replicas. Raft directly commits **current-term** entries by quorum; prior entries become committed indirectly through log matching.
+
 ## Quorum intersection is why two majorities cannot be disjoint
 
 For a simple majority quorum, any two valid majorities share at least one member.
@@ -218,7 +220,7 @@ Keep these boundaries separate:
 - delivery semantics describes repeated or missed message processing;
 - business correctness depends on how effects cross those boundaries.
 
-## Production scenario: an isolated old leader keeps accepting configuration writes
+## Illustrative scenario (hypothetical): former leader bypasses quorum
 
 A control-plane service stores routing configuration in a 5-member consensus group. A network failure isolates two members, including the old leader, from the other three.
 
