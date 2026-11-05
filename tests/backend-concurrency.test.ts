@@ -71,4 +71,28 @@ describe('Backend Concurrency lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('keeps source-reviewed concurrency counterexamples and SQL constraints aligned in EN/VI', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [file, lesson] of [
+      [lessonPaths.en, en],
+      [lessonPaths.vi, vi],
+    ] as const) {
+      expect(lesson, file).toContain('lastVerified: 2026-11-05');
+      expect(lesson, file).toContain('RETURNING balance;');
+      expect(lesson, file).toContain('CREATE UNIQUE INDEX one_active_export_per_report');
+      expect(lesson, file).toContain("WHERE status IN ('queued', 'running');");
+      expect(lesson, file).toContain('`40001`');
+      expect(lesson, file).toContain('`40P01`');
+      expect(lesson, file).toContain('www.postgresql.org/docs/current/indexes-partial.html');
+      expect(lesson, file).toContain('www.postgresql.org/docs/current/sql-update.html');
+    }
+    expect(en).toContain('instead of $0');
+    expect(vi).toContain('thay vì 0 USD');
+    expect(en).toMatch(/Hypothetical production scenario/i);
+    expect(vi).toMatch(/giả định/i);
+    expect((en.match(/^```mermaid$/gm) ?? []).length)
+      .toBe((vi.match(/^```mermaid$/gm) ?? []).length);
+  });
 });
