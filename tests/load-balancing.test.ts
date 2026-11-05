@@ -1,3 +1,4 @@
+import { expectVerifiedAtOrAfter } from './helpers/changelog-freshness';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -108,10 +109,10 @@ describe('Load Balancing lesson', () => {
 
     expect(en).toContain('September 18, 2026');
     expect(en).toContain('[Load Balancing](/docs/cloud-infrastructure/load-balancing)');
-    expect(en).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(en, '2026-09-18');
 
     expect(vi).toContain('18 tháng 09 năm 2026');
     expect(vi).toContain('](/vi/docs/cloud-infrastructure/load-balancing)');
-    expect(vi).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(vi, '2026-09-18');
   });
 });

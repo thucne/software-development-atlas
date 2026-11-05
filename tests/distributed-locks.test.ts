@@ -1,3 +1,4 @@
+import { expectVerifiedAtOrAfter } from './helpers/changelog-freshness';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -87,10 +88,10 @@ describe('Distributed Locks lesson', () => {
 
     expect(en).toContain('September 17, 2026');
     expect(en).toContain('[Distributed Locks](/docs/distributed-systems/distributed-locks)');
-    expect(en).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(en, '2026-09-17');
 
     expect(vi).toContain('17 tháng 9, 2026');
     expect(vi).toContain('](/vi/docs/distributed-systems/distributed-locks)');
-    expect(vi).toMatch(/lastVerified: 2026-09-(?:1[7-9]|2[0-2])/);
+    expectVerifiedAtOrAfter(vi, '2026-09-17');
   });
 });
