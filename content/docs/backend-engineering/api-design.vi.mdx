@@ -4,7 +4,7 @@ description: Vận hành hợp đồng HTTP ổn định bằng cách chọn ran
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -28,9 +28,9 @@ concepts:
 
 ## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
 
-Một đội ngũ backend vừa deploy một thay đổi nhỏ nhằm "dọn dẹp code": đổi tên trường `tracking_url` thành `tracking.url` và bổ sung một trường bắt buộc `postal_code` vào schema thanh toán. Chỉ 5 phút sau khi release, các kênh hỗ trợ khách hàng nổ tung: hơn 50.000 người dùng ứng dụng di động bị crash ngay tại màn hình chi tiết đơn hàng. Khác với ứng dụng web có thể cập nhật ngay sau khi tải lại trang, các ứng dụng native mobile đã cài trên thiết bị người dùng sử dụng bộ giải tuần tự nghiêm ngặt (strict deserializers) và không thể vá lỗi nóng tức thì. Máy chủ backend vẫn hoạt động bình thường với tỷ lệ uptime 100% và dashboard xanh rì, nhưng toàn bộ trải nghiệm người dùng thực tế đã sụp đổ hoàn toàn.
+**Tình huống giả định (không phải sự cố đã được xác minh):** Backend đổi `tracking_url` thành `tracking.url` và đổi trường `status` từ chuỗi thành đối tượng. Phiên bản ứng dụng di động cũ dùng bộ giải mã dữ liệu nghiêm ngặt có thể không đọc được phản hồi mới cho đến khi được cập nhật. Server vẫn có thể hoạt động bình thường, nhưng người dùng phiên bản cũ gặp lỗi ở màn hình chi tiết đơn hàng. Ví dụ này không khẳng định số người dùng bị ảnh hưởng, thời gian gián đoạn hay tỷ lệ uptime thực tế. Khả năng cập nhật ứng dụng phụ thuộc vào nền tảng và cách phát hành.
 
-Một HTTP API không đơn thuần là sự phản chiếu cấu trúc bảng cơ sở dữ liệu hay tên hàm xử lý trong controller. Nó là một hợp đồng phân tán có tính ràng buộc kỹ thuật giữa các hệ thống được phát hành độc lập. Khi một endpoint đã xuất bản, nó phải cam kết tính nhất quán của tài nguyên, ngữ nghĩa chuẩn của các HTTP method, mô hình báo lỗi máy đọc được (như Problem Details theo RFC 7807 và RFC 9457), cơ chế phân trang an toàn và tính tương thích ngược tuyệt đối.
+HTTP API tạo ra **hợp đồng kỹ thuật** giữa các hệ thống được triển khai độc lập; bản thân API không mặc nhiên là hợp đồng có hiệu lực pháp lý. Client dựa vào biểu diễn tài nguyên, ngữ nghĩa HTTP, cách kiểm tra dữ liệu, mã lỗi, phân trang, quy tắc thử lại và chính sách tương thích. RFC 9457 đưa ra một định dạng tùy chọn cho lỗi HTTP mang tên Problem Details và **thay thế RFC 7807**. API vẫn có thể dùng định dạng lỗi ổn định khác nếu được công bố rõ ràng.
 
 ```mermaid
 flowchart LR
@@ -43,14 +43,14 @@ flowchart LR
   E --> C
 ```
 
-> 💡 **Quy tắc bỏ túi:** API là một hợp đồng được triển khai trên những hệ thống bạn không thể kiểm soát thời điểm cập nhật—hãy ưu tiên mở rộng tương thích (additive change), chuẩn hóa mô hình lỗi và phân trang, tuyệt đối không tạo breaking change nếu chưa có lộ trình chuyển đổi và cùng tồn tại (coexistence window).
+> 💡 **Quy tắc bỏ túi:** Hợp đồng API tồn tại lâu hơn một lần triển khai server. Ưu tiên thay đổi tương thích, mô hình lỗi rõ ràng và phân trang nhất quán; nếu cần thay đổi phá vỡ tương thích, hãy có ranh giới phiên bản, kế hoạch chuyển đổi và giai đoạn cùng tồn tại.
 
-### TL;DR 2.0
-- **Hợp đồng quan trọng hơn triển khai:** API phơi bày tài nguyên ổn định (`/orders/{id}`) thay vì phản chiếu tên hàm nội bộ (`/doCreateOrder`). Sử dụng các HTTP method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) chuẩn xác theo tính chất an toàn (safe) và lặp lại an toàn (idempotent).
-- **Mô hình lỗi chuẩn hóa Problem Details:** Khai tử các payload lỗi tự chế dạng `{ "error": "msg" }`. Áp dụng tiêu chuẩn Problem Details (RFC 7807 / RFC 9457) với các trường máy đọc được (`type`, `title`, `status`, `detail`, `instance`) để client và gateway xử lý lỗi theo loại thay vì dò chuỗi văn bản.
-- **Phân trang an toàn & có giới hạn:** Mọi endpoint danh sách đều phải có giới hạn (limit) và tiêu chí sắp xếp (ordering). Ưu tiên phân trang theo con trỏ (cursor pagination) với token mờ (opaque token) thay vì offset để ngăn chặn lỗi sót bản ghi hoặc trùng lặp khi dữ liệu biến động liên tục.
-- **Bảo toàn tính tương thích ngược (Backward Compatibility):** Các phiên bản client nâng cấp với tốc độ khác nhau. Tuyệt đối không xóa/đổi tên trường response, không đổi kiểu dữ liệu, và không biến trường request tùy chọn thành bắt buộc trên một phiên bản API đang chạy.
-- **Cạm bẫy chết người:** Đổi tên field trong response hoặc đột ngột thắt chặt validation đầu vào trên endpoint hiện hữu, làm sập ngay lập tức 50.000 app mobile của người dùng mà không thể rollback client kịp thời.
+### Những quyết định quan trọng trong hợp đồng
+- **Hợp đồng quan trọng hơn triển khai:** Ưu tiên tài nguyên ổn định (`/orders/{id}`) thay vì vô tình đưa tên hàm nội bộ ra ngoài (`/doCreateOrder`). Giữ đúng ngữ nghĩa an toàn (safe) và tính lặp lại không đổi tác động dự kiến (idempotent) của các HTTP method.
+- **Mô hình lỗi nhất quán:** Ưu tiên Problem Details theo RFC 9457 hoặc một định dạng lỗi ổn định được công bố rõ ràng, thay vì thông báo tùy tiện. RFC 9457 thay thế RFC 7807; các trường `type`, `title`, `status`, `detail`, `instance` không bắt buộc có đủ, và `type` mặc định là `about:blank` nếu bị bỏ qua. Client nên dựa vào mã định danh ổn định thay vì câu chữ lỗi.
+- **Phân trang có giới hạn:** API danh sách cần thứ tự rõ ràng và giới hạn kích thước trang phù hợp. Cursor/keyset pagination có thể giảm chi phí của offset lớn, nhưng tự nó không bảo đảm tránh trùng hoặc thiếu bản ghi khi có ghi đồng thời. Bảo đảm thực tế phụ thuộc vào thứ tự ổn định và chính sách nhất quán/snapshot.
+- **Tương thích ngược:** Client có tốc độ cập nhật khác nhau. Đổi tên trường, đổi kiểu dữ liệu hoặc bắt buộc thêm input thường làm hỏng caller cũ; hãy mở rộng tương thích hoặc đưa thay đổi vào phiên bản mới có kế hoạch chuyển đổi và kiểm tra giai đoạn cùng tồn tại.
+- **Rủi ro lớn:** Đổi schema phản hồi hoặc thắt chặt validation có thể làm phiên bản client cũ lỗi. Mức độ ảnh hưởng phụ thuộc vào từng phiên bản và cách giải mã dữ liệu; cần kiểm thử tương thích và theo dõi khi triển khai.
 
 <TermBox term="Hợp đồng API">
 **Hợp đồng API** là tập quy tắc quan sát được mà client được phép dựa vào: identifier, request/response field, method semantics, mã trạng thái, mô hình lỗi, ordering, pagination và hành vi tương thích.
@@ -126,7 +126,7 @@ Một số lựa chọn thường gặp:
 - `202 Accepted` — công việc đã được nhận nhưng chưa hoàn tất;
 - `204 No Content` — request thành công và cố ý không có response content;
 - `400 Bad Request` — request sai cú pháp hoặc không hợp lệ ở ranh giới input;
-- `401 Unauthorized` — thiếu hoặc không chấp nhận được credential xác thực;
+- `401 Unauthorized` — thiếu hoặc không chấp nhận thông tin xác thực hợp lệ đối với tài nguyên; theo RFC 9110, phản hồi **MUST** có `WWW-Authenticate` với ít nhất một challenge phù hợp;
 - `403 Forbidden` — server hiểu request nhưng từ chối hành động;
 - `404 Not Found` — tài nguyên đích không khả dụng với request;
 - `409 Conflict` — request xung đột với trạng thái hiện tại của tài nguyên;
@@ -136,7 +136,7 @@ Một số lựa chọn thường gặp:
 
 Cũng đừng chọn status code chỉ vì framework helper thuận tiện. Hãy chọn mã mô tả kết quả quan sát được.
 
-## 4. Kiểm tra dữ liệu ở boundary, rồi kiểm tra quy tắc nghiệp vụ
+## 4. Kiểm tra đầu vào và quy tắc nghiệp vụ tại đúng ranh giới
 
 Validation có ít nhất hai lớp:
 
@@ -177,7 +177,7 @@ Kiểm tra nghiệp vụ:
 
 Client không nên cần một parser khác nhau cho từng failure path.
 
-RFC 9457 định nghĩa **Problem Details for HTTP APIs**, một representation lỗi máy đọc được với các member như:
+RFC 9457 (**thay thế RFC 7807**) định nghĩa **Problem Details for HTTP APIs**, một cách tùy chọn để mô tả lỗi HTTP bằng cấu trúc máy có thể đọc. Ví dụ dưới đây gồm các trường tùy chọn:
 
 ```json
 {
@@ -189,7 +189,7 @@ RFC 9457 định nghĩa **Problem Details for HTTP APIs**, một representation 
 }
 ```
 
-API có thể thêm extension member cho thông tin ứng dụng ổn định như field violation hoặc domain error code.
+Định dạng JSON sử dụng `Content-Type: application/problem+json`. Trường `status` chỉ có tính tham khảo, không thay cho mã trạng thái HTTP thực tế; `type` nhận diện loại lỗi (mặc định `about:blank`), còn `title` và `detail` dành cho người đọc. Client không nên phân tích `detail` để quyết định luồng xử lý. API có thể thêm trường mở rộng như lỗi kiểm tra dữ liệu hoặc mã lỗi nghiệp vụ.
 
 <TermBox term="Chi tiết lỗi có cấu trúc">
 **Problem details** là representation lỗi HTTP có cấu trúc theo RFC 9457, giúp client đọc failure bằng máy mà không cần mỗi endpoint tự tạo một error envelope khác nhau.
@@ -199,7 +199,7 @@ API có thể thêm extension member cho thông tin ứng dụng ổn định nh
 
 Response lỗi cần đủ thông tin để client hành động, nhưng không nên lộ stack trace, SQL text, secret, internal hostname hay chi tiết triển khai nhạy cảm.
 
-### Tách text cho người khỏi quyết định cho máy
+### Tách thông báo cho người đọc khỏi mã quyết định của client
 
 Đừng để client branch theo chuỗi `message` tiếng Anh.
 
@@ -231,7 +231,7 @@ GET /orders?limit=50&cursor=eyJ...
 
 Ưu điểm:
 - có thể bám stable indexed ordering;
-- thường phù hợp hơn với dataset thay đổi liên tục.
+- thường tránh được chi phí quét offset lớn nếu khóa sắp xếp có index; điều đó chưa bảo đảm có một snapshot cố định.
 
 Đánh đổi:
 - client thường không nhảy tới trang tùy ý;
@@ -239,9 +239,9 @@ GET /orders?limit=50&cursor=eyJ...
 
 Hãy coi cursor là **opaque token** đối với client. Đừng bắt client decode payload base64 rồi tự dựng cursor kế tiếp. Server cần được phép đổi internal representation của cursor trong khi giữ behavior đã công bố.
 
-Luôn định nghĩa ordering. “Trả 50 row tiếp theo” chưa đủ nếu client không biết tiêu chí before/after và tie-breaker.
+Luôn xác định thứ tự ổn định và khóa phân biệt khi bằng nhau (ví dụ `created_at, id`), cùng với ý nghĩa của cursor. Ngay cả khi dùng keyset pagination, bản ghi bị sửa khóa sắp xếp giữa các request có thể chuyển vị trí hoặc xuất hiện nhiều lần. Nếu cần duyệt dữ liệu nhất quán, phải quy định snapshot hoặc cơ chế nhất quán tương đương. Chỉ nói “trả 50 dòng tiếp theo” là chưa đủ.
 
-## 7. Tương thích ngược là một design constraint
+## 7. Thiết kế phải tính đến tương thích ngược
 
 Khi client được deploy độc lập, thay đổi API trở thành distributed rollout problem.
 
@@ -267,7 +267,7 @@ Client cũ và mới có cùng tồn tại trong rollout được không?
 Có đo được usage của behavior cũ trước khi xóa không?
 ```
 
-### Chỉ version khi thật sự cần compatibility boundary
+### Chỉ tạo phiên bản mới khi thực sự cần ranh giới tương thích
 
 Versioning hữu ích khi có breaking contract có chủ đích, nhưng `/v2` không làm migration miễn phí. Vẫn cần coexistence, documentation, telemetry, deprecation policy và kế hoạch tắt version cũ.
 
@@ -316,9 +316,9 @@ idempotency / retry behavior
 
 Nhưng mỗi concern vẫn có meaning riêng. `403` không phải rate-limit response. Cached representation không phải authorization decision. Idempotency key không phải authentication.
 
-## 10. Tình huống production: một thay đổi response “nhỏ” làm client di động lỗi
+## 10. Tình huống giả định: thay đổi phản hồi làm ứng dụng di động cũ gặp lỗi
 
-Một mobile client đang dùng:
+**Ví dụ minh họa, không phải báo cáo sự cố thực tế:** Một ứng dụng di động phiên bản cũ đang đọc:
 
 ```json
 {
@@ -338,7 +338,7 @@ Một mobile client đang dùng:
 }
 ```
 
-Web client mới vẫn chạy vì deploy cùng server. Các bản mobile cũ dùng strict decoding và lỗi vì kiểu của `status` đã đổi, còn `tracking_url` biến mất.
+Web client mới vẫn chạy vì deploy cùng server. Các phiên bản di động cũ **có bộ giải mã nghiêm ngặt** có thể lỗi vì `status` đổi kiểu và `tracking_url` bị xóa; bộ giải mã linh hoạt hơn có thể xử lý khác.
 
 **Hậu quả:** màn order detail crash hoặc render lỗi cho người dùng chưa nâng cấp app dù backend deployment nhìn chung healthy.
 

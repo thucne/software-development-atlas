@@ -4,7 +4,7 @@ description: Operate stable HTTP API contracts by choosing resource boundaries, 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -28,9 +28,9 @@ concepts:
 
 ## TL;DR & Production Incident Hook
 
-A backend engineering team ships a seemingly innocent refactor: renaming `tracking_url` to `tracking.url` and adding a required `postal_code` field to the checkout schema. Within minutes of deployment, support channels ignite: over 50,000 active mobile app users experience immediate crashes on the order details screen. Unlike web applications that update on the next page refresh, installed native mobile apps rely on strict deserializers and cannot be hot-patched on user devices. The backend service was technically running with 100% uptime and green metrics, yet the business suffered a catastrophic client outage.
+**Hypothetical compatibility failure (not a reported incident):** A backend renames `tracking_url` to `tracking.url` and changes the `status` field from a string to an object. An older mobile client with a strict decoder may reject the new response until it is updated. The server might still be healthy, but users running the older client can lose the order-details feature. No real customer count, outage duration, crash rate, or uptime metric is asserted here. Mobile update and hot-fix options vary by app and distribution channel.
 
-An HTTP API is not merely a reflection of server database tables or internal controller handlers. It is a distributed, legally binding contract between independently deployed systems. Once published, your endpoints must guarantee predictable resource representations, standardized HTTP method semantics, machine-readable error models (such as Problem Details per RFC 7807 and RFC 9457), safe pagination, and rock-solid backward compatibility.
+An HTTP API is a **technical contract** between independently deployed systems, not automatically a legally binding agreement. Clients rely on observable resource representations, HTTP method and status semantics, validation, error formats, pagination, retry behavior, and compatibility policy. RFC 9457 defines an optional standardized Problem Details representation for HTTP errors and **obsoletes RFC 7807**; an API can use another clearly documented, stable error format.
 
 ```mermaid
 flowchart LR
@@ -43,14 +43,14 @@ flowchart LR
   E --> C
 ```
 
-> 💡 **Rule of thumb:** An API is a published contract deployed across systems you do not control—treat additive evolution as mandatory, make error schemas and pagination deterministic, and never break backward compatibility without an explicit migration and coexistence window.
+> 💡 **Rule of thumb:** An API contract outlives a server release. Prefer compatible evolution and predictable error/pagination behavior; when a break is necessary, document the version boundary, migration and coexistence plan.
 
-### TL;DR 2.0
-- **Contract over implementation:** APIs expose durable resource representations and clear domain intents (`/orders/{id}`) rather than internal procedure names (`/doCreateOrder`). HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) must strictly adhere to their standardized semantics regarding safety and idempotency.
-- **Structured error modeling:** Discard custom, ad-hoc `{ "error": "msg" }` JSON payloads. Adopt RFC 7807 / RFC 9457 Problem Details (`type`, `title`, `status`, `detail`, `instance`) so clients, SDKs, and API gateways can branch on machine-readable error types rather than parsing human-readable prose.
-- **Safe, bounded pagination:** Collection endpoints must enforce server-side limits and explicit ordering. Prefer opaque cursor-based pagination over large offset queries for high-volume or rapidly mutating datasets to prevent missing records or duplicate reads.
-- **Coexistence & backward compatibility:** Client versions evolve at vastly different speeds. Never rename or remove fields, never change data types, and never turn an optional request parameter into a required one within an active contract version.
-- **Fatal pitfall:** Shipping a breaking response schema change or tightening input validation on an existing endpoint, instantly bricking tens of thousands of deployed native mobile apps that cannot be updated immediately.
+### Core contract decisions
+- **Contract over implementation:** Prefer stable resource representations and clear domain intent (`/orders/{id}`) over accidentally exposing controller names (`/doCreateOrder`). Preserve the HTTP method's documented safety and idempotency semantics, even when the application has additional rules.
+- **Structured error modeling:** Prefer RFC 9457 Problem Details or a documented, stable error schema over ad-hoc strings. RFC 9457 obsoletes RFC 7807; its members (`type`, `title`, `status`, `detail`, `instance`) are optional, and `type` defaults to `about:blank` when absent. Clients should branch on stable machine-readable identifiers, not human prose.
+- **Bounded pagination:** Collections need explicit ordering and practical page limits. Cursor/keyset pagination can reduce large-offset costs, but does not by itself prevent duplicates or omissions under concurrent writes; stable ordering and an appropriate consistency or snapshot strategy determine guarantees.
+- **Coexistence & backward compatibility:** Clients update at different speeds. Field renames, type changes or newly required inputs are ordinarily breaking for existing callers; handle them through compatible additions or an explicit version and migration boundary, with tested coexistence.
+- **High-impact pitfall:** A breaking schema change or stricter validation can make older deployed clients fail. The impact depends on client versions and decoding behavior; verify it with compatibility tests and rollout telemetry.
 
 <TermBox term="API contract">
 An **API contract** is the set of externally observable rules a client may rely on: identifiers, request and response fields, method semantics, status codes, error formats, ordering, pagination, and compatibility behavior.
@@ -126,7 +126,7 @@ Common choices include:
 - `202 Accepted` — work was accepted but is not complete yet;
 - `204 No Content` — request succeeded and there is intentionally no response content;
 - `400 Bad Request` — request is malformed or invalid at the protocol/application-input boundary;
-- `401 Unauthorized` — authentication credentials are missing or not acceptable for the request;
+- `401 Unauthorized` — valid credentials for the target resource are missing or unacceptable; the response **MUST** carry an applicable `WWW-Authenticate` challenge under RFC 9110;
 - `403 Forbidden` — the server understood the request but refuses the action;
 - `404 Not Found` — the target resource is unavailable to the request, sometimes also used deliberately to avoid resource disclosure;
 - `409 Conflict` — the request conflicts with the current state of the target resource;
@@ -177,7 +177,7 @@ Do not let database constraint errors become your public validation vocabulary b
 
 Clients should not need a different parser for every failure path.
 
-RFC 9457 defines **Problem Details for HTTP APIs**, a machine-readable error representation built around members such as:
+RFC 9457 (**superseding RFC 7807**) defines **Problem Details for HTTP APIs**, an optional machine-readable HTTP error representation. An example with its optional members is:
 
 ```json
 {
@@ -189,7 +189,7 @@ RFC 9457 defines **Problem Details for HTTP APIs**, a machine-readable error rep
 }
 ```
 
-APIs may add extension members for stable application information such as field violations or a domain error code.
+Use `Content-Type: application/problem+json` for the JSON format. The `status` member is advisory and does not replace the actual HTTP status code; `type` identifies the problem kind (defaulting to `about:blank`), while `title` and `detail` are human-readable. Clients should not parse `detail` for control flow. APIs may add extension members for stable application data such as field violations or domain error codes.
 
 <TermBox term="Problem details">
 **Problem details** are a structured HTTP error representation standardized by RFC 9457 so clients can inspect machine-readable failure information without every endpoint inventing a new error envelope.
@@ -233,7 +233,7 @@ GET /orders?limit=50&cursor=eyJ...
 
 Advantages:
 - can align with a stable indexed ordering;
-- often behaves better for continuously changing datasets.
+- often avoids large-offset scanning costs when the ordering key is indexed; it does not guarantee a stable snapshot.
 
 Trade-offs:
 - clients cannot usually jump to arbitrary pages;
@@ -241,7 +241,7 @@ Trade-offs:
 
 Treat cursors as **opaque client tokens**. Do not require clients to decode a base64 payload and construct the next cursor themselves. The server should be free to change the internal cursor representation while preserving its documented behavior.
 
-Always define ordering. “Return the next 50 rows” is incomplete unless the client knows what establishes before/after and how ties are handled.
+Always define a deterministic ordering with a unique tie-breaker (for example, `created_at, id`) and cursor semantics. Even with keyset pagination, rows whose ordering keys change between requests may move or appear more than once; if the use case requires a consistent traversal, specify a snapshot or equivalent consistency mechanism. “Return the next 50 rows” is incomplete without these rules.
 
 ## 7. Backward compatibility is a design constraint
 
@@ -318,9 +318,9 @@ idempotency/retry behavior
 
 But keep each concern’s semantics intact. `403` is not a rate-limit response. A cached representation is not an authorization decision. An idempotency key is not authentication.
 
-## 10. Production scenario: a “small” response change breaks mobile clients
+## 10. Hypothetical scenario: a response change breaks older mobile clients
 
-A mobile client consumes:
+**Constructed example, not an observed outage:** An older mobile client consumes:
 
 ```json
 {
@@ -340,7 +340,7 @@ The server team refactors the API and ships:
 }
 ```
 
-The new web client works because it deployed with the server. Older mobile versions use strict decoding and fail on the changed `status` type and missing `tracking_url`.
+The new web client works because it deployed with the server. Older mobile versions **using strict decoding** can fail on the changed `status` type and missing `tracking_url`; tolerant decoders may behave differently.
 
 **Impact:** order-detail screens crash or render an error for users who have not upgraded the mobile app, even though the backend deployment itself is healthy.
 
