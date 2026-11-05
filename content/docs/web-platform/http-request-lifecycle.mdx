@@ -4,7 +4,7 @@ description: Trace how an HTTP request can use caches, reused connections, inter
 category: web-platform
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - http
@@ -258,7 +258,7 @@ Use it to answer:
 
 ## How to debug a slow or surprising request
 
-### Production scenario: The "phantom 200" and missing server logs
+### Illustrative production scenario (hypothetical): the "phantom 200" and missing server logs
 
 An engineering team receives customer bug reports: after updating user profile details, the web page continues displaying stale information. In DevTools Network panel, the engineer observes:
 - Status: `200 OK`
@@ -381,7 +381,7 @@ When debugging or changing code around an HTTP request, verify against this chec
 
 ## Sources
 
-Primary references verified on 2026-09-09:
+Primary references verified on 2026-11-05:
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
 - [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
