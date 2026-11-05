@@ -4,7 +4,7 @@ description: Reason about in-memory data stores through working sets, source-of-
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -32,15 +32,17 @@ concepts:
 
 ## TL;DR
 
-At 8:00 PM during peak evening traffic, API p99 latency spikes from 4ms to 35,000ms before triggering cascading gateway timeouts across your infrastructure. The post-mortem reveals a catastrophic trifecta: first, a debugging engineer ran `KEYS *` on the primary Redis instance, blocking its single-threaded event loop for 10 full seconds. Second, because cache keys were created without a **TTL** and `maxmemory-policy` was left without eviction headroom, memory hit 100% and Linux invoked the OOM killer to terminate the Redis process. Finally, when the instance rebooted cold, an un-cached **hot key** for the homepage catalog expired, triggering a brutal **cache stampede** (thundering herd) where 40,000 concurrent requests bypassed the empty cache and pounded the backing relational database, crashing your primary **source of truth**.
+**Hypothetical Redis production failure (not a reported incident):** A service stores product cache entries and payment idempotency records in one Redis deployment. An expensive `KEYS *` operation can block request processing when the keyspace is large. Memory pressure might cause key eviction or, with `noeviction`, rejection of memory-growing writes. After cache misses, hot data can also produce concurrent requests to its backing database. These mechanisms are different failure paths: reaching Redis `maxmemory` **does not automatically cause an operating-system OOM kill**. Such a termination depends on the host/container memory limit and Redis's actual RSS and buffers. No real-world latency, QPS, memory percentage or outage duration is asserted.
 
-> 💡 **Rule of thumb:** RAM is a finite capacity budget, not an infinite speed cheat code. Treat an in-memory data store either as a disposable **cache** backed by an authoritative **source of truth**, or as an authoritative primary with strict **persistence** and **replication** guarantees—never mix disposable and mission-critical state in the same instance under eviction pressure.
+The fundamental decisions are whether each key is a recoverable cache, time-limited coordination record or authoritative state, and what retention, persistence, replication and memory pressure are allowed to do to it.
 
-- **Placement vs. durability contract:** In-memory stores keep the active **working set** in **RAM** to eliminate disk I/O latency, but durable survival requires explicit **persistence** (**RDB** snapshots and **AOF** logs) paired with asynchronous or synchronous **replication**.
+> 💡 **Rule of thumb:** RAM is a finite capacity budget. Classify each kind of state by whether it can be rebuilt and how much loss is acceptable. Protect correctness-bearing records against early eviction and keep durable operation identities elsewhere when retrying a business effect must never double-apply it. Persistence and replication lower risks; neither guarantees zero loss.
+
+- **Placement vs. durability:** The active working set is served from **RAM**. A restart recovery contract depends on the configured **RDB** and/or **AOF** policy. Redis replication is asynchronous by default; `WAIT` acknowledgments do not equal a durable distributed commit.
 - **Eviction is a correctness decision:** When memory hits **maxmemory**, an **eviction** policy (such as LRU or LFU) purges entries; while a disposable **cache** recovers via the database, evicting idempotency records or rate-limit counters breaks core application correctness.
-- **TTL governs lifecycle, not memory sizing:** A **TTL** defines time-based expiration; pairing TTLs with randomized jitter prevents coordinated expiration waves and defends against sudden **cache stampede** spikes.
-- **Sharding scales capacity, not single-key hotspots:** Redis Cluster spreads keys across 16,384 **hash slots** across multiple **shards**, but a massively accessed **hot key** still concentrates 100% of its load on a single shard.
-- **Fatal pitfall (Unbounded OOM & blocking operations):** Storing keys without a **TTL** or running blocking $O(N)$ commands like `KEYS *` freezes Redis's single thread, while hitting memory limits without a sound **maxmemory** eviction policy turns high traffic into fatal out-of-memory crashes.
+- **TTL and stampedes:** A **TTL** governs expiration, while jitter spreads expiration of *different* keys. It cannot stop simultaneous misses for a *single* hot key; coalesce requests or consider early refresh when freshness rules allow.
+- **Sharding scales aggregate capacity:** Redis Cluster maps keys to 16,384 **hash slots**. Writes to one hot key remain on its owning shard; some read pressure can be redirected via replica/client caching with explicit consistency trade-offs. Adding shards does not split one key.
+- **High-impact pitfall:** `KEYS *` is an `O(N)` keyspace operation that can block service on large datasets. At a configured memory threshold, `noeviction` rejects some writes with an OOM error; eviction policies remove eligible keys. A host-level OOM kill is a different capacity failure, not the normal `maxmemory` response.
 
 ```text
 request
@@ -138,6 +140,8 @@ or
 
 Those outcomes have very different application consequences.
 
+The configured `maxmemory` is **not a hard ceiling for process RSS**: allocator fragmentation, persistence/replication buffers and other allocations can push total memory above it. `noeviction` does not automatically crash Redis: it can return `OOM command not allowed when used memory > 'maxmemory'` for memory-growing writes while reads/deletes remain available. Use incremental `SCAN` instead of routine production `KEYS *` on large datasets, but note that `SCAN` is not a consistent point-in-time snapshot during concurrent updates.
+
 Do not size only from raw payload bytes. Real memory consumption also includes key metadata, data-structure overhead, allocator fragmentation, replication/persistence buffers, client output buffers, and workload-specific temporary allocations.
 
 Measure the deployed workload rather than assuming that “10 GB of JSON” means “10 GB of RAM.”
@@ -222,7 +226,7 @@ For correctness-bearing state, record the retention requirement before choosing 
 
 Also consider synchronized expiry waves. If millions of keys share nearly the same expiration time, the application can experience a burst of misses and recomputation after they expire.
 
-Jittering cache TTLs can reduce coordinated cache-miss spikes when exact synchronized expiry is not required.
+Jittering TTLs can spread expiry across different keys, but a single heavily used expired key can still stampede. Per-key single-flight, bounded refresh or stale-serving may be needed under the application's freshness contract.
 
 ## 7. Cache stampedes are a concurrency problem
 
@@ -275,7 +279,7 @@ Strengths include compact snapshots and fast bulk restore. The trade-off is that
 
 The append-only file logs write operations so Redis can replay them during startup.
 
-The durability window depends on the configured fsync policy. More frequent synchronization can reduce the loss window while increasing write-path cost.
+The recovery point depends on fsync policy: `appendfsync everysec` can lose roughly a second of recent writes in a failure, while `always` trades throughput and latency for more frequent disk sync. This does not guarantee that a promoted replica contains the write. Test restoration and backups for the required recovery objectives.
 
 ### RDB + AOF
 
@@ -302,7 +306,7 @@ Replication answers:
 
 You often need both.
 
-Redis replication is asynchronous by default. A primary can acknowledge a write before replicas have fully processed it. Redis offers `WAIT` to request acknowledgments from replicas, but its own documentation explicitly warns that this does not turn Redis into a strongly consistent CP system and does not make failover loss impossible.
+Redis replication is asynchronous by default. A primary can acknowledge a write before replicas have fully processed it. Redis offers `WAIT` for replica acknowledgment, which tracks replication progress rather than durable fsync or a distributed commit quorum. Redis explicitly warns that it does not provide strong consistency or make acknowledged writes guaranteed to survive failover.
 
 So do not write:
 
@@ -450,9 +454,9 @@ there may be no safe fallback. The application must deliberately choose fail-ope
 
 Do not invent a fallback merely because availability is desirable.
 
-## 17. Production scenario: disposable cache and correctness state share one eviction pool
+## 17. Hypothetical scenario: disposable cache and correctness state share one eviction pool
 
-A checkout service uses one Redis cluster for product cache entries, rate-limit counters, and payment idempotency records. The cluster uses an `allkeys-lru` eviction policy because the team thinks “Redis is just cache.” A traffic spike fills memory with large product responses.
+**Constructed teaching example, not a reported incident:** A checkout service uses one Redis cluster for product cache entries, rate-limit counters, and payment idempotency records. The cluster uses an `allkeys-lru` eviction policy because the team thinks “Redis is just cache.” A traffic spike fills memory with large product responses.
 
 The eviction policy begins removing least-recently-used keys across the entire keyspace, including idempotency records that were supposed to survive for 24 hours.
 
@@ -526,5 +530,9 @@ When proposing an in-memory data store, do not justify it only with “Redis is 
 - [Redis Docs — Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
 - [Redis Docs — Pipelining](https://redis.io/docs/latest/develop/using-commands/pipelining/)
 - [Redis Docs — Diagnosing latency issues](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)
+- [Redis Docs — noeviction and OOM write errors](https://redis.io/docs/latest/develop/reference/errors/common/oom/)
+- [Redis Docs — SCAN vs KEYS](https://redis.io/docs/latest/develop/use/keyspace/)
+- [Redis Docs — WAIT caveats](https://redis.io/docs/latest/commands/wait/)
+- [Redis Docs — Memory and RSS](https://redis.io/docs/latest/management/optimization/memory-optimization/)
 
 This lesson is classified as **evolving** with a 180-day review target because Redis eviction options, persistence behavior, clustering capabilities, and operational guidance continue to evolve even though the core memory/durability trade-offs are durable.

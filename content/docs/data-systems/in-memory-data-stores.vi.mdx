@@ -4,7 +4,7 @@ description: Suy luận về in-memory data store qua working set, source-of-tru
 category: data-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - databases
@@ -32,15 +32,17 @@ concepts:
 
 ## Tóm tắt
 
-Đúng 20:00 giờ cao điểm, độ trễ API toàn hệ thống bất ngờ vọt từ 5ms lên 35.000ms rồi trả về lỗi 500 hàng loạt. Báo cáo phân tích nguyên nhân gốc rễ (post-mortem) chỉ ra chuỗi thảm họa dây chuyền: đầu tiên, một kỹ sư tiện tay gõ lệnh `KEYS *` trên production để điều tra lỗi, lập tức khóa chặt luồng xử lý đơn (single thread) của Redis suốt 10 giây. Cùng thời điểm đó, vì hàng triệu bản ghi cache không hề được gắn thời gian sống (**TTL**) và `maxmemory-policy` cấu hình thiếu ranh giới giải phóng bộ nhớ, RAM chạm ngưỡng 100% khiến hệ điều hành kích hoạt OOM killer tiêu diệt ngay tiến trình Redis. Khi node được khởi động lại nguội ngắt, một khóa truy cập cực lớn (**hot key**) của trang chủ vừa hết hạn, tạo ra cơn bão **cache stampede (thundering herd)** với 40.000 request ập thẳng xuống cơ sở dữ liệu quan hệ, đánh sập luôn **nguồn sự thật (source of truth)** chính của doanh nghiệp.
+**Tình huống Redis giả định (không phải sự cố đã được xác minh):** Một dịch vụ lưu cả cache sản phẩm và bản ghi idempotency cho thanh toán trong Redis. Lệnh `KEYS *` có thể làm nghẽn xử lý trên keyspace lớn. Khi bộ nhớ chịu áp lực, Redis có thể evict key hoặc, với `noeviction`, từ chối lệnh ghi cần thêm bộ nhớ. Cache miss trên các khóa nóng còn có thể khiến nhiều request dồn xuống database nguồn. Đây là những đường lỗi khác nhau: Redis chạm `maxmemory` **không tự động dẫn đến việc hệ điều hành OOM-kill tiến trình**. Điều đó phụ thuộc vào giới hạn host/container, RSS thực tế và buffer. Ví dụ này không đưa ra số liệu thực tế về độ trễ, QPS, phần trăm bộ nhớ hay thời gian sự cố.
 
-> 💡 **Quy tắc bỏ túi:** RAM là một ngân sách dung lượng hữu hạn và đắt đỏ, không phải chiếc đũa thần tốc độ vô tận. Hãy phân định rạch ròi: in-memory store là lớp **cache** có thể giải phóng bất cứ lúc nào (dựa vào **nguồn sự thật** phía sau), hay là nguồn lưu trữ chính có cam kết **bền vững (persistence)** và **sao chép (replication)**—tuyệt đối không trộn lẫn hai vai trò này trong cùng một bộ nhớ chịu áp lực giải phóng (eviction).
+Trước hết phải phân loại từng key là cache có thể tái tạo, trạng thái điều phối có thời hạn hay dữ liệu có thẩm quyền, rồi mới chọn retention, persistence, replication và cách xử lý khi thiếu bộ nhớ.
 
-- **RAM quyết định vị trí đặt, không quyết định độ bền:** In-memory data store giữ **tập dữ liệu nóng (working set)** trong **RAM** để đạt độ trễ cực thấp, nhưng độ bền vững đòi hỏi chiến lược lưu trữ bền vững (**persistence**) qua snapshot **RDB** và ghi log **AOF**, song song với cơ chế **replication** bất đồng bộ hoặc đồng bộ.
+> 💡 **Quy tắc bỏ túi:** RAM là ngân sách hữu hạn. Với từng loại dữ liệu, hãy xác định khả năng tái tạo và mức mất mát cho phép. Bảo vệ bản ghi quan trọng khỏi eviction trước hạn; nếu hiệu ứng nghiệp vụ không được thực hiện trùng khi retry, cần định danh thao tác bền vững ở nguồn phù hợp. Persistence và replication giúp giảm rủi ro nhưng không bảo đảm không bao giờ mất dữ liệu.
+
+- **Vị trí RAM khác với độ bền:** Working set phục vụ từ **RAM**; khả năng phục hồi khi restart phụ thuộc vào cấu hình **RDB** và/hoặc **AOF**. Redis mặc định sao chép bất đồng bộ; xác nhận của `WAIT` không tương đương commit phân tán bền vững.
 - **Eviction là cam kết về tính đúng đắn:** Khi chạm ngưỡng **maxmemory**, chính sách giải phóng bộ nhớ (**eviction**) sẽ loại bỏ key; nếu lưu token xác thực, bộ đếm giới hạn tốc độ hoặc khóa bất biến (idempotency key) chung với **cache** thông thường, hệ thống sẽ gánh chịu lỗi sai lệch logic nghiêm trọng khi bị evict sớm.
-- **TTL quản lý vòng đời, không thay thế cho quản lý dung lượng:** **TTL** ấn định thời điểm bản ghi hết hạn; kết hợp TTL với độ lệch ngẫu nhiên (jitter) giúp triệt tiêu các đợt hết hạn đồng loạt và ngăn chặn thảm họa **cache stampede** (hiệu ứng dồn dập / thundering herd).
-- **Sharding mở rộng thông lượng, không cứu được hot key:** Redis Cluster phân chia dữ liệu qua 16.384 **hash slot** trên nhiều **shard**, nhưng một **hot key** có lưu lượng đột biến vẫn dồn 100% tải vào đúng một shard duy nhất.
-- **Cạm bẫy chết người (Khóa đơn luồng & sập nguồn OOM):** Lưu trữ dữ liệu vô tội vạ không cài đặt **TTL**, dùng sai `maxmemory-policy` dẫn đến crash OOM vào giờ cao điểm, hoặc vô tình chạy các lệnh duyệt quét chặn luồng như `KEYS *` làm nghẽn toàn bộ luồng xử lý đơn của Redis.
+- **TTL và hiện tượng dồn tải:** TTL đặt thời điểm hết hạn; jitter giúp giãn thời điểm hết hạn của *các khóa khác nhau*, nhưng không chặn nhiều request cùng miss *một khóa nóng*. Khi phù hợp, hãy gộp lượt tải trùng nhau hoặc làm mới sớm với giới hạn độ cũ rõ ràng.
+- **Sharding mở rộng tổng dung lượng:** Redis Cluster ánh xạ khóa vào 16.384 **hash slot**. Các phép ghi vào một hot key vẫn tập trung ở shard sở hữu nó; một phần tải đọc có thể chuyển sang replica/cache phía client nếu chấp nhận đánh đổi nhất quán. Thêm shard không tự chia một key.
+- **Sai lầm có tác động lớn:** `KEYS *` là thao tác quét keyspace `O(N)`, có thể cản trở xử lý trên tập dữ liệu lớn. Khi tới ngưỡng bộ nhớ, `noeviction` có thể trả lỗi OOM cho lệnh ghi, còn chính sách eviction xóa key đủ điều kiện. Bị hệ điều hành OOM-kill là lỗi dung lượng khác, không phải phản ứng thông thường của `maxmemory`.
 
 Mental model:
 
@@ -138,7 +140,9 @@ hoặc
   -> reject write cần thêm memory
 ```
 
-Hai outcome này có hậu quả application hoàn toàn khác nhau.
+Hai kết quả này có hệ quả khác nhau với ứng dụng.
+
+Ngưỡng `maxmemory` **không phải trần cứng của RSS toàn tiến trình**: phân mảnh cấp phát, buffer persistence/replication và các cấp phát khác vẫn tiêu thụ RAM ngoài ngưỡng. `noeviction` không tự làm Redis crash mà có thể trả lỗi `OOM command not allowed when used memory > 'maxmemory'` cho lệnh ghi cần thêm bộ nhớ, trong khi đọc/xóa vẫn hoạt động. Trên keyspace lớn, ưu tiên `SCAN` tăng dần thay vì lặp lại `KEYS *` ở production, nhưng `SCAN` không tạo snapshot nhất quán khi dữ liệu thay đổi.
 
 Đừng size chỉ từ raw payload bytes. Memory thực còn gồm key metadata, data-structure overhead, allocator fragmentation, replication/persistence buffer, client output buffer và temporary allocation theo workload.
 
@@ -224,7 +228,7 @@ Với correctness-bearing state, hãy viết retention requirement trước khi 
 
 Cũng phải nghĩ về synchronized expiry wave. Nếu hàng triệu key có gần cùng expiration time, application có thể gặp burst cache miss và recomputation cùng lúc.
 
-Jitter cache TTL có thể giảm coordinated miss spike nếu business không cần expire đồng loạt chính xác.
+Jitter có thể giãn thời điểm hết hạn của các khóa khác nhau, nhưng một khóa nóng vừa hết hạn vẫn có thể tạo bão miss. Khi đó cân nhắc single-flight theo khóa, làm mới có giới hạn hoặc phục vụ dữ liệu cũ trong phạm vi nghiệp vụ cho phép.
 
 ## 7. Cache stampede là concurrency problem
 
@@ -277,7 +281,7 @@ RDB tạo point-in-time snapshot của dataset theo interval cấu hình.
 
 Append-only file log write operation để Redis replay khi startup.
 
-Durability window phụ thuộc fsync policy. Sync thường xuyên hơn có thể giảm loss window nhưng tăng cost trên write path.
+Điểm phục hồi phụ thuộc chính sách fsync: `appendfsync everysec` có thể mất khoảng một giây ghi gần nhất khi gặp sự cố, còn `always` đánh đổi thông lượng và độ trễ để đồng bộ đĩa thường xuyên hơn. Điều này không bảo đảm replica được promote có bản ghi. Cần thử khôi phục và backup theo mục tiêu phục hồi.
 
 ### RDB + AOF
 
@@ -304,7 +308,7 @@ Replication trả lời:
 
 Nhiều hệ thống cần cả hai.
 
-Redis replication mặc định asynchronous. Primary có thể acknowledge write trước khi replica xử lý xong. Redis có `WAIT` để yêu cầu acknowledgment từ replica, nhưng tài liệu chính thức nói rõ lệnh này không biến Redis thành strongly consistent CP system và không loại bỏ hoàn toàn khả năng mất write khi failover.
+Redis replication mặc định asynchronous. Primary có thể acknowledge write trước khi replica xử lý xong. Redis có `WAIT` để chờ xác nhận replica đã theo kịp luồng replication, không phải fsync bền vững hay quorum commit phân tán. Tài liệu chính thức khẳng định lệnh này không bảo đảm nhất quán mạnh hoặc mọi write đã nhận sẽ sống sót khi failover.
 
 Vì vậy đừng suy luận:
 
@@ -452,9 +456,9 @@ có thể không có safe fallback. Application phải cố ý chọn fail-open,
 
 Đừng invent fallback chỉ vì availability nghe hấp dẫn.
 
-## 17. Tình huống production: disposable cache và correctness state dùng chung eviction pool
+## 17. Tình huống giả định: cache và bản ghi quan trọng dùng chung eviction pool
 
-Checkout service dùng một Redis cluster cho product cache entry, rate-limit counter và payment idempotency record. Cluster dùng `allkeys-lru` vì team nghĩ “Redis chỉ là cache”. Một traffic spike làm memory đầy bởi product response lớn.
+**Ví dụ dựng để giảng giải, không phải sự cố đã được xác minh:** Dịch vụ checkout dùng Redis cho cache sản phẩm, bộ đếm rate limit và bản ghi chống thanh toán trùng. Cluster dùng `allkeys-lru` vì team nghĩ “Redis chỉ là cache”. Một traffic spike làm memory đầy bởi product response lớn.
 
 Eviction policy bắt đầu loại least-recently-used key trên toàn keyspace, bao gồm idempotency record đáng lẽ phải tồn tại 24 giờ.
 
@@ -528,5 +532,9 @@ Khi đề xuất in-memory data store, đừng biện minh chỉ bằng “Redis
 - [Redis Docs — Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
 - [Redis Docs — Pipelining](https://redis.io/docs/latest/develop/using-commands/pipelining/)
 - [Redis Docs — Diagnosing latency issues](https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/)
+- [Redis Docs — noeviction and OOM write errors](https://redis.io/docs/latest/develop/reference/errors/common/oom/)
+- [Redis Docs — SCAN vs KEYS](https://redis.io/docs/latest/develop/use/keyspace/)
+- [Redis Docs — WAIT caveats](https://redis.io/docs/latest/commands/wait/)
+- [Redis Docs — Memory and RSS](https://redis.io/docs/latest/management/optimization/memory-optimization/)
 
 Bài này được phân loại **evolving** với chu kỳ review 180 ngày vì eviction option, persistence behavior, clustering capability và operational guidance của Redis tiếp tục thay đổi dù các đánh đổi cốt lõi về memory/durability khá bền vững.
