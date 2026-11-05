@@ -4,7 +4,7 @@ description: Choose a cloud compute operating model by workload shape, startup s
 category: engineering-judgment
 level: intermediate
 status: evolving
-lastVerified: 2026-09-09
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - cloud
@@ -28,15 +28,15 @@ concepts:
 
 ## TL;DR
 
-During a midnight flash sale, a fintech team watched payment conversions drop as un-warmed serverless functions suffered a 3-second cold start initializing cryptographic modules and database pools—exceeding the payment gateway's timeout budget. Months later, as transaction volume stabilized into a predictable 24/7 baseline of 3,500 requests per second, the monthly cloud bill arrived: their on-demand Lambda costs were 10x higher than running an equivalent, predictably provisioned container cluster. Choosing a cloud compute model is not about developer convenience or serverless hype—it is a concrete engineering trade-off across cold-start latency budgets, execution environment control, and Total Cost of Ownership (TCO).
+**Illustrative scenario (hypothetical, not an incident report):** A checkout team notices an unexpected cold-start tail in a request path with a tight latency budget. After traffic grows into a predictable baseline, its measured per-request bill also challenges the original capacity choice. Neither a specific cold-start duration nor a price multiple is universal: compare the selected platform, usage profile, provisioned capacity, networking and operational costs before choosing a compute model.
 
 > 💡 **Rule of thumb:** Separate the packaging boundary from the operating boundary. An OCI container image defines the runtime artifact you package and ship; serverless defines how aggressively you delegate capacity provisioning, autoscaling, and instance lifecycle to a managed cloud platform. Choose serverless for bursty, event-driven, or scale-to-zero workloads where operational delegation offsets compute unit price premiums; choose provisioned containers when sustained baseline utilization, sub-millisecond startup requirements, persistent connections, or deep OS control dominate your constraints.
 
 - **Packaging boundary is distinct from the operating model:** A container image packages your application code and runtime dependencies; a serverless platform manages capacity provisioning and instance lifecycles. A workload can be both (such as Google Cloud Run or AWS Fargate).
 - **Startup latency and cold starts dictate request-path fit:** Serverless runtimes initialize fresh sandboxes on demand, introducing cold starts that can violate strict latency budgets unless mitigated by provisioned concurrency or warm instances.
-- **Traffic shape dictates Total Cost of Ownership (TCO):** Serverless cuts costs dramatically for intermittent or bursty traffic by scaling to zero, but becomes substantially more expensive than provisioned container capacity under sustained, high-throughput baselines.
+- **Traffic shape influences Total Cost of Ownership (TCO):** Scale-to-zero and managed operations can be valuable for intermittent traffic; sustained workloads may favor provisioned capacity when utilization and total costs justify it. Do not assume either model is always cheaper.
 - **Evaluate the selected platform's concrete contract:** The word "serverless" guarantees neither zero cost nor instant scaling; verify the selected platform's **scaling, startup, concurrency, lifecycle, and billing** rules before relying on them in production.
-- **Fatal pitfall:** **Unconstrained serverless autoscaling triggering downstream infrastructure collapse.** A serverless function tier scaling instantly from 10 to 1,500 concurrent execution environments will exhaust database connection pools and saturate downstream rate limits within seconds. Always enforce concurrency limits or place connection proxies (e.g., RDS Proxy) before the database.
+- **Failure mode to plan for:** A compute tier that scales faster than a shared database can accept connections may saturate downstream pools. Bound concurrency and consider appropriate connection proxies or queues; measure the actual provider scaling contract.
 
 ## Decision frame
 
@@ -244,12 +244,12 @@ graph TD
 **Why this recommendation is risky:**
 
 While the *message delivery* is sparse and event-driven, the **connection model** is continuously open and stateful:
-1. **Connection duration:** WebSockets require long-lived persistent TCP connections. On-demand serverless execution environments usually enforce maximum request timeouts (often 15 minutes or less) and bill by active execution time. Keeping 50,000 serverless environments constantly active just to hold idle TCP sockets would be economically prohibitive and technically fraught.
-2. **Process identity & routing:** Pushing an alert to a specific client requires routing the message to the process holding that client's open socket. On-demand functions do not have stable process identities or addressable network endpoints for incoming peer-to-peer pushes unless paired with a specialized managed gateway (such as AWS API Gateway WebSocket API or a pub/sub proxy).
+1. **Connection duration and billing:** There is no universal serverless 15-minute timeout. Conventional AWS Lambda invocations have a 15-minute limit, while some Lambda Managed Instances asynchronous modes support longer execution; Google Cloud Run supports WebSockets subject to its configured request timeout and billing. Fifty thousand connected clients do **not** imply fifty thousand runtime instances: calculate connections per instance, active capacity, retry/reconnect handling and cost for the actual provider.
+2. **Connection ownership and routing:** Each live socket belongs to a serving instance, and later/reconnected requests may reach a different instance. Coordinate fan-out through a pub/sub backplane, shared state or managed WebSocket gateway instead of assuming stable process addresses.
 
 **Better architectures:**
 - Use container-oriented workers sized for high network I/O concurrency (where thousands of idle sockets consume minimal memory/CPU in Node.js or Go).
-- Or decouple the connection layer by using a dedicated managed connection service (e.g., API Gateway WebSockets, Ably, Pusher) that triggers short-lived serverless functions only when an actual event is published.
+- Or use a serverless container platform that explicitly supports WebSockets (for example Cloud Run), with planned request timeouts, reconnects, concurrency, and a cross-instance messaging backplane. A managed WebSocket gateway paired with short-lived functions is another option.
 </details>
 
 ## Decision review checklist
@@ -279,3 +279,6 @@ This decision connects **Containers**, **Serverless Compute**, **Autoscaling**, 
 - [Maximum concurrent requests per instance — Cloud Run](https://cloud.google.com/run/docs/about-concurrency)
 - [Minimum instances — Cloud Run](https://cloud.google.com/run/docs/configuring/min-instances)
 - [Billing settings — Cloud Run](https://cloud.google.com/run/docs/configuring/billing-settings)
+- [Cloud Run — Using WebSockets](https://docs.cloud.google.com/run/docs/triggering/websockets) — explicit connection support, timeout, billing and reconnect caveats.
+- [Cloud Run — Request timeout](https://docs.cloud.google.com/run/docs/configuring/request-timeout) — service-specific 60-minute ceiling.
+- [AWS Lambda — Execution timeout](https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html) — ordinary invocation and Managed Instances mode distinctions.
