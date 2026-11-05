@@ -4,7 +4,7 @@ description: "Build a frontend-friendly mental model of OAuth 2.0 and OpenID Con
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [authentication, oauth, oidc, browser-security, tokens, frontend]
 prerequisites: [authentication-and-authorization]
@@ -22,13 +22,13 @@ concepts:
 
 OAuth 2.0 is an **authorization framework**: it lets a client obtain limited authority to call a protected resource. OpenID Connect (OIDC) adds an **identity layer** so a client can learn who authenticated. They are related, but they do not answer the same question.
 
-For browser-based applications, current IETF guidance recommends the **Authorization Code grant with PKCE**. The browser redirects to the authorization server, receives a short-lived authorization code, and exchanges that code using a transaction-specific verifier. A frontend bundle is a **public client**: it cannot keep a client secret confidential.
+For public browser clients, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1.1) **requires PKCE** with Authorization Code, while recommending PKCE for confidential clients. PKCE is an authorization-transaction binding, not proof of user identity. The browser redirects to the authorization server, receives a short-lived authorization code, and exchanges that code using a transaction-specific verifier. A frontend bundle is a **public client**: it cannot keep a client secret confidential.
 
 > 💡 **Rule of thumb:** Trace four things separately: **who authenticated, which client requested access, which resource server the access token is for, and which permissions the token represents**.
 
 - **OAuth is not login by itself.** It delegates access; OIDC adds standardized authentication and the ID Token.
 - **ID Token ≠ Access Token.** The ID Token is for the client; the access token is for the resource server.
-- **PKCE binds the authorization code to the initiating client instance.**
+- **PKCE binds code exchange to the original authorization request:** A transaction-specific verifier (preferably via `S256`) protects the code from theft/injection. PKCE **does not authenticate a public client's identity** or replace issuer, redirect URI, audience and resource authorization checks.
 - **Decode ≠ validate.** Reading JWT JSON proves nothing about its signature, issuer, audience, expiry, or intended use.
 - **Fatal pitfall:** Treating “I have a valid token” as “I am authorized for this object.” Business authorization still belongs at the API/resource boundary.
 
@@ -195,6 +195,8 @@ The client validating an ID Token follows OIDC-specific validation rules, includ
 
 The browser should not invent its own “decode and trust” security model.
 
+**These defenses overlap rather than being strictly interchangeable.** [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1) permits CSRF protection from correctly bound PKCE or OIDC `nonce` under their specified conditions; otherwise use a one-time, browser-bound `state`. Clients using **multiple authorization servers** additionally need a mix-up defense, such as an issuer identifier (`iss`, RFC 9207), and exact redirect-URI matching. None of these alone replaces issuer validation and resource authorization.
+
 ## 8. `state`, `nonce`, and PKCE solve different problems
 
 It is tempting to remember all three as “random strings.”
@@ -217,7 +219,7 @@ The document presents them in decreasing order of security. A BFF reduces token 
 
 Choose architecture deliberately; do not assume “SPA” automatically means “tokens must live in localStorage.”
 
-## Production micro-scenario: the ID Token reaches the API
+## Illustrative scenario (hypothetical): ID Token sent to an API
 
 A frontend team implements OIDC login and receives both an ID Token and an access token. Because both are JWT-looking strings, an interceptor sends the ID Token in `Authorization: Bearer ...` to the Orders API. The API only checks that the signature comes from the trusted issuer and accepts it.
 

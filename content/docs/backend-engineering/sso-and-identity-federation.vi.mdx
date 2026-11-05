@@ -4,7 +4,7 @@ description: "Hiểu SSO và identity federation bằng cách tách application 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [authentication, sso, federation, oidc, saml, cas]
 prerequisites: [authentication-and-authorization, oauth-and-oidc]
@@ -193,6 +193,8 @@ Application hoặc API vẫn sở hữu câu hỏi:
 
 SSO login thành công không phải business authorization decision.
 
+**Logout không phải transaction nguyên tử trên mọi application.** Xóa cookie/session của App A không tự thu hồi session tại IdP, App B hoặc access token còn hạn. OIDC front-channel/back-channel logout và SAML Single Logout phụ thuộc hỗ trợ, trust configuration, delivery và xử lý tại mỗi bên; một thông báo đến muộn hoặc endpoint offline có thể để lại phiên chưa bị thu hồi. Xác định trước scope của nút “Đăng xuất”: chỉ app hiện tại hay toàn bộ IdP/RP mà hệ thống thực sự kiểm soát.
+
 ## 9. Logout có nhiều phạm vi
 
 “Logout” có thể nghĩa là:
@@ -220,7 +222,7 @@ flowchart LR
   Q -->|Rồi| N[Có thể phải primary authentication lại]
 ```
 
-## Kịch bản production: “logout xong lại tự đăng nhập”
+## Tình huống minh họa (giả định): đăng xuất rồi lại đăng nhập
 
 Nhân viên bấm Logout trong frontend application. App chỉ xóa local cookie rồi redirect về home. Protected route tiếp theo khởi động OIDC login lại. OpenID Provider vẫn còn active SSO session nên ngay lập tức redirect trở lại với authorization response mới và app tạo local session mới.
 

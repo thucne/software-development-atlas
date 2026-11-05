@@ -4,7 +4,7 @@ description: "Ánh xạ OAuth, OIDC, SSO và authorization sang realm, client, r
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-05
 reviewAfterDays: 120
 topics: [authentication, keycloak, oidc, sso, authorization, frontend]
 prerequisites: [oauth-and-oidc, sso-and-identity-federation]
@@ -24,7 +24,7 @@ Keycloak dễ hiểu hơn rất nhiều khi bạn không xem Admin Console như 
 
 **Realm** là security domain. **Client** đại diện application/service tương tác với Keycloak. **Client scope** và **protocol mapper** kiểm soát claim/role nào xuất hiện trong token và assertion. Realm/client role là input cho authorization, không tự động thay thế permission check trong business API.
 
-Với JavaScript application chạy hoàn toàn trong browser, tài liệu Keycloak xem client là public vì browser code không thể giữ client credential bí mật. Keycloak JavaScript adapter dùng OIDC, mặc định Authorization Code flow và tài liệu hiện hành bật PKCE S256 mặc định.
+Với ứng dụng JavaScript chạy hoàn toàn trên trình duyệt, client là **public**: không thể giữ client secret an toàn trong bundle. [Keycloak JavaScript adapter hiện hành](https://www.keycloak.org/securing-apps/javascript-adapter) dùng OIDC, mặc định Standard (Authorization Code) flow và `pkceMethod: 'S256'`. Đây là **hành vi của phiên bản adapter đang dùng**, không phải cam kết của mọi bản Keycloak hoặc mọi cách tích hợp; cần kiểm tra package/config thực tế.
 
 > 💡 **Quy tắc bỏ túi:** Cấu hình Keycloak từ ngoài vào trong: **realm trust boundary → client type và redirect origin → login flow → token content → API validation → application authorization**.
 
@@ -127,6 +127,8 @@ Với SPA, convenience nguy hiểm phổ biến nhất là redirect/origin confi
 Ưu tiên exact hoặc tightly bounded application origin/callback. Wildcard mở rộng nơi authorization response có thể được gửi tới và có thể biến routing/hosting mistake thành đường leak code/token.
 
 Tài liệu Keycloak JavaScript adapter khuyến nghị giữ `Valid Redirect URIs` và `Web Origins` cụ thể nhất có thể.
+
+**Kiểm tra phiên bản và cơ chế token:** Khi nâng cấp Keycloak server hoặc `keycloak-js`, xác nhận `flow`, `pkceMethod` và redirect URI thực tế bằng network trace và test. PKCE không biến SPA thành confidential client; API phải xác thực access token theo issuer, audience/purpose và kiểm soát quyền trên từng object ngay cả khi role đã nằm trong token.
 
 ## 5. Hiểu Keycloak JS mà không xem nó là phép màu
 
@@ -253,7 +255,7 @@ BFF architecture có thể giữ OAuth token ở server side và chỉ đưa bro
 
 Keycloak làm việc với cả hai dạng. Đây là application architecture decision, không phải một checkbox trong Keycloak.
 
-## Kịch bản production: token “admin” đi xuyên mọi boundary
+## Tình huống minh họa (giả định): token “admin” vượt ranh giới
 
 Một team tạo realm role chung tên `admin`, để broad role scope cho nhiều client rồi cấu hình nhiều API accept bất kỳ JWT nào được realm ký. Frontend nhận token intended cho một client nhưng gọi được administrative API không liên quan vì API chỉ kiểm signature và có role `admin`.
 

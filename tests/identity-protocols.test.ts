@@ -82,7 +82,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       for (const relativePath of [item.en, item.vi]) {
         const source = lesson(relativePath);
         expect(source).toContain('category: backend-engineering');
-        expect(source).toContain('lastVerified: 2026-09-21');
+        expect(source).toContain('lastVerified: 2026-11-05');
         expect(source).toMatch(new RegExp(`concepts:\\n  - ` + item.concept + `\\n---`));
         expect((source.match(/<TermBox/g) ?? []).length).toBeGreaterThanOrEqual(2);
         expect((source.match(/<TermBox/g) ?? []).length).toBeLessThanOrEqual(3);
