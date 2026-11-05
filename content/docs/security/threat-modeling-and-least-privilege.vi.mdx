@@ -37,7 +37,7 @@ concepts:
 
 Cần phân biệt: `rds:*` cho phép các thao tác quản trị RDS trong phạm vi chính sách IAM, **không tự động cấp quyền đọc bảng bằng SQL**. Khi dùng xác thực IAM để kết nối cơ sở dữ liệu, hành động liên quan là `rds-db:connect`; người dùng và quyền trong cơ sở dữ liệu vẫn là một lớp kiểm soát riêng. Bài học chính là kiểm tra quyền trên từng đối tượng và thu hẹp quyền của từng dịch vụ.
 
-> 💡 **Quy tắc bỏ túi:** **Authentication chứng thực bạn là ai; Authorization và Least Privilege quyết định bạn được phép chạm vào cái gì.** Bảo mật sẽ sụp đổ khi sự tin tưởng được trao quyền mù quáng. Luôn áp dụng deny-by-default (chặn theo mặc định), thẩm định quyền hạn trên mỗi request đối với từng tài nguyên cụ thể, và cô lập phạm vi thiệt hại (blast radius) để sự cố của một token đơn lẻ không kéo sập toàn bộ hạ tầng.
+> 💡 **Quy tắc bỏ túi:** **Authentication chứng thực bạn là ai; Authorization và Least Privilege quyết định bạn được phép chạm vào cái gì.** Bảo mật sẽ sụp đổ khi sự tin tưởng được trao quyền mù quáng. Luôn áp dụng deny-by-default (chặn theo mặc định), thẩm định quyền hạn trên mỗi request đối với từng tài nguyên cụ thể, và giới hạn phạm vi thiệt hại (blast radius) để một token bị lộ không mặc nhiên có quyền truy cập các hệ thống không liên quan.
 
 - **Vòng lặp mô hình hóa hiểm họa:** Trả lời có hệ thống bốn câu hỏi: Chúng ta đang xây gì, điều gì có thể sai, chúng ta sẽ phòng ngừa thế nào, và đã làm đủ tốt chưa?
 - **Ranh giới tin cậy rõ ràng:** Vẽ rõ luồng dữ liệu xuyên qua các ranh giới mạng, ranh giới tiến trình và ranh giới tổ chức nơi mức độ tin cậy thay đổi; không bao giờ coi lưu lượng nội bộ là mặc định an toàn.
@@ -138,14 +138,14 @@ Mô hình đe dọa chỉ thực sự hữu ích khi các biện pháp của nó
 Một secure request path có dạng:
 
 ```text
-authenticate(identity)
-resource = load_minimal_policy_attributes(request.resource_id)
-if !authorize(identity, action, resource):
-    deny
-perform(action, resource)
+identity = authenticate(request.credentials)
+policy_attributes = load_minimal_policy_attributes(request.resource_id)
+if policy_attributes == missing or !authorize(identity, action, policy_attributes):
+    return deny
+return perform_authorized_action(action, request.resource_id)
 ```
 
-Quyết định cấp quyền phải được thực thi ở phía máy chủ, không thể vượt qua bằng cách sửa mã phía client. Trước khi kiểm tra quyền, chỉ tải những thuộc tính đáng tin cậy tối thiểu cần thiết để đánh giá chính sách; không trả dữ liệu được bảo vệ về cho người gọi. Với thao tác ghi hoặc tác vụ bất đồng bộ, cần kiểm soát quyền tại ranh giới thực thi tương ứng, bao gồm phạm vi tenant và thay đổi quyền theo thời gian. Ẩn nút trên giao diện không phải là biện pháp kiểm soát truy cập.
+Quyết định cấp quyền phải được thực thi ở phía máy chủ, không thể vượt qua bằng cách sửa mã phía client. Trước khi kiểm tra quyền, chỉ tải những thuộc tính đáng tin cậy tối thiểu cần thiết để đánh giá chính sách; không trả dữ liệu được bảo vệ về cho người gọi. Với thao tác ghi hoặc tác vụ bất đồng bộ, cần kiểm soát quyền tại ranh giới thực thi tương ứng. `perform_authorized_action` chỉ là hàm minh họa: khi triển khai thật, thao tác phải giới hạn dữ liệu theo tenant tại thời điểm thực thi và xử lý trường hợp quyền thay đổi. Ẩn nút trên giao diện không phải là biện pháp kiểm soát truy cập.
 
 ### Kiểm tra permission trên mỗi request
 

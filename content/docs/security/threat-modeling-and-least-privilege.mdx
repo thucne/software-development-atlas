@@ -37,7 +37,7 @@ concepts:
 
 Crucially, `rds:*` authorizes RDS control-plane actions subject to the rest of the IAM policy; it does **not** by itself grant SQL access to database rows. IAM database login, where enabled, uses the separate `rds-db:connect` action and still depends on database users and grants. The underlying lesson is to apply object-level authorization and separately scope each workload's privileges.
 
-> 💡 **Rule of thumb:** **Authentication proves who you are; authorization and least privilege determine what you can touch.** Security collapses when trust is inherited transitively. Enforce deny-by-default, validate authorization on every request for specific resources, and constrain blast radiuses so the compromise of a single token cannot compromise the entire system.
+> 💡 **Rule of thumb:** **Authentication proves who you are; authorization and least privilege determine what you can touch.** Security collapses when trust is inherited transitively. Enforce deny-by-default, validate authorization on every request for specific resources, and constrain blast radius so one compromised token does not automatically grant unrelated access.
 
 - **Continuous threat-modeling loop:** Systematically answer four questions: What are we building, what can go wrong, what will we do about it, and did we verify our mitigations?
 - **Explicit trust boundaries:** Map data flows across network, process, and organizational boundaries where trust levels change; never treat internal network traffic as implicitly safe.
@@ -138,14 +138,14 @@ The threat model becomes useful when the mitigation can be implemented and verif
 A secure request path looks like:
 
 ```text
-authenticate(identity)
-resource = load_minimal_policy_attributes(request.resource_id)
-if !authorize(identity, action, resource):
-    deny
-perform(action, resource)
+identity = authenticate(request.credentials)
+policy_attributes = load_minimal_policy_attributes(request.resource_id)
+if policy_attributes == missing or !authorize(identity, action, policy_attributes):
+    return deny
+return perform_authorized_action(action, request.resource_id)
 ```
 
-The authorization decision belongs at a server-side boundary that cannot be bypassed by changing client code. Load only the minimum trusted attributes needed for the policy before authorization; do not expose protected content to the caller before the allow decision. Mutations and asynchronous jobs need authorization at their own execution boundaries as appropriate, including tenant-scoped data access and protection against stale authorization assumptions. Hiding buttons is user experience, not access control.
+The authorization decision belongs at a server-side boundary that cannot be bypassed by changing client code. Load only the minimum trusted attributes needed for the policy before authorization; do not expose protected content to the caller before the allow decision. Mutations and asynchronous jobs need authorization at their own execution boundaries as appropriate; `perform_authorized_action` is conceptual and must enforce tenant-scoped data access at the point of use, including protection against stale authorization assumptions. Hiding buttons is user experience, not access control.
 
 ### Validate permissions on every request
 
