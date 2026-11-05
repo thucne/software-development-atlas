@@ -4,7 +4,7 @@ description: Reason about distributed operations when one component, message, or
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-12
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, resilience, failure-semantics]
 prerequisites: [microservices, service-resilience]
@@ -20,13 +20,15 @@ concepts:
 
 ## TL;DR
 
-Imagine standing at a checkout counter with your morning coffee. You tap your payment card on the POS terminal. The screen spins for several agonizing seconds before flashing a harsh red banner: *"Transaction Failed — Network Timeout"*. But before you can pull out your wallet to tap again, your phone buzzes with an instant bank notification: \$5.50 has been deducted from your account. The cashier's register insists the payment never arrived; your bank's ledger insists it already settled. Neither system is lying—both are recording accurate local observations across an unreliable network wire. Welcome to the defining reality of distributed systems: **partial failure**.
+**Illustrative scenario (hypothetical):** A payment terminal times out after a coffee purchase, but the customer receives a debit notification. Neither local observation proves the final outcome of the entire operation. The application should query the authoritative provider state before initiating another payment.
+
+**Partial failure** occurs when one component completes work while another cannot observe the result. A communication error is not a verdict on a remote commit.
 
 > 💡 **Rule of thumb:** In distributed systems, a timeout is a local observation, not a remote verdict. Never assume an unanswered state-changing operation failed without authoritative reconciliation or idempotent protection.
 
-- **Local certainty vs. distributed ambiguity:** In a single process, a function call yields a deterministic outcome—it returns a value or raises an exception that halts the thread. Across a network, operations fail **partially**: some nodes commit durable state while others crash, drop packets, or hang indefinitely.
+- **Local errors versus distributed ambiguity:** An in-process exception propagates according to language/runtime rules; it **does not automatically halt the thread**. Over a network, a caller may lose a response after the callee commits. Separate the RPC failure from the business outcome.
 - **Independent caller and callee observations:** The caller and callee form **independent local judgments** regarding the same RPC; a caller's `DEADLINE_EXCEEDED` timeout often coincides with a callee's completed database transaction.
-- **Safe recovery demands request identity:** Because a lost response leaves the remote outcome unknown, blind retries risk severe duplicate side effects; stateful retries must carry a stable **request identity** (an idempotency key).
+- **Safe retries need a replay contract:** Preserve stable business-operation identity for ambiguous writes and use enforced server idempotency, reconciliation or applicable unique constraints/conditional updates. **A header containing an idempotency key alone does not make a write safe to repeat**.
 - **Blast radius and failure isolation:** Unbounded waits on slow dependencies quickly consume worker threads, database connections, and memory; systems must enforce end-to-end **deadlines**, propagate **cancellation**, and actively isolate failures via **fail-fast**, fallback, or graceful degradation.
 - **Fatal pitfall:** **Treating timeouts as operational failures.** Conflating "I stopped waiting" with "nothing happened on the server" and triggering immediate, unprotected retries on non-idempotent endpoints is the fastest way to double-charge credit cards, corrupt balances, and produce duplicate inventory reservations.
 
@@ -120,6 +122,8 @@ A **request identity** is a stable identifier carried across retries so the rece
 
 Idempotency does not make the network reliable. It makes repeated attempts safer.
 
+**Cancellation is not rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) says that changes made before cancellation are not rolled back. [gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) also requires server handlers to cooperate with cancellation signals. An ambiguous write still requires authoritative reconciliation.
+
 ## Deadlines bound waiting; cancellation bounds wasted work
 
 Every remote dependency consumes time and resources. A caller should propagate a realistic **deadline** rather than letting each nested service start a fresh full timeout.
@@ -161,7 +165,7 @@ Useful signals include dependency latency, timeout rate, retry attempts, duplica
 
 For ambiguous writes, record the stable operation ID alongside authoritative business state so an operator can answer: **did this logical operation commit?**
 
-## Production scenario
+## Illustrative scenario (hypothetical)
 
 A checkout service calls a payment provider with `POST /charges`. The provider commits the charge, but the response packet is lost. Checkout reaches its timeout and automatically retries with a fresh request ID.
 

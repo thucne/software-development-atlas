@@ -4,7 +4,7 @@ description: Reason about Sagas as durable sequences of local transactions with 
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, sagas, workflows, compensation, transactions]
 prerequisites: [partial-failure, delivery-semantics, idempotency, transactional-outbox]
@@ -18,17 +18,17 @@ concepts:
 
 # Sagas: Coordinate Distributed Workflows with Compensation
 
-You are booking a vacation package: the flight service successfully charges your credit card and issues a non-refundable airline ticket, but the hotel service suddenly fails because the last available room was just reserved by another traveler. In a monolithic system with a single database, an ACID rollback would seamlessly rewind the entire operation to clean square one. But across independent microservices and external payment gateways, there is no global transaction manager and no Two-Phase Commit (2PC) to turn back the clock. You cannot physically un-swipe a credit card or un-issue a ticket. How do you recover? You execute compensating transactions that semantically unwind the partial commitment.
+**Illustrative scenario (hypothetical):** A travel package includes a flight and hotel. A ticket is issued before the hotel booking fails. Rolling back the hotel's local transaction cannot reverse the airline's ticket or a completed external charge. Recovery needs an appropriate **business compensation**, where contract terms allow it, or manual escalation.
 
-A Saga coordinates a **sequence of local transactions** that together implement a long-lived business workflow across independently owned services and data stores. Each step commits locally, and failures trigger explicit business compensation.
+A Saga coordinates a **sequence of local transactions** using durable workflow state and explicit recovery decisions. It is an alternative when distributed transactions are unavailable or unsuitable, not a replacement with equivalent ACID atomicity and isolation.
 
 > 💡 **Rule of thumb:** Distributed workflows cannot turn back time with ACID rollbacks. Structure your workflow around an explicit pivot point: compensate backwards before the point of no return, and push forward with idempotent retries after it.
 
 ## TL;DR
 
-- **A Saga replaces distributed 2PC with a sequence of local transactions:** Instead of locking resources across microservices for seconds or minutes, each participant commits locally, exposes deliberate intermediate business states, and advances the workflow.
+- **Saga is an alternative to 2PC, not an equivalent replacement:** Participants commit locally and expose deliberate intermediate states. A Saga **does not provide** distributed ACID atomicity/isolation; choose based on business invariants, participant capabilities and compensability.
 - **Compensation is semantic undo, not a technical database rollback:** Compensating transactions do not magically erase history; they are newly committed transactions (e.g., issuing refunds, releasing inventory reservations) that semantically counteract earlier forward steps in reverse order.
-- **The pivot step defines the boundary between backward and forward recovery:** Before the pivot transaction (the point of no return), failures trigger backward compensation; once the pivot commits, the workflow must guarantee forward progress through idempotent retries and alerting.
+- **Pivot guides recovery but does not guarantee progress:** Before pivot, compensate completed steps if their business semantics allow it; afterwards, pursue bounded idempotent retries, durable state and escalation. **Forward progress is not unconditional** when dependencies are unavailable indefinitely or recovery is impossible.
 - **Choose coordination based on workflow complexity:** Orchestration uses a central coordinator to manage explicit state machines and timeouts; choreography relies on decentralized domain events, avoiding a single coordinator at the cost of cross-service traceability.
 - **Fatal pitfall:** Treating distributed timeouts as definite failures and triggering immediate compensation. If a payment service times out due to packet loss after successfully capturing funds, immediately dispatching a cancellation or void without verifying the actual provider outcome causes double-refunds or irreconcilable ledger discrepancies.
 
@@ -165,6 +165,8 @@ Common countermeasures include:
 
 The right question is not “how do I hide every intermediate state?” but “which invariants must hold while the workflow is incomplete?”
 
+**Manual escalation may be necessary.** If a payment provider cannot confirm an outcome, safe retries are exhausted, or the business contract provides no valid compensation, preserve `UNKNOWN`/`MANUAL_REVIEW`, reconcile using a stable operation ID and alert an operator. Do not create a fresh refund identity and assume an earlier charge was rolled back.
+
 ## Compensation can fail too
 
 Backward recovery is itself a distributed workflow. Refund APIs can time out. Inventory release can hit a transient database failure. A participant can be unavailable for hours.
@@ -173,7 +175,7 @@ Therefore compensation needs the same engineering discipline as forward work: st
 
 Never mark a Saga `COMPENSATED` merely because compensations were scheduled. Mark it only after the required compensating outcomes are confirmed.
 
-## Production micro-scenario: fulfillment fails after payment
+## Illustrative scenario (hypothetical): fulfillment fails after payment
 
 Checkout creates order `o-731` under Saga `saga-8841`.
 

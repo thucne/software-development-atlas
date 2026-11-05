@@ -4,7 +4,7 @@ description: Suy luận về thao tác phân tán khi một component, message h
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-12
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, resilience, failure-semantics]
 prerequisites: [microservices, service-resilience]
@@ -20,13 +20,15 @@ concepts:
 
 ## Tóm tắt nhanh
 
-Hãy tưởng tượng bạn đang đứng tại quầy thanh toán một quán cà phê đông đúc. Bạn quẹt thẻ thanh toán lên máy POS. Thiết bị xoay tròn một lúc lâu rồi hiện lên cảnh báo đỏ chót: *"Giao dịch thất bại — Hết thời gian chờ mạng"*. Nhưng trước khi bạn kịp rút ví để quẹt lại lần hai, điện thoại trong túi bỗng rung lên: thông báo từ ngân hàng báo tài khoản của bạn vừa bị trừ 45.000 VNĐ. Nhân viên thu ngân quả quyết máy chưa nhận được tiền; sổ cái ngân hàng lại khẳng định giao dịch đã tất toán xong xuôi. Không bên nào gian dối—cả hai đều ghi nhận những dữ kiện hoàn toàn chính xác từ góc nhìn cục bộ của riêng mình qua một sợi cáp mạng chập chờn. Đó chính là thực tế khắc nghiệt và đặc trưng nhất của hệ thống phân tán: **lỗi một phần (partial failure)**.
+**Tình huống minh họa (giả định):** Máy POS báo timeout khi thu tiền cà phê nhưng người mua đã nhận thông báo ghi nợ. Hai bên chỉ có quan sát cục bộ; timeout không chứng minh giao dịch chưa thực hiện và thông báo ghi nợ chưa đủ để khẳng định mọi bước đã hoàn tất. Trước khi gửi yêu cầu mới, ứng dụng phải đối soát với hệ thống có thẩm quyền.
+
+**Partial failure** là tình huống một thành phần có thể hoàn tất thao tác nhưng thành phần khác không nhận được kết quả. Lỗi truyền thông không phải phán quyết về trạng thái đã commit.
 
 > 💡 **Quy tắc bỏ túi:** Trong hệ thống phân tán, timeout chỉ là một quan sát cục bộ, không phải phán quyết cuối cùng. Tuyệt đối không bao giờ đồng nhất "chưa nhận được phản hồi" với "thao tác chưa xảy ra" đối với các tác vụ ghi dữ liệu.
 
-- **Thực tại cục bộ vs. sự bất định phân tán:** Trong một tiến trình đơn lẻ, hàm thực thi cho kết quả dứt khoát—hoặc trả về dữ liệu, hoặc ném ngoại lệ làm sập luồng. Qua kết nối mạng, thao tác có thể gặp **lỗi một phần**: một service ghi dữ liệu thành công nhưng service khác bị timeout, request đến nơi nhưng phản hồi thất lạc, hoặc bên gọi (caller) cho rằng lệnh đã hỏng trong khi bên nhận (callee) đã hoàn tất trọn vẹn.
+- **Lỗi cục bộ và kết quả qua mạng:** Ngoại lệ trong cùng tiến trình có thể truyền đến handler theo runtime; nó **không tự động làm dừng thread**. Qua mạng, caller có thể mất phản hồi sau khi callee đã commit. Phải phân biệt RPC failure với trạng thái nghiệp vụ.
 - **Quan sát độc lập giữa bên gọi và bên nhận:** Client và server đưa ra các **kết luận cục bộ độc lập** về cùng một RPC; bên gọi thấy `DEADLINE_EXCEEDED` nhưng bên nhận đã commit xong vào cơ sở dữ liệu.
-- **Thử lại an toàn đòi hỏi định danh yêu cầu:** Khi kết quả chưa rõ, mọi nỗ lực thử lại (retry) mù quáng đều có thể gây trùng lặp tác dụng phụ; tác vụ ghi dữ liệu bắt buộc phải mang theo **định danh yêu cầu** (idempotency key) ổn định để máy chủ nhận diện nhiều lần gửi là cùng một thao tác logic duy nhất.
+- **Retry cần hợp đồng chống lặp:** Với write chưa rõ kết quả, dùng định danh thao tác nghiệp vụ ổn định, idempotency được server thực thi, đối soát hoặc unique constraint/conditional update phù hợp. **Header idempotency key không tự đảm bảo an toàn** nếu bên nhận không tôn trọng nó.
 - **Khoanh vùng phạm vi ảnh hưởng (blast radius):** Việc chờ đợi vô hạn các dependency chậm sẽ ngốn sạch worker thread, connection pool và bộ nhớ; hệ thống bắt buộc phải đặt **hạn chót (deadline)**, truyền tín hiệu **hủy (cancellation)**, và chủ động **fail-fast**, fallback hoặc suy giảm chức năng.
 - **Cạm bẫy chết người:** **Coi timeout là thao tác chưa thực thi.** Giả định rằng gọi timeout nghĩa là server chưa làm gì rồi kích hoạt retry một thao tác ghi không có idempotency là nguyên nhân số một gây trừ tiền hai lần, tạo đơn trùng lặp và làm sai lệch nghiêm trọng dữ liệu sổ cái tài chính.
 
@@ -120,6 +122,8 @@ Với operation có thể retry sau failure mơ hồ, hãy dùng **định danh 
 
 Idempotency không làm network đáng tin cậy hơn; nó làm việc thử lại an toàn hơn.
 
+**Cancellation không phải rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) nêu rõ thay đổi đã xảy ra trước khi cancel không được hoàn tác. [Hướng dẫn gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) yêu cầu handler hợp tác kiểm tra tín hiệu hủy: thư viện không thể ngắt mọi đoạn code ứng dụng. Vì thế một lệnh ghi timeout vẫn cần đối soát với bên nhận.
+
 ## Deadline giới hạn chờ; cancellation giới hạn công việc lãng phí
 
 Mỗi remote dependency tiêu tốn thời gian và tài nguyên. Bên gọi nên truyền một **hạn chót (deadline)** end-to-end hợp lý thay vì để mỗi hop bắt đầu lại một timeout đầy đủ.
@@ -161,7 +165,7 @@ Các signal hữu ích gồm dependency latency, timeout rate, số retry attemp
 
 Với write có outcome mơ hồ, lưu logical operation ID cùng authoritative business state để operator trả lời được: **operation này đã commit chưa?**
 
-## Kịch bản production
+## Tình huống minh họa (giả định)
 
 Checkout gọi payment provider bằng `POST /charges`. Provider đã commit charge nhưng response packet bị mất. Checkout timeout rồi tự retry bằng một request ID mới.
 

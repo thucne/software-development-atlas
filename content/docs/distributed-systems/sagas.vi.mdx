@@ -4,7 +4,7 @@ description: Suy luận về Saga như chuỗi local transaction bền vững v�
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, sagas, workflows, compensation, transactions]
 prerequisites: [partial-failure, delivery-semantics, idempotency, transactional-outbox]
@@ -18,17 +18,17 @@ concepts:
 
 # Sagas: Điều phối workflow phân tán bằng bù trừ
 
-Bạn đang xây dựng luồng đặt combo du lịch: dịch vụ chuyến bay đã trừ tiền trên thẻ tín dụng và xuất vé máy bay thành công, nhưng dịch vụ phòng khách sạn ngay sau đó lại báo lỗi vì hết phòng vào phút chót. Trong kiến trúc nguyên khối với một cơ sở dữ liệu duy nhất, một lệnh rollback ACID sẽ âm thầm xóa sạch mọi thay đổi để đưa dữ liệu về vạch xuất phát ban đầu. Nhưng trong thế giới microservices với các database độc lập và cổng thanh toán bên thứ ba, giao thức Two-Phase Commit (2PC) vừa nặng nề, vừa dễ bế tắc, và bạn cũng không thể ép dòng thời gian quay ngược để "xóa sổ" một khoản tiền đã trừ trên thẻ khách. Làm thế nào để xử lý chuỗi thao tác dở dang này một cách an toàn? Câu trả lời nằm ở mô hình Saga và cơ chế bồi hoàn ngữ nghĩa (semantic compensation).
+**Tình huống minh họa (giả định):** Một gói du lịch gồm vé bay và phòng khách sạn. Vé đã phát hành nhưng khách sạn không còn phòng. Rollback transaction giữ phòng không thể tự thu hồi vé đã phát hành hay giao dịch từ cổng thanh toán; cần bước **bù trừ có ý nghĩa nghiệp vụ**, dựa trên chính sách vé, hoặc chuyển sang hỗ trợ thủ công.
 
-Saga là một **chuỗi local transaction** cùng nhau triển khai một business workflow dài hạn qua các service hoặc data store có quyền sở hữu độc lập. Mỗi bước commit cục bộ trên database của mình, và khi có sự cố, workflow sẽ kích hoạt các hành động bồi hoàn tương ứng.
+Saga điều phối **chuỗi local transaction** cùng trạng thái workflow bền vững. Đây là một lựa chọn thay cho việc dùng distributed transaction ở nơi nó không phù hợp hoặc không được các participant hỗ trợ; compensation không cung cấp cùng atomicity và isolation như rollback ACID.
 
 > 💡 **Quy tắc bỏ túi:** Hệ thống phân tán không thể quay ngược thời gian bằng ACID rollback. Hãy cấu trúc workflow quanh một điểm pivot rõ ràng: bồi hoàn lùi (backward compensation) trước điểm không quay lại, và kiên trì retry tiến về phía trước (forward recovery) sau khi điểm pivot đã hoàn tất.
 
 ## Tóm tắt
 
-- **Saga thay thế 2PC phân tán bằng một chuỗi local transaction:** Thay vì giữ các distributed lock qua mạng nhiều giây hoặc nhiều phút gây tắc nghẽn, mỗi service tự commit transaction cục bộ trên database của mình, để lộ trạng thái trung gian nghiệp vụ có chủ đích và đẩy workflow tiến lên.
+- **Saga là một lựa chọn khác với 2PC:** Các participant commit cục bộ và có trạng thái trung gian được thiết kế rõ. Saga **không có** atomicity/isolation toàn cục như một distributed transaction; lựa chọn phải dựa trên invariant, participant và khả năng bù trừ.
 - **Bồi hoàn là đảo ngược ngữ nghĩa, không phải database rollback:** Giao dịch bồi hoàn (compensating transaction) không thể xóa bỏ lịch sử; chúng là các transaction mới đã commit (như hoàn lại tiền, giải phóng giữ chỗ tồn kho) nhằm vô hiệu hóa về mặt nghiệp vụ cho các bước đã hoàn thành trước đó theo chiều ngược lại.
-- **Bước Pivot là ranh giới giữa bồi hoàn lùi và phục hồi tiến:** Trước bước giao dịch pivot (điểm không quay lại), lỗi sẽ kích hoạt bồi hoàn lùi; một khi bước pivot đã commit thành công, workflow bắt buộc phải bảo đảm phục hồi tiến bằng các bước thử lại bất biến (idempotent retry) và cảnh báo vận hành.
+- **Pivot định hướng phục hồi, không bảo đảm thành công:** Trước pivot, bù trừ những bước đã commit nếu nghiệp vụ cho phép. Sau pivot, ưu tiên retry idempotent có giới hạn, lưu trạng thái và cảnh báo. **Không thể bảo đảm forward progress vô điều kiện** khi dependency dừng lâu dài hoặc không có hành động phục hồi phù hợp.
 - **Lựa chọn điều phối dựa trên độ phức tạp của luồng nghiệp vụ:** Điều phối tập trung (Orchestration) dùng một coordinator quản lý tường minh state machine và timeout; Phối hợp phi tập trung (Choreography) dựa trên các domain event bắn qua lại giữa các service, giảm phụ thuộc trung tâm nhưng khó truy vết luồng chạy khi hệ thống lớn dần.
 - **Cạm bẫy chết người:** Xem timeout qua mạng như một lỗi thất bại tuyệt đối rồi vội vã kích hoạt bù trừ. Nếu lệnh thanh toán bị timeout do rớt gói tin nhưng phía ngân hàng thực tế đã trừ tiền thành công, việc gửi ngay lệnh hoàn tiền mà không đối soát trạng thái sẽ dẫn đến thảm họa lệch sổ sách hoặc hoàn tiền kép.
 
@@ -165,6 +165,8 @@ Các countermeasure phổ biến gồm:
 
 Câu hỏi đúng không phải “làm sao che mọi trạng thái trung gian?” mà là “invariant nào phải luôn đúng trong lúc workflow chưa hoàn tất?”.
 
+**Có những trường hợp phải xử lý thủ công.** Nếu payment provider không xác nhận kết quả, các lần retry an toàn đã cạn hoặc không thể bù trừ theo hợp đồng, workflow cần giữ trạng thái `UNKNOWN`/`MANUAL_REVIEW`, đối soát theo mã thao tác ổn định và báo người vận hành. Không tự gửi refund bằng định danh mới rồi giả định khoản charge đã rollback.
+
 ## Compensation cũng có thể lỗi
 
 Backward recovery bản thân nó cũng là distributed workflow. Refund API có thể timeout. Inventory release có thể gặp database failure tạm thời. Participant có thể unavailable nhiều giờ.
@@ -173,7 +175,7 @@ Vì vậy compensation cần cùng kỷ luật kỹ thuật như forward work: s
 
 Không được mark Saga là `COMPENSATED` chỉ vì compensation đã được schedule. Chỉ kết luận khi các outcome bù trừ bắt buộc đã được xác nhận.
 
-## Production micro-scenario: fulfillment lỗi sau payment
+## Tình huống minh họa (giả định): fulfillment lỗi sau payment
 
 Checkout tạo order `o-731` dưới Saga `saga-8841`.
 

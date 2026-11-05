@@ -39,6 +39,14 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 ### November 05, 2026
 
 
+#### Wave 1 — Partial failures, replication, Sagas and authorization
+- [Partial Failure](/docs/distributed-systems/partial-failure): Cancellation does not roll back committed effects; distinguish in-process exceptions and idempotent remote retries.
+- [Distributed Replication](/docs/distributed-systems/distributed-replication): Explain acknowledgment points, remote_write/flush/remote_apply and enforceable failover authority.
+- [Sagas](/docs/distributed-systems/sagas): A pivot cannot guarantee unconditional forward progress; expose manual escalation on ambiguous effects.
+- [Authentication & Authorization](/docs/backend-engineering/authentication-and-authorization): Label hypothetical BOLA, clarify resource authorization, NIST applicability and JWT revocation.
+
+
+
 #### Wave 1 — Consensus, distributed locks and consistency
 - [Consensus](/docs/distributed-systems/consensus): Distinguish Raft quorum intersection from term-aware commits and committed log safety.
 - [Distributed Locks](/docs/distributed-systems/distributed-locks): Differentiate Redis TTL leases, ordered fencing epochs, and resource-side atomicity.

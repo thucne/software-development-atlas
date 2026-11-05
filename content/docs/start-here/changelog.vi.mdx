@@ -39,6 +39,14 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 ### Ngày 05 tháng 11 năm 2026
 
 
+#### Wave 1 — Partial Failure, Replication, Sagas và Authorization
+- [Partial Failure](/vi/docs/distributed-systems/partial-failure): Timeout/cancellation không phải rollback, không suy lỗi RPC thành lỗi commit; giải thích exception và retry an toàn.
+- [Distributed Replication](/vi/docs/distributed-systems/distributed-replication): Phân biệt ACK, remote_write/flush/remote_apply và cơ chế bảo vệ quyền ghi sau failover.
+- [Sagas](/vi/docs/distributed-systems/sagas): Pivot không bảo đảm forward progress vô điều kiện; compensation có thể phải xử lý thủ công.
+- [Authentication & Authorization](/vi/docs/backend-engineering/authentication-and-authorization): Ghi nhãn BOLA giả định, phân quyền cấp đối tượng, phạm vi NIST và giới hạn JWT revocation.
+
+
+
 #### Wave 1 — Consensus, Distributed Locks và Consistency
 - [Consensus](/vi/docs/distributed-systems/consensus): Làm rõ quorum intersection và current-term commit theo Raft, không nhầm uncommitted entry với quyết định bền vững.
 - [Distributed Locks](/vi/docs/distributed-systems/distributed-locks): Phân biệt Redis TTL với fencing, yêu cầu bảo vệ nguyên tử tại dữ liệu.

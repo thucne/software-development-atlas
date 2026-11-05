@@ -4,7 +4,7 @@ description: Suy luận về sao chép phân tán qua quyền ghi, thứ tự c�
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, replication, failover, consistency, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, database-replication]
@@ -18,18 +18,18 @@ concepts:
 
 # Sao chép phân tán: Giữ các bản sao đúng qua sự cố và chuyển đổi dự phòng
 
-Người dùng vừa bấm "Đổi mật khẩu", nhận ngay thông báo thành công xanh rờn, nhưng chỉ vài giây sau đăng nhập lại thì bị báo lỗi "Sai mật khẩu". Nguyên nhân: lệnh ghi mật khẩu mới đã ghi nhận thành công trên Leader, nhưng yêu cầu đăng nhập lại bị router đẩy trúng một Replica đang bị lag 800ms chưa kịp nạp dữ liệu. Đau đầu hơn nữa: một sự cố mạng âm thầm cô lập Leader; hệ thống failover tự động vội vã thăng cấp một Replica lên làm Leader mới, trong khi một cụm worker cũ vẫn tiếp tục đẩy dữ liệu vào Leader cũ. Hậu quả là thảm kịch split-brain: hai node cùng tưởng mình là chủ trì, cùng nhận ghi và tạo ra hai lịch sử phân kỳ không thể tự hàn gắn.
+**Tình huống minh họa (giả định):** Người dùng đổi mật khẩu nhưng lượt đăng nhập tiếp theo đọc từ replica chưa bắt kịp nên gặp dữ liệu cũ. Trong một topology khác, standby được thăng cấp khi client vẫn ghi vào primary trước đó. Nếu quyền ghi không được thực thi, hai writer có thể tạo lịch sử xung đột. Đây là các ví dụ thiết kế, không phải sự cố có đo độ trễ thực tế.
 
-Sao chép phân tán giữ **nhiều bản sao trạng thái trên nhiều nút**, nhưng việc truyền tải byte qua mạng chỉ là phần nổi của tảng băng chìm. Bài toán kỹ thuật thực sự là xác lập nút nào nắm quyền ghi tối thượng, khi nào một lần ghi mới được xem là an toàn, và cách dập tắt xung đột khi ranh giới mạng bị chia cắt.
+Replication duy trì nhiều bản sao trạng thái. Để đánh giá mức an toàn, phải biết **thời điểm ACK**, ai có quyền ghi và cách failover ngăn writer cũ.
 
 > 💡 **Quy tắc bỏ túi:** Hãy xem sao chép phân tán là giao thức về thẩm quyền và bản sao với ranh giới lỗi tường minh, không đơn thuần là đồng bộ dữ liệu nền. Đừng bao giờ đánh đồng $N$ bản sao với việc luôn có $N$ dữ liệu mới nhất, và tuyệt đối không bao giờ failover mà thiếu cơ chế rào chắn cô lập bên ghi cũ.
 
 ## Tóm tắt
 
 - **Sao chép xác lập thẩm quyền và thứ tự cập nhật, không chỉ lưu trữ thô:** Giao thức sao chép phải định rõ nút nào có quyền quyết định từng cập nhật, xếp thứ tự các thao tác ghi vào một nhật ký sao chép duy nhất, và bảo đảm các bản sao áp dụng dữ liệu một cách tất định.
-- **Ranh giới xác nhận định nghĩa cam kết của lần ghi:** Sao chép bất đồng bộ trả về thành công ngay khi nút ghi lưu đĩa cục bộ, tối ưu thông lượng và tính sẵn sàng nhưng chấp nhận rủi ro mất dữ liệu nếu Leader đột tử; sao chép đồng bộ chờ các bản sao từ xa xác nhận bền vững, đánh đổi độ trễ để bảo toàn dữ liệu.
+- **Ranh giới ACK xác định cam kết:** Replication bất đồng bộ có thể ACK trước khi follower lưu bền vững, tạo cửa sổ mất dữ liệu khi bản sao nguồn không thể phục hồi. Trong replication đồng bộ, hệ thống có thể chờ remote receipt, OS write, flush bền vững hoặc apply — tùy protocol/cấu hình. Nhãn `sync` **không tự bảo đảm remote fsync**.
 - **Độ trễ sao chép phân hóa theo từng chặng:** Một bản sao có thể chậm trễ ở khâu nhận gói tin qua mạng (đã nhận), lưu trữ xuống đĩa bền vững (đã lưu bền vững), nạp vào state machine (đã áp dụng), hoặc khâu sẵn sàng cho câu lệnh đọc quan sát (đã nhìn thấy).
-- **Chuyển đổi dự phòng bắt buộc phải có rào chắn để dập tắt split-brain:** Thăng cấp một bản sao lên làm Leader mới mà không dùng token rào chắn (fencing token) tăng đơn điệu theo nhiệm kỳ (epoch/term) sẽ cho phép Leader cũ tiếp tục ghi đè bừa bãi vào hạ tầng lưu trữ.
+- **Failover cần bảo vệ quyền ghi:** Promotion phải ngăn primary cũ thay đổi trạng thái có thẩm quyền (epoch, fencing tại resource hoặc thu hồi quyền ghi). Không phải mọi topology đều phát fencing token; chỉ đổi DNS hoặc routing không tạo bất biến an toàn.
 - **Cạm bẫy chết người:** Ảo tưởng rằng hệ số sao chép bằng 3 ($N=3$) đồng nghĩa với việc không bao giờ mất dữ liệu. Nếu ranh giới xác nhận chỉ nằm ở Leader cục bộ và Leader gặp sự cố phần cứng vĩnh viễn trước khi kịp đồng bộ sang các follower, toàn bộ các lần ghi đã báo thành công cho client sẽ bốc hơi hoàn toàn.
 
 ```mermaid
@@ -86,6 +86,8 @@ yêu cầu cập nhật
 ```
 
 Vì thế “follower đã nhận byte” và “follower đã có thể phục vụ trạng thái mới” không nhất thiết là cùng một mốc.
+
+**Ví dụ PostgreSQL:** [Tài liệu synchronous replication](https://www.postgresql.org/docs/current/warm-standby.html) phân biệt `remote_write` (standby đã ghi WAL vào filesystem nhưng chưa đảm bảo flush bền vững), `on` (chờ WAL flush tại synchronous standby cấu hình đúng) và `remote_apply` (chờ replay để thay đổi nhìn thấy khi đọc). Kiểm tra `synchronous_standby_names` và thiết lập từng transaction thay vì suy ra từ nhãn “đồng bộ”.
 
 ## Ranh giới xác nhận định nghĩa contract của lần ghi
 
@@ -249,7 +251,7 @@ hoặc:
 
 Bài Atlas kế tiếp sẽ tách riêng khái niệm consensus.
 
-## Kịch bản production: failover tạo ra hai bên ghi đều được chấp nhận
+## Tình huống minh họa (giả định): hai writer sau failover
 
 Một service theo vùng lưu trạng thái entitlement của khách hàng trên ba bản sao. Nút ghi A đang giữ epoch 41. Network partition cô lập A khỏi bộ điều phối failover, và bộ điều phối thăng cấp nút ghi B với epoch 42.
 
@@ -297,7 +299,7 @@ Không. Replication factor mô tả số lượng copy dự định duy trì, kh
 
 ## Nguồn
 
-Nguồn chính được kiểm tra ngày **2026-09-17**:
+Nguồn chính được kiểm tra ngày **2026-11-05**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [Amazon Science — Dynamo: Amazon's highly available key-value store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store)
