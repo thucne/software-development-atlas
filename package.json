@@ -14,7 +14,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "audit:content": "node scripts/content-audit-inventory.mjs"
   },
   "dependencies": {
     "fumadocs-core": "16.14.2",
