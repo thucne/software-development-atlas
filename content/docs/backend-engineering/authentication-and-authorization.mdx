@@ -4,7 +4,7 @@ description: Operate identity and access boundaries by separating authentication
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -28,13 +28,11 @@ concepts:
   - authentication-and-authorization
 ---
 
-## TL;DR & Production Incident Hook
+## TL;DR — illustrative BOLA scenario
 
-A fast-growing fintech startup celebrates a flawless security audit for its multi-factor login flow. Two weeks later, a security researcher reports a critical vulnerability: after logging into an ordinary personal account, they simply intercepted a request to `GET /api/v1/users/1042/profile`, modified the `userId` in the URL to `1043`, and instantly exposed the full legal name, home address, bank account details, and transaction history of an arbitrary stranger.
+**Illustrative scenario (hypothetical):** A customer signs in and calls `GET /api/v1/users/1042/profile`. If the API checks only a signed JWT and a broad `user` role, they may change the ID to `1043` and access another person's record. This is **Broken Object Level Authorization (BOLA)**, classified as API1:2023 by OWASP; it is **not a documented fintech breach**.
 
-This catastrophic failure is the classic Insecure Direct Object Reference (IDOR), classified as the number one API vulnerability by OWASP under Broken Object Level Authorization (BOLA). The application performed robust **Authentication**: it verified the user's password, validated the one-time code, issued a tamper-proof signed token, and confirmed that the user held the `user` role via Role-Based Access Control (RBAC). However, the endpoint completely omitted **Authorization**: verifying whether *that specific authenticated user* held legitimate ownership or permission to access *that specific record* via Attribute-Based Access Control (ABAC). Authentication validated the key to the front door; authorization failed to lock the individual private rooms.
-
-Identity verification and permission evaluation are two fundamentally separate gates in backend architecture. A valid credential, session cookie, or cryptographic token grants zero implicit rights to access, mutate, or delete an arbitrary domain entity. Modern backend systems require explicit, resource-level, deny-by-default access policies evaluated on every protected operation.
+Authentication establishes a principal; authorization evaluates **subject + action + resource + context** for each protected request. Scoped RBAC, ABAC, relationship policies, or a combination may implement that decision. A verified token signature establishes integrity and issuer trust under the authentication contract, not arbitrary object permissions or immunity from token theft.
 
 ```mermaid
 flowchart LR
@@ -50,8 +48,8 @@ flowchart LR
 
 ### TL;DR 2.0
 - **Two distinct security gates:** Authentication establishes claimant identity into a trusted, server-verified principal; authorization evaluates whether that principal may execute a specific action on a specific resource in the current context (`subject + action + resource + context`).
-- **Deny by default at the resource level:** Generic route checks and role-based entitlements (RBAC) are insufficient on their own. Authorization must enforce object-level ownership checks (ABAC/relationship rules) and default to denial whenever an explicit grant is absent.
-- **Active session lifecycle management:** Login is only the start of the authentication lifecycle. Rotate session tokens after privilege boundaries change, enforce inactivity deadlines, demand phishing-resistant reauthentication for high-risk actions, and implement rapid server-side revocation.
+- **Deny by default at the resource level:** A valid token or generic role does not authorize a client-supplied object ID. Enforce scoped RBAC, ABAC, relationship rules or equivalent resource policy; check tenant/ownership as needed and deny without an explicit grant.
+- **Session lifecycle follows the threat model:** Defend against fixation, rotate session credentials across privilege changes, set idle/overall expiry and implement revocation according to the token type. Already issued self-contained JWTs are not instantly revoked at every service by deleting a local session; short TTLs, denylisting, introspection or token versions may be needed.
 - **Service & machine identity parity:** Background workers, message consumers, and microservices must authenticate as distinct service principals with minimal, scoped privileges rather than reusing broad user tokens or bypassing checks via internal network assumptions.
 - **Fatal pitfall:** Confusing successful authentication with resource authorization (IDOR / BOLA)—allowing an authenticated user to access another tenant's or user's sensitive data simply by tampering with an object identifier in a route or query parameter.
 
@@ -71,7 +69,7 @@ Keep three concepts distinct:
 2. **Authentication** asks whether the claimant now controls an authenticator bound to that account or subject.
 3. **Authorization** asks what the authenticated principal may do now.
 
-NIST SP 800-63-4 separates these concerns through identity, authentication, and federation assurance. NIST SP 800-63B-4 defines Authentication Assurance Levels (AALs). AAL2 requires two distinct authentication factors and requires applications at that level to offer a phishing-resistant option; AAL3 requires phishing-resistant authentication.
+Under [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), systems **adopting the NIST assurance framework** use two distinct factors at AAL2 and must offer a phishing-resistant option; AAL3 requires phishing-resistant authentication. These are requirements for the framework's applicable contexts, notably U.S. government services, **not universal mandates on all websites**. Choose the assurance level by threat model and applicable requirements.
 
 Do not translate that into “always force the strongest factor everywhere.” Select authentication strength according to impact and threat model, then step up when a sensitive action needs stronger evidence.
 
@@ -167,6 +165,8 @@ Role-based access control is useful for coarse permissions such as “support ag
 
 These decisions depend on attributes or relationships between the principal, resource, and context. Keep the rule close enough to the domain that it can see those facts, while keeping enforcement consistent enough that one forgotten endpoint cannot bypass it.
 
+**Token revocation boundary:** Logout or a role change does not automatically invalidate unexpired access tokens cached by other services. Consider TTL, `token_version`, denylist, introspection or server-side policy evaluation; reauthentication must still be followed by resource authorization.
+
 ## 6. Session lifecycle is part of authentication
 
 Successful login starts or upgrades an authenticated session; it does not end the authentication problem.
@@ -255,7 +255,7 @@ Track denial rates and unusual authorization patterns, but avoid logging bearer 
 
 Audit logs are evidence, not enforcement. A perfectly logged unauthorized action is still unauthorized.
 
-## Production failure: authenticated user crossed tenant boundaries
+## Illustrative scenario (hypothetical): cross-tenant access
 
 > **Scenario:** A SaaS invoice endpoint required a valid customer session. The handler accepted `/invoices/:id`, loaded the invoice by its global ID, and returned it. No policy compared the authenticated principal’s tenant with the invoice tenant.
 

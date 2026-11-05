@@ -4,7 +4,7 @@ description: Vận hành ranh giới danh tính và truy cập bằng cách tác
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -28,13 +28,11 @@ concepts:
   - authentication-and-authorization
 ---
 
-## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
+## Tóm tắt — tình huống BOLA giả định
 
-Một ứng dụng công nghệ tài chính vừa tự hào vượt qua đợt đánh giá bảo mật nghiêm ngặt cho tính năng đăng nhập hai lớp (2FA). Nhưng chỉ hai tuần sau, một lỗ hổng nghiêm trọng bị phanh phui: một người dùng sau khi đăng nhập tài khoản cá nhân chỉ cần chặn bắt request `GET /api/v1/users/1042/profile`, đổi `userId` thành `1043` trên thanh địa chỉ là có thể xem toàn bộ họ tên, địa chỉ nhà, số tài khoản ngân hàng và lịch sử giao dịch của người khác.
+**Tình huống minh họa (giả định):** Một khách hàng đăng nhập thành công rồi gọi `GET /api/v1/users/1042/profile`. Nếu API chỉ kiểm tra JWT và role `user`, người đó có thể thử đổi ID thành `1043` để đọc bản ghi khác. Đây là kiểu lỗi **Broken Object Level Authorization (BOLA)**, được OWASP xếp ở API1:2023; ví dụ này **không phải báo cáo sự cố tại một công ty cụ thể**.
 
-Đây chính là lỗ hổng IDOR (Insecure Direct Object Reference) kinh điển—được OWASP xếp hàng đầu trong danh mục rủi ro bảo mật API dưới tên gọi BOLA (Broken Object Level Authorization). Hệ thống đã làm rất tốt khâu **Xác thực (Authentication)**: kiểm tra mật khẩu, xác minh OTP, cấp JWT có chữ ký bảo mật và xác nhận người dùng mang vai trò `user` thông qua RBAC. Nhưng hệ thống đã bỏ quên khâu **Phân quyền (Authorization)**: kiểm tra xem người dùng đang đăng nhập có thực sự sở hữu hoặc có quyền truy cập vào bản ghi dữ liệu cụ thể đó hay không (ABAC). Xác thực kiểm tra chiếc chìa khóa để bước vào sảnh tòa nhà; phân quyền mới là chiếc khóa kiểm tra quyền mở từng căn phòng riêng biệt.
-
-Danh tính và quyền hạn là hai ranh giới hoàn toàn độc lập trong kiến trúc backend. Một phiên đăng nhập hợp lệ hay một access token còn hạn không bao giờ đồng nghĩa với việc được phép đọc, sửa hay xóa bất kỳ tài nguyên nào trong hệ thống. Phân quyền chuẩn mực bắt buộc phải là cơ chế mặc định từ chối (deny by default), kiểm soát chặt chẽ quyền sở hữu ở cấp đối tượng trên từng request riêng biệt.
+Xác thực chứng minh quyền kiểm soát danh tính; phân quyền đánh giá **chủ thể + hành động + tài nguyên + ngữ cảnh** của request. Có thể thực thi bằng RBAC theo phạm vi, ABAC, quan hệ sở hữu hoặc kết hợp. Token có chữ ký chỉ hỗ trợ xác minh tính toàn vẹn và nguồn phát hành theo hợp đồng xác thực; nó không tự cấp quyền đọc object hay chống việc token bị đánh cắp.
 
 ```mermaid
 flowchart LR
@@ -50,8 +48,8 @@ flowchart LR
 
 ### TL;DR 2.0
 - **Hai cổng kiểm soát độc lập:** Xác thực (Authentication) kiểm tra credential để tạo ra chủ thể (principal) đáng tin cậy; Phân quyền (Authorization) đưa ra quyết định cho phép hay từ chối dựa trên bộ tứ: `chủ thể + hành động + tài nguyên + ngữ cảnh` (`subject + action + resource + context`).
-- **Mặc định từ chối ở cấp đối tượng:** Kiểm tra vai trò trên route (RBAC) là chưa đủ. Hệ thống bắt buộc phải kiểm tra quyền ở cấp tài nguyên/đối tượng (ABAC), đưa phạm vi sở hữu (tenant/user ownership) trực tiếp vào câu truy vấn dữ liệu và mặc định từ chối nếu không có chính sách cho phép rõ ràng.
-- **Quản lý vòng đời phiên toàn diện:** Đăng nhập thành công chỉ là điểm khởi đầu. Phải rotate session ID khi thay đổi quyền hạn, thiết lập thời hạn phiên, yêu cầu xác thực lại (reauthentication) kháng phishing trước các hành động nhạy cảm, và duy trì cơ chế thu hồi (revocation) tức thì.
+- **Mặc định từ chối ở cấp đối tượng:** Kiểm tra token hoặc role ở route không tự phân quyền cho object do client chỉ định. Thực thi chính sách tài nguyên (RBAC có scope, ABAC, ReBAC hoặc tương đương), kiểm tra owner/tenant nếu phù hợp và từ chối khi không có grant rõ ràng.
+- **Quản lý vòng đời phiên theo threat model:** Chống session fixation, rotate session khi đổi mức quyền, thiết lập idle/overall timeout và cơ chế thu hồi thực tế. JWT tự chứa đã phát hành không bị vô hiệu hóa tức thì khắp các service chỉ bằng xóa session ở một node; có thể cần TTL ngắn, denylist, introspection hoặc version.
 - **Danh tính dịch vụ và máy móc (Service Identity):** Worker chạy ngầm, cron job và các microservice nội bộ cũng là các principal độc lập. Phải cấp quyền tối thiểu (least privilege) với credential ngắn hạn thay vì dùng chung API key hay bỏ qua phân quyền chỉ vì là traffic nội bộ.
 - **Cạm bẫy chết người:** Mắc lỗ hổng IDOR / BOLA do chỉ kiểm tra người dùng đã đăng nhập mà quên kiểm tra quyền sở hữu tài nguyên, dẫn đến việc kẻ tấn công chỉ cần đổi `userId` hoặc `resourceId` trong URL là xem trộm hoặc thao túng toàn bộ dữ liệu của nạn nhân.
 
@@ -71,7 +69,7 @@ Cần tách ba khái niệm:
 2. **Xác thực** hỏi claimant hiện có kiểm soát authenticator gắn với tài khoản/chủ thể đó hay không.
 3. **Phân quyền** hỏi principal đã xác thực được phép làm gì ở thời điểm này.
 
-NIST SP 800-63-4 tách các mối quan tâm này qua assurance cho identity, authentication và federation. NIST SP 800-63B-4 định nghĩa Authentication Assurance Levels (AAL). AAL2 yêu cầu hai yếu tố xác thực khác nhau và ứng dụng ở mức này phải cung cấp lựa chọn chống phishing; AAL3 yêu cầu xác thực kháng phishing.
+Theo [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), hệ thống **áp dụng khung assurance NIST** ở AAL2 phải sử dụng hai yếu tố xác thực và cung cấp ít nhất một lựa chọn kháng phishing; AAL3 yêu cầu phương thức kháng phishing. Đây là tiêu chuẩn cho bối cảnh áp dụng thích hợp, đặc biệt hệ thống chính phủ Hoa Kỳ, **không phải yêu cầu bắt buộc với mọi website**. Chọn mức bảo đảm theo threat model và quy định liên quan.
 
 Điều đó không có nghĩa là luôn ép phương thức mạnh nhất cho mọi trang. Hãy chọn mức xác thực theo impact và threat model, rồi step-up khi thao tác nhạy cảm cần bằng chứng mạnh hơn.
 
@@ -173,6 +171,8 @@ RBAC hữu ích cho quyền thô như “support agent được vào support too
 
 Những quyết định này phụ thuộc thuộc tính hoặc quan hệ giữa principal, tài nguyên và ngữ cảnh. Rule phải đủ gần domain để thấy các fact đó, đồng thời enforcement phải đủ nhất quán để một endpoint bị quên không tạo lỗ hổng.
 
+**Giới hạn thu hồi token:** Việc logout hoặc thay đổi role không làm mọi access token còn hạn tại service khác tự hết hiệu lực. Thiết kế TTL, `token_version`, denylist, introspection hoặc kiểm tra policy server-side; nếu phải reauthenticate, vẫn cần đánh giá lại quyền object sau đó.
+
 ## 6. Vòng đời phiên là một phần của xác thực
 
 Đăng nhập thành công chỉ bắt đầu hoặc nâng cấp phiên đã xác thực; nó không kết thúc bài toán xác thực.
@@ -261,7 +261,7 @@ Theo dõi denial rate và pattern phân quyền bất thường, nhưng không l
 
 Audit log là bằng chứng, không phải enforcement. Một hành động trái phép được log hoàn hảo vẫn là hành động trái phép.
 
-## Sự cố production: người dùng đã xác thực vượt ranh giới tenant
+## Kịch bản minh họa (giả định): truy cập xuyên tenant
 
 > **Tình huống:** Một endpoint hóa đơn SaaS yêu cầu phiên khách hàng hợp lệ. Handler nhận `/invoices/:id`, tải invoice bằng global ID rồi trả về. Không có policy nào so tenant của principal đã xác thực với tenant của invoice.
 
