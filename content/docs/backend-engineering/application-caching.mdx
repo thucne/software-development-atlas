@@ -4,7 +4,7 @@ description: Reason about application caches as derived state with explicit keys
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Application Caching: Trade Freshness for Less Work Deliberately
 
-At 8:00 PM on Black Friday, your e-commerce platform's flagship product page is serving 50,000 requests per second with a seemingly flawless 99.8% cache hit rate. Suddenly, the cache key for that flash-deal item reaches its TTL and expires. In a split second, 10,000 concurrent requests punch straight through the empty cache like a tidal wave and slam simultaneously into the primary relational database. Connection pools instantly choke, database CPU hits 100%, query latency spirals from 5 milliseconds to 30 seconds, and cascading timeouts trigger a total platform outage. The database caught fire not because traffic doubled, but because the cache evaporated for a single key at the worst possible moment.
+**Hypothetical example, not a documented production incident:** A high-traffic product detail endpoint stores a popular record in a shared cache. When that entry expires, requests arriving around the same time can all miss and independently query the database. If enough misses overlap, the source may hit its connection or CPU limit, increasing latency or causing timeouts. The impact depends on actual request rate, cache-miss concurrency, source capacity, and query cost; no real traffic figures or outage metrics are claimed here.
 
-This is the catastrophic **Cache Stampede** (also known as the *thundering herd* problem). Application caches are not magic shields; without explicit cache topologies (such as Cache-Aside and Write-Through), TTL jitter, and mutex locks when computing cache misses, an uncoordinated cache can weaponize normal traffic into sudden infrastructure destruction.
+This is a **cache stampede** (*thundering herd*). Cache-aside is a data-loading pattern, not a stampede safeguard by itself. Request coalescing, prewarming, early refresh, selective TTL jitter, and carefully bounded stale-serving may mitigate it according to the workload and freshness contract. A per-process single-flight only combines requests inside that process.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** An application cache is derived, volatile state—never the authoritative source of truth. Guard hot keys against cache stampedes with single-flight mutex locks and randomized TTL jitter, and always invalidate keys *after* the authoritative database commit succeeds.
+> 💡 **Rule of thumb:** In cache-aside, durable data remains authoritative and cached values are disposable derived state. Define a freshness budget and miss-load limit, and prefer invalidation *after* the authoritative commit. That ordering alone does not guarantee read-after-write freshness or prevent a delayed reader from restoring stale values.
 
 - **Authoritative source of truth:** Caches exist solely to avoid repeated expensive computation or I/O. Losing or evicting the cache should only degrade latency and performance—it must never corrupt or lose business reality.
-- **Topologies define consistency:** **Cache-Aside** (lazy loading) reads the cache, fetches from the database on a miss, and populates the cache; **Write-Through** updates the cache and database synchronously; **Write-Behind** queues asynchronous database updates for extreme write throughput at the cost of durability risk.
+- **Patterns have different durability contracts:** **Cache-Aside** populates derived values after cache misses; **Write-Through** coordinates source and cache writes but is not automatically an atomic transaction; **Write-Behind** acknowledges writes before the durable store has necessarily committed and may lose pending updates on failure. Do not model write-behind as a disposable cache when it temporarily holds the only acknowledged copy.
 - **Cache key is a correctness boundary:** Every dimension that influences the computed response (tenant identity, user permissions, currency, localization, schema version) must be explicitly represented in the key; missing dimensions cause devastating cross-tenant data leaks.
-- **Stampede protection is mandatory:** Protect hot keys against thundering herds using single-flight mutexes (collapsing thousands of concurrent misses into a single origin read), proactive refresh-ahead, and TTL jitter (randomized expiry variations).
-- **Fatal pitfall:** Deleting or invalidating cache entries *before* committing the database transaction, opening a race window where a concurrent reader fetches pre-commit stale data from the database, writes it back into the cache, and leaves stale data trapped until TTL expires.
+- **Stampede protection is workload-specific:** For hot keys, consider per-process or distributed request coalescing, source concurrency limits, refresh-ahead, and TTL jitter. Jitter spreads expirations across *different keys*; it does not prevent every request from missing the *same* expired key.
+- **High-risk race:** Invalidating *before* the database commit may repopulate old data. Invalidating *after* commit is usually preferable, but a reader that loaded old data earlier can still fill the cache after invalidation. Use version checks, coordinated fills or a documented bounded-staleness policy when needed.
 
 ```mermaid
 flowchart LR
@@ -177,7 +177,15 @@ reader: cache miss -> reads old database value -> repopulates old cache
 writer: commits new database value
 ```
 
-Now the stale value can survive until TTL or another invalidation. Treat invalidation as a concurrency problem, not just a cache API call.
+Now the stale value can survive until TTL or another invalidation. **Invalidating after commit does not eliminate all races either**:
+
+```text
+reader: cache miss -> loads version 1 from database -> pauses
+writer: commits version 2 -> DEL cache key
+reader: resumes -> SET cache key to version 1
+```
+
+A delayed reader can reintroduce an older value *after* a successful delete. For a bounded-staleness product page, an expiry budget plus monitored invalidations may be sufficient; for stronger freshness needs, use version-aware conditional fills, reliable version discovery, or bypass the cache on the decision path. A version suffix alone does not protect against a stale reader overwriting a pointer to the latest version. Treat invalidation as a concurrency problem, not just a cache API call.
 
 For complex derived views, invalidating every dependent key synchronously may be impractical. Alternatives include versioned keys, dependency tags, durable invalidation events, or accepting a documented bounded-staleness window. Each option moves complexity somewhere different.
 
@@ -369,10 +377,14 @@ Continue through the [Backend Systems](/docs/learning-paths/backend-systems) pat
 
 ## Sources
 
-Primary Redis references verified on **2026-09-10**:
+Primary-source guidance reviewed on **2026-11-05**:
 
 - [Redis documentation — Cache-aside](https://redis.io/docs/latest/develop/use-cases/cache-aside/)
 - [Redis documentation — Cache-aside with Node.js](https://redis.io/docs/latest/develop/use-cases/cache-aside/nodejs/)
+- [AWS — Caching Best Practices](https://aws.amazon.com/caching/best-practices/) — cache-aside, write-through, TTL, thundering herd and jitter.
+- [Microsoft Azure Architecture Center — Cache-Aside Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside) — eventual consistency and bounded freshness.
+- [Microsoft Azure Architecture Center — Caching Guidance](https://learn.microsoft.com/en-us/azure/architecture/best-practices/caching) — invalidation ordering and capacity-aware fallback.
+
 
 These references are concrete examples, not a requirement to use Redis. The cache-aside reasoning model applies to in-process caches, shared key-value caches, memoized computations, and other derived-state layers with different operational characteristics.
 
