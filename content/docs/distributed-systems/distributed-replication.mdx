@@ -4,7 +4,7 @@ description: Reason about distributed replication through authority, ordered upd
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-09-17
+lastVerified: 2026-11-05
 reviewAfterDays: 180
 topics: [distributed-systems, replication, failover, consistency, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, database-replication]
@@ -18,18 +18,18 @@ concepts:
 
 # Distributed Replication: Keep Copies Correct Through Failure and Failover
 
-A user changes their password, receives an immediate "Success" confirmation, and logs in again seconds later—only to be rejected with an "Invalid credentials" error because their read hit a replica lagging 800 milliseconds behind. In another cluster, an automated failover promotes a standby after a transient network spike, while an isolated application pool continues dispatching mutations to the old primary. The result: an operational nightmare of split-brain divergence where two leaders concurrently accept writes, fracturing customer state into conflicting histories.
+**Illustrative scenarios (hypothetical):** A password update is acknowledged, but the next login reads from a lagging replica. In another topology, a standby is promoted while old clients can still write to the former primary. Without enforced writer authority, their histories may diverge. Neither case is a sourced incident with measured lag.
 
-Distributed replication keeps **copies of state on multiple nodes**, but moving bytes across network cards is the easy part. The real engineering challenge is defining who has authority to sequence writes, when an update is safe to acknowledge, and how to prevent divergent timelines when failures strike.
+Replication maintains copies. Safety depends on **the exact ACK boundary**, authoritative writer identity, and how failover prevents stale writers from changing state.
 
 > 💡 **Rule of thumb:** Treat replication as an authority and ordering protocol with explicit failure boundaries, not merely background data copying. Never assume that having $N$ replicas guarantees $N$ up-to-date copies, and never promote a new leader without fencing the old writer.
 
 ## TL;DR
 
 - **Replication establishes authority and update order, not just raw storage:** A replication protocol must determine which node or rule is authoritative for each update, how mutations are sequenced in an ordered replication log, and how followers deterministically apply them.
-- **The acknowledgment boundary governs your write contract:** Asynchronous replication returns success before followers store the update, prioritizing write throughput and availability at the risk of losing acknowledged writes on leader crash; synchronous replication waits for remote durable acknowledgments, trading latency for durability.
+- **The acknowledgment boundary defines durability:** Asynchronous replication may acknowledge before a follower durably stores a write, leaving a loss window if the authoritative copy is unrecoverable. Synchronous modes may await remote receipt, OS write, durable flush or apply; `sync` alone **does not imply remote fsync**.
 - **Replication lag is multi-stage:** Followers can lag across multiple distinct boundaries—network receipt (received), disk persistence (durable), state-machine execution (applied), or client query visibility (visible).
-- **Failover demands strict fencing to avert split-brain:** Transferring authority without an epoch-based fencing token allows an isolated leader to continue accepting writes, silently corrupting downstream state into split-brain divergence.
+- **Failover needs enforceable writer authority:** Promotion must stop the old writer from changing authoritative state (via epochs, resource-side fencing or revoked write access). Not all systems expose an explicit fencing-token primitive; changing DNS or client routing alone is insufficient.
 - **Fatal pitfall:** Assuming a replication factor of 3 ($N=3$) prevents data loss. If your acknowledgment boundary is satisfied locally on the primary and that node suffers unrecoverable hardware failure before streaming writes to standbys, all acknowledged transactions in that window are permanently lost.
 
 ```mermaid
@@ -86,6 +86,8 @@ client update
 ```
 
 This is why “the follower has the bytes” and “the follower can serve the new state” are not always the same milestone.
+
+**PostgreSQL example:** [Synchronous replication](https://www.postgresql.org/docs/current/warm-standby.html) distinguishes `remote_write` (standby filesystem write, not necessarily durable flush), `on` (configured synchronous-standby WAL flush), and `remote_apply` (replay/read visibility). Check `synchronous_standby_names` and transaction settings before claiming a durability contract.
 
 ## The acknowledgment boundary defines the write contract
 
@@ -249,7 +251,7 @@ or:
 
 The next Atlas lesson treats consensus as its own concept.
 
-## Production scenario: a failover creates two accepted writers
+## Illustrative scenario (hypothetical): two writers after failover
 
 A regional service stores customer entitlement state on three replicas. Writer A owns epoch 41. A network partition isolates A from the failover controller, and the controller promotes Writer B with epoch 42.
 
@@ -297,7 +299,7 @@ No. Replication factor describes intended copy count, not the acknowledgment bou
 
 ## Sources
 
-Primary sources checked on **2026-09-17**:
+Primary sources checked on **2026-11-05**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [Amazon Science — Dynamo: Amazon's highly available key-value store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store)
