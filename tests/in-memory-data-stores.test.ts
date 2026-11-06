@@ -35,7 +35,7 @@ describe('In-Memory Data Stores lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - in-memory-data-stores\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-09-10');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -90,5 +90,27 @@ describe('In-Memory Data Stores lesson', () => {
     const banner = read('components/atlas/release-banner.tsx');
     expect(banner).toContain('33 bài học kiến trúc hệ thống');
     expect(banner).toContain('33 new system architecture lessons');
+  });
+
+  it('explains Redis memory and durability contracts without treating OOM as a process kill', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [file, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      for (const fragment of [
+        'lastVerified: 2026-11-05',
+        'noeviction',
+        'OOM command not allowed',
+        'appendfsync everysec',
+        'KEYS *',
+        'SCAN',
+        'WAIT',
+        'https://redis.io/docs/latest/commands/wait/',
+        'https://redis.io/docs/latest/develop/reference/errors/common/oom/',
+      ]) expect(source, file).toContain(fragment);
+    }
+    expect(en).toContain('not a reported incident');
+    expect(vi).toContain('không phải sự cố đã được xác minh');
+    expect((en.match(/^\`\`\`mermaid$/gm) || []).length)
+      .toBe((vi.match(/^\`\`\`mermaid$/gm) || []).length);
   });
 });
