@@ -194,7 +194,7 @@ For complex derived views, invalidating every dependent key synchronously may be
 A cache normally reduces origin traffic. A synchronized hot-key expiry can reverse that benefit instantly:
 
 ```text
-10,000 callers -> same expired key -> 10,000 database reads
+Illustrative worst case (without request coalescing): 10,000 callers -> same expired key -> up to 10,000 database reads
 ```
 
 This is a **cache stampede**.
@@ -273,7 +273,7 @@ Use explicit timeouts on cache calls. Decide whether a request can fall back, se
 
 A cache must remain an optimization layer, but the architecture must acknowledge that the rest of the system may have been sized assuming the cache normally absorbs load.
 
-## Production scenario: tenant-blind pricing cache
+## Hypothetical production scenario: tenant-blind pricing cache
 
 A B2B pricing API computes a price from `tenant_id`, `product_id`, `currency`, and contract tier. To reduce database and rules-engine load, an optimization caches results for five minutes under:
 
