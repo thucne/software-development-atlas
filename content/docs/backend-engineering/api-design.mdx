@@ -126,7 +126,7 @@ Common choices include:
 - `202 Accepted` — work was accepted but is not complete yet;
 - `204 No Content` — request succeeded and there is intentionally no response content;
 - `400 Bad Request` — request is malformed or invalid at the protocol/application-input boundary;
-- `401 Unauthorized` — valid credentials for the target resource are missing or unacceptable; the response **MUST** carry an applicable `WWW-Authenticate` challenge under RFC 9110;
+- `401 Unauthorized` — the request lacks valid authentication credentials for the target resource; under RFC 9110, the server **MUST** send a `WWW-Authenticate` header containing at least one applicable challenge;
 - `403 Forbidden` — the server understood the request but refuses the action;
 - `404 Not Found` — the target resource is unavailable to the request, sometimes also used deliberately to avoid resource disclosure;
 - `409 Conflict` — the request conflicts with the current state of the target resource;
