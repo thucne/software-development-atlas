@@ -126,7 +126,7 @@ Một số lựa chọn thường gặp:
 - `202 Accepted` — công việc đã được nhận nhưng chưa hoàn tất;
 - `204 No Content` — request thành công và cố ý không có response content;
 - `400 Bad Request` — request sai cú pháp hoặc không hợp lệ ở ranh giới input;
-- `401 Unauthorized` — thiếu hoặc không chấp nhận thông tin xác thực hợp lệ đối với tài nguyên; theo RFC 9110, phản hồi **MUST** có `WWW-Authenticate` với ít nhất một challenge phù hợp;
+- `401 Unauthorized` — yêu cầu chưa có thông tin xác thực hợp lệ cho tài nguyên đích; theo RFC 9110, máy chủ **MUST** gửi header `WWW-Authenticate` chứa ít nhất một challenge phù hợp;
 - `403 Forbidden` — server hiểu request nhưng từ chối hành động;
 - `404 Not Found` — tài nguyên đích không khả dụng với request;
 - `409 Conflict` — request xung đột với trạng thái hiện tại của tài nguyên;
