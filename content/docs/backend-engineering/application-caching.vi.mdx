@@ -194,7 +194,7 @@ Với view dẫn xuất phức tạp, vô hiệu hóa đồng bộ mọi khóa p
 Cache bình thường làm giảm tải nguồn. Nhưng nhiều caller cùng thấy một khóa nóng hết hạn có thể đảo ngược lợi ích đó ngay lập tức:
 
 ```text
-10.000 caller -> cùng một khóa hết hạn -> 10.000 lần đọc DB
+Trường hợp xấu nhất để minh họa (không gộp request): 10.000 caller -> cùng một khóa hết hạn -> tối đa 10.000 lần đọc DB
 ```
 
 Đây là hiện tượng **dồn tải kiểu bầy đàn**.
@@ -273,7 +273,7 @@ Các failure mode thường gặp:
 
 Cache vẫn phải là lớp tối ưu, nhưng kiến trúc phải thừa nhận phần còn lại của hệ thống có thể đã được sizing với giả định cache thường xuyên hấp thụ tải.
 
-## Tình huống production: khóa giá bán không có tenant
+## Tình huống production giả định: khóa giá bán không có tenant
 
 Một API giá B2B tính giá từ `tenant_id`, `product_id`, `currency` và hạng hợp đồng. Để giảm tải cơ sở dữ liệu và bộ máy rule, nhóm cache kết quả trong năm phút với khóa:
 
