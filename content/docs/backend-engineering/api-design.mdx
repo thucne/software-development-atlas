@@ -115,6 +115,8 @@ Use `PUT` when the client is sending the desired replacement state for a known t
 
 Avoid ambiguous partial `PUT` behavior such as “missing field means leave unchanged today, but clear it tomorrow.” That destroys contract predictability.
 
+**PATCH is not idempotent by default (RFC 5789).** A patch that increments a counter can apply the increment again on retry; a patch that sets a field to a fixed value can be designed to be idempotent. For changes based on a previously read version, use a conditional request such as `If-Match` with a strong ETag and handle `412 Precondition Failed` rather than silently overwriting a concurrent edit. The exact patch document format and conflict behavior belong in the contract.
+
 ## 3. Make status codes describe what happened
 
 A status code is part of the response semantics, not decoration. RFC 9110 defines classes and individual meanings that clients use to decide what to do next.
@@ -402,4 +404,5 @@ When changing an API, do not optimize only for server code cleanliness. Identify
 ## Primary sources
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [RFC 5789 — PATCH Method for HTTP](https://www.rfc-editor.org/rfc/rfc5789.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
