@@ -115,6 +115,8 @@ Dùng `PUT` khi client gửi trạng thái thay thế mong muốn cho một targ
 
 Tránh kiểu `PUT` nhập nhằng như “field bị thiếu hôm nay nghĩa là giữ nguyên, ngày mai lại nghĩa là xóa”. Hợp đồng như vậy không thể dự đoán ổn định.
 
+**PATCH không mặc nhiên có tính lũy đẳng (RFC 5789).** Bản vá tăng bộ đếm có thể tăng thêm lần nữa khi thử lại; bản vá đặt một trường thành giá trị cố định có thể được thiết kế để lũy đẳng. Với thay đổi dựa trên phiên bản đã đọc, hãy dùng yêu cầu có điều kiện như `If-Match` kèm ETag mạnh và xử lý `412 Precondition Failed`, thay vì âm thầm ghi đè thay đổi đồng thời. Định dạng bản vá và cách xử lý xung đột phải được ghi rõ trong hợp đồng.
+
 ## 3. Mã trạng thái phải mô tả điều đã xảy ra
 
 Mã trạng thái là một phần của response semantics. RFC 9110 định nghĩa các lớp và ý nghĩa để client quyết định bước tiếp theo.
@@ -400,4 +402,5 @@ Khi thay đổi API, đừng chỉ tối ưu cho code server sạch hơn. Trư�
 ## Nguồn chính
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [RFC 5789 — Phương thức PATCH cho HTTP](https://www.rfc-editor.org/rfc/rfc5789.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
