@@ -135,7 +135,7 @@ Do not place secrets directly in cache keys if keys can appear in logs, metrics,
 <TermBox term="TTL">
 A cache entry's **time to live (TTL)** is the period after which the cache expires that entry and a later read must refresh or miss.
 
-**Why it matters:** TTL bounds how long a value can survive without an explicit invalidation, but it does not make a cached value fresh at every moment.
+**Why it matters:** TTL limits how long an entry stays cached after it is filled, but it does not guarantee that the entry was fresh when filled or that its age relative to the source is at most the TTL.
 </TermBox>
 
 A TTL is a consistency decision with performance consequences:
@@ -153,7 +153,7 @@ Feature rollout percentage: stale for 30 seconds is acceptable.
 Authorization decision: stale privilege may be security-sensitive.
 ```
 
-Then choose whether that requirement can be met with TTL alone, explicit invalidation, versioned data, or no cache at that decision boundary.
+Then choose whether that requirement can be met with TTL alone, explicit invalidation, versioned data, or no cache at that decision boundary. A cache fill from a lagging read replica or a delayed read that predates a concurrent write can insert an already-stale value with a fresh TTL. For strict freshness, validate the source version or bypass the cache; expiration alone is not a read-after-write guarantee.
 
 ## 4. Invalidation is part of the write path design
 
