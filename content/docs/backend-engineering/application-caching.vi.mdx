@@ -135,7 +135,7 @@ Không đưa bí mật trực tiếp vào khóa cache nếu khóa có thể xu�
 <TermBox term="TTL">
 **Thời gian sống (TTL)** là khoảng thời gian sau đó entry cache hết hạn và một lần đọc tiếp theo phải làm mới hoặc trở thành miss.
 
-**Vì sao quan trọng:** TTL giới hạn thời gian một giá trị có thể tồn tại mà không cần vô hiệu hóa tường minh, nhưng TTL không bảo đảm dữ liệu luôn mới ở mọi thời điểm.
+**Vì sao quan trọng:** TTL giới hạn thời gian một entry tồn tại trong cache kể từ lúc được ghi vào, nhưng không bảo đảm giá trị đó còn mới khi được ghi vào hoặc độ cũ so với nguồn chuẩn luôn nhỏ hơn TTL.
 </TermBox>
 
 TTL là quyết định về tính nhất quán có hệ quả hiệu năng:
@@ -153,7 +153,7 @@ Tỷ lệ rollout tính năng: cũ 30 giây chấp nhận được.
 Quyết định phân quyền: quyền cũ có thể tạo rủi ro bảo mật.
 ```
 
-Sau đó mới quyết định yêu cầu đó có thể đáp ứng bằng TTL, vô hiệu hóa tường minh, dữ liệu có phiên bản hay đơn giản là không cache ở ranh giới quyết định đó.
+Sau đó mới quyết định yêu cầu đó có thể đáp ứng bằng TTL, vô hiệu hóa tường minh, dữ liệu có phiên bản hay đơn giản là không cache ở ranh giới quyết định đó. Một lần nạp cache từ replica đọc chưa bắt kịp hoặc từ truy vấn chậm bắt đầu trước thao tác ghi đồng thời có thể đưa dữ liệu đã cũ vào cache với TTL mới. Nếu cần độ tươi nghiêm ngặt, phải kiểm tra phiên bản ở nguồn hoặc bỏ qua cache; chỉ đặt thời hạn hết hạn không bảo đảm đọc được dữ liệu mới sau khi ghi.
 
 ## 4. Vô hiệu hóa là một phần của thiết kế đường ghi
 
