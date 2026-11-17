@@ -41,7 +41,7 @@ Hiện tượng đó được gọi là **cache stampede** (*thundering herd*, d
 
 - **Nguồn dữ liệu chuẩn (với cache-aside/cache đọc):** Giá trị cache là bản sao có thể tái tạo từ dữ liệu bền vững. Mất hoặc xóa loại cache này không được làm mất dữ liệu nghiệp vụ đã commit, nhưng có thể khiến nguồn quá tải và giảm khả dụng. **Write-behind là trường hợp khác:** thao tác ghi đã được xác nhận có thể vẫn chỉ nằm trong cache/hàng đợi trước khi được lưu bền vững, nên không được coi lớp này là dữ liệu tùy ý bỏ đi.
 - **Mỗi kiểu cache có cam kết độ bền khác nhau:** **Cache-Aside** tải lại dữ liệu chuẩn khi miss; **Write-Through** phối hợp ghi nguồn và cache nhưng không mặc nhiên tạo thành một giao dịch nguyên tử; **Write-Behind** có thể xác nhận ghi trước khi nguồn bền vững commit nên mất dữ liệu đang chờ khi có sự cố. Không coi dữ liệu Write-Behind là bản sao tùy ý bỏ đi nếu nó tạm thời giữ bản duy nhất đã được xác nhận.
-- **Khóa cache là ranh giới đúng-sai:** Mọi chiều dữ liệu tác động tới kết quả (tenant_id, phân quyền người dùng, đơn vị tiền tệ, bản địa hóa, phiên bản schema) bắt buộc phải nằm trong cache key; bỏ sót một chiều sẽ dẫn đến nguy cơ rò rỉ dữ liệu chéo giữa các khách hàng.
+- **Khóa cache là ranh giới đúng-sai:** Phải phân biệt các kết quả theo mọi chiều có thể làm thay đổi giá trị (như tenant, quyền truy cập, tiền tệ, ngôn ngữ hoặc phiên bản schema), bằng khóa cache hoặc bằng ranh giới cách ly bảo đảm những chiều đó không thay đổi. Bỏ sót phạm vi tenant hay phân quyền có thể làm lộ dữ liệu của tenant khác; không phải mọi thiếu sót trong khóa đều mặc nhiên gây rò rỉ.
 - **Chống dồn tải phụ thuộc vào workload:** Với khóa nóng, cân nhắc gộp các request trùng nhau trong từng tiến trình hoặc toàn hệ thống, giới hạn số truy vấn tới nguồn, làm mới sớm và thêm jitter vào TTL. Jitter phân tán thời điểm hết hạn của *các khóa khác nhau*, không tự chặn nhiều request cùng miss *một khóa* vừa hết hạn.
 - **Race cần xử lý:** Vô hiệu hóa *trước* khi commit có thể khiến dữ liệu cũ được ghi lại vào cache. Vô hiệu hóa *sau* commit thường tốt hơn, nhưng reader đã tải dữ liệu cũ vẫn có thể ghi cache sau lần vô hiệu hóa. Khi cần, phải kiểm tra phiên bản, phối hợp thao tác điền cache hoặc công bố giới hạn độ cũ.
 
@@ -56,7 +56,8 @@ flowchart LR
   S --> P[Ghi cache kèm TTL]
   P --> V
   W --> V
-  X[Ghi dữ liệu chuẩn] --> I[Vô hiệu hóa khóa bị ảnh hưởng]
+  X[Ghi dữ liệu chuẩn] --> D[Commit thành công]
+  D --> I[Vô hiệu hóa khóa bị ảnh hưởng]
   I --> C
 ```
 
@@ -65,7 +66,7 @@ Mục tiêu không phải “tăng tỷ lệ cache hit bằng mọi giá”. M�
 <TermBox term="Mẫu cache đứng bên">
 **Cache đứng bên** là cách ứng dụng kiểm tra cache trước, đọc nguồn dữ liệu chuẩn khi miss, rồi lưu kết quả dẫn xuất để các lần đọc sau dùng lại.
 
-**Vì sao quan trọng:** cache không trở thành hệ thống ghi nhận sự thật. Mất cache nên chủ yếu làm giảm hiệu năng, không được làm mất sự thật nghiệp vụ.
+**Vì sao quan trọng:** với cache đọc kiểu cache-aside có thể tái tạo, mất entry cache không được làm mất dữ liệu nghiệp vụ đã commit. Tuy vậy, dịch vụ vẫn có thể giảm khả dụng nếu nguồn chuẩn không chịu nổi tải khi cache miss; bộ đệm write-behind có cam kết độ bền khác.
 </TermBox>
 
 ## 1. Giữ một nguồn dữ liệu có thẩm quyền
