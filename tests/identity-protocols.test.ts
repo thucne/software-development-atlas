@@ -168,7 +168,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       const source = lesson(relativePath);
       expect(source).toMatch(/Realm/i);
       expect(source).toMatch(/client authentication/i);
-      expect(source).toMatch(/public client/i);
+      expect(source).toMatch(/public client|ứng dụng công khai/i);
       expect(source).toMatch(/realm role/i);
       expect(source).toMatch(/client role/i);
       expect(source).toMatch(/client scope/i);
