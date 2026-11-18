@@ -4,7 +4,7 @@ description: Lập luận về cache ứng dụng như trạng thái dẫn xuấ
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -33,11 +33,11 @@ concepts:
 
 **Ví dụ giả định, không phải báo cáo sự cố thực tế:** Một endpoint xem chi tiết sản phẩm có lưu bản ghi được truy cập nhiều trong cache dùng chung. Khi bản ghi hết hạn, nhiều request đến gần nhau có thể cùng cache miss và gửi các truy vấn độc lập xuống cơ sở dữ liệu. Nếu đủ nhiều truy vấn xảy ra đồng thời, nguồn dữ liệu có thể cạn connection hoặc CPU, làm tăng độ trễ hay gây timeout. Mức độ ảnh hưởng phụ thuộc vào lưu lượng, số lượt miss đồng thời, năng lực của nguồn và chi phí truy vấn; ví dụ này không đưa ra số liệu sự cố đã được đo lường.
 
-Hiện tượng đó được gọi là **cache stampede** (*thundering herd*, dồn tải khi cache miss). Cache-aside chỉ là cách tải dữ liệu, không tự ngăn được dồn tải. Có thể cân nhắc gộp các lượt tải trùng nhau, làm nóng cache, làm mới sớm, thêm jitter vào TTL hoặc phục vụ dữ liệu cũ có giới hạn nếu yêu cầu độ tươi cho phép. Single-flight trong một tiến trình chỉ gộp request của chính tiến trình đó.
+Hiện tượng đó được gọi là **dồn tải khi cache hết hạn** (*cache stampede*, còn gọi là *thundering herd*). Cache-aside chỉ là cách tải dữ liệu, không tự ngăn được dồn tải. Có thể cân nhắc gộp các lượt tải trùng nhau, làm nóng cache, làm mới sớm, thêm jitter vào TTL hoặc phục vụ dữ liệu cũ có giới hạn nếu yêu cầu độ tươi cho phép. Single-flight trong một tiến trình chỉ gộp request của chính tiến trình đó.
 
-## TL;DR
+## Tóm tắt nhanh
 
-> 💡 **Quy tắc bỏ túi:** Với cache-aside, dữ liệu bền vững là nguồn chuẩn; cache chỉ là bản sao có thể tái tạo. Xác định giới hạn độ cũ và tải khi cache miss, thường vô hiệu hóa *sau khi* dữ liệu chuẩn commit. Thứ tự đó chưa bảo đảm đọc được dữ liệu mới ngay sau khi ghi và vẫn có thể có race do reader bị trì hoãn.
+> 💡 **Quy tắc bỏ túi:** Với cache-aside, dữ liệu bền vững là nguồn chuẩn; cache chỉ là bản sao có thể tái tạo. Xác định giới hạn độ cũ và tải khi cache miss, thường vô hiệu hóa *sau khi* dữ liệu chuẩn commit. Thứ tự đó chưa bảo đảm đọc được dữ liệu mới ngay sau khi ghi; một lượt đọc bị trì hoãn vẫn có thể ghi lại dữ liệu cũ.
 
 - **Nguồn dữ liệu chuẩn (với cache-aside/cache đọc):** Giá trị cache là bản sao có thể tái tạo từ dữ liệu bền vững. Mất hoặc xóa loại cache này không được làm mất dữ liệu nghiệp vụ đã commit, nhưng có thể khiến nguồn quá tải và giảm khả dụng. **Write-behind là trường hợp khác:** thao tác ghi đã được xác nhận có thể vẫn chỉ nằm trong cache/hàng đợi trước khi được lưu bền vững, nên không được coi lớp này là dữ liệu tùy ý bỏ đi.
 - **Mỗi kiểu cache có cam kết độ bền khác nhau:** **Cache-Aside** tải lại dữ liệu chuẩn khi miss; **Write-Through** phối hợp ghi nguồn và cache nhưng không mặc nhiên tạo thành một giao dịch nguyên tử; **Write-Behind** có thể xác nhận ghi trước khi nguồn bền vững commit nên mất dữ liệu đang chờ khi có sự cố. Không coi dữ liệu Write-Behind là bản sao tùy ý bỏ đi nếu nó tạm thời giữ bản duy nhất đã được xác nhận.
@@ -101,7 +101,7 @@ Nếu cache không dùng được, dịch vụ có thể quay về đọc nguồ
 
 ## 2. Khóa cache là một ranh giới đúng-sai
 
-Hai yêu cầu chỉ được dùng chung một giá trị cache nếu mọi chiều có thể làm thay đổi câu trả lời đều nằm trong khóa hoặc được bảo đảm là không liên quan.
+Hai yêu cầu chỉ được dùng chung một giá trị cache nếu mọi yếu tố làm thay đổi câu trả lời đều nằm trong khóa hoặc được bảo đảm không thay đổi trong phạm vi dùng chung.
 
 Giả sử giá bán phụ thuộc vào:
 
@@ -154,7 +154,7 @@ Tỷ lệ rollout tính năng: cũ 30 giây chấp nhận được.
 Quyết định phân quyền: quyền cũ có thể tạo rủi ro bảo mật.
 ```
 
-Sau đó mới quyết định yêu cầu đó có thể đáp ứng bằng TTL, vô hiệu hóa tường minh, dữ liệu có phiên bản hay đơn giản là không cache ở ranh giới quyết định đó. Một lần nạp cache từ replica đọc chưa bắt kịp hoặc từ truy vấn chậm bắt đầu trước thao tác ghi đồng thời có thể đưa dữ liệu đã cũ vào cache với TTL mới. Nếu cần độ tươi nghiêm ngặt, phải kiểm tra phiên bản ở nguồn hoặc bỏ qua cache; chỉ đặt thời hạn hết hạn không bảo đảm đọc được dữ liệu mới sau khi ghi.
+Sau đó mới quyết định yêu cầu đó có thể đáp ứng bằng TTL, vô hiệu hóa tường minh, dữ liệu có phiên bản hay đơn giản là không cache ở ranh giới quyết định đó. Một lần nạp cache từ bản sao dữ liệu chưa đồng bộ hoặc từ truy vấn chậm bắt đầu trước thao tác ghi đồng thời có thể đưa dữ liệu đã cũ vào cache với TTL mới. Nếu cần độ tươi nghiêm ngặt, phải kiểm tra phiên bản ở nguồn hoặc bỏ qua cache; chỉ đặt thời hạn hết hạn không bảo đảm đọc được dữ liệu mới sau khi ghi.
 
 ## 4. Vô hiệu hóa là một phần của thiết kế đường ghi
 
@@ -186,13 +186,13 @@ writer: commit phiên bản 2 -> DEL khóa cache
 reader: tiếp tục -> SET cache về phiên bản 1
 ```
 
-Reader bị trì hoãn có thể ghi lại dữ liệu cũ *sau* lệnh xóa thành công. Với trang sản phẩm chấp nhận độ cũ có giới hạn, TTL cùng việc theo dõi vô hiệu hóa có thể là đủ. Với yêu cầu dữ liệu mới nghiêm ngặt hơn, cần ghi cache có kiểm tra phiên bản, cách xác định phiên bản hiện hành đáng tin cậy hoặc đọc trực tiếp nguồn chuẩn tại điểm ra quyết định. Chỉ gắn phiên bản vào khóa không bảo vệ được một con trỏ phiên bản đang bị ghi đè bởi reader cũ. Hãy coi vô hiệu hóa là bài toán đồng thời, không chỉ là một lệnh cache.
+Lượt đọc bị trì hoãn có thể ghi lại dữ liệu cũ *sau* khi lệnh xóa đã thành công. Với trang sản phẩm chấp nhận độ cũ có giới hạn, TTL cùng việc theo dõi vô hiệu hóa có thể là đủ. Với yêu cầu dữ liệu mới nghiêm ngặt hơn, cần ghi cache có kiểm tra phiên bản, cách xác định phiên bản hiện hành đáng tin cậy hoặc đọc trực tiếp nguồn chuẩn tại điểm ra quyết định. Chỉ gắn phiên bản vào khóa không bảo vệ được một con trỏ phiên bản đang bị ghi đè bởi reader cũ. Hãy coi vô hiệu hóa là bài toán đồng thời, không chỉ là một lệnh cache.
 
 Với view dẫn xuất phức tạp, vô hiệu hóa đồng bộ mọi khóa phụ thuộc có thể không thực tế. Các lựa chọn khác gồm khóa có phiên bản, tag phụ thuộc, sự kiện vô hiệu hóa bền vững hoặc chấp nhận một cửa sổ độ cũ đã được ghi rõ. Mỗi lựa chọn chuyển độ phức tạp sang một chỗ khác.
 
 ## 5. Chống dồn tải khi khóa nóng hết hạn
 
-Cache bình thường làm giảm tải nguồn. Nhưng nhiều caller cùng thấy một khóa nóng hết hạn có thể đảo ngược lợi ích đó ngay lập tức:
+Cache bình thường làm giảm tải nguồn. Nhưng nhiều yêu cầu cùng gặp một khóa được truy cập nhiều vừa hết hạn có thể đảo ngược lợi ích đó:
 
 ```text
 Trường hợp xấu nhất để minh họa (không gộp request): 10.000 caller -> cùng một khóa hết hạn -> tối đa 10.000 lần đọc DB
@@ -222,7 +222,7 @@ sequenceDiagram
   G-->>C: dùng lại kết quả
 ```
 
-Cơ chế **single-flight** hoặc cổng loader theo khóa cho phép một caller làm mới, còn caller trùng thời điểm chờ ngắn hoặc dùng chung kết quả. Trong hệ thống nhiều replica, single-flight trong tiến trình chỉ gộp request của một replica; khóa nóng vẫn có thể bị load một lần trên mỗi replica. Chỉ thêm cơ chế phối hợp phân tán khi mức giảm đó chưa đủ.
+Cơ chế **single-flight**, tức gộp lượt tải theo khóa, cho phép một yêu cầu làm mới dữ liệu, còn các yêu cầu đến cùng lúc chờ hoặc dùng chung kết quả. Trong hệ thống nhiều replica, single-flight trong tiến trình chỉ gộp request của một replica; khóa nóng vẫn có thể bị load một lần trên mỗi replica. Chỉ thêm cơ chế phối hợp phân tán khi mức giảm đó chưa đủ.
 
 Các kỹ thuật khác gồm thêm jitter vào TTL để nhiều khóa không hết hạn cùng lúc, làm mới sớm cho dữ liệu nóng có thể dự đoán, hoặc phục vụ giá trị cũ trong lúc làm mới nếu nghiệp vụ chấp nhận. Đây là lựa chọn giữa độ trễ và độ tươi mới, không phải mặc định chung cho mọi hệ thống.
 
@@ -251,7 +251,7 @@ Cache âm cũng cần kiểm soát abuse. Client lỗi hoặc kẻ tấn công c
 - autoscaling tạo các cache lạnh;
 - single-flight trong một process không gộp miss giữa nhiều replica.
 
-**Cache dùng chung** cho các replica một lớp trạng thái dẫn xuất chung và tập trung hành vi hit/miss, nhưng đổi lại có thêm network hop, dependency mới, giới hạn năng lực dùng chung và failure mode riêng.
+**Cache dùng chung** tạo một lớp dữ liệu dẫn xuất cho nhiều bản chạy dịch vụ, nhưng đổi lại có thêm lượt truy cập qua mạng, một hệ thống phụ thuộc mới, giới hạn tài nguyên dùng chung và tình huống lỗi riêng. Dùng chung cache không làm giao dịch cơ sở dữ liệu và việc vô hiệu hóa thành một giao dịch nguyên tử.
 
 Không dùng cache dùng chung chỉ vì dịch vụ có nhiều replica. Trước tiên hãy hỏi độ cũ cục bộ và việc nhân bản có thật sự là vấn đề không. Ngược lại, không giả định cache cục bộ có thể vô hiệu hóa nhất quán toàn hệ thống khi các process không quan sát bộ nhớ của nhau.
 
@@ -268,11 +268,11 @@ Các failure mode thường gặp:
 - serializer/schema không tương thích;
 - một khóa nóng chiếm phần lớn băng thông hoặc CPU.
 
-“Cache lỗi thì đọc DB” có thể đúng khi chỉ một phần nhỏ request gặp lỗi và thảm họa khi 100% request cùng fallback.
+“Cache lỗi thì đọc cơ sở dữ liệu” có thể phù hợp khi chỉ một phần nhỏ yêu cầu gặp lỗi, nhưng dễ gây quá tải nếu toàn bộ lưu lượng chuyển về nguồn.
 
 Đặt timeout rõ ràng cho thao tác cache. Quyết định request có thể fallback, phục vụ dữ liệu cũ có giới hạn, shed load hay fail fast. Bảo vệ nguồn dữ liệu chuẩn bằng giới hạn concurrency, rate limit và giảm cấp theo năng lực khi phù hợp.
 
-Cache vẫn phải là lớp tối ưu, nhưng kiến trúc phải thừa nhận phần còn lại của hệ thống có thể đã được sizing với giả định cache thường xuyên hấp thụ tải.
+Cache đọc kiểu cache-aside có thể tái tạo là lớp tối ưu hiệu năng, nhưng kiến trúc phải tính đến việc phần còn lại của hệ thống được cấp tài nguyên theo giả định cache thường xuyên hấp thụ tải. Bộ đệm write-behind chứa thao tác đã xác nhận nhưng chưa lưu bền vững có vai trò bảo đảm độ bền riêng.
 
 ## Tình huống production giả định: khóa giá bán không có tenant
 
@@ -290,7 +290,7 @@ Tenant A yêu cầu trước và nhận giá USD đã chiết khấu. Sau đó T
 
 **Cách khắc phục chuẩn:** xác định nguồn dữ liệu chuẩn và định danh câu trả lời trước. Đưa mọi chiều không bí mật có liên quan vào khóa, hoặc cache một phép tính tầng thấp thật sự độc lập tenant. Thêm test thay đổi chéo các chiều, vô hiệu hóa namespace bị ảnh hưởng sau thay đổi giá có thẩm quyền, chọn TTL từ cửa sổ độ cũ cho phép và theo dõi miss/tải nguồn để sự cố cache không âm thầm làm quá tải hệ thống giá.
 
-Bài học sâu hơn là correctness của cache chủ yếu nằm ở **định danh và thời gian**: request nào được phép dùng lại cùng một câu trả lời, và trong bao lâu.
+Bài học sâu hơn là tính đúng đắn của cache chủ yếu phụ thuộc vào **định danh và thời gian**: yêu cầu nào được phép dùng lại câu trả lời, và trong bao lâu.
 
 ## Cần đo gì
 
@@ -342,7 +342,7 @@ Cache có “hoạt động” không, và câu hỏi thiết kế nào đã b�
 <details>
 <summary>Xem giải thích chi tiết</summary>
 
-Cache hoạt động đúng theo cơ chế cục bộ của nó, nhưng yêu cầu độ tươi mới của hệ thống chưa được mã hóa vào thiết kế vô hiệu hóa. Mỗi process sở hữu một cache độc lập, nên xóa entry ở replica 3 không vô hiệu hóa replica khác.
+Cache hoạt động đúng theo cơ chế cục bộ, nhưng yêu cầu về độ mới của dữ liệu chưa được đưa vào thiết kế vô hiệu hóa. Mỗi tiến trình sở hữu một cache riêng, nên xóa bản ghi ở bản chạy thứ 3 không vô hiệu hóa dữ liệu ở bản chạy khác.
 
 Cách sửa phụ thuộc yêu cầu thật: giảm TTL nếu chấp nhận độ cũ có giới hạn; phát sự kiện vô hiệu hóa đến các replica liên quan; dùng khóa có phiên bản hoặc cache dùng chung; hoặc không cache trường đó nếu cần đọc mới ngay. Câu trả lời phải đi từ cửa sổ độ cũ và khả năng chịu lỗi, không đi từ sở thích một sản phẩm cache cụ thể.
 
@@ -378,7 +378,7 @@ Tiếp tục theo lộ trình [Backend Systems](/vi/docs/learning-paths/backend-
 
 ## Nguồn tham khảo
 
-Các nguồn hướng dẫn chính được rà soát ngày **2026-11-05**:
+Các nguồn hướng dẫn chính được rà soát ngày **2026-11-18**:
 
 - [Redis documentation — Cache-aside](https://redis.io/docs/latest/develop/use-cases/cache-aside/)
 - [Redis documentation — Cache-aside với Node.js](https://redis.io/docs/latest/develop/use-cases/cache-aside/nodejs/)
