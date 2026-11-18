@@ -171,18 +171,18 @@ test.describe('Announcement banner, changelog, and status badges', () => {
     await expect(navLink).toHaveAttribute('href', appUrl('/docs/start-here/changelog'));
   });
 
-  test('displays status badges on sidebar for newly released lessons', async ({ page }) => {
+  test('shows an Updated sidebar badge for the recently reverified auth guide', async ({ page }) => {
     await page.goto(appUrl('/docs'));
 
-    // Open Backend Engineering section in sidebar if needed
+    // The badge is tied to an actual revised article, not stale 2026 release dates.
     const backendSection = page.getByRole('button', { name: 'Backend Engineering' });
     if (await backendSection.isVisible()) {
       await backendSection.click();
     }
 
-    // Check that recent lessons display a status badge
-    const newBadges = page.locator('[data-status="new"]');
-    await expect(newBadges.first()).toBeVisible();
+    const lessonLink = page.locator('a[href$="/docs/backend-engineering/auth-debugging-field-guide"]');
+    await expect(lessonLink.first()).toBeVisible();
+    await expect(lessonLink.first().locator('[data-status="updated"]')).toBeVisible();
   });
 
   test('persists banner dismissal in localStorage', async ({ page }) => {

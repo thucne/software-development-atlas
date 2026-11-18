@@ -4,7 +4,8 @@ description: "Debug lỗi browser, OIDC, Keycloak, token validation, CORS, sessi
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-21
+lastVerified: 2026-11-18
+badge: updated
 reviewAfterDays: 180
 topics: [authentication, authorization, oauth, oidc, keycloak, debugging, cors]
 prerequisites: [oauth-and-oidc, keycloak-in-practice]
@@ -21,19 +22,19 @@ concepts:
 
 # Cẩm nang Debug Auth: 401, 403, CORS, Redirect, Issuer, Audience & Claim
 
-## TL;DR
+## Tóm tắt nhanh
 
-Auth failure trở nên rối khi mọi symptom đều bị gọi là "lỗi Keycloak". Một browser login đi qua nhiều boundary độc lập: redirect configuration, IdP session, code exchange, token issuance, browser transport, token validation và application authorization.
+Việc gỡ lỗi xác thực trở nên khó khăn khi mọi triệu chứng đều bị quy thành “lỗi Keycloak”. Một luồng đăng nhập OAuth/OIDC trên trình duyệt có thể đi qua nhiều ranh giới độc lập: cấu hình chuyển hướng, phiên tại nhà cung cấp danh tính (IdP), đổi mã ủy quyền lấy token, phát hành token, truyền yêu cầu từ trình duyệt, xác minh token và phân quyền tại ứng dụng. Các bước thực tế phụ thuộc kiến trúc SPA trực tiếp hay BFF.
 
-> 💡 **Quy tắc bỏ túi:** Trước khi sửa Keycloak, CORS, role hay frontend code, hãy tìm **boundary đầu tiên bị fail** và thu evidence tại đó.
+> 💡 **Quy tắc bỏ túi:** Trước khi sửa Keycloak, CORS, vai trò hay mã giao diện, hãy tìm **ranh giới đầu tiên xảy ra lỗi** và thu thập bằng chứng tại đó.
 
-- **Redirect error:** thường nằm ở client registration hoặc callback transaction.
-- **CORS error:** là browser response-sharing policy, không chứng minh API reject authentication.
-- **401:** credential thiếu, invalid, expired hoặc không được chấp nhận cho protected resource.
-- **403:** server hiểu request nhưng từ chối action; valid credential vẫn có thể không đủ quyền.
-- **Sai lầm chí mạng:** cùng lúc sửa role, CORS, redirect URI, token mapper và proxy cho tới khi symptom biến mất.
+- **Lỗi chuyển hướng:** thường xuất phát từ đăng ký ứng dụng hoặc trạng thái của lần gọi trở về (callback).
+- **Lỗi CORS:** liên quan đến quyền đọc phản hồi khác nguồn của trình duyệt; không chứng minh API từ chối xác thực.
+- **401:** thiếu thông tin xác thực, thông tin không hợp lệ, đã hết hạn hoặc không được chấp nhận cho tài nguyên được bảo vệ.
+- **403:** máy chủ hiểu yêu cầu nhưng từ chối thao tác; thông tin xác thực hợp lệ vẫn có thể không đủ quyền.
+- **Sai lầm có rủi ro cao:** cùng lúc sửa vai trò, CORS, URI chuyển hướng, bộ ánh xạ token và proxy mà không xác định ranh giới gây lỗi.
 
-## Bắt đầu bằng boundary map
+## Bắt đầu bằng sơ đồ các ranh giới
 
 ```mermaid
 flowchart LR
@@ -45,29 +46,29 @@ flowchart LR
   API -->|6 authorize action/resource| POL[Application policy]
 ```
 
-Hãy dùng thứ tự này để debug. Đừng nhảy tới bước 6 khi bước 2 còn chưa hoàn tất.
+Đây là sơ đồ minh họa để lần theo lỗi, không phải thứ tự bắt buộc của mọi hệ thống. BFF có thể đổi mã ủy quyền lấy token trên máy chủ; API cũng có thể dùng khóa ký đã lưu thay vì truy vấn JWKS ở mỗi yêu cầu. Đừng kiểm tra phân quyền khi bước callback còn chưa hoàn tất.
 
 <TermBox term="Authentication failure">
-**Authentication failure** nghĩa là server không tạo được authenticated principal được chấp nhận cho request: credential có thể thiếu, malformed, expired, được ký bằng key không trusted, đến từ issuer sai hoặc intended cho resource khác.
+**Lỗi xác thực** nghĩa là máy chủ không xác lập được danh tính được chấp nhận cho yêu cầu: thông tin xác thực có thể bị thiếu, sai định dạng, hết hạn, được ký bằng khóa không đáng tin cậy, đến từ nhà phát hành sai hoặc dành cho tài nguyên khác.
 
-**Tại sao quan trọng:** sửa role không giúp gì nếu API reject token trước khi tạo principal.
+**Vì sao quan trọng:** sửa vai trò không có tác dụng nếu API từ chối token trước khi xác lập danh tính.
 </TermBox>
 
 <TermBox term="Authorization failure">
-**Authorization failure** nghĩa là hệ thống đã có đủ identity/context để hiểu request nhưng policy deny action hoặc resource được yêu cầu.
+**Lỗi phân quyền** nghĩa là hệ thống có đủ thông tin danh tính và ngữ cảnh để hiểu yêu cầu nhưng chính sách không cho phép thao tác trên tài nguyên đích.
 
-**Tại sao quan trọng:** refresh token lặp lại không giải quyết object-level permission rule đang chủ đích deny access.
+**Vì sao quan trọng:** làm mới token liên tục không thay đổi một quy tắc phân quyền cấp tài nguyên đang chủ động từ chối truy cập.
 </TermBox>
 
-## 1. Redirect fail trước login hoặc callback
+## 1. Chuyển hướng lỗi trước khi đăng nhập hoặc nhận callback
 
-Symptom thường gặp:
+Triệu chứng thường gặp:
 
 - invalid_redirect_uri;
-- redirect loop;
-- callback rơi vào sai environment;
-- login thành công ở Keycloak nhưng application reject state;
-- frontend quay về route không hoàn tất login.
+- chuyển hướng lặp vô hạn;
+- callback được gửi đến sai môi trường;
+- đăng nhập Keycloak thành công nhưng ứng dụng từ chối tham số `state`;
+- giao diện quay về đường dẫn không xử lý xong bước đăng nhập.
 
 Kiểm:
 
@@ -83,60 +84,61 @@ scheme + host + port + path
 callback transaction state
 ```
 
-Keycloak khuyến nghị giữ Valid Redirect URIs càng specific càng tốt. Environment drift rất phổ biến: localhost callback, preview URL, production domain, reverse-proxy rewrite và trailing path là các value khác nhau nếu registration không chủ đích cho phép.
+Keycloak khuyến nghị cấu hình `Valid Redirect URIs` càng cụ thể càng tốt. Địa chỉ callback trên máy phát triển, môi trường xem trước, tên miền thật, đường dẫn qua proxy và phần cuối đường dẫn có thể khác nhau; chỉ các mẫu được đăng ký rõ ràng mới được chấp nhận.
 
-Đừng "fix" redirect mismatch bằng broad wildcard khi chưa hiểu authorization response có thể bị đưa tới những location nào.
+Đừng xử lý URI chuyển hướng không khớp bằng ký tự đại diện quá rộng khi chưa biết phản hồi ủy quyền có thể bị gửi đến những địa chỉ nào.
 
-## 2. Login thành công nhưng application không có session dùng được
+## 2. Đăng nhập thành công nhưng ứng dụng chưa có phiên sử dụng được
 
 Tách bốn câu hỏi:
 
-1. Keycloak đã authenticate user chưa?
-2. Application đã nhận và validate callback chưa?
-3. Code exchange đã thành công chưa?
-4. Application đã tạo local session/token state chưa?
+1. Keycloak đã xác thực người dùng chưa?
+2. Ứng dụng đã nhận và xác minh callback chưa?
+3. Việc đổi mã ủy quyền lấy token đã thành công chưa?
+4. Ứng dụng đã tạo phiên cục bộ hoặc lưu trạng thái token chưa?
 
-Login page thành công ở Keycloak chỉ chứng minh bước 1.
+Trang Keycloak báo đăng nhập thành công chỉ chứng minh bước 1.
 
-Với BFF architecture, token request có thể là server-to-server nên không xuất hiện trong browser DevTools. Hãy kiểm BFF logs và session cookie kết quả.
+Trong kiến trúc BFF, yêu cầu lấy token có thể diễn ra giữa hai máy chủ nên không xuất hiện trong công cụ mạng của trình duyệt. Hãy xem log BFF và cookie phiên được tạo sau đó.
 
-Với direct SPA, kiểm token exchange và adapter/library state.
+Với SPA trực tiếp, hãy kiểm tra việc đổi mã lấy token và trạng thái do thư viện quản lý.
 
-## 3. CORS error là browser boundary
+## 3. Lỗi CORS nằm ở ranh giới trình duyệt
 
 <TermBox term="CORS">
-**Cross-Origin Resource Sharing (CORS)** là HTTP protocol nằm trên browser same-origin policy, cho phép server opt-in một số origin để đọc cross-origin response.
+**Chia sẻ tài nguyên khác nguồn (CORS)** là cơ chế HTTP bổ sung cho chính sách cùng nguồn của trình duyệt; máy chủ có thể cho phép các nguồn được chỉ định đọc phản hồi khác nguồn.
 
-**Tại sao quan trọng:** CORS console error mô tả response nào browser được phép expose cho JavaScript. Nó không cùng câu hỏi với Keycloak hay API có authenticate request hay không.
+**Vì sao quan trọng:** lỗi CORS trong bảng điều khiển phản ánh việc JavaScript có được đọc phản hồi hay không, chứ không tự chứng minh Keycloak hoặc API đã từ chối xác thực.
 </TermBox>
 
-Fetch Standard yêu cầu explicit CORS opt-in để share cross-origin response và credentialed request cần explicit credential support.
+Tiêu chuẩn Fetch yêu cầu máy chủ cho phép rõ ràng việc chia sẻ phản hồi khác nguồn. Với yêu cầu có chế độ thông tin xác thực `include`, máy chủ phải trả về đúng nguồn cụ thể (không dùng `*`) và `Access-Control-Allow-Credentials: true`. Preflight chỉ xuất hiện khi phương thức hoặc header yêu cầu cần kiểm tra trước; không phải mọi lệnh GET khác nguồn đều có preflight. Ví dụ, header `Authorization` thường khiến trình duyệt gửi preflight.
 
 ```mermaid
 sequenceDiagram
   participant SPA as https://app.example
   participant API as https://api.example
 
-  SPA->>API: OPTIONS /orders (preflight)
-  API-->>SPA: Access-Control-Allow-Origin / Methods / Headers
-  SPA->>API: GET /orders + Authorization hoặc credentials
+  Note over SPA,API: Preflight tùy theo phương thức và header
+  SPA->>API: OPTIONS /orders (preflight khi cần)
+  API-->>SPA: Access-Control-Allow-Origin / Methods / Headers (và Credentials nếu cần)
+  SPA->>API: GET /orders + Authorization hoặc cookie
   API-->>SPA: Response + CORS headers
 ```
 
-Debug **Network** panel, không chỉ console:
+Kiểm tra bảng **Network**, không chỉ thông báo lỗi trong console:
 
-- Có OPTIONS preflight không?
-- Preflight trả status gì?
-- Access-Control-Allow-Origin có đúng frontend origin không?
-- Nếu gửi cookie/credentials, Access-Control-Allow-Credentials có được bật có chủ đích không?
-- Authorization header hoặc method được request có được allow không?
-- Real request có chạy sau preflight không?
+- Trường hợp này có yêu cầu preflight `OPTIONS` không?
+- Preflight trả mã trạng thái nào? Nếu preflight thất bại, trình duyệt có thể không gửi yêu cầu thực tế.
+- `Access-Control-Allow-Origin` có trùng nguồn của giao diện không?
+- Nếu chế độ gửi thông tin xác thực là `include`, máy chủ có trả `Access-Control-Allow-Credentials: true` và nguồn cụ thể không?
+- Header `Authorization` và phương thức yêu cầu có được cho phép không?
+- Yêu cầu thực tế có được gửi sau preflight không?
 
-Backend có thể trả 401 hoặc 500 rất có ý nghĩa, nhưng nếu thiếu CORS headers thì browser JavaScript có thể chỉ thấy generic CORS failure.
+Máy chủ có thể trả 401 hoặc 500, nhưng nếu thiếu header CORS phù hợp, JavaScript trong trình duyệt có thể chỉ nhận được thông báo lỗi CORS chung.
 
-## 4. 401 Unauthorized: kiểm credential acceptance
+## 4. 401 Unauthorized: kiểm tra thông tin xác thực
 
-RFC 9110 mô tả 401 cho protected resource khi credential thiếu, invalid hoặc không hoàn chỉnh/không được chấp nhận, thường đi cùng WWW-Authenticate challenge.
+RFC 9110 quy định 401 khi thông tin xác thực cho tài nguyên được bảo vệ bị thiếu, sai hoặc không đầy đủ/không được chấp nhận. **Phản hồi 401 bắt buộc có header `WWW-Authenticate` với ít nhất một challenge phù hợp**. Ứng dụng dùng phiên cookie có thể chọn kiểu phản hồi khác, nhưng không được coi phản hồi 401 là ngoại lệ của yêu cầu HTTP này.
 
 Với Bearer access token, kiểm:
 
@@ -158,23 +160,23 @@ token type/profile được chấp nhận?
 
 ### Issuer mismatch
 
-Token từ một Keycloak realm không tự động interchangeable với token từ realm khác, environment khác, proxy-facing issuer khác hay localhost issuer chỉ vì tất cả đều là "Keycloak của mình."
+Token phát hành bởi realm Keycloak này không tự động dùng được cho realm, môi trường, địa chỉ sau proxy hoặc cấu hình localhost khác, dù đều do cùng một hệ thống Keycloak quản lý.
 
-API nên validate exact issuer contract mà nó trust.
+API phải xác minh chính xác nhà phát hành đã được cấu hình tin cậy.
 
 ### Key / kid mismatch
 
-Keycloak publish realm public key qua OIDC certificate/JWKS endpoint. Khi signing-key rotation, validator cần key-refresh/cache strategy. Token mang kid chưa biết nên dẫn tới bounded key refresh, không phải "tắt signature verification."
+Keycloak công bố khóa công khai của realm qua điểm truy cập OIDC JWKS. Khi đổi khóa ký, bộ xác minh cần chính sách làm mới và lưu tạm khóa. Với bộ xác minh lấy khóa động từ nhà phát hành đáng tin cậy, `kid` chưa biết có thể dẫn đến một lần làm mới JWKS có giới hạn; nếu vẫn không tìm thấy khóa phù hợp thì phải từ chối token. Không tắt xác minh chữ ký hay tin một URL khóa tùy ý do token cung cấp.
 
 ### Audience mismatch
 
-Valid signature chứng minh ai ký token. Nó không chứng minh API này là intended consumer.
+Chữ ký hợp lệ giúp xác minh chủ thể phát hành token, nhưng không chứng minh API hiện tại là đối tượng sử dụng được chỉ định.
 
-Nếu Orders API cần access token intended cho Orders, token minted cho audience khác nên bị reject dù issuer, subject và role trông quen thuộc.
+Nếu Orders API chỉ chấp nhận access token dành cho Orders, token có đối tượng nhận khác phải bị từ chối dù nhà phát hành, người dùng và vai trò trông quen thuộc.
 
-## 5. 403 Forbidden: chuyển sang application policy
+## 5. 403 Forbidden: kiểm tra chính sách phân quyền của ứng dụng
 
-RFC 9110 định nghĩa 403 là server hiểu request nhưng từ chối fulfill; credential có thể valid nhưng không đủ.
+Theo RFC 9110, 403 có nghĩa máy chủ hiểu yêu cầu nhưng từ chối thực hiện; thông tin xác thực có thể hợp lệ nhưng không đủ quyền.
 
 Kiểm thường gặp:
 
@@ -195,11 +197,11 @@ flowchart TD
   P -->|no| F[403 hoặc deliberate hidden 404]
 ```
 
-Đừng xử lý mọi 403 bằng cách bắt user login lại. Nếu principal valid và policy deny operation, authentication ceremony mới có thể không thay đổi gì.
+Đừng xử lý mọi lỗi 403 bằng cách bắt người dùng đăng nhập lại. Nếu danh tính hợp lệ nhưng chính sách từ chối thao tác, đăng nhập lại có thể không thay đổi gì.
 
-## 6. "Role có trong token nhưng API vẫn forbidden"
+## 6. “Token có vai trò nhưng API vẫn từ chối”
 
-Trace ngược từ policy API thực sự kiểm.
+Lần ngược từ điều kiện mà chính sách API thực sự kiểm tra.
 
 ```json
 {
@@ -223,21 +225,21 @@ Hỏi:
 5. Policy còn yêu cầu tenant/ownership/context ngoài role không?
 6. Token có stale sau khi role assignment đổi không?
 
-Frontend UI và API policy nên chia sẻ vocabulary khi hữu ích, nhưng chỉ API enforcement mới quyết định operation.
+Giao diện và API có thể dùng cùng tên vai trò để dễ hiểu, nhưng quyết định cho phép thao tác phải được thực thi tại API.
 
-## 7. "Postman/curl chạy, browser fail"
+## 7. “Postman/curl chạy được, trình duyệt lại lỗi”
 
-Đây là hint mạnh rằng browser security model tham gia.
+Đây là dấu hiệu đáng kiểm tra các cơ chế bảo mật riêng của trình duyệt.
 
-Postman/curl không enforce browser CORS. Chúng cũng không tự reproduce cookie SameSite behavior, browser redirect state, frontend origin hay JavaScript token lifecycle.
+Postman/curl không thực thi chính sách CORS của trình duyệt. Chúng cũng không tự tái hiện cách cookie áp dụng `SameSite`, trạng thái chuyển hướng, nguồn của giao diện hay vòng đời token trong JavaScript.
 
 So sánh URL/Host, Origin, cookie presence và attributes, Authorization header, preflight, TLS/proxy path, redirect URI, token audience/issuer và browser có đang silently gửi state cũ không.
 
-Đừng kết luận "backend ổn" chỉ vì curl thành công. Chỉ nên kết luận **một non-browser request path đã thành công**.
+Đừng kết luận máy chủ không có lỗi chỉ vì curl thành công. Ta chỉ biết **một đường gửi yêu cầu ngoài trình duyệt đã thành công**.
 
-## 8. Cookie session fail: kiểm attribute và scope
+## 8. Lỗi phiên cookie: kiểm tra thuộc tính và phạm vi
 
-Với BFF/session architecture, mở browser cookie view.
+Với kiến trúc BFF hoặc phiên cookie, hãy xem thông tin cookie trong công cụ của trình duyệt.
 
 Hỏi:
 
@@ -251,9 +253,9 @@ Hỏi:
 - Request có thực sự gửi cookie không?
 - Với cross-origin credentialed fetch, credentials behavior và CORS có được cấu hình chủ đích không?
 
-HttpOnly cookie cố ý không xuất hiện trong document.cookie; đó không phải evidence rằng cookie bị mất.
+Cookie có thuộc tính `HttpOnly` cố ý không xuất hiện trong `document.cookie`; điều đó không chứng minh cookie bị mất.
 
-## 9. Refresh và expiry fail
+## 9. Lỗi làm mới token và hết hạn
 
 Symptom thường gặp:
 
@@ -281,7 +283,7 @@ API request sau có dùng token mới?
 
 Với direct SPA, kiểm library/adapter refresh behavior và race handling. Với BFF, kiểm server session/token cache và refresh logs.
 
-## 10. Logout trông như bị hỏng
+## 10. Đăng xuất có vẻ không hoạt động
 
 Hỏi chính xác logout nào bạn mong đợi:
 
@@ -291,19 +293,19 @@ Hỏi chính xác logout nào bạn mong đợi:
 - Keycloak SSO session ended?
 - app SSO khác có bị force logout?
 
-Nếu user logout App A rồi vào lại App A và được login ngay không cần credential, IdP session có thể vẫn active dù App A đã clear local session đúng.
+Nếu người dùng đăng xuất khỏi ứng dụng A rồi mở lại mà được đăng nhập ngay không cần nhập mật khẩu, phiên tại IdP có thể vẫn còn hoạt động dù phiên cục bộ của ứng dụng đã bị xóa đúng cách. Đăng xuất liên ứng dụng và thu hồi refresh token là các cơ chế riêng, không phải một giao dịch nguyên tử đồng thời trên mọi ứng dụng.
 
-## Production micro-scenario: một 403 biến thành cả tuần sửa CORS
+## Tình huống giả định trong vận hành: lỗi 403 dẫn tới sửa CORS không cần thiết
 
-Orders SPA nhận 403 cho POST /orders/42/refund. Console cũng hiện failed API response. Team mở rộng CORS origin, thêm wildcard redirect URI, reissue client secret và sửa Keycloak mapper. Request vẫn fail.
+**Tình huống minh họa, không phải báo cáo sự cố thực tế:** SPA quản lý đơn hàng nhận 403 khi gọi `POST /orders/42/refund`. Console cũng hiển thị phản hồi API thất bại. Nhóm phát triển mở rộng nguồn CORS, thêm ký tự đại diện vào URI chuyển hướng, cấp lại bí mật ứng dụng và sửa bộ ánh xạ Keycloak. Yêu cầu vẫn bị từ chối.
 
-Access token thực ra valid từ đầu. API policy yêu cầu client role orders-api:refund, trong khi token chỉ có realm role tên refund.
+Access token vốn hợp lệ từ đầu. Chính sách API yêu cầu vai trò của client `orders-api:refund`, trong khi token chỉ có vai trò cấp realm tên `refund`.
 
-- **Hậu quả:** Một authorization mismatch một dòng biến thành risky identity/CORS configuration drift và nhiều ngày debug.
-- **Nguyên nhân cốt lõi:** Team không tách transport/browser evidence, authentication và authorization trước khi sửa cấu hình.
-- **Cách khắc phục chuẩn:** Trace request theo từng boundary, xác nhận token validation thành công, inspect policy input chính xác mà API cần rồi chỉ đổi role/scope mapping hoặc policy đang sai.
+- **Hậu quả:** Sai lệch nhỏ trong phân quyền dẫn tới những thay đổi cấu hình danh tính và CORS không cần thiết, tiềm ẩn rủi ro bảo mật và kéo dài quá trình gỡ lỗi. Không có số liệu thời gian gián đoạn thực tế được khẳng định.
+- **Nguyên nhân cốt lõi:** Nhóm không phân biệt bằng chứng từ trình duyệt, xác thực và phân quyền trước khi sửa cấu hình.
+- **Cách khắc phục chuẩn:** Lần theo yêu cầu qua từng ranh giới, xác nhận token đã được kiểm tra thành công, xem đúng dữ liệu mà chính sách API yêu cầu rồi chỉ sửa ánh xạ vai trò/phạm vi hoặc chính sách thực sự sai.
 
-## Kiểm tra mental model
+## Tự kiểm tra mô hình tư duy
 
 > **Tình huống:** Browser console báo "blocked by CORS policy". DevTools Network cho thấy API trả 401, nhưng response thiếu Access-Control-Allow-Origin. CORS có nhất thiết là root authentication problem không?
 
@@ -312,20 +314,20 @@ Access token thực ra valid từ đầu. API policy yêu cầu client role orde
 
 Không.
 
-CORS ngăn browser JavaScript đọc cross-origin response nếu server không opt origin đó vào. API bên dưới cũng trả 401, vậy có thể có credential problem riêng. Fix CORS có thể giúp bạn nhìn thấy authentication response thật; nó không tự động sửa credential.
+CORS ngăn JavaScript trong trình duyệt đọc phản hồi khác nguồn nếu máy chủ không cho phép nguồn đó. API bên dưới còn trả 401, nên có thể tồn tại một vấn đề xác thực riêng. Sửa cấu hình CORS giúp quan sát phản hồi xác thực thực tế, chứ không tự giải quyết thông tin xác thực bị từ chối.
 
 </details>
 
-## Checklist incident/debug
+## Danh sách kiểm tra khi gỡ lỗi
 
 - [ ] **Reproduce:** Capture một failing request và timestamp.
 - [ ] **Architecture:** Đây là direct SPA, BFF hay token-mediating backend?
 - [ ] **First failure:** Redirect, callback, token exchange, browser transport, token validation hay authorization?
 - [ ] **Redirect:** So exact client_id và redirect_uri với Keycloak config.
-- [ ] **Browser:** Inspect preflight, Origin, cookie, Authorization header và real response status.
+- [ ] **Trình duyệt:** Xác định có cần preflight không; kiểm tra `Origin`, cookie, `Authorization` và mã phản hồi thực tế. Khi chế độ thông tin xác thực là `include`, không chấp nhận `Access-Control-Allow-Origin: *`.
 - [ ] **Token:** Xác định ID token hay access token trước khi đọc claim.
 - [ ] **Validation:** Kiểm signature/JWKS, issuer, audience/resource, expiry/not-before và token profile.
-- [ ] **401:** Xác định vì sao không tạo được acceptable principal.
+- [ ] **401:** Xác định vì sao chưa xác lập được danh tính hợp lệ và kiểm tra challenge `WWW-Authenticate` bắt buộc.
 - [ ] **403:** Xác định scope/role/resource/context policy nào deny action.
 - [ ] **Roles:** Tách realm role, client role, scope, claim và business permission.
 - [ ] **Refresh:** Xác nhận một owner refresh và request sau dùng refreshed token.

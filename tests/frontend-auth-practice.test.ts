@@ -85,7 +85,7 @@ describe('Frontend auth architecture and debugging practice', () => {
       expect(source).toContain('category: backend-engineering');
       expect(source).toContain('contentType: field-guide');
       expect(source).toContain('learningDepth: operate');
-      expect(source).toContain('lastVerified: 2026-09-21');
+      expect(source).toContain('lastVerified: 2026-11-18');
       expect(source).toContain('  - authentication-and-authorization');
       expect(source).toContain('  - oauth-and-oidc');
       expect(source).toContain('  - identity-provider-integration');
@@ -106,6 +106,17 @@ describe('Frontend auth architecture and debugging practice', () => {
       expect(source).toMatch(/client role/i);
       expect(source).toMatch(/refresh/i);
       expect(source).toMatch(/logout/i);
+    }
+  });
+
+  it('documents RFC challenge, conditional CORS preflight and hypothetical incidents in both locales', () => {
+    for (const relativePath of [files.debugging.en, files.debugging.vi]) {
+      const source = lesson(relativePath);
+      expect(source, relativePath).toContain('WWW-Authenticate');
+      expect(source, relativePath).toContain('Access-Control-Allow-Credentials: true');
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
+      expect(source, relativePath).toContain('RFC 10017');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
     }
   });
 
