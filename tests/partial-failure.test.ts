@@ -36,11 +36,22 @@ describe('Partial Failure lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - partial-failure\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
       expect(source, relativePath).toContain('- [ ]');
+    }
+  });
+
+  it('requires atomic receiver-side intent matching and honest payment reconciliation in both languages', () => {
+    for (const relativePath of Object.values(lessonPaths)) {
+      const source = read(relativePath);
+      expect(source, relativePath).toMatch(/atomic|nguyên tử/i);
+      expect(source, relativePath).toMatch(/retention|thời hạn lưu/i);
+      expect(source, relativePath).toMatch(/parameters|dữ liệu đầu vào|nội dung yêu cầu/i);
+      expect(source, relativePath).toMatch(/authoritative|có thẩm quyền/i);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
     }
   });
 
