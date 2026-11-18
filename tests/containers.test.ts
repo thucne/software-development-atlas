@@ -114,6 +114,6 @@ describe('Containers lesson', () => {
     expectVerifiedAtOrAfter(vi, '2026-09-18');
 
     expect(read('lib/site-metadata.ts')).toContain("atlasLastUpdated = '2026-11-18'");
-    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Nov 5, 2026');
+    expect(read('tests/e2e/docs-shell.spec.ts')).toContain('Atlas last updated Nov 18, 2026');
   });
 });
