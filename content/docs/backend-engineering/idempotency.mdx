@@ -4,7 +4,7 @@ description: Operate idempotent APIs and workers through logical-operation ident
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,7 +31,7 @@ concepts:
 
 # Idempotency: Make Retries Safe Across Ambiguous Outcomes
 
-**Illustrative scenario (hypothetical, not a reported incident):** A customer standing inside an elevator with an unstable cellular connection taps the "Pay Now" button for a \$200 order. The initial request reaches the checkout service, charges the card through the payment provider, and prepares a response—but a sudden cellular tower handover drops the connection before the 200 OK reaches the phone. The client app observes a network timeout after 5 seconds and automatically retries. The nervous customer also taps the button two more times in rapid succession. Within 10 seconds, three identical payment requests land on your API. Without an explicit idempotency architecture, the customer is billed three separate times (\$600 total), resulting in three duplicate bank alerts, an angry dispute, and hours of customer support remediation.
+**Constructed example, not a documented payment incident:** A customer submits a $200 payment on an unstable mobile connection. The payment provider processes the first request, but the response is lost. The client automatically retries, and the customer deliberately submits the same checkout one more time: **three total requests for one intended purchase**. If each request can independently trigger a charge, the customer **may** be charged up to three times ($600) rather than once ($200). This example illustrates a possible duplicate-effect failure; it does not claim any observed outage, payment dispute or measured network timing.
 
 In distributed networks, network timeouts are fundamentally ambiguous: you cannot infer whether the connection severed before the server received the command, during execution, or on the response path. **Idempotency** is the foundational distributed systems contract that makes retrying safe across this uncertainty.
 
@@ -41,9 +41,9 @@ In distributed networks, network timeouts are fundamentally ambiguous: you canno
 
 - **Safe vs Idempotent operations:** `GET` and `HEAD` have read-only request semantics, but incidental logging and metrics may still occur. `PUT`, `DELETE` and safe methods are idempotent by HTTP semantics: repeats have the same intended effect, **not necessarily identical responses or zero observable side effects**. A guarded `POST` may provide an application-specific retry contract.
 - **Stable logical-operation identity:** The client must generate the `Idempotency-Key` exactly once when the business command is initiated and reuse that identical key across all retries; generating a new random UUID per network retry completely bypasses deduplication.
-- **Atomic reservation with fingerprinting:** Atomically reserve the scoped key in the datastore using a unique constraint (`INSERT ... ON CONFLICT`) along with a cryptographic SHA-256 fingerprint of the normalized request payload; reject any request presenting the same key with a different payload to prevent key collisions or malicious payload tampering.
+- **Atomic reservation and semantic matching:** Reserve the scoped operation identity atomically (for example, with a database unique constraint and `INSERT ... ON CONFLICT`). Where the API contract requires payload comparison, bind the key to a stable request fingerprint or canonical request fields. SHA-256 over canonical request semantics is one possible implementation, **not a mandatory header or draft requirement**; reject mismatched reuse rather than executing a different command.
 - **External side-effect boundaries:** A local database transaction cannot roll back an external payment gateway, SMS dispatch, or third-party webhook; propagate downstream idempotency keys or record durable intents before executing remote calls.
-- **Fatal pitfall:** Using a naive check-then-charge implementation (`if key not found -> charge card -> insert key`), allowing concurrent retries from unstable clients to both observe "not found", execute duplicate credit card charges, and defeat the idempotency key completely.
+- **High-risk race:** A naive check-then-charge implementation (`if key not found -> charge card -> insert key`) allows two concurrent attempts to observe "not found" and both issue a charge. Atomic operation reservation and downstream payment identity are separate safeguards.
 
 ```mermaid
 sequenceDiagram
@@ -96,7 +96,7 @@ For example:
 
 ```http
 POST /orders
-Idempotency-Key: 3e8a3c8f-...
+Idempotency-Key: "3e8a3c8f-4f32-4474-b7fa-5f9760dd67b4"
 
 {
   "cart_id": "cart_42",
@@ -104,7 +104,7 @@ Idempotency-Key: 3e8a3c8f-...
 }
 ```
 
-The exact header name is an API contract choice. An IETF HTTPAPI draft proposed an `Idempotency-Key` field, but that Internet-Draft expired on 18 April 2026 and is not a finalized RFC. Treat the pattern as application protocol design, not as a currently standardized HTTP field.
+The endpoint must document its key and replay contract. As verified on **18 November 2026**, IETF HTTPAPI's **active** `draft-ietf-httpapi-idempotency-key-header-08` (published 22 October 2026, expiring 25 April 2027) proposes the `Idempotency-Key` field; it is **still an Internet-Draft, not a finalized RFC**. Under that draft the field value is an RFC 9651 **Structured Field String**, so the UUID value in the HTTP example is enclosed in double quotes. Existing provider APIs can have their own documented header parsing and retry contracts; do not assume every API implements the draft.
 
 A client should generate the key **once when the logical command is created**, then persist or retain it for all retries caused by timeout, connection reset, process restart, or retry scheduling.
 
@@ -162,7 +162,7 @@ The exact schema is yours. The invariant is that one scoped key names one logica
 
 ## 4. Bind the key to request semantics with a fingerprint
 
-A key alone is dangerous if the caller accidentally reuses it for a different payload.
+A key alone is dangerous if the caller accidentally reuses it for a different payload. Whatever comparison mechanism is chosen, the endpoint must define which requests count as the same logical operation.
 
 Example:
 
@@ -173,7 +173,7 @@ later: key = K, amount = 900 USD
 
 Silently replaying the first result is misleading. Executing the second payload defeats deduplication.
 
-Store a **request fingerprint** derived from the semantics that define the operation. On duplicate lookup:
+When required by the endpoint contract, store a **request fingerprint** or compare canonical request fields derived from the semantics that define the operation. On duplicate lookup:
 
 ```text
 same key + same fingerprint      -> retry/replay path
@@ -181,7 +181,7 @@ same key + different fingerprint -> conflict / client error
 ```
 
 <TermBox term="Request fingerprint">
-A **request fingerprint** is a stable digest or canonical representation of the request fields that define one logical operation.
+A **request fingerprint** is an optional, stable digest or canonical representation of the request fields that define one logical operation. Under the IETF draft the resource may use a fingerprint; it is not a mandatory SHA-256 digest.
 
 **Why it matters:** it detects accidental or malicious reuse of one idempotency key for different commands.
 </TermBox>
@@ -351,9 +351,9 @@ Use both when useful:
 
 Do not let the idempotency table become the only thing preventing impossible business state.
 
-## 11. Production scenario: check-then-charge
+## 11. Hypothetical production scenario: check-then-charge
 
-Consider a checkout endpoint:
+**Constructed example, not a documented payment incident:** Consider a checkout endpoint:
 
 ```text
 if idempotency_key not found:
@@ -422,6 +422,7 @@ When making an operation idempotent, never stop at “accept an idempotency key.
 
 ## References
 
-- RFC 9110 — HTTP Semantics, section 9.2.2: Idempotent Methods.
-- IETF HTTPAPI — `draft-ietf-httpapi-idempotency-key-header-07`. The draft expired on 18 April 2026 and is not a finalized RFC.
-- Stripe API Reference — Idempotent requests, used as a concrete implementation example rather than a universal protocol requirement.
+- [RFC 9110 — Idempotent Methods §9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2).
+- [IETF HTTPAPI — Idempotency-Key, draft-08](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/): **active Internet-Draft** on 2026-11-18, not an RFC; syntax and optional fingerprint proposals.
+- [RFC 9651 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc9651.html): quoted String syntax used in the draft.
+- [Stripe API Reference — Idempotent requests](https://docs.stripe.com/api/idempotent_requests): API v1 first-result replay and API v2 different behavior; provider-specific example, not a universal requirement.
