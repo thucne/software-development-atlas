@@ -63,4 +63,20 @@ describe('Threat Modeling & Least Privilege lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('scopes RDS IAM database auth and checks authorization at the use boundary in both locales', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [relativePath, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('rds-db:connect');
+      expect(source, relativePath).toContain('rds:*');
+      expect(source, relativePath).toContain('UsingWithRDS.IAMDBAuth.html');
+      expect(source, relativePath).toContain('deny-by-default');
+    }
+    expect(en).toContain('at the point of use');
+    expect(vi).toContain('truy vấn hoặc giao dịch');
+    expect(en).toContain('Impact (hypothetical)');
+    expect(vi).toContain('Hậu quả (giả định)');
+  });
 });
