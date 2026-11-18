@@ -37,6 +37,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 ## Releases & Milestones
 
 ### November 18, 2026 — Wave 1 full-pair content review
+- [Keycloak in Practice](/docs/backend-engineering/keycloak-in-practice): Verified keycloak-js does not auto-inject Bearer headers; applications call `updateToken()` and attach access tokens. Scoped silent SSO/session iframe behavior under third-party-cookie blocking, PKCE adapter defaults and BFF limits; aligned EN/VI guidance.
 - [OAuth 2.0 & OpenID Connect](/docs/backend-engineering/oauth-and-oidc): Verified browser public-client refresh-token rotation/sender constraints and lifetime limits per RFC 10017/9700, separated BFF from browser-only code exchange and clarified token misuse and Vietnamese teaching.
 - [SSO & Identity Federation](/docs/backend-engineering/sso-and-identity-federation): Rechecked OIDC/SAML identity trust, one-validation CAS tickets and best-effort cross-app logout; improved EN/VI learning parity and natural Vietnamese.
 - [Auth Debugging Field Guide](/docs/backend-engineering/auth-debugging-field-guide): Verified RFC 9110 mandatory 401 challenge, conditional Fetch CORS preflight and credentialed response sharing; aligned the hypothetical Keycloak role-mismatch scenario and Vietnamese explanations.

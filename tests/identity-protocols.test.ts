@@ -82,7 +82,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       for (const relativePath of [item.en, item.vi]) {
         const source = lesson(relativePath);
         expect(source).toContain('category: backend-engineering');
-        expect(source).toContain(`lastVerified: ${item === lessons.sso || item === lessons.oauth ? '2026-11-18' : '2026-11-05'}`);
+        expect(source).toContain('lastVerified: 2026-11-18');
         expect(source).toMatch(new RegExp(`concepts:\\n  - ` + item.concept + `\\n---`));
         expect((source.match(/<TermBox/g) ?? []).length).toBeGreaterThanOrEqual(2);
         expect((source.match(/<TermBox/g) ?? []).length).toBeLessThanOrEqual(3);
@@ -119,7 +119,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       const source = lesson(relativePath);
       expect(source).toMatch(/Authorization Code/i);
       expect(source).toMatch(/PKCE/i);
-      expect(source).toMatch(/public client/i);
+      expect(source).toMatch(/public client|ứng dụng công khai/i);
       expect(source).toMatch(/client secret/i);
       expect(source).toMatch(/ID Token/i);
       expect(source).toMatch(/access token/i);
@@ -151,12 +151,24 @@ describe('Identity protocols and Keycloak lessons', () => {
     }
   });
 
+  it('teaches manual bearer transport and browser SSO limitations in Keycloak JS in both languages', () => {
+    for (const relativePath of [lessons.keycloak.en, lessons.keycloak.vi]) {
+      const source = lesson(relativePath);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('keycloak.updateToken(30)');
+      expect(source, relativePath).toContain('Authorization: `Bearer');
+      expect(source, relativePath).toMatch(/not automatically|không tự/i);
+      expect(source, relativePath).toMatch(/third-party cookie|cookie bên thứ ba/i);
+      expect(source, relativePath).toMatch(/RFC 10017/);
+    }
+  });
+
   it('maps Keycloak concepts to protocol and API boundaries', () => {
     for (const relativePath of [lessons.keycloak.en, lessons.keycloak.vi]) {
       const source = lesson(relativePath);
       expect(source).toMatch(/Realm/i);
       expect(source).toMatch(/client authentication/i);
-      expect(source).toMatch(/public client/i);
+      expect(source).toMatch(/public client|ứng dụng công khai/i);
       expect(source).toMatch(/realm role/i);
       expect(source).toMatch(/client role/i);
       expect(source).toMatch(/client scope/i);
