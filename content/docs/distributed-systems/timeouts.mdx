@@ -4,7 +4,7 @@ description: Set, propagate, observe, and tune timeouts so slow dependencies con
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, reliability, timeouts, deadlines]
 prerequisites: [partial-failure, service-resilience]
@@ -27,7 +27,7 @@ A **timeout** bounds how long a particular phase or operation waits; an end-to-e
 > 💡 **Rule of thumb:** Before tuning a timeout, identify exactly what phase it bounds (connection, response, body, or whole call). For operations with an end-to-end deadline, propagate the remaining budget, keep a local completion reserve and stop work when the result cannot arrive usefully. A service SLO informs policy but is not necessarily the deadline of each request.
 
 - **Timeout scope vs. deadline:** A timeout bounds a phase or operation; an end-to-end deadline limits useful work for the whole request. A latency SLO informs policy but does not necessarily equal a hard per-request deadline.
-- **Deconstruct socket phases:** A setting named `timeout` is meaningless until its exact phase is defined—a connect timeout does nothing to mitigate stalled body reads, while socket read timeouts often reset on every received byte. Explicitly configure thresholds for **DNS** lookup, TCP **connect**, **TLS** negotiation, request **write**, and response body **read**.
+- **Deconstruct socket phases:** A setting named `timeout` is meaningless until its exact phase is defined—a connect timeout does nothing to mitigate stalled body reads, while socket read timeouts often reset on every received byte. Check which limits your client actually supports for **DNS** lookup, TCP **connect**, **TLS** negotiation, request **write**, and response body **read**. Some libraries combine phases or do not expose separate limits; add an overall deadline when total duration must be bounded.
 - **Propagate the remaining budget:** Where an end-to-end deadline exists, each hop should receive no more than its remaining budget after elapsed upstream time and a local completion reserve. Do not reset a larger timeout on every hop.
 - **Cancellation without rollback:** When a deadline expires, propagate **cancellation** immediately to stop wasteful downstream processing; however, cancellation is not a rollback—changes already committed remain durable.
 - **Failure mode to avoid:** Resetting a full per-hop timeout can extend total waiting past the caller deadline; the effect on pools and users depends on load, resource ownership and runtime behavior.
@@ -68,7 +68,7 @@ A connect timeout cannot bound a stalled body read. A socket read timeout may re
 
 If an incoming request has 600 ms left, a downstream call must not receive a fresh 2-second allowance. Propagate the **remaining budget** and reserve enough time for local work and the final response.
 
-gRPC deadline propagation implements this model: elapsed time is deducted before an outgoing RPC receives its timeout equivalent.
+gRPC supports deadline propagation for this model: when enabled in the chosen language/runtime, elapsed time is deducted before the outgoing RPC receives its remaining timeout. Propagation is automatic by default in some implementations (for example Go and Java) but must be explicitly enabled in others (for example C++). gRPC clients do not set a deadline by default, so the caller must first choose one.
 
 For a simple path, reason with:
 
@@ -115,7 +115,7 @@ Classify branches by necessity. A required dependency may fail the request when 
 
 ## Cancellation stops waste; it is not rollback
 
-When the deadline expires, propagate **cancellation** so downstream work can stop. But cancellation does **not** mean rollback. gRPC explicitly warns that changes made before cancellation are not rolled back.
+When the deadline expires, propagate **cancellation** so downstream work can stop if its implementation cooperates. Cancellation is a signal, not forced interruption of application handlers: gRPC expects server code to observe cancellation and stop spawned work, and propagation of child RPC cancellation can differ by language. Cancellation does **not** mean rollback; changes made before it are not automatically undone.
 
 That means a timed-out write can still require idempotency or reconciliation. Timeout handling controls waiting and resource usage; Partial Failure governs uncertainty about side effects.
 
@@ -137,7 +137,7 @@ A **false timeout** occurs when a call would have completed successfully but the
 
 ## Illustrative production scenario (hypothetical)
 
-An API has a 1-second user SLO. It calls Service A and Service B sequentially. Each client uses a default 1-second overall timeout, and Service B also has a 1-second connect/read timeout. During a latency increase, upstream requests keep waiting well beyond the useful user budget while workers and sockets remain occupied.
+**Constructed timing example, not observed measurements:** An API has a 1-second latency target and independently chooses a 1-second useful request deadline for this route. It calls Service A and Service B sequentially. Each outbound client nevertheless starts a fresh 1-second overall timeout, and Service B also uses 1-second connect/read timeouts. During a latency increase, upstream requests keep waiting well beyond the useful user budget while workers and sockets remain occupied.
 
 **Impact:** tail latency rises above the SLO, worker and connection pools saturate, and healthy traffic begins timing out behind slow requests.
 
@@ -183,9 +183,10 @@ This lesson focuses on **timeout scope, end-to-end budgets and cancellation**. A
 
 ## Sources
 
-Primary references verified on **2026-11-05**:
+Primary references verified on **2026-11-18**:
 
 - [gRPC — Deadlines](https://grpc.io/docs/guides/deadlines/)
 - [gRPC — Core concepts: deadlines, termination, cancellation](https://grpc.io/docs/what-is-grpc/core-concepts/)
+- [gRPC — Cancellation](https://grpc.io/docs/guides/cancellation/) — cooperative handler termination and language-dependent child RPC cancellation
 - [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/)
 - [AWS Well-Architected — Set client timeouts](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_client_timeouts.html)
