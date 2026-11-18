@@ -73,4 +73,21 @@ describe('Rate Limiting lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('labels constructed incidents and preserves independent account/source limits and evolving spec status', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    expect(en).toContain('Constructed example, not a reported production incident');
+    expect(vi).toContain('Ví dụ tự xây dựng, không phải sự cố thực tế');
+    expect(en).not.toContain('100% CPU');
+    expect(vi).not.toContain('100% CPU');
+    expect(en).toContain('independent per-account and per-source budgets');
+    expect(vi).toContain('giới hạn độc lập theo tài khoản và theo nguồn gửi');
+    for (const [relativePath, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('Retry-After: 20');
+      expect(source, relativePath).toContain('OWASP');
+      expect(source, relativePath).toContain('Internet-Draft');
+    }
+  });
 });
