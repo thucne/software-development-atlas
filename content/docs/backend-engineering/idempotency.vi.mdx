@@ -4,7 +4,7 @@ description: Vận hành API và worker idempotent bằng định danh thao tác
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Idempotency: Biến retry thành thao tác an toàn dù kết quả không chắc chắn
 
-**Tình huống minh họa (giả định, không phải báo cáo sự cố thực tế):** Một khách hàng đang đứng trong thang máy với kết nối 4G chập chờn nhấn nút "Thanh toán ngay" cho đơn hàng 2 triệu đồng. Yêu cầu đầu tiên chạm tới máy chủ thanh toán và trừ tiền thành công qua cổng thanh toán, nhưng đúng lúc đó cột sóng điện thoại chuyển trạm khiến kết nối TCP chiều về bị đứt đoạn trước khi phản hồi `200 OK` kịp truyền tới điện thoại. Ứng dụng di động xoay vòng tròn chờ đợi, báo lỗi timeout sau 5 giây và tự động kích hoạt cơ chế gửi lại (retry). Người dùng sốt ruột cũng bấm liên tiếp thêm hai lần nữa. Trong vòng 10 giây, máy chủ nhận liên tiếp 3 request thanh toán giống hệt nhau. Nếu thiếu một ranh giới lũy đẳng (idempotency) thực thụ, thẻ của khách hàng sẽ bị trừ 6 triệu đồng với 3 tin nhắn trừ tiền dồn dập, kéo theo sự giận dữ của người dùng, tranh chấp thanh toán và chi phí đối soát hoàn tiền đắt đỏ.
+**Ví dụ tự xây dựng, không phải sự cố thanh toán thực tế:** Một khách hàng gửi yêu cầu thanh toán **200 USD** qua kết nối di động không ổn định. Cổng thanh toán xử lý yêu cầu đầu tiên, nhưng phản hồi bị mất. Ứng dụng tự thử lại, rồi khách hàng chủ động gửi lại cùng thao tác thêm một lần: tổng cộng **ba yêu cầu cho một lần mua**. Nếu mỗi yêu cầu có thể tạo giao dịch trừ tiền độc lập, khách hàng **có nguy cơ** bị trừ tới ba lần (600 USD) thay vì một lần (200 USD). Đây là tình huống minh họa, không phải số liệu sự cố hay tranh chấp được ghi nhận.
 
 Trong mạng phân tán, lỗi timeout vốn dĩ mang tính chất mơ hồ: bạn không thể biết thao tác bị đứt gãy trước khi tới máy chủ, trong khi đang xử lý, hay trên đường trả về kết quả. **Tính lũy đẳng (Idempotency)** chính là giao ước kiến trúc biến việc thử lại khi gặp sự cố không chắc chắn thành một thao tác có thể thử lại an toàn trong phạm vi hợp đồng đã thiết kế.
 
-## TL;DR
+## Tóm tắt nhanh
 
 > 💡 **Quy tắc bỏ túi:** Phương thức HTTP an toàn như `GET` mang ngữ nghĩa chỉ đọc, dù máy chủ vẫn có thể ghi log hoặc số liệu vận hành. Phương thức lũy đẳng như `PUT` giữ nguyên **hiệu ứng dự kiến** khi lặp lại request giống nhau; mã phản hồi và log không nhất thiết giống hệt. Với thao tác nghiệp vụ cần retry an toàn, hãy ghi nhận Idempotency Key có phạm vi rõ ràng theo cách nguyên tử và bảo vệ từng tác dụng phụ bên ngoài transaction.
 
 - **An toàn và lũy đẳng là hai thuộc tính khác nhau:** `GET`, `HEAD` có ngữ nghĩa yêu cầu chỉ đọc; máy chủ vẫn có thể ghi log. `PUT`, `DELETE` và các phương thức an toàn là lũy đẳng theo HTTP: lặp lại request giữ nguyên hiệu ứng dự kiến, không nhất thiết trả cùng response hoặc không tạo log. `POST` có thể được ứng dụng bổ sung hợp đồng retry riêng.
 - **Định danh thao tác logic ổn định:** Client phải sinh `Idempotency-Key` một lần duy nhất khi hành động nghiệp vụ bắt đầu và tái sử dụng đúng key đó cho mọi nỗ lực thử lại; việc sinh UUID ngẫu nhiên mới ở mỗi lần retry qua mạng sẽ phá vỡ hoàn toàn cơ chế lọc trùng.
-- **Reservation nguyên tử kết hợp băm fingerprint:** Lưu bản ghi idempotency vào database bằng `INSERT ... ON CONFLICT` với unique constraint, kết hợp mã băm SHA-256 (fingerprint) của payload chuẩn hóa; từ chối ngay lập tức trường hợp cùng key nhưng payload khác để ngăn chặn xung đột hoặc sửa đổi tham số bất thường.
+- **Giữ chỗ nguyên tử và đối chiếu nội dung yêu cầu:** Ghi nhận định danh thao tác theo cách nguyên tử, chẳng hạn dùng ràng buộc duy nhất và `INSERT ... ON CONFLICT`. Khi cần so sánh nội dung, gắn khóa với dấu vân tay (*fingerprint*) ổn định hoặc các trường đã chuẩn hóa. SHA-256 chỉ là một cách triển khai, **không phải yêu cầu bắt buộc của bản nháp IETF**. Từ chối việc dùng cùng khóa cho thao tác khác.
 - **Điều phối hiệu ứng bên ngoài (External side effects):** Transaction cơ sở dữ liệu cục bộ không thể rollback cổng thanh toán bên thứ ba hay nhà cung cấp email; cần truyền downstream idempotency key hoặc ghi nhận trạng thái bền vững trước khi gọi ra ngoài.
-- **Cạm bẫy chết người:** Viết logic ngây thơ theo kiểu kiểm tra trước rồi trừ tiền sau (`if key not found -> charge -> insert key`), tạo kẽ hở để hai request đồng thời cùng thấy key "chưa tồn tại", cùng trừ tiền thẻ tín dụng hai lần và phá hủy hoàn toàn ý nghĩa của khóa idempotency.
+- **Tranh chấp nguy hiểm:** Cách kiểm tra trước rồi trừ tiền (`if key not found -> charge -> insert key`) có thể khiến hai yêu cầu đồng thời cùng thấy khóa chưa tồn tại và cùng gọi lệnh trừ tiền. Cần bảo vệ riêng cả bước giữ chỗ nguyên tử lẫn định danh giao dịch tại cổng thanh toán.
 
 ```mermaid
 sequenceDiagram
@@ -62,9 +62,9 @@ sequenceDiagram
 ```
 
 <TermBox term="Idempotency">
-**Idempotency** nghĩa là thực hiện nhiều lần cùng một operation dự kiến có cùng hiệu ứng server mong muốn như thực hiện một lần.
+**Tính lũy đẳng (idempotency)** nghĩa là nhiều lần thực hiện cùng yêu cầu có tác động dự kiến lên máy chủ giống như khi thực hiện một lần.
 
-**Vì sao quan trọng:** distributed system thường tạo ra outcome mơ hồ. Idempotency cho phép caller retry sự không chắc chắn mà không biến lỗi transport thành trạng thái nghiệp vụ trùng lặp.
+**Vì sao quan trọng:** hệ thống phân tán thường không biết chắc kết quả khi kết nối lỗi. Tính lũy đẳng cho phép bên gọi thử lại mà không vô tình tạo trạng thái nghiệp vụ trùng.
 </TermBox>
 
 ## 1. Idempotency của HTTP method hữu ích nhưng chưa đủ cho application
@@ -87,16 +87,16 @@ application idempotency    -> một thao tác nghiệp vụ logic được nhậ
 ## 2. Một thao tác logic cần một định danh ổn định
 
 <TermBox term="Idempotency key">
-**Idempotency key** là định danh cấp application cho một thao tác logic. Mọi retry của cùng operation phải dùng lại cùng key.
+**Idempotency key** là mã định danh ở tầng ứng dụng cho một thao tác nghiệp vụ. Mọi lần thử lại cùng thao tác phải dùng lại mã đó.
 
-**Vì sao quan trọng:** nếu mỗi retry sinh key mới, server sẽ nhìn thấy operation mới và không thể phân biệt retry với một yêu cầu chủ đích khác.
+**Vì sao quan trọng:** nếu mỗi lần thử lại sinh khóa mới, máy chủ sẽ coi đó là thao tác mới và không phân biệt được với yêu cầu chủ ý khác.
 </TermBox>
 
 Ví dụ:
 
 ```http
 POST /orders
-Idempotency-Key: 3e8a3c8f-...
+Idempotency-Key: "3e8a3c8f-4f32-4474-b7fa-5f9760dd67b4"
 
 {
   "cart_id": "cart_42",
@@ -104,7 +104,7 @@ Idempotency-Key: 3e8a3c8f-...
 }
 ```
 
-Tên header cụ thể là lựa chọn trong API contract. Một Internet-Draft của nhóm IETF HTTPAPI từng đề xuất field `Idempotency-Key`, nhưng bản nháp đó đã **hết hạn ngày 18/04/2026** và chưa trở thành RFC hoàn tất. Hãy xem pattern này là application protocol design, không phải một HTTP field hiện đã được chuẩn hóa.
+API phải công bố cách dùng khóa và quy tắc trả kết quả khi lặp yêu cầu. Tính đến **18/11/2026**, IETF HTTPAPI có bản nháp **đang hoạt động** `draft-ietf-httpapi-idempotency-key-header-08` (công bố 22/10/2026, dự kiến hết hạn 25/04/2027), **chưa phải RFC chính thức**. Theo bản nháp này, `Idempotency-Key` là chuỗi theo chuẩn trường HTTP có cấu trúc (RFC 9651), nên giá trị UUID trong ví dụ đặt trong dấu nháy kép. API nhà cung cấp có thể quy định cách xử lý khác; không mặc định tất cả đều tuân thủ bản nháp.
 
 Client nên tạo key **một lần khi logical command được tạo**, sau đó giữ nguyên key cho mọi retry do timeout, connection reset, process restart hoặc retry scheduler.
 
@@ -162,7 +162,7 @@ Schema cụ thể tùy hệ thống. Invariant là một scoped key chỉ tên m
 
 ## 4. Bind key với semantics của request bằng fingerprint
 
-Key một mình nguy hiểm nếu caller vô tình dùng lại nó cho payload khác.
+Chỉ dựa vào khóa sẽ nguy hiểm nếu bên gọi vô tình dùng lại nó với nội dung khác. Cần quy định rõ khi nào hai yêu cầu thuộc cùng một thao tác.
 
 Ví dụ:
 
@@ -173,7 +173,7 @@ sau đó: key = K, amount = 900 USD
 
 Replay im lặng kết quả đầu tiên sẽ gây hiểu nhầm. Thực thi payload thứ hai thì phá deduplication.
 
-Hãy lưu **request fingerprint** được tạo từ semantics định nghĩa operation. Khi gặp duplicate:
+Khi hợp đồng API yêu cầu, hãy lưu **dấu vân tay yêu cầu** hoặc đối chiếu các trường chuẩn hóa xác định thao tác. Khi gặp yêu cầu trùng:
 
 ```text
 cùng key + cùng fingerprint -> đường retry/replay
@@ -181,7 +181,7 @@ cùng key + payload khác     -> conflict / client error
 ```
 
 <TermBox term="Request fingerprint">
-**Request fingerprint** là digest ổn định hoặc biểu diễn canonical của những field định nghĩa một thao tác logic.
+**Dấu vân tay của yêu cầu (request fingerprint)** là giá trị băm ổn định hoặc biểu diễn đã chuẩn hóa của các trường xác định thao tác nghiệp vụ. Đây là cơ chế **tùy chọn** trong bản nháp IETF, không bắt buộc dùng SHA-256.
 
 **Vì sao quan trọng:** nó phát hiện việc cùng key bị dùng cho request khác nhau, dù do lỗi client hay cố ý.
 </TermBox>
@@ -351,9 +351,9 @@ Có thể dùng cả hai:
 
 Đừng để idempotency table trở thành lớp duy nhất ngăn business state bất khả thi.
 
-## 11. Kịch bản production: check rồi mới charge
+## 11. Tình huống giả định: kiểm tra khóa rồi mới trừ tiền
 
-Xét checkout endpoint:
+**Ví dụ tự xây dựng, không phải báo cáo sự cố thực tế:** Xét một API thanh toán:
 
 ```text
 if idempotency_key not found:
@@ -422,6 +422,7 @@ Khi làm một operation idempotent, không dừng ở “nhận idempotency key
 
 ## Tài liệu tham khảo
 
-- RFC 9110 — HTTP Semantics, mục 9.2.2: Idempotent Methods.
-- IETF HTTPAPI — `draft-ietf-httpapi-idempotency-key-header-07`. Bản nháp đã hết hạn ngày 18/04/2026 và chưa phải RFC hoàn tất.
-- Stripe API Reference — Idempotent requests, dùng như ví dụ implementation cụ thể chứ không phải protocol requirement phổ quát.
+- [RFC 9110 — Phương thức lũy đẳng §9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2).
+- [IETF HTTPAPI — Idempotency-Key, bản nháp 08](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/): **Internet-Draft đang hoạt động** ngày 18/11/2026, chưa phải RFC.
+- [RFC 9651 — Trường HTTP có cấu trúc](https://www.rfc-editor.org/rfc/rfc9651.html): cú pháp chuỗi có dấu nháy kép.
+- [Stripe — Idempotent requests](https://docs.stripe.com/api/idempotent_requests): API v1 và API v2 có cách trả kết quả khác nhau; đây là ví dụ nhà cung cấp.
