@@ -4,7 +4,7 @@ description: Reason about at-most-once, at-least-once, and scoped exactly-once g
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, messaging, delivery-semantics, acknowledgements, idempotency]
 prerequisites: [partial-failure, retries-and-backoff, idempotency, message-queues]
@@ -88,7 +88,7 @@ Do not read “at-most-once” as “the business action happened once.” It ca
 
 ### At-least-once
 
-At-least-once keeps responsibility for a message until success is observed. RabbitMQ manual acknowledgements, for example, requeue unacknowledged deliveries when a consumer connection closes. Amazon SQS standard queues also document at-least-once delivery, so the same message can be received more than once.
+At-least-once recovery retains or reoffers accepted work under a broker's defined failure assumptions. RabbitMQ with manual acknowledgements normally requeues unacknowledged deliveries when the consumer channel or connection closes. Amazon SQS standard queues document at-least-once delivery and may return duplicate copies **even within a visibility timeout**. Neither statement promises that an arbitrary external effect will complete at least once if consumers repeatedly fail.
 
 At-least-once is often the practical default for durable work, but duplicate delivery is expected behavior, not an edge case to ignore.
 
@@ -96,9 +96,9 @@ At-least-once is often the practical default for durable work, but duplicate del
 
 “Exactly-once” is not one universal property. Ask exactly once **where?**
 
-A stream processor may atomically commit consumed offsets and derived records inside one transactional system. A FIFO queue may deduplicate producer retries inside a bounded window. Neither claim automatically makes an external payment charge, email send, warehouse reservation, or webhook effect happen exactly once.
+A stream processor may atomically commit consumed offsets and derived records inside one transactional system. An SQS FIFO queue can deduplicate producer sends in a bounded five-minute interval when identity and configuration satisfy its contract; this does not deduplicate external business effects. Neither claim automatically makes an external payment charge, email send, warehouse reservation, or webhook effect happen exactly once.
 
-Apache Kafka’s current design documentation explicitly separates publishing durability from consuming semantics and notes that strong end-to-end semantics require coordination with the destination.
+Apache Kafka's **4.0** design documentation (the version cited below) separates publisher durability from consumer processing semantics and scopes transactional exactly-once to coordinated Kafka input offsets and Kafka output records. An external datastore or payment provider needs its own effect/commit coordination; do not extrapolate this into an unversioned provider-wide guarantee.
 
 
 ### Broker acknowledgements and effect deduplication are separate
@@ -114,7 +114,7 @@ At-least-once delivery becomes safe when repeated processing converges on the sa
 Common patterns include:
 
 - **Idempotent update:** set `order.status = 'shipped'` rather than “increment shipped count”.
-- **Unique event identity:** store `event_id` under a unique constraint before applying an effect.
+- **Unique event identity:** record `event_id` under a unique constraint **in the same local transaction** that applies the protected effect; storing the ID in an unrelated transaction leaves a failure window.
 - **Inbox table:** record consumed message IDs in the same database transaction as local state changes.
 - **Idempotency key downstream:** reuse a stable key when calling another service that supports deduplication.
 - **Outbox after local commit:** persist downstream intent with the business transaction and publish later.
@@ -132,7 +132,7 @@ flowchart TB
   O --> P["Publish later"]
 ```
 
-The transaction above does not magically make every remote effect exactly once. It gives the local service an atomic boundary: either it records the event and state transition together, or neither is committed.
+The transaction above does not magically make every remote effect exactly once. The inbox identity, business mutation and outbox intent must all be committed together (or all rolled back); the later publisher and any external effect still require safe retries or reconciliation.
 
 ## Ordering is a separate contract
 
@@ -169,11 +169,11 @@ A payment service emits `OrderPaid(eventId=evt-42, orderId=o-17)`. A fulfillment
 
 The database commit succeeds, but the consumer crashes before the broker observes the acknowledgement. The broker redelivers `evt-42`.
 
-**Impact:** a naive consumer inserts a second shipment, triggers a second warehouse reservation, or sends a duplicate downstream command even though the broker behaved correctly for at-least-once delivery.
+**Impact:** a naive consumer **may** insert a second shipment, trigger an additional reservation or send a duplicate downstream command when it treats the redelivery as a new event. This is a hypothetical failure outcome, not a reported incident.
 
 **Root cause:** the team treated message acknowledgement as if it were atomic with the business effect and interpreted “reliable delivery” as “one business effect.”
 
-**Correct pattern:** make `eventId` a stable deduplication identity; insert it under a unique constraint in the same local transaction that creates the shipment; treat a uniqueness conflict as an already-applied event; acknowledge only after that transaction commits. If a downstream reservation must happen later, persist an outbox record and call the downstream service with a stable idempotency key.
+**Correct pattern:** keep `eventId` stable across deliveries and insert it under a unique constraint in the same local transaction that creates the shipment. For a known duplicate whose prior transaction committed, skip the local mutation and acknowledge according to the broker contract; for an uncertain/in-progress attempt, resolve ownership before returning success. If a downstream reservation must happen later, write outbox intent atomically and use a documented downstream idempotency or reconciliation contract.
 
 This gives the local service **effectively-once business state transition under redelivery** without pretending the entire distributed workflow has one global exactly-once transaction.
 
@@ -191,12 +191,12 @@ When a platform says “exactly once,” ask:
 
 ## Self-check
 
-A consumer charges a card, then commits its queue checkpoint. The charge succeeds but the process crashes before the checkpoint commit. The broker redelivers the message. Does an “at-least-once” queue violate its contract?
+In a hypothetical checkout flow, a consumer charges a card, then commits its queue checkpoint. The charge succeeds but the process crashes before the checkpoint commit. The broker may redeliver the message. Does an “at-least-once” queue violate its contract?
 
 <details>
 <summary>Show the reasoning</summary>
 
-No. Redelivery is exactly what at-least-once allows. The unsafe part is the business effect: the consumer performed a non-idempotent remote action before durably recording progress. Use a stable payment idempotency key or a coordinated state machine so the repeated delivery converges on the same logical charge.
+No. Redelivery is allowed by at-least-once delivery. The unsafe part is the business effect: the consumer performed a potentially non-idempotent remote action before durably recording completion. Use a **provider-enforced** stable payment identity or reconcile ambiguous charges before repeating the remote effect; local checkpointing alone cannot make a remote charge atomic.
 
 </details>
 
@@ -218,8 +218,10 @@ Before accepting a messaging guarantee, recover the full failure boundary: produ
 
 ## Sources
 
-Primary references verified on **2026-11-05**:
+Primary references rechecked on **2026-11-18**:
 
-- [Apache Kafka 4.0 Design — Message Delivery Semantics](https://kafka.apache.org/40/design/design/)
+- [Apache Kafka 4.0 Design — Message Delivery Semantics](https://kafka.apache.org/40/design/design/) — explicitly version-scoped Kafka transactions
 - [RabbitMQ — Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/docs/confirms)
 - [Amazon SQS — At-least-once delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
+- [Amazon SQS — Visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html) — duplicate reception remains possible during invisibility
+- [Amazon SQS — FIFO deduplication](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-key-terms.html) — broker-scoped five-minute deduplication
