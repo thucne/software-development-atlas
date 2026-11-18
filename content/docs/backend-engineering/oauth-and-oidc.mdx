@@ -4,7 +4,7 @@ description: "Build a frontend-friendly mental model of OAuth 2.0 and OpenID Con
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [authentication, oauth, oidc, browser-security, tokens, frontend]
 prerequisites: [authentication-and-authorization]
@@ -30,7 +30,7 @@ For public browser clients, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.ht
 - **ID Token ≠ Access Token.** The ID Token is for the client; the access token is for the resource server.
 - **PKCE binds code exchange to the original authorization request:** A transaction-specific verifier (preferably via `S256`) protects the code from theft/injection. PKCE **does not authenticate a public client's identity** or replace issuer, redirect URI, audience and resource authorization checks.
 - **Decode ≠ validate.** Reading JWT JSON proves nothing about its signature, issuer, audience, expiry, or intended use.
-- **Fatal pitfall:** Treating “I have a valid token” as “I am authorized for this object.” Business authorization still belongs at the API/resource boundary.
+- **High-risk mistake:** Treating “I have a valid token” as “I am authorized for this object.” Business authorization still belongs at the API/resource boundary.
 
 ```mermaid
 flowchart LR
@@ -97,7 +97,7 @@ sequenceDiagram
   API-->>SPA: Protected response
 ```
 
-The authorization code is intentionally not the access token. It is an intermediate credential with narrow purpose and lifetime.
+The authorization code is intentionally not the access token. It is an intermediate credential with narrow purpose and lifetime. **This sequence illustrates a browser-only public client.** In a BFF deployment the authorization response returns through the user's browser, but the BFF exchanges the code and stores tokens server-side; browser JavaScript does not receive the access/refresh tokens.
 
 RFC 9700 requires public clients to use PKCE and recommends it for confidential clients as well. RFC 10017 applies this specifically to modern browser applications.
 
@@ -142,7 +142,7 @@ Do not send the ID Token to an API merely because it looks like a JWT.
 
 Purpose: obtain new access tokens without repeating the full interactive authorization flow.
 
-Refresh tokens carry more durable authority than access tokens and deserve stronger handling. In browser architectures, whether the browser should directly hold one depends on the architecture and authorization server policy.
+Refresh tokens carry more durable authority than access tokens and deserve stronger handling. An authorization server may decline to issue them to browser-based clients. **If refresh tokens are issued to public clients, RFC 9700 requires sender-constraining or rotation.** RFC 10017 also requires a maximum lifetime or an inactivity timeout and forbids silently extending a pre-established absolute lifetime when rotating. Neither rotation nor a short access-token lifetime fully defeats attacker-controlled JavaScript running in the application's origin. In a BFF, the backend retains refresh tokens away from browser JavaScript.
 
 ## 5. Scope, claim, role, and permission are different dimensions
 
@@ -215,7 +215,7 @@ RFC 10017 describes three main browser architectures:
 2. **Token-mediating backend:** backend handles OAuth but returns access tokens to the browser for direct API calls.
 3. **Browser-based OAuth client:** the browser app handles OAuth directly.
 
-The document presents them in decreasing order of security. A BFF reduces token exposure to injected browser JavaScript, but it also adds a server component, cookie/CSRF responsibilities, and request proxying.
+The document presents them in decreasing order of security. A BFF reduces direct token exposure to injected browser JavaScript, but it does not make malicious same-origin JavaScript harmless: such code can still issue authenticated requests through the user's session. A BFF also adds a server component, protected-cookie/CSRF responsibilities, and request proxying.
 
 Choose architecture deliberately; do not assume “SPA” automatically means “tokens must live in localStorage.”
 
@@ -251,7 +251,7 @@ Decoding only reveals untrusted bytes until the token is validated. Even after c
 - [ ] **Discovery:** Are issuer/endpoints/JWKS obtained from trusted metadata where appropriate?
 - [ ] **Validation:** Are signature, issuer, audience, expiry, token purpose, and required claims validated?
 - [ ] **Authorization:** Does the API enforce permission on the concrete resource after authentication?
-- [ ] **Refresh:** Is refresh-token handling aligned with the browser architecture and threat model?
+- [ ] **Refresh:** If a public browser client receives refresh tokens, does the issuer rotate or sender-constrain them and enforce a maximum/inactivity lifetime? Is token ownership aligned with BFF/direct-browser architecture?
 - [ ] **Logout:** Is local application logout distinguished from identity-provider/session logout?
 
 ## Boundaries with related Atlas lessons
@@ -266,4 +266,5 @@ Decoding only reveals untrusted bytes until the token is validated. Even after c
 - [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://www.rfc-editor.org/rfc/rfc9700.html)
 - [RFC 7636 — Proof Key for Code Exchange by OAuth Public Clients](https://www.rfc-editor.org/rfc/rfc7636.html)
 - [RFC 8414 — OAuth 2.0 Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html)
+- [RFC 9207 — OAuth Authorization Server Issuer Identification](https://www.rfc-editor.org/rfc/rfc9207.html)
 - [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0-18.html)

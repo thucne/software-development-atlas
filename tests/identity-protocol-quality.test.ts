@@ -8,7 +8,7 @@ const pairs = [
   {
     name: 'oauth-and-oidc',
     en: ['requires PKCE', 'mix-up defense', 'does not authenticate a public client'],
-    vi: ['yêu cầu PKCE', 'chống mix-up', 'không xác thực danh tính của public client'],
+    vi: ['bắt buộc dùng PKCE', 'chống mix-up', 'không xác thực danh tính của public client'],
   },
   {
     name: 'sso-and-identity-federation',
@@ -28,7 +28,7 @@ describe('Wave 1 protocol and identity security semantics', () => {
       for (const locale of ['en', 'vi'] as const) {
         const file = `content/docs/backend-engineering/${item.name}${locale === 'vi' ? '.vi' : ''}.mdx`;
         const body = readFileSync(path.join(root, file), 'utf8');
-        expect(body, file).toContain(`lastVerified: ${item.name === 'sso-and-identity-federation' ? '2026-11-18' : '2026-11-05'}`);
+        expect(body, file).toContain(`lastVerified: ${item.name === 'sso-and-identity-federation' || item.name === 'oauth-and-oidc' ? '2026-11-18' : '2026-11-05'}`);
         for (const phrase of item[locale]) {
           expect(body, `${file}: ${phrase}`).toContain(phrase);
         }
