@@ -129,7 +129,7 @@ price:v3:{tenant_id}:{product_id}:{currency}:{pricing_plan}:{locale}
 
 The `v3` namespace is useful when the cached representation or key semantics change. Versioned namespaces can make broad migrations easier than trying to discover and delete every legacy key perfectly.
 
-Do not place secrets directly in cache keys if keys can appear in logs, metrics, dashboards, or administrative tooling. Use stable non-secret identifiers or hashes where appropriate.
+Serialize key components unambiguously: if identifiers can contain delimiters, use escaping, length prefixes, or another canonical encoding so distinct identities cannot collide. Keep key versions and tenant/authorization scope consistent across every read, write, and invalidation path. Do not place secrets directly in cache keys if keys can appear in logs, metrics, dashboards, or administrative tooling. Use stable non-secret identifiers or hashes where appropriate.
 
 ## 3. Choose TTL from a staleness budget, not habit
 
@@ -168,7 +168,7 @@ commit
 DEL cache key
 ```
 
-Deleting is often easier to reason about than trying to update the database and cache to exactly the same value as two independent writes. The next reader rebuilds from the source of truth.
+Deleting is often easier to reason about than trying to update the database and cache to exactly the same value as two independent writes. The next reader rebuilds from the source of truth. **Commit-then-invalidate is not an atomic transaction across the database and cache:** if invalidation fails after commit, a stale entry can remain. Choose an explicit policy (for example, a bounded TTL, a durable invalidation event with retries, or version-checked reads) based on the required freshness; do not treat a best-effort delete as a guarantee.
 
 But ordering still matters. Invalidating before the authoritative commit can create this race:
 
