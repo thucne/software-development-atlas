@@ -73,4 +73,15 @@ describe('API Design lesson', () => {
     expect(en).toContain('RFC 9110');
     expect(en).toContain('RFC 9457');
   });
+
+  it('preserves source-backed 401 and conditional PATCH boundaries in both languages', () => {
+    for (const relativePath of Object.values(lessonPaths)) {
+      const source = read(relativePath);
+      expect(source, relativePath).toContain('WWW-Authenticate');
+      expect(source, relativePath).toContain('If-Match');
+      expect(source, relativePath).toContain('412 Precondition Failed');
+      expect(source, relativePath).toContain('RFC 9457');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+    }
+  });
 });
