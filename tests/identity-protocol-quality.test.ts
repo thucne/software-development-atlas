@@ -8,7 +8,7 @@ const pairs = [
   {
     name: 'oauth-and-oidc',
     en: ['requires PKCE', 'mix-up defense', 'does not authenticate a public client'],
-    vi: ['yêu cầu PKCE', 'chống mix-up', 'không xác thực danh tính của public client'],
+    vi: ['bắt buộc dùng PKCE', 'chống mix-up', 'không xác thực danh tính của public client'],
   },
   {
     name: 'sso-and-identity-federation',
