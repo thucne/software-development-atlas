@@ -82,7 +82,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       for (const relativePath of [item.en, item.vi]) {
         const source = lesson(relativePath);
         expect(source).toContain('category: backend-engineering');
-        expect(source).toContain(`lastVerified: ${item === lessons.sso ? '2026-11-18' : '2026-11-05'}`);
+        expect(source).toContain(`lastVerified: ${item === lessons.sso || item === lessons.oauth ? '2026-11-18' : '2026-11-05'}`);
         expect(source).toMatch(new RegExp(`concepts:\\n  - ` + item.concept + `\\n---`));
         expect((source.match(/<TermBox/g) ?? []).length).toBeGreaterThanOrEqual(2);
         expect((source.match(/<TermBox/g) ?? []).length).toBeLessThanOrEqual(3);
@@ -91,7 +91,7 @@ describe('Identity protocols and Keycloak lessons', () => {
         expect(source).toContain('<details>');
         expect(source).toContain('- [ ]');
         expect(source).toMatch(/Rule of thumb|Quy tắc bỏ túi/);
-        expect(source).toMatch(/Fatal pitfall|Sai lầm chí mạng|High-risk assumption|Giả định rủi ro cao/);
+        expect(source).toMatch(/Fatal pitfall|Sai lầm chí mạng|High-risk assumption|Giả định rủi ro cao|High-risk mistake|Sai lầm rủi ro cao/);
       }
     }
 
@@ -99,6 +99,19 @@ describe('Identity protocols and Keycloak lessons', () => {
     expect(lesson(lessons.sso.en)).toContain('contentType: deep-dive');
     expect(lesson(lessons.keycloak.en)).toContain('contentType: field-guide');
     expect(lesson(lessons.keycloak.en)).toContain('learningDepth: operate');
+  });
+
+  it('enforces browser public-client refresh-token restrictions in both languages', () => {
+    for (const relativePath of [lessons.oauth.en, lessons.oauth.vi]) {
+      const source = lesson(relativePath);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toMatch(/RFC 9700/);
+      expect(source, relativePath).toMatch(/RFC 10017/);
+      expect(source, relativePath).toMatch(/rotate|rotation|xoay vòng/i);
+      expect(source, relativePath).toMatch(/sender.constrain|ràng buộc.*bên gửi/i);
+      expect(source, relativePath).toMatch(/BFF/);
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
+    }
   });
 
   it('teaches OAuth/OIDC from a browser and token-boundary perspective', () => {

@@ -1,10 +1,10 @@
 ---
-title: "OAuth 2.0 & OpenID Connect: Lần theo Luồng Đăng nhập Trình duyệt"
+title: "OAuth 2.0 và OpenID Connect: Lần theo luồng đăng nhập trên trình duyệt"
 description: "Xây dựng mô hình tư duy thân thiện với frontend về OAuth 2.0 và OpenID Connect qua Authorization Code + PKCE, token, discovery, validation, scope, claim và lựa chọn kiến trúc trình duyệt."
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [authentication, oauth, oidc, browser-security, tokens, frontend]
 prerequisites: [authentication-and-authorization]
@@ -16,13 +16,13 @@ concepts:
   - oauth-and-oidc
 ---
 
-# OAuth 2.0 & OpenID Connect: Lần theo Luồng Đăng nhập Trình duyệt
+# OAuth 2.0 và OpenID Connect: Lần theo luồng đăng nhập trên trình duyệt
 
 ## Tóm tắt nhanh
 
-OAuth 2.0 là một **framework phân quyền**: nó cho phép một client nhận quyền hạn có giới hạn để gọi tài nguyên được bảo vệ. OpenID Connect (OIDC) bổ sung **lớp danh tính** để client biết ai vừa được xác thực. Hai chuẩn liên quan chặt chẽ nhưng không trả lời cùng một câu hỏi.
+OAuth 2.0 là một **khung ủy quyền**: nó cho phép ứng dụng nhận quyền truy cập có giới hạn tới tài nguyên được bảo vệ. OpenID Connect (OIDC) bổ sung **lớp định danh** để ứng dụng xác minh ai đã đăng nhập. Hai chuẩn liên quan chặt chẽ nhưng không trả lời cùng một câu hỏi.
 
-Với public client chạy trong trình duyệt, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1.1) **yêu cầu PKCE** khi dùng Authorization Code; với confidential client, RFC khuyến nghị dùng PKCE. Đây là ràng buộc dành cho client trong protocol chứ không phải bằng chứng danh tính người dùng. Trình duyệt chuyển hướng tới authorization server, nhận một authorization code ngắn hạn rồi đổi code đó bằng verifier riêng cho transaction. Frontend bundle là **public client**: nó không thể giữ client secret một cách bí mật.
+Với ứng dụng công khai chạy trong trình duyệt, [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1.1) **bắt buộc dùng PKCE** cùng Authorization Code; với ứng dụng bảo mật được bí mật máy chủ, chuẩn khuyến nghị PKCE. PKCE ràng buộc giao dịch ủy quyền, không xác minh danh tính người dùng. Trình duyệt chuyển hướng đến máy chủ ủy quyền, nhận mã ngắn hạn rồi đổi mã bằng giá trị xác minh riêng cho giao dịch. Mã JavaScript gửi xuống trình duyệt là **public client** và không thể giữ bí mật ứng dụng.
 
 > 💡 **Quy tắc bỏ túi:** Luôn tách bốn câu hỏi: **ai đã được xác thực, client nào xin quyền, access token dành cho resource server nào, và token đó đại diện cho quyền hạn gì**.
 
@@ -30,7 +30,7 @@ Với public client chạy trong trình duyệt, [RFC 9700](https://www.rfc-edit
 - **ID Token ≠ Access Token.** ID Token dành cho client; access token dành cho resource server.
 - **PKCE ràng buộc code exchange với authorization request qua verifier riêng:** `S256` khiến attacker không thể suy ra verifier từ challenge. Nó **không xác thực danh tính của public client** và không thay cho kiểm tra issuer, redirect URI, audience hay quyền truy cập tài nguyên.
 - **Decode ≠ validate.** Đọc được JSON của JWT không chứng minh chữ ký, issuer, audience, expiry hay mục đích sử dụng.
-- **Sai lầm chí mạng:** Xem “có token hợp lệ” là “được phép truy cập object này”. Business authorization vẫn phải được thực thi tại API/resource boundary.
+- **Sai lầm rủi ro cao:** Coi “có token hợp lệ” đồng nghĩa “được quyền truy cập tài nguyên này”. API vẫn phải tự kiểm tra phân quyền theo đối tượng và thao tác.
 
 ```mermaid
 flowchart LR
@@ -44,7 +44,7 @@ flowchart LR
 ```
 
 <TermBox term="OAuth Client">
-**OAuth client** là ứng dụng xin quyền truy cập được ủy quyền. SPA chạy hoàn toàn trong trình duyệt thường là public client vì credential gửi xuống browser có thể bị người dùng hoặc attacker kiểm soát browser trích xuất.
+**Ứng dụng OAuth (OAuth client)** là bên xin quyền truy cập được ủy quyền. Một SPA chỉ chạy trong trình duyệt là ứng dụng công khai, vì thông tin xác thực bí mật được gửi vào JavaScript có thể bị người dùng hoặc mã độc chạy cùng nguồn đọc được.
 </TermBox>
 
 ## 1. Tách xác thực khỏi ủy quyền truy cập
@@ -53,8 +53,8 @@ Giả sử một ứng dụng React cần gọi `api.example.com` thay mặt Ali
 
 Có hai câu hỏi độc lập:
 
-1. **Authentication:** identity provider đã xác thực Alice chưa?
-2. **Authorization delegation:** client này được phép thực thi quyền hạn nào đối với API?
+1. **Xác thực:** nhà cung cấp danh tính đã xác thực Alice chưa?
+2. **Ủy quyền truy cập:** ứng dụng này được giao những quyền hạn nào khi gọi API?
 
 OAuth 2.0 chuẩn hóa vấn đề thứ hai. OIDC dùng các flow của OAuth 2.0 rồi thêm ngữ nghĩa danh tính như scope `openid` và ID Token.
 
@@ -97,15 +97,15 @@ sequenceDiagram
   API-->>SPA: Protected response
 ```
 
-Authorization code cố ý không phải access token. Nó là credential trung gian có mục đích và thời hạn hẹp.
+Mã ủy quyền không phải access token. Đó là thông tin xác thực trung gian có mục đích và thời hạn giới hạn. **Sơ đồ này minh họa một public client chạy trực tiếp trong trình duyệt.** Với kiến trúc BFF, phản hồi ủy quyền vẫn đi qua trình duyệt, nhưng BFF đổi mã lấy token và giữ token trên máy chủ; JavaScript của ứng dụng không nhận access token hay refresh token.
 
 RFC 9700 yêu cầu public client dùng PKCE và khuyến nghị confidential client cũng dùng. RFC 10017 áp dụng hướng dẫn này trực tiếp cho ứng dụng trình duyệt hiện đại.
 
 ### Vì sao frontend không có client secret thật sự
 
-Nếu secret xuất hiện trong JavaScript gửi xuống browser, nó không còn bí mật. Minify, build-time environment variable hay giấu trong bundle không tạo confidentiality.
+Nếu bí mật có mặt trong JavaScript gửi xuống trình duyệt, nó không còn là bí mật. Thu gọn mã, dùng biến môi trường khi build hay giấu trong gói JavaScript đều không bảo vệ được giá trị đó.
 
-Browser client vẫn có thể có `client_id` ổn định. Client identifier là tên định danh, không phải password.
+Ứng dụng trên trình duyệt vẫn có thể có `client_id` ổn định; đây là mã định danh, không phải mật khẩu.
 
 ## 4. Biết mỗi token dành cho ai
 
@@ -121,7 +121,7 @@ Hãy nghĩ:
 
 > “API có thể chấp nhận quyền được ủy quyền này cho audience và scope phù hợp.”
 
-Access token không bắt buộc lúc nào cũng là JWT. Hãy xem nó là opaque trừ khi deployment contract của bạn quy định resource server validate JWT access token.
+Access token không bắt buộc phải có định dạng JWT. Hãy coi nó là giá trị không cần giải nghĩa, trừ khi hợp đồng triển khai quy định API nhận và xác minh JWT access token.
 
 ### ID Token
 
@@ -142,20 +142,20 @@ Các claim thường quan trọng:
 
 Mục đích: lấy access token mới mà không cần lặp lại toàn bộ interactive authorization flow.
 
-Refresh token mang quyền hạn bền hơn access token nên cần xử lý nghiêm ngặt hơn. Với browser architecture, việc browser có nên giữ refresh token trực tiếp hay không phụ thuộc kiến trúc và policy của authorization server.
+Refresh token có thể dùng để xin access token mới trong thời gian dài hơn nên cần bảo vệ nghiêm ngặt. Máy chủ ủy quyền có thể không cấp refresh token cho ứng dụng chạy trên trình duyệt. **Nếu cấp cho public client, RFC 9700 bắt buộc xoay vòng refresh token hoặc ràng buộc token với bên gửi.** RFC 10017 còn yêu cầu giới hạn thời hạn tối đa hoặc hết hạn khi không sử dụng và không kéo dài vô hạn thời hạn tuyệt đối đã đặt khi xoay vòng token. Xoay vòng không thể loại bỏ mọi rủi ro nếu mã độc có thể chạy cùng nguồn với ứng dụng. Với BFF, refresh token được giữ trên máy chủ thay vì trong JavaScript.
 
-## 5. Scope, claim, role và permission không phải một thứ
+## 5. Phạm vi, thuộc tính, vai trò và quyền cụ thể là những khái niệm khác nhau
 
 Các từ này thường xuất hiện cạnh nhau nhưng không thể thay thế cho nhau.
 
-- **Scope** mô tả quyền truy cập được request/grant theo ngữ nghĩa OAuth.
-- **Claim** là một mẩu dữ liệu trong token hoặc UserInfo response.
-- **Role** là grouping trong application/identity system dùng làm input cho policy.
-- **Permission** là quyết định authorization cuối cùng đối với action/resource.
+- **Scope** mô tả phạm vi truy cập được yêu cầu hoặc được cấp theo OAuth.
+- **Claim** là một thuộc tính dữ liệu trong token hoặc phản hồi UserInfo.
+- **Role** là nhóm vai trò trong ứng dụng hoặc hệ thống danh tính, được dùng làm đầu vào cho chính sách.
+- **Permission** là quyền cụ thể được quyết định cho từng hành động và tài nguyên.
 
 Token có thể chứa role claim, nhưng API vẫn phải quyết định principal đó có được update `invoice/42` hay không.
 
-## 6. Discovery cho client biết endpoint của protocol nằm ở đâu
+## 6. Metadata giúp ứng dụng tìm đúng điểm truy cập giao thức
 
 OIDC deployment thường publish provider metadata qua well-known discovery location. OAuth Authorization Server Metadata cũng publish các field như:
 
@@ -165,7 +165,7 @@ OIDC deployment thường publish provider metadata qua well-known discovery loc
 - `jwks_uri`;
 - supported scopes và response/grant capabilities.
 
-Đừng hard-code signing key copy từ admin console khi platform hỗ trợ JWKS rotation.
+Đừng sao chép cố định khóa ký từ bảng quản trị khi nền tảng hỗ trợ làm mới khóa công khai qua JWKS.
 
 ```mermaid
 flowchart TD
@@ -180,7 +180,7 @@ flowchart TD
   C --> P[Application authorization policy]
 ```
 
-## 7. Validate JWT nhiều hơn Base64 decode
+## 7. Xác minh JWT không chỉ là giải mã Base64
 
 Resource server validate JWT access token thường phải kiểm tra deployment contract, gồm:
 
@@ -193,7 +193,7 @@ Resource server validate JWT access token thường phải kiểm tra deployment
 
 Client validate ID Token phải theo OIDC-specific validation, gồm issuer, audience và transaction binding như `nonce` khi dùng.
 
-Browser không nên tự phát minh mô hình bảo mật “decode rồi tin”.
+Không được thiết kế hệ thống bảo mật theo kiểu “giải mã được thì tin”.
 
 **Những biện pháp này có thể cùng bảo vệ một số loại tấn công.** [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1) cho phép dựa vào PKCE hoặc OIDC `nonce` để phòng CSRF trong điều kiện giao thức tương ứng được triển khai và kiểm tra đúng; nếu không, dùng `state` một lần gắn chắc với phiên trình duyệt. Khi client tích hợp **nhiều authorization server**, còn phải chống mix-up bằng issuer trong authorization response (`iss` theo RFC 9207) hoặc biện pháp tương đương. `state`, `nonce` và PKCE **không thay thế** issuer validation và exact redirect-URI matching.
 
@@ -207,7 +207,7 @@ Ba giá trị này dễ bị nhớ chung là “random string”, nhưng vai tr�
 
 Ưu tiên thư viện OAuth/OIDC trưởng thành thay vì tự ghép validation logic cho redirect bảo mật.
 
-## 9. Kiến trúc trình duyệt quyết định mức token exposure
+## 9. Kiến trúc trình duyệt quyết định mức độ lộ token
 
 RFC 10017 mô tả ba kiến trúc chính:
 
@@ -215,17 +215,17 @@ RFC 10017 mô tả ba kiến trúc chính:
 2. **Token-mediating backend:** backend xử lý OAuth nhưng trả access token cho browser để gọi API trực tiếp.
 3. **Browser-based OAuth client:** browser app trực tiếp xử lý OAuth.
 
-Tài liệu trình bày chúng theo thứ tự mức bảo mật giảm dần. BFF giảm token exposure với injected browser JavaScript, nhưng thêm server component, cookie/CSRF responsibility và request proxying.
+RFC sắp xếp các mô hình theo mức bảo vệ giảm dần trước các mối đe dọa đã phân tích. BFF giảm việc lộ token trực tiếp cho JavaScript bị chèn vào, nhưng mã độc chạy cùng nguồn vẫn có thể gửi yêu cầu đã xác thực qua phiên người dùng. BFF cũng cần máy chủ, cookie được bảo vệ, cơ chế chống CSRF và việc chuyển tiếp yêu cầu.
 
-Hãy chọn architecture có chủ đích; đừng mặc định “SPA” đồng nghĩa “token phải nằm trong localStorage”.
+Hãy chọn kiến trúc theo các rủi ro thực tế; đừng mặc định SPA phải lưu token vào `localStorage`.
 
-## Tình huống minh họa (giả định): gửi ID Token sang API
+## Tình huống giả định: gửi nhầm ID Token tới API
 
 Đội frontend triển khai OIDC login và nhận cả ID Token lẫn access token. Vì cả hai đều trông như JWT, interceptor gửi ID Token trong `Authorization: Bearer ...` tới Orders API. API chỉ kiểm tra chữ ký đến từ trusted issuer rồi chấp nhận.
 
-- **Hậu quả:** Token được mint cho frontend client bị dùng như API credential, làm sụp ranh giới audience.
-- **Nguyên nhân cốt lõi:** Hệ thống xem mọi JWT có chữ ký của issuer là tương đương và bỏ qua token purpose/audience validation.
-- **Cách khắc phục chuẩn:** Gửi access token tới resource server, validate issuer/audience/profile mà API kỳ vọng, giữ ID Token ở OIDC client và enforce object-level authorization sau token validation.
+- **Hậu quả:** Token được cấp cho ứng dụng giao diện bị dùng làm thông tin truy cập API, phá vỡ ranh giới đối tượng nhận token.
+- **Nguyên nhân cốt lõi:** Hệ thống coi mọi JWT có chữ ký từ cùng nhà phát hành là như nhau, không kiểm tra mục đích và đối tượng nhận.
+- **Cách khắc phục chuẩn:** Chỉ gửi access token đến API, kiểm tra nhà phát hành, đối tượng nhận và định dạng token được chấp nhận, giữ ID Token tại ứng dụng OIDC và kiểm tra phân quyền trên từng tài nguyên sau khi xác minh token.
 
 ## Tự kiểm tra mô hình tư duy
 
@@ -236,7 +236,7 @@ Hãy chọn architecture có chủ đích; đừng mặc định “SPA” đồ
 
 Chưa.
 
-Decode chỉ hiển thị byte chưa đáng tin cho tới khi token được validate. Kể cả sau khi cryptographic và protocol validation thành công, role claim vẫn chỉ là input cho authorization. API phải tiếp tục quyết định validated principal đó có được thực hiện action trên resource cụ thể theo policy hiện tại hay không.
+Giải mã chỉ hiển thị dữ liệu chưa đáng tin cho tới khi token được xác minh. Ngay cả sau khi kiểm tra chữ ký và ngữ nghĩa giao thức thành công, thuộc tính vai trò cũng chỉ là đầu vào của quyết định phân quyền. API phải tiếp tục kiểm tra danh tính đã xác thực có được phép thực hiện thao tác trên tài nguyên cụ thể theo chính sách hiện tại hay không.
 
 </details>
 
@@ -251,7 +251,7 @@ Decode chỉ hiển thị byte chưa đáng tin cho tới khi token được val
 - [ ] **Discovery:** Issuer/endpoint/JWKS có lấy từ trusted metadata khi phù hợp không?
 - [ ] **Validation:** Có validate signature, issuer, audience, expiry, token purpose và required claim không?
 - [ ] **Authorization:** API có enforce permission trên resource cụ thể sau authentication không?
-- [ ] **Refresh:** Refresh-token handling có khớp browser architecture và threat model không?
+- [ ] **Làm mới token:** Nếu public browser client được cấp refresh token, máy chủ có xoay vòng hoặc ràng buộc với bên gửi và giới hạn thời hạn không? Có giữ token ở đúng phía theo kiến trúc BFF hay trình duyệt trực tiếp không?
 - [ ] **Logout:** Local application logout có được tách khỏi identity-provider/session logout không?
 
 ## Ranh giới với các bài Atlas liên quan
@@ -266,4 +266,5 @@ Decode chỉ hiển thị byte chưa đáng tin cho tới khi token được val
 - [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://www.rfc-editor.org/rfc/rfc9700.html)
 - [RFC 7636 — Proof Key for Code Exchange by OAuth Public Clients](https://www.rfc-editor.org/rfc/rfc7636.html)
 - [RFC 8414 — OAuth 2.0 Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414.html)
+- [RFC 9207 — Định danh nhà phát hành OAuth trong phản hồi ủy quyền](https://www.rfc-editor.org/rfc/rfc9207.html)
 - [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0-18.html)
