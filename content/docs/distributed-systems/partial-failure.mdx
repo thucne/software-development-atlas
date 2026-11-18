@@ -4,7 +4,7 @@ description: Reason about distributed operations when one component, message, or
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, resilience, failure-semantics]
 prerequisites: [microservices, service-resilience]
@@ -30,7 +30,7 @@ concepts:
 - **Independent caller and callee observations:** The caller and callee form **independent local judgments** regarding the same RPC; a caller's `DEADLINE_EXCEEDED` timeout often coincides with a callee's completed database transaction.
 - **Safe retries need a replay contract:** Preserve stable business-operation identity for ambiguous writes and use enforced server idempotency, reconciliation or applicable unique constraints/conditional updates. **A header containing an idempotency key alone does not make a write safe to repeat**.
 - **Blast radius and failure isolation:** Unbounded waits on slow dependencies quickly consume worker threads, database connections, and memory; systems must enforce end-to-end **deadlines**, propagate **cancellation**, and actively isolate failures via **fail-fast**, fallback, or graceful degradation.
-- **Fatal pitfall:** **Treating timeouts as operational failures.** Conflating "I stopped waiting" with "nothing happened on the server" and triggering immediate, unprotected retries on non-idempotent endpoints is the fastest way to double-charge credit cards, corrupt balances, and produce duplicate inventory reservations.
+- **High-risk mistake:** Treating a timeout as proof a remote write never happened. An immediate, unprotected retry can create duplicate charges or reservations if the server committed the first attempt. Impact depends on the actual operation and the receiver's deduplication policy.
 
 ```mermaid
 flowchart LR
@@ -111,22 +111,22 @@ flowchart TD
   Q -->|Unknown side effect| I[Use request identity / idempotency]
   I --> K{Same operation already committed?}
   K -->|yes| O[Return prior outcome]
-  K -->|no| X[Execute once and record outcome]
+  K -->|no| X[Atomically claim intent + commit effect or reconcile]
 ```
 
-Use a stable **request identity** or idempotency key for operations that may be retried after an ambiguous failure. The server must associate retries with the same logical operation, not merely accept a fresh command each time.
+Use a stable **request identity** or idempotency key for operations that may be retried after an ambiguous failure. The server must bind the key to the caller's intended operation and relevant parameters, enforce one authoritative outcome at the write boundary (including overlapping attempts), and define key retention and reuse semantics. Merely checking a deduplication record and then writing in separate uncoordinated steps is itself a race.
 
 <TermBox term="Request Identity">
 A **request identity** is a stable identifier carried across retries so the receiver can recognize multiple transport attempts as one logical operation.
 </TermBox>
 
-Idempotency does not make the network reliable. It makes repeated attempts safer.
+Idempotency does not make the network reliable. It makes repeated attempts safer only within the receiver's documented idempotency scope and retention window. A key reused for a different payload should be rejected or handled according to an explicit contract, not silently treated as the first request.
 
 **Cancellation is not rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) says that changes made before cancellation are not rolled back. [gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) also requires server handlers to cooperate with cancellation signals. An ambiguous write still requires authoritative reconciliation.
 
 ## Deadlines bound waiting; cancellation bounds wasted work
 
-Every remote dependency consumes time and resources. A caller should propagate a realistic **deadline** rather than letting each nested service start a fresh full timeout.
+Every remote dependency consumes time and resources. A caller should propagate a realistic **deadline** rather than letting each nested service start a fresh full timeout. gRPC implementations differ: some propagate deadlines automatically while others require explicit configuration, so verify the actual client/server stack.
 
 When the caller no longer needs a result, propagate **cancellation** so downstream work can stop where possible. But cancellation is not rollback: changes committed before cancellation can remain committed.
 
@@ -163,7 +163,7 @@ HTTP status alone is not enough to reconstruct a partial failure. Carry a correl
 
 Useful signals include dependency latency, timeout rate, retry attempts, duplicate-suppression hits, cancellation count, saturation, and success/error rates by dependency.
 
-For ambiguous writes, record the stable operation ID alongside authoritative business state so an operator can answer: **did this logical operation commit?**
+For ambiguous writes, record the stable operation ID with authoritative business state at a safe atomic boundary so an operator can answer: **did this logical operation commit?** A log correlation ID alone cannot prove the external payment effect.
 
 ## Illustrative scenario (hypothetical)
 
@@ -173,7 +173,7 @@ A checkout service calls a payment provider with `POST /charges`. The provider c
 
 **Root cause:** the caller interpreted timeout as proof of failure and retried a non-idempotent side effect without a stable logical request identity. Caller and callee had different local observations of the first attempt.
 
-**Correct pattern:** assign a stable payment operation ID before the first attempt; send it as the idempotency/request key on every retry; set an end-to-end deadline and bounded retry policy; propagate cancellation where useful; persist enough state to reconcile unknown outcomes; and trace attempts with the same correlation ID so operators can distinguish one logical operation from many transport attempts.
+**Correct pattern:** assign a stable payment operation ID before the first attempt; reuse it as the idempotency/request key on retries only when the provider documents an enforced scope and retention window; keep parameters identical, or reject mismatches; set an end-to-end deadline and bounded retry policy; propagate cancellation where useful; reconcile ambiguous outcomes with authoritative payment state; and trace attempts with a correlation ID distinct from the payment operation ID.
 
 <details>
 <summary>Self-check: a payment call timed out. Is it safe to assume no charge happened?</summary>
@@ -185,7 +185,7 @@ No. The request may have committed and only the response may be missing. Treat t
 ## Production checklist
 
 - [ ] Remote timeouts are modeled as potentially ambiguous outcomes.
-- [ ] State-changing retries reuse a stable request identity or idempotency key.
+- [ ] State-changing retries reuse a stable request identity or idempotency key within a documented scope, lifetime and payload-matching rule.
 - [ ] Retry budgets are bounded and placed intentionally in the dependency chain.
 - [ ] End-to-end deadlines are propagated instead of reset at every hop.
 - [ ] Cancellation stops unnecessary downstream work where supported.
@@ -194,7 +194,7 @@ No. The request may have committed and only the response may be missing. Treat t
 - [ ] Connection, worker, thread, and queue saturation are considered in blast-radius analysis.
 - [ ] Correlation IDs connect caller, callee, retry, and business-state evidence.
 - [ ] Dependency metrics expose latency, timeout, retry, cancellation, and error behavior.
-- [ ] Ambiguous writes have a reconciliation path.
+- [ ] Ambiguous writes have an authoritative reconciliation path, even if a timeout or local log is the only immediate evidence.
 - [ ] Failure tests include slow, blackholed, partitioned, and lost-response cases, not only clean 500 errors.
 
 ## Agent rule
