@@ -58,7 +58,7 @@ stateDiagram-v2
   cancelling --> cancelled: worker dừng an toàn
 ```
 
-Đừng mô hình một job chỉ là “gọi hàm này sau”. Hãy mô hình nó thành **trạng thái bền vững cộng với giao thức xử lý có thể lặp lại an toàn**.
+Đừng hiểu một tác vụ nền chỉ là “gọi hàm này sau”. Hãy mô hình hóa nó bằng **trạng thái bền vững và quy trình xử lý có thể lặp lại an toàn**.
 
 <TermBox term="Công việc nền">
 **Công việc nền** là công việc bền vững có thể sống lâu hơn yêu cầu hoặc tiến trình đã tạo ra nó và được thực thi bất đồng bộ bởi một hay nhiều worker.
@@ -93,13 +93,13 @@ Transport cụ thể có thể là bảng job trong cơ sở dữ liệu, dịch
 
 Nếu workflow phải vừa cập nhật trạng thái nghiệp vụ vừa phát công việc sang hệ thống khác một cách nhất quán, transactional outbox hoặc mô hình tương đương có thể cần thiết. Bài này không thay thế chủ đề delivery xuyên hệ thống; nó chỉ làm rõ vì sao “fire-and-forget” trong bộ nhớ là không đủ.
 
-<TermBox term="Trạng thái job bền vững">
-**Trạng thái job bền vững** là thông tin đã được lưu và sống qua việc restart tiến trình, chứa đủ định danh, vòng đời và chính sách thực thi để hệ thống tiếp tục hoặc đối soát công việc.
+<TermBox term="Trạng thái tác vụ bền vững">
+**Trạng thái tác vụ bền vững** là thông tin được lưu qua cả lúc tiến trình khởi động lại, chứa đủ định danh, vòng đời và chính sách thực thi để hệ thống tiếp tục hoặc đối soát công việc.
 
-**Vì sao quan trọng:** worker là tài nguyên có thể thay thế. Sự tồn tại và correctness của job không được sống chỉ trong RAM của một worker.
+**Vì sao quan trọng:** tiến trình xử lý có thể được thay thế. Sự tồn tại và tính đúng đắn của công việc không được chỉ phụ thuộc vào bộ nhớ của một tiến trình.
 </TermBox>
 
-## 2. Tách định danh job logic khỏi từng lần thực thi
+## 2. Phân biệt định danh công việc với từng lần thực thi
 
 Một bản ghi job thường nên phân biệt **định danh logic** với **attempt**:
 
@@ -134,7 +134,7 @@ Tùy hệ thống, trạng thái bền vững thường cần một số trườ
 
 Không nên nhét payload lớn hoặc bí mật vào job record chỉ vì tiện. Ưu tiên tham chiếu ổn định tới dữ liệu nguồn bền vững và chỉ cấp cho worker quyền đọc những gì nó cần.
 
-## 3. Nhận job là một giao thức quyền sở hữu
+## 3. Quyền nhận việc phải được điều phối
 
 Nhiều worker có thể cùng đọc một backlog. Hệ thống cần quy tắc xác định ai có quyền xử lý một job tại một thời điểm.
 
@@ -224,7 +224,7 @@ Một **hiệu ứng job lặp lại an toàn** hội tụ về cùng kết qu�
 **Vì sao quan trọng:** at-least-once chuyển trách nhiệm xử lý trùng vào worker và các hệ thống downstream. Hàm xử lý retry-safe quan trọng hơn một nút “retry”.
 </TermBox>
 
-## 6. Retry lỗi tạm thời, kết thúc lỗi vĩnh viễn
+## 6. Chỉ thử lại lỗi tạm thời và kết thúc lỗi không thể khắc phục
 
 Retry phù hợp với lỗi có khả năng thành công sau đó, ví dụ:
 
@@ -353,7 +353,7 @@ Nếu câu trả lời là “worker nhớ trong RAM”, mô hình hồi phục 
 
 Worker cũng cần giới hạn thực thi. Network call cần timeout; job dài có thể cần heartbeat hoặc gia hạn lease; việc nặng CPU/bộ nhớ có thể cần resource limit. Một worker bị treo và giữ quyền xử lý vô hạn vẫn là lỗi reliability dù tiến trình chưa chết.
 
-## 11. Backlog là một phần của độ trễ người dùng
+## 11. Công việc tồn đọng cũng làm tăng độ trễ người dùng
 
 Tách công việc ra khỏi request làm thay đổi mô hình latency:
 
@@ -382,7 +382,7 @@ Các tín hiệu nên quan sát:
 
 Scale worker theo capacity downstream chứ không chỉ theo backlog. Thêm worker có thể làm quá tải database hoặc API mà job đang gọi.
 
-## 12. Tách semantics của job khỏi topology của queue
+## 12. Phân biệt vòng đời công việc với cấu trúc hàng đợi
 
 Hệ thống background job cần cơ chế lưu và giao việc, nhưng không phải mọi vấn đề messaging đều thuộc lesson này.
 
@@ -478,7 +478,7 @@ Dùng operation/idempotency key ổn định nếu đối tác hỗ trợ, hoặ
 
 ## Quy tắc cho agent
 
-Khi rà soát background-job code, không được duyệt một thiết kế chỉ vì nó “enqueue rồi retry”. Hãy trace một job logic từ lúc tạo bền vững qua claim, effect, ack, worker crash, giao lại, hết retry, hủy và trạng thái cuối. Xác minh mọi hiệu ứng không thể đảo ngược có câu chuyện idempotency hoặc reconciliation, và evidence vận hành phân biệt được waiting, running, retrying, failed và stuck work.
+Khi rà soát mã xử lý tác vụ nền, không nên duyệt thiết kế chỉ vì nó có thao tác “đưa vào hàng đợi rồi thử lại”. Hãy lần theo một tác vụ từ khi ghi nhận bền vững, nhận quyền xử lý, tạo tác động, ACK, mất tiến trình, giao lại, hết số lần thử, hủy cho tới trạng thái cuối. Xác minh mọi hiệu ứng không thể đảo ngược có câu chuyện idempotency hoặc reconciliation, và evidence vận hành phân biệt được waiting, running, retrying, failed và stuck work.
 
 ## Khái niệm liên quan
 
