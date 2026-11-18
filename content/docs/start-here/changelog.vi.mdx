@@ -46,6 +46,8 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 - [Tính lũy đẳng](/vi/docs/backend-engineering/idempotency): Cập nhật bản nháp IETF Idempotency-Key -08 và cú pháp chuỗi có dấu nháy kép theo RFC 9651; sửa số lần gửi trong tình huống thanh toán, làm rõ dấu vân tay tùy chọn và ranh giới thử lại của nhà cung cấp.
 - [Hàng đợi thông điệp](/vi/docs/backend-engineering/message-queues): Phân biệt thời gian ẩn của SQS với số thông điệp chưa ACK do RabbitMQ prefetch giới hạn; ghi nhãn tình huống lỗi giả định và làm rõ giao lại, xử lý lỗi có giới hạn.
 - [Tác vụ nền](/vi/docs/backend-engineering/background-jobs): Sửa ngữ nghĩa ACK/giao lại khi tiến trình Celery gặp lỗi và quy tắc dừng thử lại của Cloud Tasks; làm rõ `OOMKilled` là trạng thái container và giới hạn chống gửi email trùng trong tình huống giả định.
+- [Sự cố một phần](/vi/docs/distributed-systems/partial-failure): Phân biệt timeout ở bên gọi với kết quả commit của bên nhận theo gRPC, bỏ khẳng định thanh toán chắc chắn trùng và làm rõ yêu cầu chống lặp có thực thi.
+- [Ngữ nghĩa giao nhận](/vi/docs/distributed-systems/delivery-semantics): Làm rõ SQS có thể giao lại chứ không chắc chắn giao ngay, giới hạn cam kết exactly-once của Kafka 4.0 và yêu cầu bảo vệ riêng thao tác thanh toán bên ngoài.
 
 ---
 

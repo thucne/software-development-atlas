@@ -46,6 +46,8 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 - [Idempotency](/docs/backend-engineering/idempotency): Update to the active IETF Idempotency-Key draft-08 and RFC 9651 quoted string syntax; correct hypothetical three-attempt checkout arithmetic, optional fingerprint claims and provider-specific replay boundaries.
 - [Message Queues](/docs/backend-engineering/message-queues): Separate SQS visibility timeouts from RabbitMQ prefetch counts and version-specific acknowledgement timeouts; label poison-work/fulfillment incidents constructed, clarify redelivery and bounded DLQ recovery.
 - [Background Jobs](/docs/backend-engineering/background-jobs): Correct Celery child-loss ACK/redelivery defaults and Google Cloud Tasks retry-stop rules; clarify Kubernetes OOMKilled status and provider-dependent duplicate email outcomes in constructed scenarios.
+- [Partial Failure](/docs/distributed-systems/partial-failure): Verify gRPC caller/server outcome independence and cancellation; distinguish a lost response from a confirmed charge, document provider-enforced safe replay and remove absolute duplicate-incident claims.
+- [Delivery Semantics](/docs/distributed-systems/delivery-semantics): Clarify SQS visibility redelivery as possible rather than certain, scope Kafka 4.0 exactly-once to its transaction boundary and protect external payment effects separately.
 
 ---
 

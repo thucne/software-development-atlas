@@ -4,7 +4,7 @@ description: Suy luận về thao tác phân tán khi một component, message h
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, resilience, failure-semantics]
 prerequisites: [microservices, service-resilience]
@@ -22,15 +22,15 @@ concepts:
 
 **Tình huống minh họa (giả định):** Máy POS báo timeout khi thu tiền cà phê nhưng người mua đã nhận thông báo ghi nợ. Hai bên chỉ có quan sát cục bộ; timeout không chứng minh giao dịch chưa thực hiện và thông báo ghi nợ chưa đủ để khẳng định mọi bước đã hoàn tất. Trước khi gửi yêu cầu mới, ứng dụng phải đối soát với hệ thống có thẩm quyền.
 
-**Partial failure** là tình huống một thành phần có thể hoàn tất thao tác nhưng thành phần khác không nhận được kết quả. Lỗi truyền thông không phải phán quyết về trạng thái đã commit.
+**Lỗi một phần (partial failure)** xảy ra khi một thành phần có thể hoàn tất thao tác nhưng thành phần khác không quan sát được kết quả. Mất liên lạc không chứng minh dữ liệu đã hoặc chưa được ghi thành công.
 
 > 💡 **Quy tắc bỏ túi:** Trong hệ thống phân tán, timeout chỉ là một quan sát cục bộ, không phải phán quyết cuối cùng. Tuyệt đối không bao giờ đồng nhất "chưa nhận được phản hồi" với "thao tác chưa xảy ra" đối với các tác vụ ghi dữ liệu.
 
 - **Lỗi cục bộ và kết quả qua mạng:** Ngoại lệ trong cùng tiến trình có thể truyền đến handler theo runtime; nó **không tự động làm dừng thread**. Qua mạng, caller có thể mất phản hồi sau khi callee đã commit. Phải phân biệt RPC failure với trạng thái nghiệp vụ.
-- **Quan sát độc lập giữa bên gọi và bên nhận:** Client và server đưa ra các **kết luận cục bộ độc lập** về cùng một RPC; bên gọi thấy `DEADLINE_EXCEEDED` nhưng bên nhận đã commit xong vào cơ sở dữ liệu.
+- **Quan sát độc lập giữa bên gọi và bên nhận:** Client và server có thể đưa ra **kết luận cục bộ khác nhau** về cùng một RPC. Lỗi `DEADLINE_EXCEEDED` **có thể** xuất hiện dù bên nhận đã commit, nhưng riêng lỗi này không chứng minh việc commit đã xảy ra.
 - **Retry cần hợp đồng chống lặp:** Với write chưa rõ kết quả, dùng định danh thao tác nghiệp vụ ổn định, idempotency được server thực thi, đối soát hoặc unique constraint/conditional update phù hợp. **Header idempotency key không tự đảm bảo an toàn** nếu bên nhận không tôn trọng nó.
-- **Khoanh vùng phạm vi ảnh hưởng (blast radius):** Việc chờ đợi vô hạn các dependency chậm sẽ ngốn sạch worker thread, connection pool và bộ nhớ; hệ thống bắt buộc phải đặt **hạn chót (deadline)**, truyền tín hiệu **hủy (cancellation)**, và chủ động **fail-fast**, fallback hoặc suy giảm chức năng.
-- **Cạm bẫy chết người:** **Coi timeout là thao tác chưa thực thi.** Giả định rằng gọi timeout nghĩa là server chưa làm gì rồi kích hoạt retry một thao tác ghi không có idempotency là nguyên nhân số một gây trừ tiền hai lần, tạo đơn trùng lặp và làm sai lệch nghiêm trọng dữ liệu sổ cái tài chính.
+- **Giới hạn phạm vi ảnh hưởng:** Chờ quá lâu các dịch vụ phụ thuộc có thể làm cạn tiến trình xử lý, kết nối hoặc bộ nhớ khi tải cao. Hãy đặt **deadline**, truyền tín hiệu **hủy (cancellation)** khi có hỗ trợ và dùng chính sách từ chối sớm, dự phòng hoặc giảm chức năng phù hợp với tính quan trọng của từng dịch vụ.
+- **Sai lầm rủi ro cao:** **Coi timeout là bằng chứng thao tác chưa thực hiện.** Thử lại thao tác ghi không có cơ chế chống lặp sau khi mất phản hồi **có thể** tạo giao dịch thanh toán, đơn hàng hoặc thay đổi tồn kho trùng. Kết quả phụ thuộc lần đầu đã commit chưa và cách hệ thống phía sau xử lý yêu cầu trùng.
 
 ```mermaid
 flowchart LR
@@ -44,7 +44,7 @@ flowchart LR
 Khó khăn cốt lõi không chỉ là sự cố kỹ thuật. Đó là **sự không chắc chắn về những gì đã thực sự diễn ra ở đầu bên kia**.
 
 <TermBox term="Partial Failure">
-**Partial failure** là tình huống một số participant hoặc đường truyền lỗi trong khi các phần khác của thao tác phân tán vẫn tiếp tục hoặc đã hoàn tất.
+**Lỗi một phần** xảy ra khi một số thành phần hoặc đường truyền gặp sự cố trong khi các phần khác của thao tác phân tán vẫn đang chạy hoặc đã hoàn tất.
 </TermBox>
 
 ## Timeout là một quan sát, không phải phán quyết
@@ -85,7 +85,7 @@ Hai phía không mâu thuẫn về tính trung thực; họ chỉ có bằng ch�
 **Kết quả mơ hồ** là khi bên gọi không thể từ quan sát cục bộ xác định side effect phía xa đã xảy ra hay chưa.
 </TermBox>
 
-## Failure có nhiều hình dạng hơn “server down”
+## Sự cố không chỉ có nghĩa máy chủ ngừng hoạt động
 
 Thiết kế nên tính ít nhất các nhóm sau:
 
@@ -96,13 +96,13 @@ Thiết kế nên tính ít nhất các nhóm sau:
 - **mất phản hồi:** callee hoàn tất nhưng caller không biết;
 - **degradation một chiều:** traffic chỉ lỗi theo một hướng hoặc một nhóm node.
 
-Một health check báo “up” không phân biệt được hết các trạng thái này.
+Một kết quả kiểm tra sức khỏe báo “đang hoạt động” không thể phân biệt hết các tình huống này.
 
-## Retry có thể sửa uncertainty — hoặc nhân đôi side effect
+## Thử lại có thể khắc phục sự cố hoặc tạo tác động trùng
 
-Một lần retry là attempt mới, không phải quay ngược thời gian.
+Mỗi lần thử lại là một lượt thực hiện mới, không thể hoàn tác lượt trước. Hết thời gian chờ không cho biết lần ghi đầu đã commit, vẫn đang xử lý hay chưa tới máy chủ.
 
-Nếu `Charge(payment-42)` đã commit trước khi response bị mất, thử lại bằng một lệnh `Charge()` mới có thể tạo giao dịch trùng và tác dụng phụ lặp.
+Nếu `Charge(payment-42)` đã commit trước khi mất phản hồi, thử lại bằng một lệnh `Charge()` **mới không được bảo vệ** có thể tạo giao dịch trùng nếu API thanh toán coi đó là thao tác độc lập.
 
 ```mermaid
 flowchart TD
@@ -124,7 +124,7 @@ Idempotency không làm network đáng tin cậy hơn; nó làm việc thử l�
 
 **Cancellation không phải rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) nêu rõ thay đổi đã xảy ra trước khi cancel không được hoàn tác. [Hướng dẫn gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) yêu cầu handler hợp tác kiểm tra tín hiệu hủy: thư viện không thể ngắt mọi đoạn code ứng dụng. Vì thế một lệnh ghi timeout vẫn cần đối soát với bên nhận.
 
-## Deadline giới hạn chờ; cancellation giới hạn công việc lãng phí
+## Deadline giới hạn thời gian chờ; hủy giúp giảm công việc dư thừa
 
 Mỗi remote dependency tiêu tốn thời gian và tài nguyên. Bên gọi nên truyền một **hạn chót (deadline)** end-to-end hợp lý thay vì để mỗi hop bắt đầu lại một timeout đầy đủ.
 
@@ -132,9 +132,9 @@ Khi caller không còn cần kết quả, hãy truyền **cancellation** để d
 
 Điều này quan trọng khi request phía trên hết deadline, user bỏ thao tác, hoặc fan-out bỏ các nhánh quá chậm.
 
-## Partial failure tạo phạm vi ảnh hưởng qua chuỗi dependency
+## Sự cố một phần có thể lan rộng qua chuỗi dịch vụ phụ thuộc
 
-Một lỗi nhỏ có thể thành lỗi hệ thống nếu các synchronous dependency cứ chờ lẫn nhau.
+Một lỗi cục bộ có thể lan rộng nếu các dịch vụ phụ thuộc chờ nhau quá lâu.
 
 ```mermaid
 flowchart LR
@@ -157,23 +157,23 @@ Với mỗi dependency, hãy hỏi:
 
 Backend “không quan trọng” vẫn có thể trở thành critical nếu caller chờ nó vô hạn.
 
-## Làm uncertainty quan sát được
+## Thu thập bằng chứng khi kết quả chưa rõ
 
 HTTP status một mình không đủ tái dựng partial failure. Hãy truyền **mã tương quan (correlation ID)** hoặc request ID qua boundary và giữ nó trong log/trace.
 
 Các signal hữu ích gồm dependency latency, timeout rate, số retry attempt, duplicate-suppression hit, cancellation count, saturation và success/error rate theo dependency.
 
-Với write có outcome mơ hồ, lưu logical operation ID cùng authoritative business state để operator trả lời được: **operation này đã commit chưa?**
+Với thao tác ghi chưa rõ kết quả, hãy lưu mã thao tác nghiệp vụ bên cạnh trạng thái có thẩm quyền để người vận hành trả lời: **thao tác này đã commit chưa?**
 
 ## Tình huống minh họa (giả định)
 
 Checkout gọi payment provider bằng `POST /charges`. Provider đã commit charge nhưng response packet bị mất. Checkout timeout rồi tự retry bằng một request ID mới.
 
-**Hậu quả:** khách hàng bị charge hai lần dù chỉ thực hiện một checkout. Operator thấy một timeout và một success nên sự cố ban đầu trông như dữ liệu mâu thuẫn.
+**Hậu quả:** nếu phía thanh toán không chống lặp hoặc không có bước đối soát, khách hàng **có thể** bị trừ tiền hai lần dù chỉ đặt hàng một lần. Một timeout và một phản hồi thành công sau đó có thể là hai quan sát phù hợp của các lần gửi khác nhau. Đây là ví dụ tự xây dựng, không phải sự cố thanh toán đã được ghi nhận.
 
 **Nguyên nhân cốt lõi:** caller coi timeout là bằng chứng operation thất bại rồi retry side effect không idempotent mà không có logical request identity ổn định. Bên gọi và bên nhận có hai quan sát cục bộ khác nhau về attempt đầu tiên.
 
-**Cách khắc phục chuẩn:** tạo payment operation ID ổn định trước attempt đầu; gửi cùng idempotency/request key cho mọi retry; đặt deadline end-to-end và retry policy có giới hạn; propagate cancellation khi hữu ích; persist đủ state để reconcile unknown outcome; và trace mọi attempt bằng cùng correlation ID để phân biệt một logical operation với nhiều transport attempt.
+**Cách khắc phục chuẩn:** tạo mã thao tác thanh toán ổn định trước lần gửi đầu. Chỉ dùng lại cùng khóa khi nhà cung cấp **thực thi hợp đồng chống lặp đã công bố**, hoặc đối soát trạng thái thanh toán có thẩm quyền trước khi gửi lệnh mới. Đặt deadline và giới hạn số lần thử, truyền tín hiệu hủy khi hữu ích, lưu bằng chứng cho kết quả chưa rõ và gắn mã tương quan để phân biệt một thao tác nghiệp vụ với nhiều lần gửi qua mạng.
 
 <details>
 <summary>Tự kiểm tra: payment call timeout thì có thể kết luận chắc chắn chưa charge không?</summary>
@@ -182,7 +182,7 @@ Không. Request có thể đã commit và chỉ response bị mất. Hãy coi ou
 
 </details>
 
-## Checklist production
+## Danh sách kiểm tra khi vận hành
 
 - [ ] Remote timeout được mô hình hóa như một outcome có thể mơ hồ.
 - [ ] Retry cho state-changing operation dùng lại request identity hoặc idempotency key ổn định.
@@ -197,14 +197,17 @@ Không. Request có thể đã commit và chỉ response bị mất. Hãy coi ou
 - [ ] Write có outcome mơ hồ có đường reconciliation.
 - [ ] Failure test gồm case chậm, blackhole, partition và lost response, không chỉ clean HTTP 500.
 
-## Agent rule
+## Quy tắc dành cho agent
 
 Khi remote call thất bại, đừng biến “tôi không nhận được success response” thành “operation không xảy ra”. Hãy liệt kê các remote state có thể có, giữ logical request identity qua retry, giới hạn waiting/retry amplification và thiết kế đường bằng chứng để reconcile outcome mơ hồ.
 
 ## Nguồn
 
+Các tài liệu chính thức được rà soát ngày **2026-11-18**:
+
 - gRPC — [Core concepts: RPC termination, deadlines, and cancellation](https://grpc.io/docs/what-is-grpc/core-concepts/)
 - gRPC — [Deadlines](https://grpc.io/docs/guides/deadlines/)
+- gRPC — [Mã trạng thái DEADLINE_EXCEEDED](https://grpc.io/docs/guides/status-codes/) — thao tác thay đổi trạng thái có thể đã hoàn tất trước khi bên gọi gặp lỗi deadline
 - Amazon Builders' Library — [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/)
 - Amazon Builders' Library — [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)
 - Stripe — [Idempotent requests](https://docs.stripe.com/api/idempotent_requests)

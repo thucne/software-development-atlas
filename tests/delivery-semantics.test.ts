@@ -36,7 +36,7 @@ describe('Delivery Semantics lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - delivery-semantics\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
 
       const termBoxes = (source.match(/<TermBox/g) ?? []).length;
       expect(termBoxes, relativePath).toBeGreaterThanOrEqual(2);
@@ -71,6 +71,19 @@ describe('Delivery Semantics lesson', () => {
     expect(vi).toContain('**Hậu quả:**');
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
+  });
+
+  it('does not assume certain SQS redelivery, external exactly-once, or globally unique random IDs', () => {
+    const en = readLesson(lessonPaths.en);
+    const vi = readLesson(lessonPaths.vi);
+    expect(en).toContain('even within a visibility timeout');
+    expect(vi).toContain('ngay trong thời gian ẩn');
+    expect(vi).not.toContain('message chắc chắn sẽ được phát lại');
+    expect(vi).not.toContain('at-least-once chắc chắn sẽ phát lại');
+    expect(en).toContain('provider-enforced');
+    expect(vi).toContain('thực sự có hợp đồng chống lặp');
+    expect(en).toContain('lastVerified: 2026-11-18');
+    expect(vi).toContain('lastVerified: 2026-11-18');
   });
 
   it('reconciles the rolling changelog in both locales', () => {

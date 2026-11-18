@@ -4,7 +4,7 @@ description: Reason about distributed operations when one component, message, or
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, resilience, failure-semantics]
 prerequisites: [microservices, service-resilience]
@@ -27,10 +27,10 @@ concepts:
 > 💡 **Rule of thumb:** In distributed systems, a timeout is a local observation, not a remote verdict. Never assume an unanswered state-changing operation failed without authoritative reconciliation or idempotent protection.
 
 - **Local errors versus distributed ambiguity:** An in-process exception propagates according to language/runtime rules; it **does not automatically halt the thread**. Over a network, a caller may lose a response after the callee commits. Separate the RPC failure from the business outcome.
-- **Independent caller and callee observations:** The caller and callee form **independent local judgments** regarding the same RPC; a caller's `DEADLINE_EXCEEDED` timeout often coincides with a callee's completed database transaction.
+- **Independent caller and callee observations:** The caller and callee form **independent local judgments** regarding the same RPC; a caller's `DEADLINE_EXCEEDED` **may** occur even after the callee has committed. A timeout alone cannot establish whether that happened.
 - **Safe retries need a replay contract:** Preserve stable business-operation identity for ambiguous writes and use enforced server idempotency, reconciliation or applicable unique constraints/conditional updates. **A header containing an idempotency key alone does not make a write safe to repeat**.
-- **Blast radius and failure isolation:** Unbounded waits on slow dependencies quickly consume worker threads, database connections, and memory; systems must enforce end-to-end **deadlines**, propagate **cancellation**, and actively isolate failures via **fail-fast**, fallback, or graceful degradation.
-- **Fatal pitfall:** **Treating timeouts as operational failures.** Conflating "I stopped waiting" with "nothing happened on the server" and triggering immediate, unprotected retries on non-idempotent endpoints is the fastest way to double-charge credit cards, corrupt balances, and produce duplicate inventory reservations.
+- **Blast radius and failure isolation:** Unbounded waits on slow dependencies **can** exhaust worker slots, connection pools or memory under load. Choose end-to-end **deadlines**, propagate cooperative **cancellation** where supported, and isolate noncritical failures with bounded **fail-fast**, fallback or graceful-degradation policies.
+- **High-risk mistake:** **Treating a timeout as proof that the operation failed.** An unprotected retry of a non-idempotent write after an ambiguous result **can** duplicate payment, inventory or reservation effects. The actual outcome depends on whether the first attempt committed and on downstream duplicate protection.
 
 ```mermaid
 flowchart LR
@@ -100,9 +100,9 @@ A health check that says “up” cannot distinguish all of these states.
 
 ## Retrying can repair uncertainty — or duplicate effects
 
-A retry is a new attempt, not a time machine.
+A retry is a new attempt, not a time machine. In particular, a client timeout by itself does not identify whether an earlier write was committed, is still running, or never reached the receiver.
 
-If `Charge(payment-42)` committed before the response was lost, retrying an unprotected `Charge()` can create a second charge.
+If `Charge(payment-42)` committed before the response was lost, retrying an unprotected new `Charge()` **may** create a second charge if the payment API treats it as a distinct operation.
 
 ```mermaid
 flowchart TD
@@ -122,7 +122,7 @@ A **request identity** is a stable identifier carried across retries so the rece
 
 Idempotency does not make the network reliable. It makes repeated attempts safer.
 
-**Cancellation is not rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) says that changes made before cancellation are not rolled back. [gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) also requires server handlers to cooperate with cancellation signals. An ambiguous write still requires authoritative reconciliation.
+**Cancellation is not rollback.** [gRPC Core Concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) says that changes made before cancellation are not rolled back. [gRPC Cancellation](https://grpc.io/docs/guides/cancellation/) also requires server handlers to cooperate with cancellation signals. An ambiguous write still needs enforced replay safety or authoritative reconciliation; merely propagating the cancellation signal is insufficient.
 
 ## Deadlines bound waiting; cancellation bounds wasted work
 
@@ -169,11 +169,11 @@ For ambiguous writes, record the stable operation ID alongside authoritative bus
 
 A checkout service calls a payment provider with `POST /charges`. The provider commits the charge, but the response packet is lost. Checkout reaches its timeout and automatically retries with a fresh request ID.
 
-**Impact:** the customer is charged twice even though the application saw only one checkout action. Operators initially see one timeout and one success, making the incident look contradictory.
+**Impact:** without provider-side idempotency or reconciliation, the customer **may** be charged twice even though the application saw one checkout action. One timeout and one later success can be consistent observations of separate attempts. This is an invented teaching scenario, not a measured payment incident.
 
 **Root cause:** the caller interpreted timeout as proof of failure and retried a non-idempotent side effect without a stable logical request identity. Caller and callee had different local observations of the first attempt.
 
-**Correct pattern:** assign a stable payment operation ID before the first attempt; send it as the idempotency/request key on every retry; set an end-to-end deadline and bounded retry policy; propagate cancellation where useful; persist enough state to reconcile unknown outcomes; and trace attempts with the same correlation ID so operators can distinguish one logical operation from many transport attempts.
+**Correct pattern:** assign a stable payment operation ID before the first attempt. Reuse the same key **if the provider enforces a documented idempotency contract**, or reconcile authoritative provider state before reissuing a write. Keep an end-to-end deadline and bounded retry policy, propagate cooperative cancellation where useful, persist ambiguous-operation evidence, and correlate all transport attempts without generating new logical payment identities.
 
 <details>
 <summary>Self-check: a payment call timed out. Is it safe to assume no charge happened?</summary>
@@ -203,8 +203,11 @@ When a remote call fails, do not collapse “I did not receive a successful resp
 
 ## Sources
 
+Primary source claims rechecked on **2026-11-18**:
+
 - gRPC — [Core concepts: RPC termination, deadlines, and cancellation](https://grpc.io/docs/what-is-grpc/core-concepts/)
 - gRPC — [Deadlines](https://grpc.io/docs/guides/deadlines/)
+- gRPC — [Status Codes: DEADLINE_EXCEEDED](https://grpc.io/docs/guides/status-codes/) — a state-changing RPC may have completed despite a deadline error
 - Amazon Builders' Library — [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/)
 - Amazon Builders' Library — [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)
 - Stripe — [Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
