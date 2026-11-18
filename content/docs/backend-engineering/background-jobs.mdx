@@ -4,7 +4,7 @@ description: Reason about durable background work through explicit lifecycle sta
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Background Jobs: Make Work Durable Beyond the Request
 
-At 9:00 AM, a marketing automation background job is triggered to dispatch a critical announcement email to a batch of 100,000 customers. The worker process iterates through the recipients in an in-memory loop. Forty-five minutes into the execution, after successfully dispatching 60,000 emails, the worker exhausts its assigned memory. The Kubernetes node immediately fires an `OOMKilled` signal and terminates the pod. Because the background job lacked durable checkpointing and idempotent tracking, the job orchestrator treats the unexpected worker crash as a transient failure and redelivers the entire task to a fresh worker. The new worker innocently starts over from recipient zero—and 60,000 bewildered customers receive duplicate emails, with some receiving a third copy before an engineer frantically pulls the plug.
+**Constructed example, not a documented incident:** A campaign worker is supposed to email 100 customers. It has sent emails to 60 recipients when its container exceeds the configured memory limit and stops; Kubernetes may report container termination reason `OOMKilled` (a **status reason, not a Unix signal**). In a delivery setup that requeues unfinished work, another worker receives the logical job and begins from the first recipient. Without durable checkpoints and duplicate-safe notification identity, the first 60 recipients **could** get another email. This outcome depends on the broker acknowledgement/recovery policy and email provider; it is not evidence of a real mass-mailing outage.
 
-A background job is never just "calling a function asynchronously in the background." Moving work out of the HTTP request path introduces complex distributed responsibilities: durable state persistence, lease-based claiming, execution timeouts, progress checkpointing, and idempotent side-effect boundaries.
+A background job is not simply a function moved off the HTTP request. If the business needs durable completion, the design must define persistence, claim ownership, retry/recovery, safe checkpoints and external-effect semantics. Not all task runners use expiring leases or make the same delivery guarantees.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** Treat background jobs as durable state machines rather than transient functions in RAM. Persist job intent before reporting success to the client, checkpoint progress at idempotent milestones, and design worker recovery so that crash retries never duplicate irreversible side effects.
+> 💡 **Rule of thumb:** For work promised to survive request/worker failure, treat the job as durable state plus a repeatable processing protocol. Persist accepted intent before reporting durable acceptance, checkpoint at safe milestones, and protect or reconcile irreversible effects when attempts overlap or recur. A local job record alone cannot guarantee an external provider never repeats an action.
 
 - **Durable lifecycle state machine:** Model jobs with explicit state transitions (`queued`, `running`, `succeeded`, `failed`, `cancelled`); the job's identity and progress must live in durable storage that outlives ephemeral container pods or worker crashes.
 - **Logical identity vs. execution attempts:** Separate the permanent business identity of the job from transient attempt counters. When a worker dies, redelivery must resume or reconcile existing work rather than creating a second uncoordinated business effect.
-- **Lease-based claims and heartbeat timeouts:** Worker ownership must be granted as a time-bounded lease; long-running jobs must periodically send heartbeats to renew their lease, while hung workers must time out so that locks are released safely.
-- **Progress checkpointing and cooperative cancellation:** Long-running batch work must record durable progress checkpoints at safe boundaries; cancellation must be cooperative, allowing workers to stop cleanly before the next irreversible action.
-- **Fatal pitfall:** Enqueueing jobs in process memory or acknowledging completion before the durable state commit, causing silent job loss on worker restart; or restarting non-idempotent batch jobs from scratch after a Kubernetes OOM eviction, spamming customers or double-charging accounts.
+- **Claiming and recovery are transport-specific:** Some job stores use expiring leases and heartbeat renewals; others rely on broker acknowledgements, channel-loss requeue or framework-specific time limits. Define who can claim work, how stale owners are fenced or reconciled, and when failed work becomes eligible again.
+- **Progress and cancellation contracts:** When a batch must resume without repeating effects, persist checkpoints at safe boundaries, and define cooperative cancellation where workers can observe it. Neither cancellation nor a progress counter automatically rolls back committed external work.
+- **High-risk boundary:** A process-only task or early ACK can lose accepted work if there is no other recovery record. A restarted batch may also repeat non-idempotent emails/payments; the exact result depends on broker configuration and external-provider protection.
 
 ```mermaid
 stateDiagram-v2
@@ -188,7 +188,7 @@ ack after work
   -> duplicate execution becomes possible
 ```
 
-Celery's current task documentation makes this trade-off explicit: task messages are acknowledged according to task configuration, and late acknowledgement can cause a task to execute more than once if a worker fails. Amazon SQS similarly keeps a received message in the queue but temporarily invisible; if it is not deleted before the visibility timeout expires, it can become visible and be received again.
+Celery's task configuration makes this trade-off explicit: `task_acks_late` moves ACK after execution, but **does not automatically guarantee redelivery when a worker child process dies**. Celery normally acknowledges abruptly lost child work even with late ACK; enabling `task_reject_on_worker_lost` can instead requeue it, with a risk of repeated failure loops. Failure/retry and acknowledgement options must be inspected together. Amazon SQS hides received work temporarily but can redeliver when visibility expires, and standard queues can deliver a duplicate even during visibility.
 
 Those are concrete implementations of a general rule: **reliable recovery usually implies that a job may be delivered or executed more than once**.
 
@@ -253,7 +253,7 @@ wait longer
 attempt 3 -> succeed
 ```
 
-Google Cloud Tasks exposes controls such as maximum attempts, retry duration, and backoff intervals. The exact knobs vary by system, but the principle is portable: **retry budgets must terminate**.
+Google Cloud Tasks exposes controls such as `maxAttempts` (counting the **initial** attempt), `maxRetryDuration`, and backoff intervals. Its API does **not** necessarily stop when the first of the attempt-count and duration limits is reached: retry stops after both conditions hold or the task succeeds, subject to maximum task retention. Choose effective finite bounds for the application's failure policy rather than assuming the mere presence of a `maxAttempts` field is a hard cap in every implementation.
 
 Unbounded immediate retries create a hot loop that can amplify an outage and starve healthy work.
 
@@ -397,9 +397,9 @@ The **Message Queues** lesson owns broader transport questions such as competing
 
 Keeping the boundary clear prevents a common design mistake: choosing a broker first and only later discovering that nobody defined the job's durable correctness semantics.
 
-## Production scenario: thumbnail worker sends duplicate notifications
+## Hypothetical production scenario: thumbnail worker sends duplicate notifications
 
-A media service creates one durable `GENERATE_THUMBNAILS` job per upload. The worker does this:
+**Constructed example, not a reported incident:** A media service creates one durable `GENERATE_THUMBNAILS` job per upload. The worker does this:
 
 ```text
 1. render thumbnails
@@ -410,11 +410,11 @@ A media service creates one durable `GENERATE_THUMBNAILS` job per upload. The wo
 
 During a deployment, a worker crash happens after step 2 but before steps 3–4. The delivery becomes eligible again and another worker reruns the job. Thumbnails are overwritten harmlessly, but the user receives a second email. The same failure repeats for several jobs, and support sees duplicate notifications without obvious failed jobs.
 
-**Impact:** users receive duplicate notifications, downstream email spend increases, and operators cannot distinguish retry recovery from fresh work.
+**Impact:** users **may** receive duplicate notifications and incur extra email delivery cost, while operators may be unable to distinguish retry recovery from fresh work. This is a possible effect, not a measured incident.
 
 **Root cause:** the job transport was designed for redelivery, but the email side effect had no stable idempotency identity. The system treated “one delivery” as equivalent to “one business effect,” and acknowledgement happened after an irreversible effect without a duplicate-safe boundary.
 
-**Correct pattern:** give the logical notification a durable identity such as `(job_id, notification_type)` and make send/publish conditional on that identity, or use a downstream provider idempotency mechanism when available. Keep rendering outputs deterministic or versioned, record success durably before acknowledging according to the chosen delivery model, and reconcile ambiguous external outcomes instead of blindly repeating them. Monitor redelivery and attempts per completed job so worker-loss behavior is visible.
+**Correct pattern:** give the logical notification a durable identity such as `(job_id, notification_type)` and atomically reserve/schedule the notification. If the email provider supports an idempotency key, reuse it; otherwise a successful send followed by a crash before local confirmation can still be ambiguous, and **a local unique key alone cannot guarantee exactly one delivered email**. Choose explicit reconciliation or at-least-once notification semantics when necessary. Keep rendering outputs deterministic, record completion durably before the chosen acknowledgement boundary, and monitor redelivery and attempts per job.
 
 The deeper rule is: **a background job is reliable only when retrying the whole protocol is safe at every crash boundary that the delivery system can expose**.
 
@@ -493,11 +493,14 @@ Continue through the [Backend Systems](/docs/learning-paths/backend-systems) pat
 
 ## Sources
 
-Primary references verified on **2026-09-10**:
+Primary references verified on **2026-11-18**:
 
 - [Celery documentation — Tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)
+- [Celery documentation — Configuration: `task_acks_late` / `task_reject_on_worker_lost`](https://docs.celeryq.dev/en/stable/userguide/configuration.html)
 - [Celery documentation — Workers Guide](https://docs.celeryq.dev/en/main/userguide/workers.html)
 - [Amazon SQS documentation — Visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)
 - [Google Cloud Tasks documentation — Configure retries](https://docs.cloud.google.com/tasks/docs/configure-retry-task)
+- [Google Cloud Tasks — RetryConfig](https://docs.cloud.google.com/tasks/docs/reference/rest/v2/RetryConfig) — both limit conditions and task retention
+- [Kubernetes — Assign memory resources](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/) — OOMKilled container termination reason
 
 This lesson is **evolving** with a 180-day review target because worker runtimes, task frameworks, and managed queue behavior change, even though the durable lifecycle and crash-boundary reasoning model is stable.

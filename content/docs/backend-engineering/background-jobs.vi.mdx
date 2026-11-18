@@ -4,7 +4,7 @@ description: Lập luận về công việc nền bền vững qua vòng đời 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Tác vụ nền: Xử lý bền vững ngoài vòng đời request
 
-9 giờ sáng, một tác vụ nền tự động hóa tiếp thị được kích hoạt để gửi email chiến dịch quan trọng tới tệp 100.000 khách hàng. Tiến trình worker tuần tự lặp qua mảng danh sách người nhận được lưu trong bộ nhớ RAM. Sau 45 phút chạy miệt mài và gửi trót lọt 60.000 email, tiến trình worker làm cạn kiệt bộ nhớ cho phép. Kubernetes node lập tức bắn tín hiệu `OOMKilled` và thu hồi tài nguyên (eviction) làm pod worker chết tức tưởi. Vì tác vụ nền không được thiết kế điểm kiểm tra tiến độ (checkpointing) và thiếu cơ chế gửi email lũy đẳng, bộ điều phối job xem sự cố worker dừng đột ngột này là lỗi tạm thời và tự động giao lại toàn bộ công việc từ đầu cho một worker mới. Worker mới bắt đầu quét lại ngây thơ từ người nhận số 0 — khiến 60.000 khách hàng bàng hoàng nhận tiếp email thứ hai, thậm chí có người nhận tới 3 email dồn dập trước khi kỹ sư trực chiến hốt hoảng can thiệp tắt khẩn cấp hệ thống.
+**Ví dụ tự xây dựng, không phải báo cáo sự cố thực tế:** Một tác vụ gửi email chiến dịch cho 100 khách hàng. Sau khi gửi cho 60 người, tiến trình vượt giới hạn bộ nhớ và dừng; Kubernetes có thể ghi nhận lý do kết thúc container là `OOMKilled` (**trạng thái kết thúc, không phải tên một tín hiệu Unix**). Nếu hệ thống giao việc được cấu hình phát lại công việc chưa hoàn tất, tiến trình mới có thể chạy lại từ người nhận đầu tiên. Khi thiếu điểm lưu tiến độ và cơ chế chống gửi trùng, 60 người đầu **có thể** nhận email lần nữa. Kết quả phụ thuộc vào cấu hình xác nhận của broker và nhà cung cấp email, không phải sự cố gửi thư hàng loạt đã được quan sát.
 
-Một tác vụ nền không bao giờ chỉ đơn giản là "ném một hàm bất đồng bộ chạy ngầm phía sau". Việc tách công việc ra khỏi luồng HTTP request kéo theo hàng loạt trách nhiệm phức tạp của hệ thống phân tán: lưu trữ trạng thái bền vững, cơ chế cấp quyền xử lý (lease), timeout xử lý job, lưu checkpoint tiến độ và bảo đảm hiệu ứng nghiệp vụ có tính lũy đẳng (idempotent).
+Công việc nền không đơn giản là đưa một hàm ra ngoài đường xử lý HTTP. Nếu nghiệp vụ yêu cầu hoàn tất bền vững, kiến trúc cần quy định lưu trữ, quyền nhận việc, thử lại, điểm lưu tiến độ và tác động bên ngoài. Không phải hệ thống xử lý tác vụ nào cũng dùng quyền thuê có thời hạn hay cùng một cơ chế giao lại.
 
-## TL;DR
+## Tóm tắt nhanh
 
-> 💡 **Quy tắc bỏ túi:** Hãy coi công việc nền là một máy trạng thái (state machine) bền vững thay vì một hàm chạy ngầm trong RAM. Luôn lưu ý định công việc bền vững trước khi báo thành công cho client, lưu checkpoint tiến độ tại các mốc có tính lũy đẳng, và thiết kế mọi hiệu ứng bên ngoài sao cho việc worker crash rồi chạy lại không bao giờ lặp lại các hành động không thể đảo ngược.
+> 💡 **Quy tắc bỏ túi:** Với công việc đã hứa sẽ hoàn tất dù yêu cầu hay tiến trình gặp lỗi, hãy lưu ý định và vòng đời công việc bền vững trước khi báo đã nhận. Đặt các mốc lưu tiến độ an toàn, bảo vệ hoặc đối soát tác động bên ngoài nếu công việc chạy lại. Chỉ có bản ghi job trong cơ sở dữ liệu không đủ bảo đảm nhà cung cấp email hay thanh toán sẽ không thực hiện trùng.
 
 - **Máy trạng thái vòng đời bền vững:** Công việc nền bắt buộc phải được mô hình hóa qua các trạng thái rõ ràng (`queued`, `running`, `succeeded`, `failed`, `cancelled`); sự tồn tại và tính đúng đắn của job phải nằm trong kho lưu trữ bền vững sống sót qua mọi sự cố worker crash hay pod bị khởi động lại.
 - **Tách biệt định danh job logic khỏi từng attempt:** Phân biệt rõ định danh nghiệp vụ duy nhất của job với số lần thử lại (attempt); nhiều lần retry hoặc giao lại sau sự cố phải cùng hội tụ về một kết quả logic thay vì sinh ra nhiều hiệu ứng thừa thãi.
-- **Quyền sở hữu theo lease và cơ chế gia hạn:** Worker nhận quyền xử lý thông qua một hợp đồng thuê (lease) có thời hạn; công việc chạy dài phải định kỳ gửi heartbeat hoặc gia hạn quyền xử lý để worker chết không giam lỏng tài nguyên mãi mãi.
-- **Lưu checkpoint tiến độ và hủy hợp tác:** Các batch job khối lượng lớn bắt buộc phải ghi nhận mốc tiến độ (checkpoint) bền vững tại các ranh giới an toàn; việc hủy công việc phải mang tính hợp tác thay vì cưỡng ép ngắt tiến trình giữa chừng làm hỏng trạng thái dở dang.
-- **Cạm bẫy chết người:** Lưu hàng đợi trong bộ nhớ RAM hoặc xác nhận hoàn tất trước khi commit dữ liệu bền vững, dẫn đến việc mất trắng công việc khi máy chủ khởi động lại; hoặc chạy lại từ đầu một batch job dở dang sau khi bị Kubernetes thu hồi pod (OOM/eviction) khiến khách hàng nhận thông báo hoặc email trùng lặp dồn dập.
+- **Quyền nhận việc tùy hệ thống:** Một số kho tác vụ dùng quyền thuê có thời hạn và gia hạn bằng tín hiệu còn hoạt động; các hệ thống khác dựa vào ACK, giao lại khi mất kết nối hoặc timeout của framework. Cần xác định ai được nhận việc, cách xử lý chủ cũ còn chạy và khi nào công việc đủ điều kiện giao lại.
+- **Tiến độ và hủy có hợp đồng rõ:** Nếu một tác vụ theo lô phải tiếp tục mà không lặp tác động, hãy lưu điểm tiến độ tại ranh giới an toàn. Nên hỗ trợ tín hiệu hủy có phối hợp; việc hủy hoặc lưu tiến độ không tự hoàn tác tác động đã commit bên ngoài.
+- **Ranh giới rủi ro cao:** Chỉ giữ tác vụ trong bộ nhớ hoặc ACK trước khi có bản ghi khôi phục có thể làm mất việc khi máy chủ dừng. Chạy lại tác vụ chưa chống lặp cũng có thể gửi email hoặc thu tiền hai lần, tùy cấu hình broker và hợp đồng của nhà cung cấp bên ngoài.
 
 ```mermaid
 stateDiagram-v2
@@ -58,7 +58,7 @@ stateDiagram-v2
   cancelling --> cancelled: worker dừng an toàn
 ```
 
-Đừng mô hình một job chỉ là “gọi hàm này sau”. Hãy mô hình nó thành **trạng thái bền vững cộng với giao thức xử lý có thể lặp lại an toàn**.
+Đừng hiểu một tác vụ nền chỉ là “gọi hàm này sau”. Hãy mô hình hóa nó bằng **trạng thái bền vững và quy trình xử lý có thể lặp lại an toàn**.
 
 <TermBox term="Công việc nền">
 **Công việc nền** là công việc bền vững có thể sống lâu hơn yêu cầu hoặc tiến trình đã tạo ra nó và được thực thi bất đồng bộ bởi một hay nhiều worker.
@@ -93,13 +93,13 @@ Transport cụ thể có thể là bảng job trong cơ sở dữ liệu, dịch
 
 Nếu workflow phải vừa cập nhật trạng thái nghiệp vụ vừa phát công việc sang hệ thống khác một cách nhất quán, transactional outbox hoặc mô hình tương đương có thể cần thiết. Bài này không thay thế chủ đề delivery xuyên hệ thống; nó chỉ làm rõ vì sao “fire-and-forget” trong bộ nhớ là không đủ.
 
-<TermBox term="Trạng thái job bền vững">
-**Trạng thái job bền vững** là thông tin đã được lưu và sống qua việc restart tiến trình, chứa đủ định danh, vòng đời và chính sách thực thi để hệ thống tiếp tục hoặc đối soát công việc.
+<TermBox term="Trạng thái tác vụ bền vững">
+**Trạng thái tác vụ bền vững** là thông tin được lưu qua cả lúc tiến trình khởi động lại, chứa đủ định danh, vòng đời và chính sách thực thi để hệ thống tiếp tục hoặc đối soát công việc.
 
-**Vì sao quan trọng:** worker là tài nguyên có thể thay thế. Sự tồn tại và correctness của job không được sống chỉ trong RAM của một worker.
+**Vì sao quan trọng:** tiến trình xử lý có thể được thay thế. Sự tồn tại và tính đúng đắn của công việc không được chỉ phụ thuộc vào bộ nhớ của một tiến trình.
 </TermBox>
 
-## 2. Tách định danh job logic khỏi từng lần thực thi
+## 2. Phân biệt định danh công việc với từng lần thực thi
 
 Một bản ghi job thường nên phân biệt **định danh logic** với **attempt**:
 
@@ -134,7 +134,7 @@ Tùy hệ thống, trạng thái bền vững thường cần một số trườ
 
 Không nên nhét payload lớn hoặc bí mật vào job record chỉ vì tiện. Ưu tiên tham chiếu ổn định tới dữ liệu nguồn bền vững và chỉ cấp cho worker quyền đọc những gì nó cần.
 
-## 3. Nhận job là một giao thức quyền sở hữu
+## 3. Quyền nhận việc phải được điều phối
 
 Nhiều worker có thể cùng đọc một backlog. Hệ thống cần quy tắc xác định ai có quyền xử lý một job tại một thời điểm.
 
@@ -188,7 +188,7 @@ xác nhận sau khi làm việc
   -> có thể thực thi trùng
 ```
 
-Tài liệu Celery hiện tại mô tả rõ đánh đổi này: cấu hình xác nhận muộn có thể khiến task được thực thi nhiều hơn một lần nếu worker mất giữa chừng. Amazon SQS cũng giữ message trong queue nhưng tạm ẩn nó; nếu message chưa được xóa trước khi visibility timeout hết hạn, nó có thể xuất hiện lại và được nhận lần nữa.
+Tài liệu Celery nêu rõ đánh đổi này: `task_acks_late` chuyển ACK tới sau khi thực thi, nhưng **không tự bảo đảm giao lại khi tiến trình con đang chạy task chết đột ngột**. Mặc định Celery vẫn ACK công việc trong trường hợp này; `task_reject_on_worker_lost` có thể cho phép giao lại nhưng cũng có nguy cơ tạo vòng lặp lỗi. Phải xem đồng thời chính sách ACK, lỗi và thử lại. Amazon SQS tạm ẩn thông điệp, có thể giao lại khi hết thời gian ẩn; với hàng đợi standard, đôi khi còn có thể giao trùng ngay trong thời gian ẩn.
 
 Đây là các ví dụ cụ thể của nguyên tắc tổng quát: **khả năng hồi phục đáng tin cậy thường đồng nghĩa một job có thể được giao lại hoặc chạy lại**.
 
@@ -224,7 +224,7 @@ Một **hiệu ứng job lặp lại an toàn** hội tụ về cùng kết qu�
 **Vì sao quan trọng:** at-least-once chuyển trách nhiệm xử lý trùng vào worker và các hệ thống downstream. Hàm xử lý retry-safe quan trọng hơn một nút “retry”.
 </TermBox>
 
-## 6. Retry lỗi tạm thời, kết thúc lỗi vĩnh viễn
+## 6. Chỉ thử lại lỗi tạm thời và kết thúc lỗi không thể khắc phục
 
 Retry phù hợp với lỗi có khả năng thành công sau đó, ví dụ:
 
@@ -253,7 +253,7 @@ chờ lâu hơn
 attempt 3 -> thành công
 ```
 
-Google Cloud Tasks cung cấp các giới hạn như số attempt tối đa, thời lượng retry và khoảng backoff. Tên knob thay đổi giữa các hệ thống, nhưng nguyên tắc không đổi: **ngân sách retry phải kết thúc**.
+Google Cloud Tasks cung cấp `maxAttempts` (**tính cả lần đầu**), `maxRetryDuration` và khoảng giãn cách. Dịch vụ này **không nhất thiết dừng khi chỉ một trong hai ngưỡng số lần/thời gian đã đạt**: việc thử lại dừng sau khi cả hai điều kiện được đáp ứng hoặc tác vụ thành công, đồng thời chịu giới hạn thời gian lưu tối đa. Vì vậy cần chọn ngân sách hữu hạn thực sự phù hợp thay vì mặc định tên `maxAttempts` luôn là trần cứng trong mọi sản phẩm.
 
 Retry tức thì vô hạn có thể tạo vòng lặp nóng, khuếch đại outage và làm job khỏe không có tài nguyên để chạy.
 
@@ -309,7 +309,7 @@ Mỗi loại job cần định nghĩa:
 - Có cần compensation không?
 - Client có phân biệt được `cancel_requested`, `cancelled` và `already_succeeded` không?
 
-## 9. Tiến độ phải là evidence bền vững, không phải bộ đếm nói nhiều
+## 9. Tiến độ phải có bằng chứng bền vững, không phải chỉ một bộ đếm
 
 Job dài thường cần tiến độ, nhưng `47%` chỉ có ý nghĩa khi có mẫu số thực sự đo được.
 
@@ -329,7 +329,7 @@ Nếu không thể có phần trăm chính xác, hãy công bố các phase như
 
 API phía client nên đọc trạng thái job bền vững, không cần kết nối trực tiếp tới worker đang giữ attempt hiện tại.
 
-## 10. Worker crash là input bình thường của thiết kế
+## 10. Thiết kế phải tính tới khả năng tiến trình xử lý dừng đột ngột
 
 Hãy hỏi điều gì xảy ra nếu worker crash tại từng ranh giới:
 
@@ -353,7 +353,7 @@ Nếu câu trả lời là “worker nhớ trong RAM”, mô hình hồi phục 
 
 Worker cũng cần giới hạn thực thi. Network call cần timeout; job dài có thể cần heartbeat hoặc gia hạn lease; việc nặng CPU/bộ nhớ có thể cần resource limit. Một worker bị treo và giữ quyền xử lý vô hạn vẫn là lỗi reliability dù tiến trình chưa chết.
 
-## 11. Backlog là một phần của độ trễ người dùng
+## 11. Công việc tồn đọng cũng làm tăng độ trễ người dùng
 
 Tách công việc ra khỏi request làm thay đổi mô hình latency:
 
@@ -382,7 +382,7 @@ Các tín hiệu nên quan sát:
 
 Scale worker theo capacity downstream chứ không chỉ theo backlog. Thêm worker có thể làm quá tải database hoặc API mà job đang gọi.
 
-## 12. Tách semantics của job khỏi topology của queue
+## 12. Phân biệt vòng đời công việc với cấu trúc hàng đợi
 
 Hệ thống background job cần cơ chế lưu và giao việc, nhưng không phải mọi vấn đề messaging đều thuộc lesson này.
 
@@ -397,9 +397,9 @@ Bài **Message Queues** sẽ chịu trách nhiệm các vấn đề transport r�
 
 Giữ ranh giới này giúp tránh lỗi thiết kế phổ biến: chọn broker trước rồi mới phát hiện không ai định nghĩa correctness semantics cho job.
 
-## Tình huống production: worker tạo thumbnail gửi thông báo trùng
+## Tình huống giả định: tác vụ tạo ảnh thu nhỏ gửi thông báo trùng
 
-Một dịch vụ media tạo đúng một job `GENERATE_THUMBNAILS` bền vững cho mỗi upload. Worker làm:
+**Ví dụ tự xây dựng, không phải báo cáo sự cố thực tế:** Một dịch vụ quản lý nội dung tạo một job `GENERATE_THUMBNAILS` bền vững cho mỗi tệp tải lên. Tiến trình xử lý thực hiện:
 
 ```text
 1. render thumbnail
@@ -410,11 +410,11 @@ Một dịch vụ media tạo đúng một job `GENERATE_THUMBNAILS` bền vữn
 
 Trong lúc deploy, một worker crash sau bước 2 nhưng trước bước 3–4. Delivery trở nên khả dụng lại và worker khác chạy lại job. Thumbnail bị ghi đè nhưng vẫn đúng, còn người dùng nhận email lần thứ hai. Cùng failure mode lặp lại cho nhiều job và đội hỗ trợ thấy thông báo trùng mà không thấy job failed rõ ràng.
 
-**Hậu quả:** người dùng nhận thông báo trùng, chi phí gửi email tăng và operator không phân biệt được recovery do retry với công việc mới.
+**Hậu quả:** người dùng **có thể** nhận thông báo trùng và phát sinh chi phí gửi thư thêm; người vận hành có thể khó phân biệt việc phục hồi sau lỗi với công việc mới. Đây là hậu quả giả định, không phải số liệu đã đo.
 
 **Nguyên nhân cốt lõi:** transport được thiết kế để có thể giao lại, nhưng hiệu ứng email không có định danh idempotency ổn định. Hệ thống coi “một delivery” tương đương “một hiệu ứng nghiệp vụ”, trong khi ack xảy ra sau hiệu ứng không thể đảo ngược và không có ranh giới chống trùng.
 
-**Cách khắc phục chuẩn:** cấp định danh bền vững cho thông báo logic, ví dụ `(job_id, notification_type)`, rồi chỉ cho phép send/publish một lần theo định danh đó, hoặc dùng idempotency của provider khi có. Giữ output render ở dạng xác định hoặc phiên bản hóa, ghi success bền vững trước khi ack theo delivery model đã chọn và đối soát kết quả từ xa mơ hồ thay vì lặp mù quáng. Theo dõi redelivery và số attempt trên mỗi job hoàn tất để worker-loss behavior trở nên nhìn thấy được.
+**Cách khắc phục chuẩn:** cấp định danh bền vững cho mỗi thông báo logic như `(job_id, notification_type)` và giữ chỗ/giao việc gửi một cách nguyên tử. Nếu nhà cung cấp email có cơ chế chống lặp, hãy dùng lại cùng khóa. Nếu không, thư có thể đã được gửi trước khi tiến trình kịp ghi kết quả; **ràng buộc duy nhất ở cơ sở dữ liệu nội bộ không tự bảo đảm thư chỉ được gửi một lần**. Cần chính sách đối soát hoặc chấp nhận việc thông báo có thể lặp có kiểm soát. Lưu ảnh tạo ra theo định danh ổn định, ghi kết quả bền vững rồi mới ACK theo hợp đồng, đồng thời theo dõi các lần giao lại.
 
 Quy tắc sâu hơn là: **background job chỉ đáng tin khi chạy lại toàn bộ giao thức vẫn an toàn tại mọi crash boundary mà delivery system có thể phơi ra**.
 
@@ -478,7 +478,7 @@ Dùng operation/idempotency key ổn định nếu đối tác hỗ trợ, hoặ
 
 ## Quy tắc cho agent
 
-Khi rà soát background-job code, không được duyệt một thiết kế chỉ vì nó “enqueue rồi retry”. Hãy trace một job logic từ lúc tạo bền vững qua claim, effect, ack, worker crash, giao lại, hết retry, hủy và trạng thái cuối. Xác minh mọi hiệu ứng không thể đảo ngược có câu chuyện idempotency hoặc reconciliation, và evidence vận hành phân biệt được waiting, running, retrying, failed và stuck work.
+Khi rà soát mã xử lý tác vụ nền, không nên duyệt thiết kế chỉ vì nó có thao tác “đưa vào hàng đợi rồi thử lại”. Hãy lần theo một tác vụ từ khi ghi nhận bền vững, nhận quyền xử lý, tạo tác động, ACK, mất tiến trình, giao lại, hết số lần thử, hủy cho tới trạng thái cuối. Xác minh mọi hiệu ứng không thể đảo ngược có câu chuyện idempotency hoặc reconciliation, và evidence vận hành phân biệt được waiting, running, retrying, failed và stuck work.
 
 ## Khái niệm liên quan
 
@@ -493,11 +493,14 @@ Tiếp tục theo lộ trình [Backend Systems](/vi/docs/learning-paths/backend-
 
 ## Nguồn
 
-Các nguồn chính được kiểm tra ngày **2026-09-10**:
+Các nguồn chính được kiểm tra ngày **2026-11-18**:
 
 - [Celery documentation — Tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)
+- [Celery — Cấu hình `task_acks_late` và `task_reject_on_worker_lost`](https://docs.celeryq.dev/en/stable/userguide/configuration.html)
 - [Celery documentation — Workers Guide](https://docs.celeryq.dev/en/main/userguide/workers.html)
 - [Amazon SQS documentation — Visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)
 - [Google Cloud Tasks documentation — Configure retries](https://docs.cloud.google.com/tasks/docs/configure-retry-task)
+- [Google Cloud Tasks — RetryConfig](https://docs.cloud.google.com/tasks/docs/reference/rest/v2/RetryConfig) — điều kiện dừng và thời hạn lưu
+- [Kubernetes — Giới hạn bộ nhớ container](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/) — `OOMKilled` là lý do kết thúc
 
 Bài này ở trạng thái **evolving** với chu kỳ rà soát mục tiêu 180 ngày vì runtime worker, task framework và hành vi managed queue tiếp tục thay đổi, dù mô hình vòng đời bền vững và lập luận theo crash boundary vẫn ổn định.

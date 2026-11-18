@@ -72,4 +72,22 @@ describe('Background Jobs lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('preserves Celery child-loss ACK nuance, Cloud Tasks retry conditions and hypothetical OOM example', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [relativePath, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('task_acks_late');
+      expect(source, relativePath).toContain('task_reject_on_worker_lost');
+      expect(source, relativePath).toContain('maxRetryDuration');
+      expect(source, relativePath).toContain('OOMKilled');
+      expect(source, relativePath).toContain('kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource');
+      expect(source, relativePath).not.toContain('OOMKilled` signal');
+    }
+    expect(en).toContain('Constructed example, not a documented incident');
+    expect(vi).toContain('Ví dụ tự xây dựng, không phải báo cáo sự cố thực tế');
+    expect(en).toContain('a local unique key alone cannot guarantee exactly one delivered email');
+    expect(vi).toContain('ràng buộc duy nhất ở cơ sở dữ liệu nội bộ không tự bảo đảm');
+  });
 });
