@@ -4,7 +4,7 @@ description: "Understand SSO and identity federation by separating application s
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [authentication, sso, federation, oidc, saml, cas]
 prerequisites: [authentication-and-authorization, oauth-and-oidc]
@@ -30,7 +30,7 @@ Identity federation extends that idea across a trust boundary: one system accept
 - **Each application normally keeps its own local session.**
 - **OIDC, SAML, and CAS move authentication evidence differently.**
 - **Logout is distributed state invalidation, not the reverse of one login redirect.**
-- **Fatal pitfall:** Assuming “logged out of app A” means the identity-provider session and app B's session are also gone.
+- **High-risk assumption:** Signing out of App A does not prove the identity-provider session, App B's local session, or previously issued access tokens have all been invalidated.
 
 ```mermaid
 flowchart LR
@@ -89,7 +89,7 @@ Protocol vocabulary matters because similar-looking words are not always interch
 
 OIDC is built on OAuth 2.0. An RP starts an authorization/authentication request. If the OP already has an acceptable user session, it may satisfy the request without asking the user for primary credentials again.
 
-The RP still validates the OIDC response and normally creates its own application session.
+The RP still validates the OIDC response and normally creates its own application session. The sequence below compresses browser redirects and a possible back-channel code exchange into one conceptual trust flow: applications do not simply send the browser's authorization request directly to the OP without the user agent in the actual protocol.
 
 ```mermaid
 sequenceDiagram
@@ -123,7 +123,7 @@ In the Web Browser SSO profile:
 2. the IdP authenticates the subject or reuses an IdP security context;
 3. the IdP creates a SAML Response containing an assertion;
 4. the browser carries the response to the SP's Assertion Consumer Service, commonly through HTTP POST;
-5. the SP validates the response/signature and creates a local session;
+5. the SP validates the assertion/response signature as applicable, issuer, audience, destination/recipient, replay and time conditions before creating a local session;
 6. authorization remains an SP/application decision.
 
 Do not reduce SAML to “old OIDC.” The message formats, bindings, metadata, certificate practices, and deployment ecosystems differ.
@@ -140,7 +140,7 @@ A simplified service flow is:
 4. the application validates the service ticket against CAS;
 5. the application creates its own local session.
 
-The CAS server's Ticket Granting Cookie represents the central SSO session. Service Tickets are credentials for a specific service and should be treated according to CAS validation semantics rather than as reusable bearer tokens.
+The CAS server's Ticket Granting Cookie represents the central SSO session. **A CAS Service Ticket is scoped to the registered service and must be consumed on a single validation attempt**, whether validation succeeds or fails; an unvalidated ticket should expire promptly. Do not treat it as a reusable access token or infer that a ticket can authenticate a different service.
 
 ```mermaid
 flowchart TD
@@ -169,7 +169,7 @@ Depending on protocol, participating systems need to agree on things such as:
 - authentication requirements;
 - clock/lifetime constraints.
 
-If the receiving application accepts identity evidence from the wrong issuer or for the wrong audience/service, the federation boundary has failed even if the cryptography is valid.
+If the receiving application accepts identity evidence from the wrong issuer, for the wrong audience/service, or outside its intended time/replay constraints, the federation boundary has failed even if the signature is mathematically valid.
 
 ## 7. Identity brokering and user federation are different
 
@@ -193,7 +193,7 @@ The application or API still owns questions such as:
 
 A successful SSO login is not a business authorization decision.
 
-**Logout is not an atomic transaction across applications.** Clearing App A's cookie does not automatically revoke the IdP session, App B's session, or already issued access tokens. OIDC front-/back-channel logout and SAML logout depend on participant support, protocol configuration and notification delivery; an offline RP can retain local state. Document whether “Sign out” means one application session or a best-effort coordinated logout.
+**Logout is not an atomic transaction across applications.** Clearing App A's cookie does not automatically revoke the IdP session, App B's session, or already issued access tokens. OIDC front-/back-channel logout and SAML logout depend on participant support, protocol configuration and notification delivery; an offline RP can retain local state. Even a successful provider-side logout response does not prove that every remote application has consumed a logout notification. Document whether “Sign out” means one application session or a best-effort coordinated logout.
 
 ## 9. Logout has multiple scopes
 
@@ -239,7 +239,7 @@ An employee clicks Logout in a frontend application. The app deletes only its lo
 
 No.
 
-App B has its own local session. Deleting App A's cookie does not delete App B's cookie, and it may not terminate the central IdP session either. Global logout requires an explicit protocol and deployment strategy; even then, front-channel/back-channel notification and application behavior must be implemented correctly.
+App B has its own local session. Deleting App A's cookie does not delete App B's cookie, and it may not terminate the central IdP session either. Global logout requires an explicit protocol and deployment strategy; even then, front-channel/back-channel notification and application behavior must be implemented correctly. A reachable provider does not guarantee that every relying application has already invalidated its own session.
 
 </details>
 
@@ -247,13 +247,13 @@ App B has its own local session. Deleting App A's cookie does not delete App B's
 
 - [ ] **Sessions:** Have you drawn IdP/SSO session and each application session separately?
 - [ ] **Protocol roles:** Are OP/RP, IdP/SP, or CAS Server/client roles named correctly?
-- [ ] **Trust:** Are issuer/entity IDs, keys/certificates, endpoints, and audiences/services validated?
+- [ ] **Trust:** Are issuer/entity IDs, keys/certificates, endpoints, audiences/services, replay, and relevant lifetime constraints validated?
 - [ ] **URLs:** Are redirect, Assertion Consumer Service, or CAS service URLs narrowly registered?
 - [ ] **Mapping:** Are claims/attributes mapped intentionally rather than blindly copied?
 - [ ] **Authorization:** Does the application still make resource-level permission decisions?
 - [ ] **Lifetime:** Are application and IdP session lifetimes deliberately different or aligned?
 - [ ] **Step-up:** Can sensitive actions require stronger/recent authentication when necessary?
-- [ ] **Logout scope:** Is local logout distinguished from central/global logout?
+- [ ] **Logout scope:** Is local logout distinguished from best-effort central/global logout, with behavior defined for unavailable RPs?
 - [ ] **Failure:** What happens if logout notification cannot reach one application?
 - [ ] **Brokering:** Is external-IdP brokering distinguished from LDAP/user federation?
 - [ ] **Observability:** Can support teams identify which session/protocol step failed?
