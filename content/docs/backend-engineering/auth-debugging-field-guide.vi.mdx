@@ -117,10 +117,10 @@ sequenceDiagram
   participant SPA as https://app.example
   participant API as https://api.example
 
-  Note over SPA,API: Preflight co dieu kien khi header/phuong thuc yeu cau
-  SPA->>API: OPTIONS /orders (preflight khi can)
-  API-->>SPA: Access-Control-Allow-Origin / Methods / Headers (va Credentials neu can)
-  SPA->>API: GET /orders + Authorization hoac cookie
+  Note over SPA,API: Preflight tùy theo phương thức và header
+  SPA->>API: OPTIONS /orders (preflight khi cần)
+  API-->>SPA: Access-Control-Allow-Origin / Methods / Headers (và Credentials nếu cần)
+  SPA->>API: GET /orders + Authorization hoặc cookie
   API-->>SPA: Response + CORS headers
 ```
 
