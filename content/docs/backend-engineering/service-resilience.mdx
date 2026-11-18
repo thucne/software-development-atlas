@@ -4,7 +4,7 @@ description: Operate resilient backend services by classifying dependencies, bud
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -55,15 +55,18 @@ classify dependency
 flowchart LR
   R[Request] --> B[Deadline budget]
   B --> I[Bulkhead / bounded concurrency]
-  I --> C{Circuit closed?}
+  I --> C{Circuit permits a call?}
   C -->|yes| D[Dependency call]
-  C -->|open| F[Fallback / fail fast]
+  C -->|open| F[Approved fallback or explicit error]
   D -->|success| O[Useful response]
   D -->|eligible transient failure| Y{Retry budget left?}
   Y -->|yes| D
   Y -->|no| F
-  F --> O
+  F -->|optional and safe| O
+  F -->|required work| X[Report failure]
 ```
+
+This is a conceptual call-flow sketch: the half-open probe state is detailed below. An `OPEN` breaker does **not** imply that critical work can return a successful fallback; required operations must fail explicitly if no correct alternative exists.
 
 > 💡 **Rule of thumb:** Service resilience is about containing blast radius, not eliminating faults—isolate capacity with Bulkheads, fail fast with Circuit Breakers, and degrade gracefully with truthful Fallbacks before an optional slowdown drowns your critical path.
 
@@ -71,8 +74,8 @@ flowchart LR
 - **Dependency criticality triage:** Classify every downstream call (critical, deferrable, optional enhancement, best-effort telemetry). Never allow an optional recommendation or analytics service to block or jeopardize mission-critical checkout or billing flows.
 - **Bulkhead isolation:** Segment thread pools, connection pools, and memory limits so that latency in one downstream dependency cannot exhaust shared caller resources and drag down healthy services.
 - **Circuit breaker protection:** Continuously monitor downstream error rates and latency. When failures cross configured thresholds, trip the breaker to `OPEN` to fail fast immediately, allowing the remote service breathing room to recover while routing callers to safe fallbacks.
-- **Deterministic deadline budgets & retry caps:** Allocate a single end-to-end latency budget across child calls rather than granting independent timeouts at every hop. Restrict retries with strict global retry budgets and exponential backoff to avoid turning minor hiccups into retry storms.
-- **Fatal pitfall:** Allowing a slow, non-essential downstream dependency to consume shared API Gateway connection pools without circuit breakers or bulkheads, triggering a catastrophic cascading failure that takes down the entire system.
+- **Deadline budgets and bounded retries:** Consume one end-to-end deadline across child calls. Bound extra attempts with a per-dependency aggregate retry budget, with a clearly defined instance or fleet scope, plus backoff and jitter; avoid retry storms.
+- **High-risk mistake:** A slow optional dependency can exhaust shared outbound capacity when waits and concurrency are unbounded, potentially disrupting critical paths. The actual blast radius depends on workload and architecture.
 
 <TermBox term="Service resilience">
 **Service resilience** is the ability to preserve useful, bounded behavior when dependencies are slow, unavailable, overloaded, or partially failing.
@@ -214,7 +217,7 @@ allowed retry budget       = 100 retry calls/min
 budget exhausted           -> fail/degrade instead of adding more retry load
 ```
 
-A retry budget is a capacity policy, not a guarantee that every request gets another attempt.
+The 1,000/100 calls-per-minute numbers above are **illustrative**, not defaults. Define the accounting boundary: a per-process/client budget limits local amplification, whereas a fleet-wide cap needs coordination or an explicit aggregate traffic model. Do not call a local bucket a globally enforced fleet limit. A retry budget is a capacity policy, not a guarantee that every request gets another attempt.
 
 ## 6. Circuit breakers stop repeated futile calls
 
@@ -337,9 +340,9 @@ service shedding load
 
 The exact health endpoint design is platform-specific. The principle is to expose state that helps routing and operators make correct decisions without turning a partial failure into fleet-wide churn.
 
-## 11. Production scenario: optional recommendations take down checkout
+## 11. Illustrative production scenario (hypothetical): optional recommendations take down checkout
 
-An e-commerce backend uses one shared outbound HTTP pool for payment, inventory, and recommendations. Recommendations slow from 80 ms to 8 seconds after a downstream incident. Every product and checkout request still calls recommendations synchronously. Each layer retries twice with a fixed short delay.
+**Constructed example, not a reported incident:** An e-commerce backend uses one shared outbound HTTP pool for payment, inventory, and recommendations. In this hypothetical workload, recommendations slow from 80 ms to 8 seconds after a downstream incident. Those timings are invented to make the failure mechanism concrete. Every product and checkout request still calls recommendations synchronously. Each layer retries twice with a fixed short delay.
 
 The shared pool fills with slow recommendation calls. Payment and inventory calls wait for connections. Their callers time out and retry too. Autoscaling adds application replicas, which creates even more downstream connections and retries.
 
@@ -424,6 +427,7 @@ When adding resilience to a dependency call, do not stack timeout, retry, circui
 
 ## References
 
-- Microsoft Azure Well-Architected Framework — reliability design patterns, including Bulkhead and Circuit Breaker.
-- Microsoft Azure Architecture Center — transient fault handling and aggregate retry budgets.
-- Amazon Builders' Library — Timeouts, retries, and backoff with jitter.
+- [Microsoft Azure Architecture Center — Bulkhead pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead): isolated capacity and its efficiency trade-offs.
+- [Microsoft Azure Architecture Center — Circuit Breaker pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker): closed/open/half-open state, error handling, and recovery.
+- [Microsoft Azure Architecture Center — Transient fault handling](https://learn.microsoft.com/en-us/azure/architecture/best-practices/transient-faults): aggregate retry budgets in addition to per-request caps.
+- [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): retry amplification, idempotency, local token buckets, and jitter.
