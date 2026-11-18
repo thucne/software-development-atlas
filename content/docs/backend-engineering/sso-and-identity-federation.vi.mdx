@@ -1,10 +1,10 @@
 ---
-title: "Đăng nhập Một lần & Liên kết Danh tính: Session, Trust, OIDC, SAML và CAS"
-description: "Hiểu SSO và identity federation bằng cách tách application session khỏi identity-provider session rồi so sánh OIDC, SAML, CAS, logout propagation và trust boundary."
+title: "Đăng nhập một lần và liên kết danh tính: Phiên, niềm tin, OIDC, SAML và CAS"
+description: "Hiểu SSO và liên kết danh tính qua sự khác biệt giữa phiên ứng dụng và phiên của nhà cung cấp danh tính; so sánh OIDC, SAML, CAS, cơ chế đăng xuất và các ranh giới tin cậy."
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [authentication, sso, federation, oidc, saml, cas]
 prerequisites: [authentication-and-authorization, oauth-and-oidc]
@@ -16,21 +16,21 @@ concepts:
   - sso-and-identity-federation
 ---
 
-# Đăng nhập Một lần & Liên kết Danh tính: Session, Trust, OIDC, SAML và CAS
+# Đăng nhập một lần và liên kết danh tính: Phiên, niềm tin, OIDC, SAML và CAS
 
 ## Tóm tắt nhanh
 
-Single Sign-On (SSO) không có nghĩa mọi application chia sẻ một cookie. Nó có nghĩa nhiều application có thể tin vào authentication context có thể tái sử dụng tại identity system, nhờ đó người dùng không cần nhập primary credential riêng cho từng application.
+**Đăng nhập một lần (SSO)** không có nghĩa mọi ứng dụng chia sẻ một cookie. Nhiều ứng dụng có thể dựa vào phiên xác thực tại một hệ thống danh tính chung, để người dùng không phải nhập lại mật khẩu hay thông tin xác thực ban đầu cho từng ứng dụng.
 
-Identity federation mở rộng ý tưởng đó qua trust boundary: một hệ thống chấp nhận identity statement do hệ thống khác phát hành theo protocol và trust configuration rõ ràng.
+**Liên kết danh tính** mở rộng mô hình đó qua ranh giới tin cậy: một hệ thống chấp nhận bằng chứng danh tính do hệ thống khác phát hành theo giao thức và cấu hình tin cậy đã thống nhất.
 
-> 💡 **Quy tắc bỏ túi:** Khi debug SSO, hãy vẽ **ba state riêng**: session của người dùng tại Identity Provider, local session của từng application, và protocol artifact dùng để thiết lập hoặc làm mới trust giữa chúng.
+> 💡 **Quy tắc bỏ túi:** Khi gỡ lỗi SSO, hãy phân biệt **ba trạng thái**: phiên của người dùng tại nhà cung cấp danh tính, phiên cục bộ tại từng ứng dụng và bằng chứng giao thức dùng để xác lập sự tin cậy giữa các bên.
 
-- **SSO tái sử dụng authentication, không chia sẻ business authorization.**
-- **Mỗi application thông thường vẫn giữ local session riêng.**
-- **OIDC, SAML và CAS truyền authentication evidence theo cách khác nhau.**
-- **Logout là bài toán distributed state invalidation, không đơn giản là “đảo ngược login redirect”.**
-- **Sai lầm chí mạng:** Giả định “logout App A” đồng nghĩa IdP session và App B session cũng biến mất.
+- **SSO tái sử dụng kết quả xác thực, không chia sẻ quyết định phân quyền nghiệp vụ.**
+- **Mỗi ứng dụng thường vẫn quản lý phiên cục bộ riêng.**
+- **OIDC, SAML và CAS truyền bằng chứng xác thực bằng các cơ chế khác nhau.**
+- **Đăng xuất là bài toán vô hiệu hóa trạng thái trên nhiều hệ thống, không chỉ đảo ngược luồng chuyển hướng khi đăng nhập.**
+- **Giả định rủi ro cao:** Đăng xuất khỏi ứng dụng A không chứng minh phiên tại nhà cung cấp danh tính, phiên ứng dụng B hay mọi access token đã bị vô hiệu hóa.
 
 ```mermaid
 flowchart LR
@@ -43,41 +43,41 @@ flowchart LR
 ```
 
 <TermBox term="Single Sign-On">
-**Single Sign-On (SSO)** là trải nghiệm và trust pattern cho phép một authentication context được tái sử dụng để thiết lập session ở nhiều application tham gia mà không liên tục hỏi lại primary credential.
+**Đăng nhập một lần (SSO)** là mô hình trải nghiệm và tin cậy cho phép tái sử dụng phiên xác thực để tạo phiên tại nhiều ứng dụng, mà không cần liên tục yêu cầu nhập lại thông tin xác thực ban đầu.
 </TermBox>
 
-## 1. SSO không phải một session khổng lồ
+## 1. SSO không phải một phiên dùng chung khổng lồ
 
-Giả sử có hai application:
+Giả sử có hai ứng dụng:
 
 - `billing.example.com`;
 - `support.example.com`.
 
-Cả hai cùng tin corporate identity provider.
+Cả hai cùng tin cậy một nhà cung cấp danh tính của tổ chức.
 
-Browser có thể đồng thời giữ:
+Trình duyệt có thể đồng thời lưu:
 
-- IdP/SSO session gắn với identity provider;
-- Billing application session;
-- Support application session.
+- phiên SSO tại nhà cung cấp danh tính (IdP);
+- phiên cục bộ của ứng dụng Billing;
+- phiên cục bộ của ứng dụng Support.
 
-Các session có thể có lifetime, cookie setting, risk policy và logout behavior khác nhau.
+Các phiên có thể có thời hạn, thiết lập cookie, chính sách rủi ro và cách đăng xuất khác nhau.
 
-Khi người dùng mở Support lần đầu, Support redirect tới IdP. IdP thấy SSO session hiện hữu, không hỏi lại credential, tạo protocol evidence mới cho Support rồi redirect browser về. Support sau đó tạo local session riêng.
+Khi người dùng mở Support lần đầu, ứng dụng có thể chuyển hướng tới IdP. Nếu phiên SSO hiện có đáp ứng chính sách xác thực, IdP không yêu cầu nhập lại thông tin ban đầu; hệ thống phát hành bằng chứng giao thức mới cho Support, chuyển hướng trình duyệt về và Support tạo phiên cục bộ của riêng mình.
 
-Đó là SSO mà không chia sẻ application cookie của Billing.
+Đó là SSO mà không cần chia sẻ cookie của ứng dụng Billing.
 
 <TermBox term="Identity Federation">
-**Identity federation** là trust arrangement trong đó một security domain chấp nhận identity information do domain khác phát hành theo protocol, identifier, key/certificate, endpoint và policy đã thống nhất.
+**Liên kết danh tính** là thỏa thuận tin cậy giữa các miền bảo mật: một miền chấp nhận thông tin danh tính do miền khác phát hành theo giao thức, định danh, khóa/chứng chỉ, điểm truy cập và chính sách đã thống nhất.
 </TermBox>
 
-## 2. Vai trò Identity Provider và application thay đổi theo protocol
+## 2. Vai trò nhà cung cấp danh tính và ứng dụng phụ thuộc giao thức
 
 <TermBox term="Identity Provider">
-**Identity Provider (IdP)** xác thực subject và phát hành identity evidence cho relying application. OIDC gọi phía identity là OpenID Provider (OP); SAML thường dùng IdP và Service Provider (SP); CAS dùng central CAS Server cùng CAS client/service.
+**Nhà cung cấp danh tính (IdP)** xác thực người dùng hoặc chủ thể và tạo bằng chứng danh tính cho ứng dụng tin cậy. OIDC gọi bên phát hành là OpenID Provider (OP); SAML dùng IdP và Service Provider (SP); CAS có CAS Server trung tâm và ứng dụng khách CAS.
 </TermBox>
 
-Dùng đúng vocabulary của protocol giúp tránh nhầm mental model.
+Dùng đúng thuật ngữ của từng giao thức giúp tránh nhầm lẫn về trách nhiệm.
 
 | Protocol | Phía identity | Phía application | Evidence điển hình |
 | --- | --- | --- | --- |
@@ -85,11 +85,11 @@ Dùng đúng vocabulary của protocol giúp tránh nhầm mental model.
 | SAML 2.0 | Identity Provider (IdP) | Service Provider (SP) | Signed SAML Response / Assertion |
 | CAS | CAS Server | CAS Client / Service | Service Ticket được validate với CAS |
 
-## 3. OIDC SSO tái sử dụng OP session
+## 3. OIDC SSO tái sử dụng phiên tại OP
 
-OIDC xây trên OAuth 2.0. RP khởi tạo authorization/authentication request. Nếu OP đã có user session đáp ứng policy, OP có thể hoàn thành request mà không yêu cầu user nhập primary credential lần nữa.
+OIDC được xây dựng trên OAuth 2.0. Ứng dụng tin cậy (RP) khởi tạo yêu cầu xác thực/ủy quyền. Nếu OP đã có phiên người dùng đáp ứng chính sách, OP có thể xử lý yêu cầu mà không bắt người dùng nhập lại thông tin xác thực ban đầu.
 
-RP vẫn phải validate OIDC response và thông thường tạo application session riêng.
+RP vẫn phải xác minh phản hồi OIDC và thường tạo phiên ứng dụng riêng. Sơ đồ dưới đây rút gọn các lần chuyển hướng qua trình duyệt và bước đổi mã lấy token có thể diễn ra qua kênh máy chủ; đây là sơ đồ tin cậy minh họa, không phải toàn bộ chuỗi HTTP thực tế.
 
 ```mermaid
 sequenceDiagram
@@ -111,11 +111,11 @@ sequenceDiagram
   AppB->>AppB: Tạo local session B
 ```
 
-Điểm quan trọng: App B không “mượn” session của App A. Nó thiết lập trust result riêng bằng authentication context có thể tái sử dụng ở IdP.
+Điểm quan trọng: ứng dụng B không “mượn” phiên của A. Nó xác lập kết quả tin cậy riêng nhờ phiên xác thực có thể tái sử dụng tại IdP.
 
-## 4. SAML Web Browser SSO truyền signed assertion
+## 4. SAML Web Browser SSO truyền xác nhận danh tính có chữ ký
 
-SAML 2.0 dựa trên XML và rất phổ biến trong enterprise federation.
+SAML 2.0 dùng XML và thường gặp trong các hệ thống liên kết danh tính doanh nghiệp.
 
 Trong Web Browser SSO profile:
 
@@ -123,24 +123,24 @@ Trong Web Browser SSO profile:
 2. IdP xác thực subject hoặc tái sử dụng IdP security context;
 3. IdP tạo SAML Response chứa assertion;
 4. browser chuyển response tới Assertion Consumer Service của SP, thường bằng HTTP POST;
-5. SP validate response/signature rồi tạo local session;
+5. SP kiểm tra chữ ký trên phản hồi hoặc assertion tùy cách ký, nhà phát hành, đối tượng nhận, địa chỉ đích, điều kiện thời gian và chống phát lại rồi tạo phiên cục bộ;
 6. authorization vẫn là quyết định của SP/application.
 
-Đừng đơn giản hóa SAML thành “OIDC cũ”. Message format, binding, metadata, certificate practice và deployment ecosystem khác nhau.
+Đừng coi SAML chỉ là “OIDC đời cũ”. Định dạng thông điệp, cách truyền, metadata, chứng chỉ và môi trường triển khai có những khác biệt quan trọng.
 
-## 5. CAS dùng ticket và central validation
+## 5. CAS dùng vé truy cập và xác minh tập trung
 
-CAS là web SSO protocol xoay quanh CAS Server.
+CAS là giao thức SSO cho web với một máy chủ CAS trung tâm.
 
-Một service flow đơn giản:
+Luồng đơn giản cho một ứng dụng:
 
-1. application redirect browser tới CAS `/login?service=...`;
-2. CAS xác thực user hoặc tái sử dụng SSO session;
-3. CAS redirect về với `ticket` ngắn hạn;
-4. application validate service ticket với CAS;
-5. application tạo local session riêng.
+1. ứng dụng chuyển hướng trình duyệt tới CAS `/login?service=...`;
+2. CAS xác thực người dùng hoặc tái sử dụng phiên SSO;
+3. CAS chuyển hướng về ứng dụng kèm `ticket` ngắn hạn;
+4. ứng dụng xác minh vé dành riêng cho dịch vụ đó với CAS;
+5. ứng dụng tạo phiên cục bộ riêng.
 
-Ticket Granting Cookie ở CAS server đại diện central SSO session. Service Ticket là credential cho một service cụ thể và phải theo semantics validate của CAS, không phải reusable bearer token chung.
+Ticket Granting Cookie của CAS gắn với phiên SSO trung tâm. **Service Ticket chỉ hợp lệ cho đúng dịch vụ đã đăng ký và phải bị tiêu thụ sau một lượt xác minh, dù thành công hay thất bại**; vé chưa xác minh phải được giới hạn thời hạn. Không thể dùng vé đó như access token tái sử dụng hoặc đưa sang dịch vụ khác.
 
 ```mermaid
 flowchart TD
@@ -153,9 +153,9 @@ flowchart TD
   C --> Z
 ```
 
-## 6. Federation là trust configuration, không chỉ là redirect
+## 6. Liên kết danh tính dựa vào cấu hình tin cậy, không chỉ chuyển hướng
 
-Redirect chỉ di chuyển browser. Trust đến từ configuration và validation.
+Chuyển hướng chỉ đưa trình duyệt tới một địa chỉ khác. Sự tin cậy đến từ cấu hình và quy trình xác minh.
 
 Tùy protocol, các hệ thống cần thống nhất các yếu tố như:
 
@@ -169,19 +169,19 @@ Tùy protocol, các hệ thống cần thống nhất các yếu tố như:
 - authentication requirement;
 - clock/lifetime constraint.
 
-Nếu receiving application chấp nhận identity evidence từ sai issuer hoặc cho sai audience/service thì federation boundary đã hỏng dù cryptography hợp lệ.
+Nếu ứng dụng nhận chấp nhận bằng chứng từ nhà phát hành sai, dành cho đối tượng/dịch vụ khác hoặc ngoài điều kiện thời gian và chống phát lại, ranh giới liên kết danh tính đã bị phá vỡ dù chữ ký vẫn đúng về mặt toán học.
 
-## 7. Identity brokering khác user federation
+## 7. Kết nối với IdP khác với liên kết kho người dùng
 
-Hai ý tưởng này thường bị lẫn trong sản phẩm như Keycloak.
+Hai cơ chế này thường bị nhầm lẫn trong sản phẩm như Keycloak.
 
-**Identity brokering:** identity system của bạn delegate authentication sang external IdP khác, ví dụ corporate Entra ID qua OIDC/SAML, sau đó phát local session/token của mình cho application.
+**Kết nối IdP (identity brokering):** hệ thống danh tính chuyển việc xác thực tới IdP bên ngoài, chẳng hạn Entra ID của doanh nghiệp qua OIDC/SAML, rồi phát hành phiên/token riêng cho ứng dụng.
 
-**User federation:** identity system đọc hoặc validate user qua external user directory/store như LDAP hoặc Active Directory.
+**Liên kết kho người dùng (user federation):** hệ thống danh tính tra cứu hoặc xác thực người dùng qua kho tài khoản bên ngoài như LDAP hay Active Directory.
 
-Một bên nối **identity protocol giữa các IdP**; bên kia nối **user/credential store**.
+Cơ chế đầu kết nối **giao thức giữa các IdP**; cơ chế sau kết nối **kho người dùng hoặc thông tin xác thực**.
 
-## 8. SSO không gom business authorization về một chỗ
+## 8. SSO không tập trung quyền quyết định nghiệp vụ
 
 IdP có thể cung cấp group, role, authentication method hoặc attribute. Đây là input về identity/security context.
 
@@ -191,13 +191,13 @@ Application hoặc API vẫn sở hữu câu hỏi:
 - support agent này có được xem tenant A không?
 - user này có được thay production configuration không?
 
-SSO login thành công không phải business authorization decision.
+Đăng nhập SSO thành công không đồng nghĩa người dùng có quyền thực hiện một thao tác nghiệp vụ.
 
-**Logout không phải transaction nguyên tử trên mọi application.** Xóa cookie/session của App A không tự thu hồi session tại IdP, App B hoặc access token còn hạn. OIDC front-channel/back-channel logout và SAML Single Logout phụ thuộc hỗ trợ, trust configuration, delivery và xử lý tại mỗi bên; một thông báo đến muộn hoặc endpoint offline có thể để lại phiên chưa bị thu hồi. Xác định trước scope của nút “Đăng xuất”: chỉ app hiện tại hay toàn bộ IdP/RP mà hệ thống thực sự kiểm soát.
+**Đăng xuất không phải giao dịch nguyên tử giữa các ứng dụng.** Xóa cookie của A không tự động kết thúc phiên IdP, phiên B hoặc access token chưa hết hạn. Đăng xuất OIDC qua kênh trước/sau, cũng như SAML Single Logout, phụ thuộc khả năng hỗ trợ của các bên và việc truyền/nhận thông báo; một ứng dụng ngoại tuyến vẫn có thể giữ phiên. Ngay cả khi IdP trả lời đăng xuất thành công, điều đó chưa chứng minh mọi ứng dụng đã xóa phiên. Hãy xác định nút “Đăng xuất” chỉ kết thúc phiên hiện tại hay yêu cầu đăng xuất phối hợp theo khả năng thực tế.
 
-## 9. Logout có nhiều phạm vi
+## 9. Đăng xuất có nhiều phạm vi
 
-“Logout” có thể nghĩa là:
+“Đăng xuất” có thể bao gồm:
 
 - hủy local session của một application;
 - revoke hoặc expire token;
@@ -207,7 +207,7 @@ SSO login thành công không phải business authorization decision.
 
 OIDC định nghĩa RP-Initiated Logout cùng front-channel/back-channel logout. SAML định nghĩa Single Logout profile. CAS có thể hỗ trợ Single Logout notification.
 
-Các cơ chế này có reliability và deployment characteristic khác nhau.
+Các cơ chế có đặc điểm độ tin cậy và triển khai khác nhau.
 
 ```mermaid
 flowchart LR
@@ -222,13 +222,13 @@ flowchart LR
   Q -->|Rồi| N[Có thể phải primary authentication lại]
 ```
 
-## Tình huống minh họa (giả định): đăng xuất rồi lại đăng nhập
+## Tình huống giả định: vừa đăng xuất lại được đăng nhập
 
-Nhân viên bấm Logout trong frontend application. App chỉ xóa local cookie rồi redirect về home. Protected route tiếp theo khởi động OIDC login lại. OpenID Provider vẫn còn active SSO session nên ngay lập tức redirect trở lại với authorization response mới và app tạo local session mới.
+Một nhân viên bấm Đăng xuất trong ứng dụng web. Ứng dụng chỉ xóa cookie cục bộ rồi chuyển về trang chủ. Khi mở một trang cần xác thực, luồng đăng nhập OIDC lại bắt đầu. Vì phiên SSO tại OpenID Provider vẫn còn hiệu lực, người dùng được chuyển về với phản hồi ủy quyền mới và ứng dụng tạo phiên cục bộ mới.
 
-- **Hậu quả:** User nghĩ logout bị hỏng vì application có vẻ đăng nhập lại ngay.
-- **Nguyên nhân cốt lõi:** Team đánh đồng application-session logout với identity-provider SSO logout.
-- **Cách khắc phục chuẩn:** Định nghĩa rõ logout scope, clear local session, dùng RP/central logout mechanism mà protocol/provider hỗ trợ khi cần global sign-out và thiết kế cho trường hợp logout propagation chỉ thành công một phần.
+- **Hậu quả:** Người dùng tưởng chức năng đăng xuất bị lỗi vì ứng dụng dường như đăng nhập lại ngay.
+- **Nguyên nhân cốt lõi:** Nhóm phát triển đánh đồng việc kết thúc phiên ứng dụng với kết thúc phiên SSO tại nhà cung cấp danh tính.
+- **Cách khắc phục chuẩn:** Xác định rõ phạm vi đăng xuất, xóa phiên cục bộ, dùng cơ chế đăng xuất RP/IdP mà giao thức hỗ trợ nếu cần đăng xuất toàn hệ thống, đồng thời xử lý trường hợp thông báo đến các ứng dụng chỉ thành công một phần.
 
 ## Tự kiểm tra mô hình tư duy
 
@@ -239,21 +239,21 @@ Nhân viên bấm Logout trong frontend application. App chỉ xóa local cookie
 
 Không.
 
-App B giữ local session riêng. Xóa cookie App A không xóa cookie App B và cũng có thể không terminate central IdP session. Global logout cần protocol và deployment strategy rõ ràng; ngay cả khi có, front-channel/back-channel notification và behavior từng application vẫn phải được triển khai đúng.
+Ứng dụng B có phiên cục bộ riêng. Xóa cookie A không xóa cookie B và cũng có thể không kết thúc phiên SSO tại IdP. Đăng xuất phối hợp cần giao thức và chiến lược triển khai rõ ràng; thông báo qua trình duyệt hoặc kênh máy chủ vẫn có thể không đến được tất cả ứng dụng.
 
 </details>
 
-## Checklist SSO & federation
+## Danh sách kiểm tra SSO và liên kết danh tính
 
 - [ ] **Sessions:** Bạn đã vẽ riêng IdP/SSO session và session từng application chưa?
 - [ ] **Protocol roles:** OP/RP, IdP/SP hoặc CAS Server/client có được gọi đúng không?
-- [ ] **Trust:** Issuer/entity ID, key/certificate, endpoint và audience/service có được validate không?
+- [ ] **Tin cậy:** Định danh nhà phát hành, khóa/chứng chỉ, điểm truy cập, đối tượng nhận, thời hạn và điều kiện chống phát lại có được kiểm tra không?
 - [ ] **URLs:** Redirect, Assertion Consumer Service hoặc CAS service URL có được đăng ký đủ hẹp không?
 - [ ] **Mapping:** Claim/attribute có được map có chủ đích thay vì copy mù quáng không?
 - [ ] **Authorization:** Application vẫn tự quyết định resource-level permission chứ?
 - [ ] **Lifetime:** Application session và IdP session lifetime có được chọn có chủ đích không?
 - [ ] **Step-up:** Sensitive action có thể yêu cầu stronger/recent authentication khi cần không?
-- [ ] **Logout scope:** Local logout có được tách khỏi central/global logout không?
+- [ ] **Phạm vi đăng xuất:** Đã phân biệt đăng xuất cục bộ với đăng xuất phối hợp theo khả năng thực tế, kể cả khi RP ngoại tuyến chưa?
 - [ ] **Failure:** Điều gì xảy ra nếu logout notification không tới được một application?
 - [ ] **Brokering:** External-IdP brokering có được tách khỏi LDAP/user federation không?
 - [ ] **Observability:** Support team có xác định được session/protocol step nào lỗi không?
