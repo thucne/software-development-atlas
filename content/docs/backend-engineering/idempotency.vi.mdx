@@ -67,7 +67,7 @@ sequenceDiagram
 **Vì sao quan trọng:** hệ thống phân tán thường không biết chắc kết quả khi kết nối lỗi. Tính lũy đẳng cho phép bên gọi thử lại mà không vô tình tạo trạng thái nghiệp vụ trùng.
 </TermBox>
 
-## 1. Idempotency của HTTP method hữu ích nhưng chưa đủ cho application
+## 1. Tính lũy đẳng của phương thức HTTP hữu ích nhưng chưa đủ cho ứng dụng
 
 RFC 9110 định nghĩa một HTTP method là idempotent khi nhiều request giống hệt nhau có cùng **hiệu ứng dự kiến** như một request. Các phương thức an toàn, `PUT` và `DELETE` được định nghĩa là lũy đẳng theo ngữ nghĩa HTTP. RFC 9110 cho phép các hiệu ứng phụ như ghi access log và nêu rõ phản hồi giữa các lần gọi có thể khác nhau.
 
@@ -125,7 +125,7 @@ network timeout
 attempt 2 -> key A
 ```
 
-## 3. Scope key để các caller không liên quan không va chạm
+## 3. Giới hạn phạm vi khóa để các bên gọi không liên quan không va chạm
 
 Raw key hiếm khi là toàn bộ lookup identity.
 
@@ -160,7 +160,7 @@ expires_at      ...
 
 Schema cụ thể tùy hệ thống. Invariant là một scoped key chỉ tên một logical command trong cửa sổ retry được hỗ trợ.
 
-## 4. Bind key với semantics của request bằng fingerprint
+## 4. Gắn khóa với nội dung có ý nghĩa của yêu cầu
 
 Chỉ dựa vào khóa sẽ nguy hiểm nếu bên gọi vô tình dùng lại nó với nội dung khác. Cần quy định rõ khi nào hai yêu cầu thuộc cùng một thao tác.
 
@@ -190,7 +190,7 @@ Canonicalization rất quan trọng. Hash raw JSON bytes có thể coi hai objec
 
 Không đưa transport field biến động như request ID hay timestamp vào fingerprint trừ khi chúng thật sự thuộc business semantics.
 
-## 5. Reservation phải nguyên tử trước concurrent duplicate
+## 5. Phải giữ chỗ nguyên tử trước khi xử lý các yêu cầu trùng đồng thời
 
 Implementation sau bị lỗi:
 
@@ -231,7 +231,7 @@ Duplicate đến khi attempt đầu vẫn `IN_PROGRESS` cần contract rõ. Tùy
 
 Không khởi động business effect thứ hai chỉ vì response của attempt đầu chưa sẵn sàng.
 
-## 6. Khi có thể, đặt idempotency record cùng transaction với authoritative state
+## 6. Khi có thể, lưu bản ghi chống lặp và dữ liệu chuẩn trong cùng một giao dịch
 
 Giả sử create order ghi cả:
 
@@ -257,7 +257,7 @@ Như vậy crash không thể commit order nhưng làm mất idempotency record,
 
 Khi idempotency store và authoritative database là hai hệ thống khác nhau, phải mô tả partial-failure contract rõ. Không còn atomic boundary miễn phí.
 
-## 7. External side effect cần ranh giới bảo vệ riêng
+## 7. Tác dụng phụ bên ngoài cần được bảo vệ riêng
 
 Database transaction không thể biến email provider, payment gateway, webhook receiver và message broker thành một atomic commit duy nhất.
 
@@ -293,7 +293,7 @@ Pattern an toàn có thể gồm:
 
 **Exactly-once luôn có scope theo một boundary.** Khi nói “endpoint idempotent”, phải chỉ rõ business effect nào thực sự được bảo vệ.
 
-## 8. Replay outcome logic, không nhất thiết lưu nguyên bytes mãi mãi
+## 8. Trả lại kết quả tương đương, không nhất thiết giữ nguyên từng byte mãi mãi
 
 Khi duplicate của operation đã hoàn tất đến, server thường không thực thi effect lần nữa. Nó có thể trả:
 
@@ -308,7 +308,7 @@ Stripe là một ví dụ implementation công khai: với idempotent request tr
 
 Cần đặc biệt rõ với failure. Validation failure chưa vượt effect boundary có thể được sửa rồi retry; failure xảy ra sau khi effect bắt đầu có thể cần durable terminal state hoặc ambiguous state. Đừng cache mọi `500` theo phản xạ, và cũng đừng re-execute mọi `500` theo phản xạ. Contract phải xuất phát từ operation boundary.
 
-## 9. Retention là một phần của guarantee
+## 9. Thời hạn lưu khóa quyết định phạm vi bảo đảm
 
 Idempotency record không nhất thiết sống mãi.
 
@@ -332,7 +332,7 @@ cùng key sau khi retention hết hạn      -> có thể chạy như operation 
 
 TTL không chỉ là housekeeping cho storage. Nó xác định lúc duplicate protection chấm dứt.
 
-## 10. Idempotency và uniqueness bảo vệ hai lớp khác nhau
+## 10. Chống lặp và ràng buộc duy nhất bảo vệ hai lớp khác nhau
 
 Đôi khi domain đã có natural unique identity:
 
@@ -370,7 +370,7 @@ Hai request dùng cùng key đến gần như đồng thời vì mobile client r
 
 **Cách khắc phục chuẩn:** reserve scoped key một cách nguyên tử trước execution, bind key với request fingerprint, persist authoritative operation state trong transaction, và cho payment command một idempotent/reconciliation boundary riêng. Concurrent duplicate cùng quan sát một operation thay vì bắt đầu charge mới.
 
-## 12. Vận hành lớp idempotency bằng bằng chứng
+## 12. Theo dõi hiệu quả cơ chế chống lặp bằng số liệu
 
 Signal hữu ích gồm:
 
@@ -400,7 +400,7 @@ Chưa. Dùng lại key là cần thiết nhưng không đủ. Durable operation 
 
 </details>
 
-## Checklist review
+## Danh sách rà soát
 
 - [ ] **Thao tác logic:** Một idempotency key đại diện chính xác cho intent nghiệp vụ nào?
 - [ ] **Vòng đời key:** Key có được tạo một lần và dùng lại cho mọi retry của operation đó không?
