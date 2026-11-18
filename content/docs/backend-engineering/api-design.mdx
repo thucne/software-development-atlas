@@ -4,7 +4,7 @@ description: Operate stable HTTP API contracts by choosing resource boundaries, 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -101,7 +101,7 @@ RFC 9110 defines standardized method semantics. Use those semantics instead of t
 
 HTTP **idempotent** does not mean every repeated response is byte-for-byte identical. It means multiple identical requests have the same intended effect as one such request.
 
-That distinction matters for retries. A repeated `DELETE` can return `204` first and `404` later while still satisfying idempotent method semantics. Logs, metrics, audit records, or timestamps can also differ.
+That distinction matters for retries. A repeated `DELETE` can return `204` first and `404` later while still satisfying idempotent method semantics. Logs, metrics, audit records, or timestamps can also differ. A **safe** `GET` does not ask for a business mutation, though incidental server-side logging and measurement can occur.
 
 <TermBox term="Idempotent method">
 An **idempotent method** has the same intended server-side effect when the same request is applied multiple times as when it is applied once.
