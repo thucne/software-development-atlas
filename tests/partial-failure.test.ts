@@ -36,7 +36,7 @@ describe('Partial Failure lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - partial-failure\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -67,5 +67,17 @@ describe('Partial Failure lesson', () => {
     expect(vi).toContain('**Hậu quả:**');
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
+  });
+
+  it('documents gRPC ambiguity and conditional replay in both languages', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    expect(en).toContain('DEADLINE_EXCEEDED');
+    expect(en).toContain('may occur even after the callee has committed');
+    expect(vi).toContain('có thể** xuất hiện dù bên nhận đã commit');
+    expect(en).toContain('if the provider enforces a documented idempotency contract');
+    expect(vi).toContain('thực thi hợp đồng chống lặp đã công bố');
+    expect(en).toContain('lastVerified: 2026-11-18');
+    expect(vi).toContain('lastVerified: 2026-11-18');
   });
 });
