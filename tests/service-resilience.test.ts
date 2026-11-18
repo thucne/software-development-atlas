@@ -71,4 +71,24 @@ describe('Service Resilience lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('keeps exact audit boundaries and primary-source evidence aligned across EN/VI', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [relativePath, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
+      expect(source, relativePath).toMatch(/instance|process|tiến trình/i);
+      expect(source, relativePath).toMatch(/fleet|toàn bộ hệ thống/i);
+      expect(source, relativePath).toMatch(/required work|nghiệp vụ bắt buộc/i);
+      expect(source, relativePath).toMatch(/Report failure|Báo lỗi rõ ràng/i);
+      expect(source, relativePath).toContain('https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead');
+      expect(source, relativePath).toContain('https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker');
+      expect(source, relativePath).toContain('https://learn.microsoft.com/en-us/azure/architecture/best-practices/transient-faults');
+      expect(source, relativePath).toContain('https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/');
+    }
+    expect(read('content/docs/start-here/changelog.mdx')).toContain('](/docs/backend-engineering/service-resilience)');
+    expect(read('content/docs/start-here/changelog.vi.mdx')).toContain('](/vi/docs/backend-engineering/service-resilience)');
+  });
+
 });
