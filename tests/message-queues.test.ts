@@ -73,4 +73,20 @@ describe('Message Queues lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('separates RabbitMQ prefetch from timed SQS visibility and labels constructed incidents', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    expect(en).toContain('Prefetch does not set an expiry timer');
+    expect(vi).toContain('Prefetch **không tạo đồng hồ hết hạn');
+    expect(en).toContain('RabbitMQ 4.3');
+    expect(vi).toContain('RabbitMQ 4.3');
+    expect(en).toContain('Constructed scenario, not an observed queue outage');
+    expect(vi).toContain('Tình huống tự xây dựng, không phải sự cố thực tế');
+    for (const [path, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, path).toContain('lastVerified: 2026-11-18');
+      expect(source, path).toContain('www.rabbitmq.com/docs/consumers');
+      expect(source, path).not.toContain('100% CPU');
+    }
+  });
 });

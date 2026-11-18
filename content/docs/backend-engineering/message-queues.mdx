@@ -4,7 +4,7 @@ description: Reason about queue brokers through publish confirmation, ready and 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-09-10
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -31,19 +31,19 @@ concepts:
 
 # Message Queues: Make Delivery and Completion Explicit
 
-At 3:00 PM, a malformed JSON payload containing an unhandled schema defect bypasses an edge service and lands directly in your primary order processing queue. Worker 1 receives the message, throws an unhandled exception, and crashes immediately. Because the delivery was never acknowledged, the message broker detects the lost connection and promptly redelivers the message to the next available worker. Worker 2 claims it, throws the exact same unhandled exception, and terminates. Within minutes, this **poison pill** cycles relentlessly through every worker in the fleet, triggering an infinite crash loop. The competing consumers are completely paralyzed, queue depth explodes to hundreds of thousands of backlogged orders, and the age of the oldest message climbs to hours while processing throughput drops to zero.
+**Constructed scenario, not an observed queue outage:** A malformed order message reaches a work queue. A consumer crashes while parsing it before acknowledging delivery. Depending on the broker, its configuration and how quickly the failed connection is detected, the message may be requeued and delivered to another worker. Without bounded failure handling, this can repeat, waste capacity and delay legitimate orders. It does **not** necessarily crash the whole fleet, drive throughput to zero, or produce a particular backlog size.
 
-This is the nightmare of unmanaged queue failures. Message queues decouple publishers from consumers and enable scalable competing worker pools, but without Dead-Letter Queues (DLQs), retry backoff, and robust publisher confirmation, a single bad message can incapacitate an entire system.
+Message queues decouple producers and consumers, but safe processing needs failure classification, appropriate retry delay, a terminal/dead-letter path and acknowledgement boundaries. A message broker's delivery recovery cannot itself make external business effects exactly once.
 
 ## TL;DR
 
-> 💡 **Rule of thumb:** Transport delivery completion is not business completion. Never acknowledge (ACK) a message before its durable effect is committed, protect consumers with Dead-Letter Queues (DLQ) and exponential backoff against poison pills, and make handlers idempotent to absorb inevitable redeliveries.
+> 💡 **Rule of thumb:** Broker delivery completion is not business completion. For work that must survive failures, acknowledge (ACK) only after the required durable effect or recoverable completion intent is recorded. Give deterministic poison messages a bounded terminal/dead-letter path, and make business effects duplicate-safe because **redelivery is possible**, not guaranteed on every message.
 
 - **Decoupled execution with competing consumers:** Message queues allow producers to submit work asynchronously while multiple competing consumers scale horizontally to pull and process deliveries without overwhelming downstream systems.
-- **Acknowledgements and in-flight visibility leases:** In-flight processing is a temporary lease (via SQS visibility timeouts or RabbitMQ prefetch windows). Acknowledging too early causes permanent message loss if the worker crashes; acknowledging after the business effect creates a duplicate redelivery window requiring idempotent consumers.
-- **Publisher confirmations ensure producer durability:** A successful `send()` call only confirms socket writes; true reliability requires publisher confirms or transactional outboxes so the producer knows when the broker durably accepted the message.
+- **Acknowledgements, leases and flow control:** Amazon SQS uses a visibility timeout; RabbitMQ `prefetch` is an outstanding-unacknowledged-delivery **count limit**, **not** an SQS-like timed lease. Early acknowledgement can lose work without another recovery record; acknowledgement after a business effect leaves a possible redelivery window requiring duplicate-safe consumers.
+- **Publisher confirmation has a defined boundary:** Depending on the client/broker, a successful `send()` may indicate local buffering, broker acceptance, or a stronger confirmed publication. Use the provider's publisher-confirm and durability contract; a transactional outbox separately closes a database-to-broker dual-write gap, not the broker's own acknowledgement protocol.
 - **Poison pill defense with Dead-Letter Queues (DLQ):** Unprocessable messages must not loop infinitely; bound retry attempts with exponential backoff and jitter, shunting exhausted poison work to a dead-letter queue for operator inspection.
-- **Fatal pitfall:** Enabling automatic acknowledgement (auto-ACK) upon message receipt before business logic completes, or acknowledging before the database commit, resulting in catastrophic and irreversible message loss whenever worker pods crash or restart.
+- **High-risk choice:** Automatic acknowledgement before processing or before a durable recovery record can lose work on a crash. The consequence depends on whether a separate authoritative operation/outbox record exists and can recover it.
 
 ```mermaid
 flowchart LR
@@ -158,13 +158,13 @@ Automatic acknowledgement before processing can improve throughput but weakens r
 
 Different queue systems express in-flight ownership differently.
 
-Amazon SQS uses a **visibility timeout**: after a consumer receives a message, the message remains in the queue but is temporarily hidden. If the consumer does not delete it before the timeout expires, the message becomes visible for another receive. SQS standard queues are still at-least-once; visibility does not guarantee a duplicate can never occur.
+Amazon SQS uses a **visibility timeout**: after a consumer receives a message, the message remains in the queue but is temporarily hidden. If the consumer does not delete it before the timeout expires, the message becomes visible for another receive. SQS standard queues are still at-least-once; even within the visibility interval a duplicate may occur, so the lease alone does not provide exclusive effect ownership.
 
-RabbitMQ push consumers use acknowledgements plus a configurable **prefetch** window that limits how many unacknowledged deliveries can be outstanding.
+RabbitMQ push consumers use acknowledgements plus a configurable **prefetch** count that limits how many unacknowledged deliveries may be outstanding. **Prefetch does not set an expiry timer for each message.** Unacknowledged deliveries are normally requeued when their channel/connection closes; RabbitMQ also supports delivery acknowledgement timeouts with version- and queue-type-specific applicability (RabbitMQ 4.3 applies them to quorum queues). Do not treat this mechanism as identical to SQS visibility timeout.
 
-These are different APIs around the same reasoning question:
+These are distinct mechanisms around the same reasoning question:
 
-> How much work can a consumer own without proving completion, and how does that ownership expire or flow back to the broker?
+> How much work can a consumer hold without proving completion, and under which broker-specific failure, timeout or acknowledgement rules does it become available again?
 
 If processing normally takes two minutes but the visibility timeout is 30 seconds, a second worker may receive the message while the first is still processing it. If a consumer prefetches hundreds of expensive messages, one worker can hoard work and memory while other consumers sit idle.
 
@@ -183,7 +183,7 @@ sequenceDiagram
   W2-->>Q: ack/delete
 ```
 
-Size visibility/lease duration from measured processing behavior, and extend/renew it deliberately for long-running work when the broker supports that. Bound prefetch or in-flight count so one consumer cannot accumulate more work than it can process safely.
+For **SQS**, size visibility from measured processing behavior and extend it for long work when appropriate. For **RabbitMQ**, configure prefetch to bound concurrent unacknowledged deliveries, and review acknowledgement-timeout policies separately for the chosen queue/version. Neither broker removes the need for idempotent effects or progress/lease monitoring.
 
 ## 6. Redelivery is normal failure recovery
 
@@ -301,13 +301,13 @@ Do not assume publisher confirms solve this **database-to-broker atomicity** pro
 
 That is a separate concept from queue delivery itself, but it is an important boundary: broker durability starts only after the publication reaches the broker.
 
-## Production scenario: visibility timeout shorter than fulfillment
+## Hypothetical production scenario: visibility timeout shorter than fulfillment
 
-An order-fulfillment queue uses a 30-second visibility timeout. Most warehouse reservation calls finish in under 10 seconds, so the default looked safe during testing. A downstream inventory service becomes slow and some reservations now take 70–90 seconds.
+**Constructed example, not a measured outage:** An SQS-style order-fulfillment queue uses a 30-second visibility timeout. Assume typical warehouse reservations finish in less than 10 seconds, but some now take 70–90 seconds when an inventory dependency slows. These times are illustrative, not provider defaults or observed incident metrics (except that SQS's default queue visibility is configurable and often 30 seconds).
 
 Worker A receives `FulfillOrder:ord_742` and begins reserving stock. At 30 seconds the message becomes visible again. Worker B receives the same message while Worker A is still active. Both reach a non-idempotent shipping-label endpoint and create separate labels before one finally deletes the queue message.
 
-**Impact:** duplicate labels and duplicate warehouse work are created for the same order; some orders are packed twice and require manual reconciliation.
+**Impact:** duplicate labels or warehouse operations **can** be created for one order, possibly requiring reconciliation; actual duplicate effects depend on downstream idempotency and which workers reach the effect.
 
 **Root cause:** the team treated the visibility timeout as a performance setting rather than an ownership lease. Processing time exceeded the lease, and the downstream fulfillment effect had no stable idempotency boundary for redelivery.
 
@@ -362,11 +362,13 @@ Continue through the [Backend Systems](/docs/learning-paths/backend-systems) pat
 
 ## Sources
 
-Primary references verified on **2026-09-10**:
+Primary references verified on **2026-11-18**:
 
 - [RabbitMQ — Consumer Acknowledgements and Publisher Confirms](https://www.rabbitmq.com/docs/confirms)
+- [RabbitMQ — Consumers and delivery acknowledgement timeout](https://www.rabbitmq.com/docs/consumers) — prefetch vs queue-type/version-scoped acknowledgement timeout
 - [RabbitMQ — Dead Letter Exchanges](https://www.rabbitmq.com/docs/dlx)
 - [Amazon SQS — Visibility Timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)
+- [Amazon SQS — Outage recovery and FIFO deduplication limits](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/designing-for-outage-recovery-scenarios.html)
 - [Amazon SQS — Processing messages in a timely manner](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/best-practices-processing-messages-timely-manner.html)
 
 The references show concrete broker APIs; the reasoning model is intentionally vendor-neutral. A different queue may use leases, reservations, pulls, pushes, receipts, or acknowledgements with different details, so verify the actual product contract before relying on a specific guarantee.
