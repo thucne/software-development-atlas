@@ -73,7 +73,7 @@ describe('Partial Failure lesson', () => {
     const en = read(lessonPaths.en);
     const vi = read(lessonPaths.vi);
     expect(en).toContain('DEADLINE_EXCEEDED');
-    expect(en).toContain('may occur even after the callee has committed');
+    expect(en).toContain('**may** occur even after the callee has committed');
     expect(vi).toContain('có thể** xuất hiện dù bên nhận đã commit');
     expect(en).toContain('if the provider enforces a documented idempotency contract');
     expect(vi).toContain('thực thi hợp đồng chống lặp đã công bố');
