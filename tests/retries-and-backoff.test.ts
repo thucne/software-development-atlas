@@ -31,7 +31,7 @@ describe('Retries and Backoff lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: operate');
       expect(source, relativePath).toMatch(/concepts:\n  - retries-and-backoff\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -64,5 +64,16 @@ describe('Retries and Backoff lesson', () => {
     expect(vi).toContain('**Hậu quả:**');
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
+  });
+
+  it('uses total-attempt arithmetic and scopes AWS retry quotas without overstating safe replay', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    expect(en).toContain('three total attempts');
+    expect(vi).toContain('ba lần thực hiện tổng cộng');
+    expect(en).toContain('not automatically shared across processes or the fleet');
+    expect(vi).toContain('không tự dùng chung giữa các tiến trình hay toàn hệ thống');
+    expect(en).toContain('RFC 6585 §4');
+    expect(vi).toContain('RFC 6585 §4');
   });
 });

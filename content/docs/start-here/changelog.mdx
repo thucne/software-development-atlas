@@ -40,6 +40,8 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 - [API Design](/docs/backend-engineering/api-design): Rechecked method safety/idempotency, conditional PATCH requests, RFC 9457 error semantics, pagination and compatibility; improved bilingual parity and readability.
 - [Application Caching](/docs/backend-engineering/application-caching): Reviewed TTL versus source age, cache key identity, invalidation races/failure, stampede controls, and read-cache versus write-behind durability; polished EN/VI examples.
+- [Timeouts](/docs/distributed-systems/timeouts): Verify gRPC's language-specific deadline propagation and cooperative cancellation; clarify SLO versus request deadline and scope of per-phase timeouts.
+- [Retries and Backoff](/docs/distributed-systems/retries-and-backoff): Correct total-attempt amplification math, scope the AWS SDK retry quota, qualify safe write replay and link RFC 6585's optional 429 retry hint.
 
 ---
 

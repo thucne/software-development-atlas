@@ -35,7 +35,7 @@ describe('Timeouts lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: operate');
       expect(source, relativePath).toMatch(/concepts:\n  - timeouts\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
       expect(source, relativePath).toContain('<TermBox');
       expect(source, relativePath).toContain('```mermaid');
       expect(source, relativePath).toContain('<details>');
@@ -65,5 +65,16 @@ describe('Timeouts lesson', () => {
     expect(vi).toContain('**Hậu quả:**');
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
+  });
+
+  it('qualifies gRPC defaults, language-specific propagation and cooperative cancellation in both locales', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    expect(en).toContain('gRPC clients do not set a deadline by default');
+    expect(vi).toContain('gRPC không tự đặt deadline mặc định');
+    expect(en).toContain('explicitly enabled');
+    expect(vi).toContain('cần bật tính năng này rõ ràng');
+    expect(en).toContain('not forced interruption');
+    expect(vi).toContain('mã xử lý phía máy chủ phải quan sát tín hiệu hủy');
   });
 });

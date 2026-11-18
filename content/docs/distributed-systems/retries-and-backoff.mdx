@@ -4,7 +4,7 @@ description: Operate retries with safety, bounded attempts, backoff, jitter, own
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics: [distributed-systems, reliability, retries, backoff, jitter]
 prerequisites: [partial-failure, timeouts, idempotency]
@@ -27,9 +27,9 @@ A retry is useful only when failure may be transient, replay is safe, there is u
 > 💡 **Rule of thumb:** Retry only when a failure is plausibly transient, replay is safe and the remaining deadline and retry budget justify more work. Bounded exponential backoff with jitter is often a good fleet-wide default, not an unconditional protocol rule. Coordinate one retry owner, including SDK attempts.
 
 - **Classify before retrying:** `429` can reflect a quota that will not reset within this request's useful lifetime; `503` can persist. Neither status automatically means retrying will help. Do not repeat deterministic authentication, validation or business failures unchanged.
-- **Idempotency is non-negotiable for state mutations:** A network retry is a brand new attempt, not an undo action. Retrying an ambiguous write without an **idempotency key** or reconciliation path will create duplicate charges, double-booked seats, and ghost inventory entries.
+- **Safe replay or reconciliation is required for ambiguous mutations:** A network retry is another attempt, not an undo action. When a write's first outcome is unknown, use a documented idempotency identity, naturally idempotent operation, or authoritative state reconciliation before repeating it. Otherwise a retry **may** duplicate charges, reservations, or inventory changes.
 - **Backoff and jitter by policy:** Capped exponential backoff with jitter is a common strategy for spreading retries, not an immutable requirement for every protocol. Enforce attempt/time caps, and apply valid server delay hints only if they still fit the request's useful deadline.
-- **Single retry owner:** Establish clear **retry ownership** at a single architectural boundary. If the client, API gateway, and intermediate microservice each independently configure 3 retries, a single failed query multiplies into `3 × 3 × 3 = 27` destructive attempts on the deepest database layer.
+- **Single retry owner:** Establish clear **retry ownership** at a single architectural boundary. If the client, API gateway, and intermediate microservice each independently allow **three total attempts** (the initial call plus two retries), one failed logical request may produce up to `3 × 3 × 3 = 27` attempts at the deepest dependency. Three *retries* per layer would instead mean four attempts per layer.
 - **High-risk pattern:** Independent retries at several layers can multiply downstream attempts. If three layers each permit three total tries, a single request can cause up to `3 × 3 × 3 = 27` attempts at the last dependency when every branch gets that far.
 
 ```mermaid
@@ -86,7 +86,7 @@ sequenceDiagram
 
 ### `Retry-After` is a hint, not a new deadline
 
-Under [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3), `Retry-After` can be a non-negative delay in seconds or an HTTP date. It suggests when to send a follow-up request; it **does not make an unsafe operation safe to repeat**, and is not mandatory on every `429` or `503`. A valid hint that exceeds the remaining deadline means the current request should stop retrying.
+Under [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3), `Retry-After` can be a non-negative delay in seconds or an HTTP date. RFC 6585 §4 permits—but does not require—the header on `429`; RFC 9110 §15.6.4 similarly makes it optional on `503`. It suggests when to send a follow-up request but **does not make an unsafe operation safe to repeat**. A valid hint that exceeds the remaining deadline means the current request should stop retrying.
 
 For example, when the caller has **250 ms** left and receives `Retry-After: 2`, waiting two seconds cannot fit inside that request's deadline. A later background operation needs its own explicit semantics and, for payment-like writes, a stable idempotency contract.
 
@@ -100,7 +100,7 @@ A **retry storm** is overload amplified by retries: recovery traffic becomes par
 
 ## Protect the fleet
 
-During broad failure, a shared **retry budget** or **token bucket** can suppress retries. AWS SDK standard mode uses a token-backed retry quota. Observe original requests separately from attempts, retry reason, exhausted budget, and saturation.
+During broad failure, a service-wide **retry budget** or a token bucket can suppress extra attempts. AWS SDK **standard** mode uses a retry-quota token bucket, but its quota is typically scoped to an SDK client instance, **not automatically shared across processes or the fleet**. A fleet-wide limit requires separate coordination. Observe original requests separately from attempts, retry reason, exhausted budget, and saturation.
 
 ## Illustrative scenario (hypothetical)
 
@@ -141,4 +141,4 @@ This lesson is the **operating guide for retry eligibility, backoff, jitter, own
 
 ## Sources
 
-Primary references verified on **2026-11-05**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), and [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
+Primary references verified on **2026-11-18**: [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html), [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585.html#section-4), [AWS retry guidance](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html), and [AWS SDK retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html).
