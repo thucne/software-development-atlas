@@ -4,7 +4,7 @@ description: Lý giải rate limiting như một chính sách tiếp nhận dự
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -30,11 +30,11 @@ concepts:
 
 # Giới hạn tốc độ: Kiểm soát lưu lượng, spike và phân phối công bằng
 
-## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
+## Tóm tắt nhanh
 
-Vào lúc 11:59:50, một đợt tấn công dò quét mật khẩu (credential stuffing) tự động nhắm thẳng vào API xác thực của bạn. Hệ thống đang cài đặt thuật toán giới hạn tốc độ kiểu Cửa sổ cố định (Fixed Window Counter): tối đa 100 request/phút cho mỗi địa chỉ IP. Từ 11:59:50 đến 11:59:59, botnet bắn dồn dập đúng 100 request. Đồng hồ vừa điểm 12:00:00, cửa sổ thời gian bước sang phút mới và bộ đếm lập tức reset về 0. Ngay từ 12:00:00 đến 12:00:10, kẻ tấn công xả tiếp 100 request nữa. Chỉ trong vỏn vẹn 20 giây ở ranh giới giữa 2 phút, hệ thống đã tiếp nhận tới 200 request—gấp đôi ngưỡng năng lực thiết kế tối đa. Toàn bộ worker băm mật khẩu (bcrypt/argon2) ngốn sạch 100% CPU, kéo sập cơ sở dữ liệu xác thực vì cạn kiệt connection pool.
+**Ví dụ tự xây dựng, không phải sự cố thực tế:** Một API đăng nhập giới hạn 100 lần thử mỗi phút *theo địa chỉ IP* bằng bộ đếm cửa sổ cố định. Giả sử một IP gửi 100 yêu cầu ngay trước ranh giới phút và thêm 100 yêu cầu ngay sau đó. Mỗi phút riêng lẻ vẫn tuân thủ ngưỡng cấu hình, nhưng khoảng thời gian ngắn băng qua ranh giới có thể nhận gần 200 yêu cầu. Đây là ví dụ về cách phân chia thời gian, **không phải số liệu CPU hay báo cáo cơ sở dữ liệu bị sập**.
 
-Sự cố bùng nổ lưu lượng ở ranh giới thời gian này là điểm yếu chết người của các giải pháp đếm request đơn sơ. Rate limiter chưa bao giờ chỉ là một biến đếm tăng dần trong bộ nhớ cache Redis; nó là một **chính sách tiếp nhận (admission control)** sống còn: trước khi bất kỳ tài nguyên tính toán, cơ sở dữ liệu hay mạng khan hiếm nào bị tiêu hao, hệ thống phải quyết định xem request này có được phép đi vào ngay lúc này, bị trì hoãn hay bị từ chối. Để bảo vệ hệ thống trước tấn công brute-force, cạn kiệt tài nguyên và sự cố DDoS, các kỹ sư backend phải dựa trên các thuật toán điều phối luồng mượt mà như Token Bucket (Thùng token), Leaky Bucket (Thùng rò rỉ) hoặc Sliding Window (Cửa sổ trượt).
+**Giới hạn tốc độ (rate limiting)** là chính sách quyết định tiếp nhận yêu cầu trước khi tiêu tốn tài nguyên khan hiếm, không chỉ là bộ đếm. Ranh giới cửa sổ cố định là một rủi ro; giới hạn chỉ theo IP cũng không ngăn chắc được tấn công thử thông tin đăng nhập bằng nhiều IP luân phiên. Cần kết hợp giới hạn tốc độ với danh tính đáng tin cậy, bảo vệ theo tài khoản, giới hạn tài nguyên và các biện pháp xác thực khác.
 
 Một trình tự vận hành thực tế:
 
@@ -61,12 +61,12 @@ flowchart LR
 
 > 💡 **Quy tắc bỏ túi:** Rate limiting là cơ chế quyết định tiếp nhận request, không đơn thuần là bộ đếm. Hãy chọn chính sách xử lý burst theo lưu lượng thật và dùng khóa dựa trên danh tính đáng tin cậy. Khi trả `429`, chỉ thêm `Retry-After` nếu có thể đưa ra khoảng chờ hữu ích; RFC 6585 cho phép nhưng không bắt buộc header này.
 
-### TL;DR 2.0
+### Những quyết định vận hành quan trọng
 - **Kiểm soát tiếp nhận trước khi xử lý:** Rate limiting đánh giá request trước khi tiêu tốn tài nguyên đắt đỏ (CPU, DB, API bên thứ ba), quyết định cho phép đi vào (admit), từ chối (reject) hay trì hoãn (defer) ngay tại ranh giới ngoài cùng.
-- **Thuật toán quyết định hành vi bùng nổ (Burst):** Bộ đếm cửa sổ cố định (Fixed Window) dễ bị bùng nổ gấp đôi lưu lượng ở giao điểm giữa 2 phút. Các hệ thống thực chiến ưu tiên Token Bucket (cho phép burst có kiểm soát với tốc độ nạp ổn định) hoặc Sliding Window (san phẳng lưu lượng theo thời gian thực).
+- **Thuật toán quyết định khả năng chịu tải đột biến:** Cửa sổ cố định có thể tiếp nhận gần hai lần ngân sách của một cửa sổ trong khoảng ngắn băng qua ranh giới. Token bucket tách tốc độ nạp lại khỏi dung lượng cho phép tăng đột biến; cửa sổ trượt làm giảm hiệu ứng ranh giới. Cần chọn theo tài nguyên và yêu cầu công bằng, không có thuật toán luôn tốt nhất.
 - **Khóa giới hạn (Limiter Key) định hình công bằng:** Khóa phải được trích xuất từ danh tính đã xác thực (`user_id`, `tenant_id`, `api_key`) hoặc IP mạng đáng tin từ reverse proxy, tránh tin mù quáng vào các header dễ giả mạo như `X-Forwarded-For`.
 - **Phản hồi và xử lý sự cố:** Khi từ chối do vượt giới hạn, dùng `429 Too Many Requests` với thông tin dễ hiểu. Nếu xác định được thời điểm có thể thử lại, bổ sung `Retry-After`; không tự tạo một thời gian chờ thiếu cơ sở. Chọn fail-open, fail-closed hoặc chế độ suy giảm tùy tính chất thao tác khi kho trạng thái rate limiter không khả dụng.
-- **Cạm bẫy chết người:** Dùng thuật toán Fixed Window Counter khiến lưu lượng bùng nổ gấp đôi ở ranh giới giữa 2 phút làm sập hạ tầng, hoặc dùng bộ đếm in-memory cục bộ khiến năng lực tiếp nhận bị nhân lên gấp bội theo số lượng replica khi autoscaling.
+- **Ranh giới dễ sai:** Cửa sổ cố định có thể nhận lượng lớn yêu cầu sát ranh giới thời gian; giới hạn trong bộ nhớ từng tiến trình có thể làm ngưỡng hiệu dụng tăng theo số bản chạy. Không phải trường hợp nào cũng gây quá tải thực tế.
 
 <TermBox term="Rate limit">
 **Rate limit** giới hạn tốc độ một chủ thể được phép tiêu thụ một capability được bảo vệ theo thời gian.
@@ -114,7 +114,9 @@ Khóa sai tạo ra công bằng sai.
 - Limit theo instance có thể vô tình nhân allowance toàn cục theo số replica.
 - Khóa lấy từ một request header không đáng tin cho phép caller tự chọn bucket của mình.
 
-Chỉ suy ra khóa đã xác thực sau khi ranh giới danh tính đủ đáng tin. Với traffic ẩn danh, hãy chuẩn hóa thông tin proxy đáng tin thay vì tin mù quáng mọi forwarding header do client gửi lên.
+Chỉ xác định khóa theo danh tính sau khi xác thực đáng tin cậy. Với lưu lượng ẩn danh, chỉ sử dụng thông tin mạng do proxy đáng tin cung cấp, không chấp nhận tùy tiện header chuyển tiếp từ client.
+
+Để giảm tấn công thử thông tin đăng nhập bằng nhiều nguồn, không chỉ dựa vào một bộ đếm theo IP. Khi phù hợp, đặt **giới hạn độc lập theo tài khoản và theo nguồn gửi**, thay vì chỉ tạo một khóa kết hợp `IP + username`; bổ sung xác thực đa yếu tố hoặc kiểm tra rủi ro. Phải điều chỉnh giới hạn theo tài khoản để tránh kẻ tấn công khiến người dùng hợp lệ bị khóa. OWASP khuyến nghị nhiều lớp bảo vệ thay vì một ngưỡng IP cố định.
 
 ```mermaid
 flowchart TD
@@ -247,11 +249,13 @@ Ví dụ response đơn giản:
 HTTP/1.1 429 Too Many Requests
 Retry-After: 20
 Content-Type: application/problem+json
+
+{"type":"about:blank","title":"Quá nhiều yêu cầu","status":429}
 ```
 
-Hãy trả đủ thông tin để client cư xử tốt có thể chọn đợi, giảm concurrency hoặc dừng operation.
+Hãy trả đủ thông tin để client hợp lệ có thể chờ, giảm số thao tác đồng thời hoặc dừng yêu cầu. Với cơ chế chống lạm dụng đăng nhập, tránh tiết lộ số lần thử còn lại theo tài khoản hoặc quy tắc nội bộ quá chi tiết khiến kẻ tấn công dễ điều chỉnh lưu lượng.
 
-Nhóm HTTPAPI của IETF hiện cũng có Internet-Draft đang hoạt động cho `RateLimit` / `RateLimit-Policy`. Tính đến 23/05/2026, đây vẫn là **bản nháp đang hoàn thiện**, chưa phải RFC đã hoàn tất. Nếu API sử dụng các field này, hãy version và tài liệu hóa contract thay vì mô tả cú pháp draft như một tiêu chuẩn bất biến.
+Nhóm HTTPAPI của IETF hiện cũng có Internet-Draft đang hoạt động cho `RateLimit` / `RateLimit-Policy`. Tính đến ngày **18/11/2026**, phiên bản 11 (công bố 23/05/2026) vẫn là **Internet-Draft đang hoạt động**, chưa phải RFC đã hoàn tất. Nếu API sử dụng các field này, hãy version và tài liệu hóa contract thay vì mô tả cú pháp draft như một tiêu chuẩn bất biến.
 
 ## 8. Chọn fail-open hay fail-closed có chủ đích
 
@@ -265,9 +269,9 @@ Nếu storage dùng chung cho limiter timeout, ứng dụng cần policy rõ rà
 
 Endpoint nhạy cảm như login hoặc password reset có thể cần hành vi chặt hơn một endpoint đọc ít rủi ro. Thiết kế production không nên giấu lựa chọn này trong một catch block.
 
-## 9. Kịch bản production: mỗi replica có một limiter local
+## 9. Tình huống vận hành giả định: mỗi bản chạy có bộ giới hạn riêng
 
-Xét một API báo cáo multi-tenant. Policy sản phẩm nói một tenant chỉ nên duy trì tối đa 50 export đắt đỏ mỗi giây với một burst nhỏ. Mỗi replica ứng dụng giữ token bucket riêng trong memory.
+**Ví dụ tự xây dựng, không phải báo cáo sự cố thực tế:** Xét một API xuất báo cáo cho nhiều khách hàng. Quy tắc sản phẩm cho phép mỗi khách hàng thực hiện tối đa 50 lần xuất dữ liệu tốn tài nguyên mỗi giây, kèm một phần ngân sách tăng đột biến nhỏ. Mỗi replica ứng dụng giữ token bucket riêng trong memory.
 
 Khi traffic tăng, autoscaling mở rộng fleet từ hai replica lên mười hai. Request được phân phối qua nhiều replica nên cùng một tenant có thể tiêu từ mười hai bucket độc lập.
 
@@ -347,5 +351,7 @@ Khi thêm rate limiting, không bắt đầu từ implementation của counter. 
 ## Tài liệu tham khảo
 
 - [RFC 6585 — Additional HTTP Status Codes, mục 4: 429 Too Many Requests](https://www.rfc-editor.org/rfc/rfc6585.html#section-4) — `Retry-After` là tùy chọn.
-- RFC 9110 — HTTP Semantics, mục 10.2.3: Retry-After.
-- IETF HTTPAPI — `draft-ietf-httpapi-ratelimit-headers-11`, ngày 23/05/2026. Đây là Internet-Draft đang hoạt động và phải được xem là work in progress.
+- [RFC 9110 — HTTP Semantics §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3) — `Retry-After` nhận số giây hoặc ngày giờ HTTP.
+- [IETF HTTPAPI — RateLimit header fields, bản nháp 11](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/) — còn là Internet-Draft tại ngày 18/11/2026, chưa thành RFC.
+- [OWASP — Ngăn chặn thử thông tin đăng nhập tự động](https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html) — giới hạn của cơ chế dựa vào IP và phòng vệ nhiều lớp.
+- [OWASP — Quản lý lưu lượng tự động](https://cheatsheetseries.owasp.org/cheatsheets/Bot_Management_and_Anti-Automation_Cheat_Sheet.html) — giới hạn độc lập theo tài khoản/nguồn gửi và bảo vệ chi tiết phản hồi.
