@@ -4,7 +4,7 @@ description: Operate stable HTTP API contracts by choosing resource boundaries, 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -101,7 +101,7 @@ RFC 9110 defines standardized method semantics. Use those semantics instead of t
 
 HTTP **idempotent** does not mean every repeated response is byte-for-byte identical. It means multiple identical requests have the same intended effect as one such request.
 
-That distinction matters for retries. A repeated `DELETE` can return `204` first and `404` later while still satisfying idempotent method semantics. Logs, metrics, audit records, or timestamps can also differ.
+That distinction matters for retries. A repeated `DELETE` can return `204` first and `404` later while still satisfying idempotent method semantics. Logs, metrics, audit records, or timestamps can also differ. A **safe** `GET` does not ask for a business mutation, though incidental server-side logging and measurement can occur.
 
 <TermBox term="Idempotent method">
 An **idempotent method** has the same intended server-side effect when the same request is applied multiple times as when it is applied once.
@@ -115,6 +115,8 @@ Use `PUT` when the client is sending the desired replacement state for a known t
 
 Avoid ambiguous partial `PUT` behavior such as “missing field means leave unchanged today, but clear it tomorrow.” That destroys contract predictability.
 
+**PATCH is not idempotent by default (RFC 5789).** A patch that increments a counter can apply the increment again on retry; a patch that sets a field to a fixed value can be designed to be idempotent. For changes based on a previously read version, use a conditional request such as `If-Match` with a strong ETag and handle `412 Precondition Failed` rather than silently overwriting a concurrent edit. The exact patch document format and conflict behavior belong in the contract.
+
 ## 3. Make status codes describe what happened
 
 A status code is part of the response semantics, not decoration. RFC 9110 defines classes and individual meanings that clients use to decide what to do next.
@@ -126,7 +128,7 @@ Common choices include:
 - `202 Accepted` — work was accepted but is not complete yet;
 - `204 No Content` — request succeeded and there is intentionally no response content;
 - `400 Bad Request` — request is malformed or invalid at the protocol/application-input boundary;
-- `401 Unauthorized` — valid credentials for the target resource are missing or unacceptable; the response **MUST** carry an applicable `WWW-Authenticate` challenge under RFC 9110;
+- `401 Unauthorized` — the request lacks valid authentication credentials for the target resource; under RFC 9110, the server **MUST** send a `WWW-Authenticate` header containing at least one applicable challenge;
 - `403 Forbidden` — the server understood the request but refuses the action;
 - `404 Not Found` — the target resource is unavailable to the request, sometimes also used deliberately to avoid resource disclosure;
 - `409 Conflict` — the request conflicts with the current state of the target resource;
@@ -402,4 +404,5 @@ When changing an API, do not optimize only for server code cleanliness. Identify
 ## Primary sources
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [RFC 5789 — PATCH Method for HTTP](https://www.rfc-editor.org/rfc/rfc5789.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)

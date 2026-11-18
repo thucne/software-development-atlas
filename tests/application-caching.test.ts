@@ -69,4 +69,14 @@ describe('Application Caching lesson', () => {
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
   });
+
+  it('preserves hypothetical case scope, TTL and invalidation races in both languages', () => {
+    for (const relativePath of Object.values(lessonPaths)) {
+      const source = read(relativePath);
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
+      expect(source, relativePath).toMatch(/version 1|phiên bản 1/);
+      expect(source, relativePath).toMatch(/after commit|sau commit|commit rồi vô hiệu hóa/i);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+    }
+  });
 });

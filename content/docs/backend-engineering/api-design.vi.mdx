@@ -4,7 +4,7 @@ description: Vận hành hợp đồng HTTP ổn định bằng cách chọn ran
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -26,7 +26,7 @@ concepts:
   - api-design
 ---
 
-## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
+## Tóm tắt nhanh và tình huống minh họa
 
 **Tình huống giả định (không phải sự cố đã được xác minh):** Backend đổi `tracking_url` thành `tracking.url` và đổi trường `status` từ chuỗi thành đối tượng. Phiên bản ứng dụng di động cũ dùng bộ giải mã dữ liệu nghiêm ngặt có thể không đọc được phản hồi mới cho đến khi được cập nhật. Server vẫn có thể hoạt động bình thường, nhưng người dùng phiên bản cũ gặp lỗi ở màn hình chi tiết đơn hàng. Ví dụ này không khẳng định số người dùng bị ảnh hưởng, thời gian gián đoạn hay tỷ lệ uptime thực tế. Khả năng cập nhật ứng dụng phụ thuộc vào nền tảng và cách phát hành.
 
@@ -53,14 +53,14 @@ flowchart LR
 - **Rủi ro lớn:** Đổi schema phản hồi hoặc thắt chặt validation có thể làm phiên bản client cũ lỗi. Mức độ ảnh hưởng phụ thuộc vào từng phiên bản và cách giải mã dữ liệu; cần kiểm thử tương thích và theo dõi khi triển khai.
 
 <TermBox term="Hợp đồng API">
-**Hợp đồng API** là tập quy tắc quan sát được mà client được phép dựa vào: identifier, request/response field, method semantics, mã trạng thái, mô hình lỗi, ordering, pagination và hành vi tương thích.
+**Hợp đồng API** là tập quy tắc bên sử dụng có thể dựa vào: mã định danh, trường yêu cầu và phản hồi, ngữ nghĩa phương thức HTTP, mã trạng thái, mô hình lỗi, thứ tự kết quả, phân trang và quy tắc tương thích.
 
 **Tại sao quan trọng:** refactor phía server chỉ thực sự nội bộ khi nó giữ nguyên hợp đồng mà client đang quan sát.
 </TermBox>
 
 ## 1. Bắt đầu từ tài nguyên và ý định của client
 
-RFC 9110 mô tả HTTP như một giao diện thống nhất để tương tác với tài nguyên thông qua representation. Điều đó không có nghĩa mọi API phải là một hệ REST giáo khoa. Nó có nghĩa target của request và ý nghĩa của operation cần rõ ràng.
+RFC 9110 mô tả HTTP là giao diện thống nhất để tương tác với tài nguyên thông qua cách biểu diễn của chúng. Không phải API nào cũng phải theo khuôn mẫu REST cứng nhắc; điều quan trọng là tài nguyên đích và ý nghĩa thao tác phải rõ ràng.
 
 Ưu tiên tên tài nguyên là khái niệm nghiệp vụ ổn định:
 
@@ -99,14 +99,14 @@ RFC 9110 định nghĩa ngữ nghĩa cho các method chuẩn. Đừng coi method
 | `PATCH` | Áp thay đổi một phần theo patch semantics mà API phải định nghĩa | Không tự động coi là retry-safe |
 | `DELETE` | Loại bỏ association/trạng thái hiện tại của target | Idempotent theo method semantics |
 
-HTTP **idempotent** không có nghĩa response lặp lại phải giống từng byte. Nó có nghĩa nhiều request giống nhau có **intended effect** tương đương một request.
+Một phương thức HTTP có tính **lũy đẳng (idempotent)** không đòi hỏi các phản hồi giống hệt từng byte. Nhiều yêu cầu giống nhau phải có cùng tác động dự kiến như một yêu cầu.
 
-Vì vậy một `DELETE` có thể trả `204` ở lần đầu và `404` ở lần sau mà vẫn giữ ngữ nghĩa idempotent. Log, metric, audit record hoặc timestamp cũng có thể khác.
+Vì vậy, `DELETE` có thể trả `204` ở lần đầu và `404` ở lần sau mà vẫn lũy đẳng. Nhật ký, số liệu giám sát, bản ghi kiểm toán hoặc dấu thời gian cũng có thể khác. Tương tự, `GET` **an toàn (safe)** không yêu cầu thay đổi trạng thái nghiệp vụ, dù máy chủ vẫn có thể ghi log hoặc đo lường.
 
 <TermBox term="Method idempotent">
-Một **method idempotent** có cùng intended server-side effect khi áp cùng request nhiều lần như khi áp một lần.
+Một **phương thức lũy đẳng** có cùng tác động dự kiến ở phía máy chủ khi thực hiện nhiều lần một yêu cầu như khi thực hiện một lần.
 
-**Tại sao quan trọng:** client và intermediary dễ suy luận hành vi thử lại hơn khi method semantics khớp với operation.
+**Vì sao quan trọng:** bên sử dụng và hệ thống trung gian dễ suy luận về việc thử lại hơn khi ngữ nghĩa HTTP phù hợp với thao tác.
 </TermBox>
 
 ### PUT và PATCH
@@ -114,6 +114,8 @@ Một **method idempotent** có cùng intended server-side effect khi áp cùng 
 Dùng `PUT` khi client gửi trạng thái thay thế mong muốn cho một target đã biết. Dùng `PATCH` khi API có mô hình partial update rõ ràng.
 
 Tránh kiểu `PUT` nhập nhằng như “field bị thiếu hôm nay nghĩa là giữ nguyên, ngày mai lại nghĩa là xóa”. Hợp đồng như vậy không thể dự đoán ổn định.
+
+**PATCH không mặc nhiên có tính lũy đẳng (RFC 5789).** Bản vá tăng bộ đếm có thể tăng thêm lần nữa khi thử lại; bản vá đặt một trường thành giá trị cố định có thể được thiết kế để lũy đẳng. Với thay đổi dựa trên phiên bản đã đọc, hãy dùng yêu cầu có điều kiện như `If-Match` kèm ETag mạnh và xử lý `412 Precondition Failed`, thay vì âm thầm ghi đè thay đổi đồng thời. Định dạng bản vá và cách xử lý xung đột phải được ghi rõ trong hợp đồng.
 
 ## 3. Mã trạng thái phải mô tả điều đã xảy ra
 
@@ -126,13 +128,13 @@ Một số lựa chọn thường gặp:
 - `202 Accepted` — công việc đã được nhận nhưng chưa hoàn tất;
 - `204 No Content` — request thành công và cố ý không có response content;
 - `400 Bad Request` — request sai cú pháp hoặc không hợp lệ ở ranh giới input;
-- `401 Unauthorized` — thiếu hoặc không chấp nhận thông tin xác thực hợp lệ đối với tài nguyên; theo RFC 9110, phản hồi **MUST** có `WWW-Authenticate` với ít nhất một challenge phù hợp;
+- `401 Unauthorized` — yêu cầu chưa có thông tin xác thực hợp lệ cho tài nguyên đích; theo RFC 9110, máy chủ **MUST** gửi header `WWW-Authenticate` chứa ít nhất một challenge phù hợp;
 - `403 Forbidden` — server hiểu request nhưng từ chối hành động;
-- `404 Not Found` — tài nguyên đích không khả dụng với request;
+- `404 Not Found` — không tìm thấy tài nguyên đích; máy chủ cũng có thể cố ý dùng mã này thay cho `403` để không tiết lộ sự tồn tại của tài nguyên;
 - `409 Conflict` — request xung đột với trạng thái hiện tại của tài nguyên;
 - `422 Unprocessable Content` — hiểu được cú pháp content nhưng không thể xử lý instruction.
 
-Đừng trả `200` cho mọi outcome rồi giấu lỗi bên trong `{ "ok": false }`. Cách đó buộc client, proxy, monitor và SDK phải tự phát minh protocol semantics.
+Đừng trả `200` cho mọi kết quả rồi giấu lỗi bên trong `{ "ok": false }`. Cách đó buộc bên sử dụng, proxy, hệ thống giám sát và SDK phải tự suy đoán kết quả thay vì dựa vào ngữ nghĩa HTTP.
 
 Cũng đừng chọn status code chỉ vì framework helper thuận tiện. Hãy chọn mã mô tả kết quả quan sát được.
 
@@ -140,8 +142,8 @@ Cũng đừng chọn status code chỉ vì framework helper thuận tiện. Hãy
 
 Validation có ít nhất hai lớp:
 
-1. **Kiểm tra hợp đồng:** request có parse được không, có đúng shape và basic constraint đã công bố không?
-2. **Kiểm tra nghiệp vụ:** operation này có hợp lệ với business state hiện tại không?
+1. **Kiểm tra hợp đồng:** yêu cầu có phân tích được cú pháp không, và dữ liệu có đúng cấu trúc cùng ràng buộc cơ bản đã công bố không?
+2. **Kiểm tra nghiệp vụ:** thao tác có hợp lệ với trạng thái nghiệp vụ hiện tại không?
 
 ```mermaid
 flowchart TD
@@ -175,7 +177,7 @@ Kiểm tra nghiệp vụ:
 
 ## 5. Thiết kế một mô hình lỗi ổn định
 
-Client không nên cần một parser khác nhau cho từng failure path.
+Bên sử dụng không nên phải viết bộ phân tích lỗi riêng cho từng trường hợp thất bại.
 
 RFC 9457 (**thay thế RFC 7807**) định nghĩa **Problem Details for HTTP APIs**, một cách tùy chọn để mô tả lỗi HTTP bằng cấu trúc máy có thể đọc. Ví dụ dưới đây gồm các trường tùy chọn:
 
@@ -207,7 +209,7 @@ Response lỗi cần đủ thông tin để client hành động, nhưng không 
 
 ## 6. Phân trang là một phần của hợp đồng
 
-Collection endpoint không có growth model rõ ràng cuối cùng sẽ thành vấn đề reliability.
+API trả về danh sách mà không quy định cách xử lý khi dữ liệu tăng trưởng có thể sớm gặp vấn đề về độ tin cậy.
 
 ### Phân trang theo offset
 
@@ -243,9 +245,9 @@ Luôn xác định thứ tự ổn định và khóa phân biệt khi bằng nha
 
 ## 7. Thiết kế phải tính đến tương thích ngược
 
-Khi client được deploy độc lập, thay đổi API trở thành distributed rollout problem.
+Khi các ứng dụng được triển khai độc lập, thay đổi API trở thành bài toán phối hợp triển khai giữa nhiều hệ thống.
 
-Những thay đổi thường gây break gồm:
+Những thay đổi thường phá vỡ tương thích gồm:
 
 - xóa hoặc đổi tên response field mà client đang dùng;
 - đổi kiểu hoặc ý nghĩa của field;
@@ -340,17 +342,17 @@ Nhưng mỗi concern vẫn có meaning riêng. `403` không phải rate-limit re
 
 Web client mới vẫn chạy vì deploy cùng server. Các phiên bản di động cũ **có bộ giải mã nghiêm ngặt** có thể lỗi vì `status` đổi kiểu và `tracking_url` bị xóa; bộ giải mã linh hoạt hơn có thể xử lý khác.
 
-**Hậu quả:** màn order detail crash hoặc render lỗi cho người dùng chưa nâng cấp app dù backend deployment nhìn chung healthy.
+**Hậu quả:** màn hình chi tiết đơn hàng có thể bị lỗi hoặc hiển thị thông báo lỗi cho người dùng chưa cập nhật ứng dụng, dù máy chủ vẫn hoạt động bình thường.
 
-**Nguyên nhân cốt lõi:** đội ngũ xem refactor representation phía server là thay đổi nội bộ. Thực tế field name, field type và response shape đã là hợp đồng được deploy độc lập vào client.
+**Nguyên nhân cốt lõi:** nhóm phát triển coi việc đổi cấu trúc phản hồi của máy chủ là thay đổi nội bộ. Thực tế, tên trường, kiểu dữ liệu và cấu trúc phản hồi đã là hợp đồng mà ứng dụng cũ đang phụ thuộc.
 
 **Cách khắc phục chuẩn:** giữ field cũ trong giai đoạn thêm field mới theo hướng tương thích, hoặc tạo version/migration boundary rõ ràng cho breaking representation. Đo usage của client cũ, document deprecation và chỉ xóa behavior cũ sau khi compatibility window được đóng có chủ đích.
 
-Bài học không phải “không bao giờ đổi JSON”. Quy tắc là: **xác định hành vi nào quan sát được từ bên ngoài, rồi evolve nó bằng chiến lược coexistence rõ ràng.**
+Bài học không phải “không bao giờ đổi JSON”. Quy tắc là: **xác định hành vi quan sát được từ bên ngoài, rồi thay đổi nó với kế hoạch duy trì phiên bản cũ và mới rõ ràng.**
 
-## 11. Review endpoint như một hợp đồng
+## 11. Rà soát điểm truy cập như một hợp đồng
 
-Trước khi ship endpoint mới hoặc thay đổi có vẻ breaking, đi qua checklist reasoning:
+Trước khi phát hành điểm truy cập mới hoặc thay đổi có nguy cơ phá tương thích, hãy lần lượt kiểm tra:
 
 ```text
 1. Target là tài nguyên hoặc domain intent nào?
@@ -395,9 +397,10 @@ Một câu trả lời tốt cần bàn về timeout budget, ambiguous retry, jo
 
 ## Quy tắc cho agent
 
-Khi thay đổi API, đừng chỉ tối ưu cho code server sạch hơn. Trước hết hãy xác định observable contract, liệt kê assumption của client hiện hữu, mặc định giữ behavior tương thích và chuyển breaking change có chủ đích cho người quyết định thay vì giấu nó trong một refactor.
+Khi thay đổi API, đừng chỉ hướng tới mã nguồn máy chủ gọn hơn. Hãy xác định hợp đồng quan sát được, liệt kê giả định của các ứng dụng hiện hữu, ưu tiên giữ hành vi tương thích và đưa thay đổi không tương thích ra quyết định công khai thay vì giấu trong một lần sửa đổi nội bộ.
 
 ## Nguồn chính
 
 - [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
+- [RFC 5789 — Phương thức PATCH cho HTTP](https://www.rfc-editor.org/rfc/rfc5789.html)
 - [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
