@@ -4,7 +4,7 @@ description: Vận hành backend chống chịu bằng phân loại dependency, 
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 180
 topics:
   - backend
@@ -32,13 +32,13 @@ concepts:
 
 # Khả năng chống chịu của service: Cô lập lỗi trước khi nó lan truyền
 
-## Tóm tắt nhanh & Tình huống thực chiến (TL;DR & Hook)
+## Tóm tắt nhanh và tình huống minh họa
 
 **Tình huống minh họa (giả định):** Một dịch vụ gợi ý sản phẩm không bắt buộc phản hồi chậm, nhưng gateway vẫn chờ nó trong luồng xem sản phẩm và thanh toán. Khi timeout quá dài, tài nguyên dùng chung không được cô lập và số request đồng thời tăng, độ trễ từ dependency có thể làm cạn pool và ảnh hưởng cả những chức năng quan trọng. Các số liệu như p99, số thread hoặc thời gian lan truyền cần lấy từ đo đạc thực tế, không nên coi là đặc điểm mặc định của mô hình này.
 
 Khả năng chống chịu nghĩa là xác định ranh giới lỗi, chia ngân sách thời gian, giới hạn concurrency, cô lập tài nguyên cho dependency tùy chọn và chỉ dùng fallback khi ngữ nghĩa nghiệp vụ cho phép. Circuit breaker, retry budget và load shedding là công cụ phải cấu hình theo tải thật, không phải bộ mẫu bảo đảm hệ thống không bao giờ lỗi.
 
-Trình tự vận hành chuẩn mực:
+Một trình tự tham khảo khi thiết kế chính sách cho từng dependency:
 
 ```text
 phân loại dependency
@@ -55,24 +55,27 @@ phân loại dependency
 flowchart LR
   R[Request] --> B[Ngân sách deadline]
   B --> I[Bulkhead / concurrency có giới hạn]
-  I --> C{Circuit đang đóng?}
+  I --> C{Circuit cho phép gọi?}
   C -->|có| D[Gọi dependency]
-  C -->|đang mở| F[Fallback / fail fast]
+  C -->|đang mở| F[Fallback hợp lệ hoặc báo lỗi]
   D -->|thành công| O[Response hữu ích]
   D -->|lỗi transient phù hợp| Y{Còn retry budget?}
   Y -->|có| D
   Y -->|không| F
-  F --> O
+  F -->|phụ trợ và an toàn| O
+  F -->|nghiệp vụ bắt buộc| X[Báo lỗi rõ ràng]
 ```
 
-> 💡 **Quy tắc bỏ túi:** Chống chịu service là cô lập bán kính thiệt hại chứ không phải triệt tiêu lỗi—hãy dùng Bulkhead để chia ngăn tài nguyên, Circuit Breaker để ngắt mạch tức thì, và Fallback có kiểm soát để bảo vệ luồng nghiệp vụ cốt lõi trước khi một sự cố phụ kéo sập toàn bộ hệ thống.
+Đây là sơ đồ luồng gọi mang tính khái niệm; trạng thái thăm dò `HALF_OPEN` được giải thích ở phần dưới. Circuit đang mở **không** đồng nghĩa với việc nghiệp vụ bắt buộc được phép trả kết quả thành công giả. Nếu không có phương án thay thế đúng, hãy báo lỗi.
+
+> 💡 **Quy tắc bỏ túi:** Khả năng chống chịu không xóa bỏ sự cố mà giới hạn phạm vi ảnh hưởng. Cô lập tài nguyên bằng bulkhead, ngừng gọi dependency đang lỗi bằng circuit breaker và chỉ dùng fallback khi kết quả vẫn đúng với nghiệp vụ.
 
 ### TL;DR 2.0
-- **Phân loại độ quan trọng của dependency:** Rạch ròi ranh giới giữa dịch vụ bắt buộc (critical/required) và dịch vụ phụ (optional enhancement/telemetry). Tuyệt đối không để một dịch vụ gợi ý hay theo dõi phân tích làm gián đoạn luồng thanh toán hoặc xác thực tài khoản cốt lõi.
-- **Bulkhead (Vách ngăn khoang tàu):** Cô lập thread pool, connection pool và hạn mức đồng thời (bounded concurrency) riêng biệt cho từng dependency. Một khoang tàu bị tràn nước không được phép nhấn chìm toàn bộ con tàu.
-- **Circuit Breaker (Ngắt mạch tự động):** Theo dõi sát sao tỷ lệ lỗi và độ trễ. Khi ngưỡng lỗi bị vượt quá, circuit lập tức chuyển sang trạng thái `OPEN` (ngắt mạch) để fail fast ngay lập tức, vừa giải phóng tài nguyên cho caller, vừa cho dependency thời gian hồi phục trước khi thử nghiệm lại (`HALF-OPEN`).
-- **Ngân sách deadline & Giới hạn retry:** Toàn bộ request chia sẻ một deadline budget duy nhất, trừ lùi thời gian qua từng hop mạng. Giới hạn retry bằng retry budget tổng và backoff có jitter để không biến một sự cố nhỏ thành cơn bão retry storm càn quét hạ tầng.
-- **Cạm bẫy chết người:** Để một dependency phụ bị chậm tự do chiếm dụng toàn bộ connection pool dùng chung của API Gateway mà không có Circuit Breaker hay Bulkhead bảo vệ, gây ra thảm họa sập đổ dây chuyền (cascading failure) cuốn phăng toàn bộ hệ thống.
+- **Phân loại dependency:** Phân biệt chức năng bắt buộc, có thể xử lý sau, bổ trợ và ghi nhận dữ liệu quan sát. Không để một dịch vụ gợi ý tùy chọn chiếm tài nguyên dành cho luồng thanh toán quan trọng.
+- **Bulkhead (cô lập tài nguyên):** Dùng nhóm kết nối, worker hoặc giới hạn xử lý đồng thời tách biệt theo loại công việc để dependency chậm không làm cạn tài nguyên của luồng quan trọng.
+- **Circuit breaker (ngắt mạch):** Theo dõi lỗi và độ trễ trong một cửa sổ quan sát. Khi đủ bằng chứng, chuyển sang `OPEN` để ngừng gọi thông thường; sau đó chỉ cho một số yêu cầu thăm dò đi qua ở trạng thái `HALF_OPEN`.
+- **Deadline và retry budget:** Mỗi lời gọi con tiêu một phần thời gian còn lại của yêu cầu. Giới hạn số lần thử lại theo dependency và xác định rõ phạm vi ngân sách theo instance hay toàn hệ thống; kết hợp backoff với jitter để tránh tăng tải đồng loạt.
+- **Sai lầm rủi ro cao:** Để dependency tùy chọn chiếm hết kết nối dùng chung vì không giới hạn thời gian chờ và số yêu cầu đồng thời, khiến các luồng bắt buộc cũng có thể bị ảnh hưởng. Mức độ ảnh hưởng phụ thuộc kiến trúc và tải thực tế.
 
 <TermBox term="Service resilience">
 **Service resilience** là khả năng giữ hành vi hữu ích và có giới hạn khi dependency chậm, không khả dụng, quá tải hoặc chỉ lỗi một phần.
@@ -214,7 +217,7 @@ allowed retry budget       = 100 retry call/phút
 hết budget                  -> fail/degrade thay vì thêm retry load
 ```
 
-Retry budget là capacity policy, không phải guarantee rằng request nào cũng được thêm một attempt.
+Các con số 1.000/100 lời gọi mỗi phút ở trên **chỉ để minh họa**, không phải cấu hình mặc định. Cần xác định phạm vi đếm: ngân sách trên mỗi tiến trình/client chỉ giới hạn retry tại chỗ; muốn áp trần toàn bộ hệ thống phải có cơ chế phối hợp hoặc mô hình tổng lưu lượng rõ ràng. Không coi một token bucket cục bộ là giới hạn chung toàn fleet. Retry budget là chính sách năng lực, không bảo đảm yêu cầu nào cũng có lượt thử lại.
 
 ## 6. Circuit breaker ngừng các call liên tục vô ích
 
@@ -337,9 +340,9 @@ service đang shed load
 
 Thiết kế health endpoint cụ thể phụ thuộc platform. Nguyên tắc là expose trạng thái đủ để routing và operator quyết định đúng mà không biến partial failure thành fleet-wide churn.
 
-## 11. Kịch bản production: recommendations tùy chọn làm checkout sập
+## 11. Tình huống vận hành giả định: dịch vụ gợi ý làm gián đoạn thanh toán
 
-Một backend thương mại điện tử dùng chung outbound HTTP pool cho payment, inventory và recommendations. Sau sự cố downstream, recommendations chậm từ 80 ms lên 8 giây. Mọi product và checkout request vẫn gọi recommendation đồng bộ. Mỗi layer retry hai lần với delay cố định ngắn.
+**Ví dụ tự xây dựng, không phải sự cố đã được ghi nhận:** Một hệ thống thương mại điện tử dùng chung nhóm kết nối HTTP ra ngoài cho thanh toán, tồn kho và gợi ý sản phẩm. Trong kịch bản giả định này, dịch vụ gợi ý chậm từ 80 ms lên 8 giây. Các mốc thời gian chỉ phục vụ giải thích cơ chế lỗi. Mọi product và checkout request vẫn gọi recommendation đồng bộ. Mỗi layer retry hai lần với delay cố định ngắn.
 
 Shared pool đầy bởi recommendation call chậm. Payment và inventory call phải chờ connection. Caller của chúng timeout rồi retry. Autoscaling thêm app replica, tạo thêm downstream connection và retry load.
 
@@ -424,6 +427,7 @@ Khi thêm resilience cho dependency call, không chồng timeout, retry, circuit
 
 ## Tài liệu tham khảo
 
-- Microsoft Azure Well-Architected Framework — reliability design patterns, gồm Bulkhead và Circuit Breaker.
-- Microsoft Azure Architecture Center — transient fault handling và aggregate retry budget.
-- Amazon Builders' Library — Timeouts, retries, and backoff with jitter.
+- [Microsoft Azure Architecture Center — Bulkhead](https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead): cô lập tài nguyên và chi phí đánh đổi.
+- [Microsoft Azure Architecture Center — Circuit Breaker](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker): trạng thái đóng/mở/nửa mở, xử lý lỗi và phục hồi.
+- [Microsoft Azure Architecture Center — Transient fault handling](https://learn.microsoft.com/en-us/azure/architecture/best-practices/transient-faults): ngân sách retry tổng bên cạnh giới hạn trên từng yêu cầu.
+- [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): khuếch đại tải, tính lũy đẳng, token bucket cục bộ và jitter.
