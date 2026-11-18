@@ -62,7 +62,7 @@ describe('Idempotency lesson', () => {
       expect(source, relativePath).toMatch(/transaction|giao dịch/i);
       expect(source, relativePath).toMatch(/external effect|downstream|side effect|hiệu ứng bên ngoài|tác dụng phụ/i);
       expect(source, relativePath).toMatch(/exactly[- ]once|exactly once|đúng một lần/i);
-      expect(source, relativePath).toMatch(/expired.*draft|draft.*expired|bản nháp.*hết hạn|đã hết hạn/i);
+      expect(source, relativePath).toMatch(/active.*Internet-Draft|Internet-Draft.*active|bản nháp.*đang hoạt động|Internet-Draft đang hoạt động/i);
     }
 
     expect(en).toContain('**Impact:**');
@@ -71,5 +71,21 @@ describe('Idempotency lesson', () => {
     expect(vi).toContain('**Hậu quả:**');
     expect(vi).toContain('**Nguyên nhân cốt lõi:**');
     expect(vi).toContain('**Cách khắc phục chuẩn:**');
+  });
+
+  it('uses the current IETF -08 Structured Field string format and optional fingerprint semantics', () => {
+    const en = read(lessonPaths.en);
+    const vi = read(lessonPaths.vi);
+    for (const [relativePath, source] of [[lessonPaths.en, en], [lessonPaths.vi, vi]] as const) {
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('draft-ietf-httpapi-idempotency-key-header-08');
+      expect(source, relativePath).toContain('RFC 9651');
+      expect(source, relativePath).toContain('Idempotency-Key: "3e8a3c8f-4f32-4474-b7fa-5f9760dd67b4"');
+      expect(source, relativePath).not.toContain('draft-ietf-httpapi-idempotency-key-header-07');
+    }
+    expect(en).toContain('not a mandatory header or draft requirement');
+    expect(vi).toContain('không phải yêu cầu bắt buộc của bản nháp IETF');
+    expect(en).toContain('three total requests for one intended purchase');
+    expect(vi).toContain('ba yêu cầu cho một lần mua');
   });
 });
