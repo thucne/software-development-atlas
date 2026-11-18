@@ -82,7 +82,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       for (const relativePath of [item.en, item.vi]) {
         const source = lesson(relativePath);
         expect(source).toContain('category: backend-engineering');
-        expect(source).toContain(`lastVerified: ${item === lessons.sso || item === lessons.oauth ? '2026-11-18' : '2026-11-05'}`);
+        expect(source).toContain('lastVerified: 2026-11-18');
         expect(source).toMatch(new RegExp(`concepts:\\n  - ` + item.concept + `\\n---`));
         expect((source.match(/<TermBox/g) ?? []).length).toBeGreaterThanOrEqual(2);
         expect((source.match(/<TermBox/g) ?? []).length).toBeLessThanOrEqual(3);
@@ -148,6 +148,18 @@ describe('Identity protocols and Keycloak lessons', () => {
       expect(source).toMatch(/Single Logout|global logout|central.*logout/i);
       expect(source).toMatch(/identity brokering/i);
       expect(source).toMatch(/user federation/i);
+    }
+  });
+
+  it('teaches manual bearer transport and browser SSO limitations in Keycloak JS in both languages', () => {
+    for (const relativePath of [lessons.keycloak.en, lessons.keycloak.vi]) {
+      const source = lesson(relativePath);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toContain('keycloak.updateToken(30)');
+      expect(source, relativePath).toContain('Authorization: `Bearer');
+      expect(source, relativePath).toMatch(/not automatically|không tự/i);
+      expect(source, relativePath).toMatch(/third-party cookie|cookie bên thứ ba/i);
+      expect(source, relativePath).toMatch(/RFC 10017/);
     }
   });
 

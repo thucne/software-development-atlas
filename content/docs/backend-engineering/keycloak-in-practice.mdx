@@ -4,7 +4,7 @@ description: "Map OAuth, OIDC, SSO, and authorization concepts onto Keycloak rea
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-18
 reviewAfterDays: 120
 topics: [authentication, keycloak, oidc, sso, authorization, frontend]
 prerequisites: [oauth-and-oidc, sso-and-identity-federation]
@@ -32,7 +32,7 @@ For browser-only JavaScript, configure a **public client**: a shipped bundle can
 - **Client ID is not a secret.**
 - **Realm role, client role, scope, and claim are different concepts.**
 - **Protocol mappers shape token/assertion data; they do not enforce your API's object-level permission rules.**
-- **Fatal pitfall:** Putting a client secret into a SPA bundle or accepting any Keycloak-signed JWT at every API without checking issuer/audience/token purpose.
+- **High-risk mistake:** Putting a client secret into a SPA bundle or accepting any Keycloak-signed JWT at every API without checking issuer/audience/token purpose.
 
 ```mermaid
 flowchart TD
@@ -101,7 +101,8 @@ sequenceDiagram
   SPA->>KC: code + verifier
   KC-->>SPA: ID Token + Access Token
   SPA->>API: Bearer Access Token
-  API->>KC: Discover issuer/JWKS (cached/rotated)
+  Note over API,KC: Metadata/JWKS may be cached; not a call per request
+  API->>KC: Discover trusted issuer/JWKS when needed
   API->>API: Validate token + authorize order
   API-->>SPA: Result
 ```
@@ -140,13 +141,15 @@ Current behavior/documentation includes:
 - Authorization Code flow by default;
 - PKCE `S256` enabled by default;
 - `login-required` and `check-sso` startup modes;
-- access token attached as a Bearer token when calling APIs;
+- the application explicitly attaches an access token as a Bearer token when calling APIs (the adapter does not inject it into arbitrary `fetch` requests);
 - token refresh through `updateToken()`;
 - access and refresh tokens kept in memory rather than persisted by the adapter.
 
 A typical conceptual setup looks like:
 
 ```ts
+import Keycloak from 'keycloak-js';
+
 const keycloak = new Keycloak({
   url: 'https://id.example.com',
   realm: 'acme',
@@ -157,9 +160,21 @@ await keycloak.init({
   onLoad: 'check-sso',
   pkceMethod: 'S256',
 });
+
+if (!keycloak.authenticated) throw new Error('Login required');
+await keycloak.updateToken(30);
+if (!keycloak.token) throw new Error('Missing access token');
+
+const response = await fetch('https://api.example.com/orders', {
+  headers: { Authorization: `Bearer ${keycloak.token}` },
+});
 ```
 
+**The adapter does not automatically add an `Authorization` header to `fetch`**. The application must verify that it has an authenticated session, refresh the access token when required, and explicitly add the bearer token to API calls. The example uses fictional URLs and omits API error handling and other production concerns.
+
 Do not copy a client secret into this configuration.
+
+**Browser privacy caveat:** Silent `check-sso` and Keycloak's session-status iframe depend on third-party cookie behavior. With blocked third-party cookies, the adapter may fall back to a top-level redirect, disable the iframe, or detect logout only on a later token refresh. These are conditional browser/adapter behaviors, not a guarantee of immediate cross-application logout.
 
 ## 6. Realm roles and client roles are namespaced authority inputs
 
@@ -251,7 +266,7 @@ Do not call Keycloak on every request merely to ask “is this JWT real?” when
 
 A direct SPA using `keycloak-js` is a browser-based OAuth/OIDC client and therefore exposes access tokens to JavaScript memory.
 
-A BFF architecture can keep OAuth tokens on the server side and give the browser a protected cookie session instead. RFC 10017 describes BFF as the most secure of its three main browser patterns, at the cost of an additional backend component and cookie/CSRF responsibilities.
+A BFF architecture can keep OAuth tokens on the server side and give the browser a protected cookie session instead. RFC 10017 presents BFF as the strongest of its three main browser patterns against token-exposure threats, at the cost of an additional backend component and cookie/CSRF responsibilities. It does not eliminate XSS: malicious code in the application's origin may still send authenticated requests through the session.
 
 Keycloak works with either shape. The choice is an application architecture decision, not a checkbox in Keycloak.
 
@@ -288,9 +303,9 @@ The mapper only controls emitted identity data. The Orders API should receive th
 - [ ] **Mappers:** Can every custom token claim be traced to a real consumer requirement?
 - [ ] **Audience:** Does each API reject tokens not intended for it?
 - [ ] **Authorization:** Does the API enforce resource/context rules after token validation?
-- [ ] **Storage:** Are browser tokens kept out of persistent storage unless a deliberate threat-model decision says otherwise?
+- [ ] **Storage:** Are browser tokens kept out of persistent storage unless a deliberate threat-model decision says otherwise? Does application code attach the access token itself after checking/refreshing it?
 - [ ] **Federation:** Is identity brokering distinguished from LDAP/user federation?
-- [ ] **Logout:** Are local app, Keycloak SSO, and other client sessions treated as separate state?
+- [ ] **Logout:** Are local app, Keycloak SSO, and other client sessions treated as separate state? Are third-party cookie and silent SSO limitations documented?
 - [ ] **Operations:** Are signing-key rotation, session lifetime, audit events, and incident revocation requirements understood?
 
 ## Boundaries with related Atlas lessons
@@ -303,6 +318,7 @@ The mapper only controls emitted identity data. The Orders API should receive th
 
 - [Keycloak — Server Administration Guide](https://www.keycloak.org/docs/latest/server_admin/)
 - [Keycloak — JavaScript Adapter](https://www.keycloak.org/securing-apps/javascript-adapter)
+- [Keycloak 24 release notes — PKCE enabled by default](https://www.keycloak.org/docs/24.0.0/release_notes/)
 - [Keycloak — Securing applications and services with OpenID Connect](https://www.keycloak.org/securing-apps/oidc-layers)
 - [RFC 10017 — OAuth 2.0 for Browser-Based Applications](https://www.rfc-editor.org/rfc/rfc10017.html)
 - [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://www.rfc-editor.org/rfc/rfc9700.html)
