@@ -8,7 +8,7 @@ const pairs = [
   {
     slug: 'distributed-systems/partial-failure',
     en: ['does not automatically halt the thread', 'Cancellation is not rollback', 'idempotency key alone'],
-    vi: ['không tự động làm dừng thread', 'Cancellation không phải rollback', 'idempotency key'],
+    vi: ['không tự động dừng luồng thực thi', 'Cancellation không phải rollback', 'khóa chống lặp'],
   },
   {
     slug: 'distributed-systems/distributed-replication',
@@ -33,7 +33,7 @@ describe('Wave 1 technical-boundary and evidence regression', () => {
       for (const locale of ['en', 'vi'] as const) {
         const relativePath = `content/docs/${pair.slug}${locale === 'vi' ? '.vi' : ''}.mdx`;
         const source = readFileSync(path.join(repoRoot, relativePath), 'utf8');
-        expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+        expect(source, relativePath).toContain(`lastVerified: ${pair.slug === 'distributed-systems/partial-failure' ? '2026-11-18' : '2026-11-05'}`);
         for (const expected of pair[locale]) {
           expect(source, `${relativePath}: ${expected}`).toContain(expected);
         }
