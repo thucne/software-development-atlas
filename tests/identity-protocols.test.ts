@@ -119,7 +119,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       const source = lesson(relativePath);
       expect(source).toMatch(/Authorization Code/i);
       expect(source).toMatch(/PKCE/i);
-      expect(source).toMatch(/public client/i);
+      expect(source).toMatch(/public client|ứng dụng công khai/i);
       expect(source).toMatch(/client secret/i);
       expect(source).toMatch(/ID Token/i);
       expect(source).toMatch(/access token/i);
