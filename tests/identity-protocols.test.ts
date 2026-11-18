@@ -82,7 +82,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       for (const relativePath of [item.en, item.vi]) {
         const source = lesson(relativePath);
         expect(source).toContain('category: backend-engineering');
-        expect(source).toContain('lastVerified: 2026-11-05');
+        expect(source).toContain(`lastVerified: ${item === lessons.sso ? '2026-11-18' : '2026-11-05'}`);
         expect(source).toMatch(new RegExp(`concepts:\\n  - ` + item.concept + `\\n---`));
         expect((source.match(/<TermBox/g) ?? []).length).toBeGreaterThanOrEqual(2);
         expect((source.match(/<TermBox/g) ?? []).length).toBeLessThanOrEqual(3);
@@ -91,7 +91,7 @@ describe('Identity protocols and Keycloak lessons', () => {
         expect(source).toContain('<details>');
         expect(source).toContain('- [ ]');
         expect(source).toMatch(/Rule of thumb|Quy tắc bỏ túi/);
-        expect(source).toMatch(/Fatal pitfall|Sai lầm chí mạng/);
+        expect(source).toMatch(/Fatal pitfall|Sai lầm chí mạng|High-risk assumption|Giả định rủi ro cao/);
       }
     }
 
@@ -154,6 +154,16 @@ describe('Identity protocols and Keycloak lessons', () => {
       expect(source).toMatch(/user federation/i);
       expect(source).toMatch(/JWKS/i);
       expect(source).toMatch(/audience/i);
+    }
+  });
+
+  it('keeps CAS ticket consumption and non-atomic federated logout limits in both locales', () => {
+    for (const relativePath of [lessons.sso.en, lessons.sso.vi]) {
+      const source = lesson(relativePath);
+      expect(source, relativePath).toContain('lastVerified: 2026-11-18');
+      expect(source, relativePath).toMatch(/CAS/i);
+      expect(source, relativePath).toMatch(/single validation attempt|một lượt xác minh/i);
+      expect(source, relativePath).toMatch(/not an atomic transaction|không phải giao dịch nguyên tử/i);
     }
   });
 
