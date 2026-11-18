@@ -129,7 +129,7 @@ price:v3:{tenant_id}:{product_id}:{currency}:{pricing_plan}:{locale}
 
 Namespace `v3` hữu ích khi biểu diễn cache hoặc ngữ nghĩa khóa thay đổi. Đổi phiên bản namespace thường dễ kiểm soát hơn việc cố tìm và xóa hoàn hảo mọi khóa cũ.
 
-Không đưa bí mật trực tiếp vào khóa cache nếu khóa có thể xuất hiện trong log, metric, dashboard hoặc công cụ quản trị. Dùng định danh ổn định không bí mật hoặc giá trị băm khi phù hợp.
+Phải mã hóa các thành phần khóa sao cho không nhập nhằng: nếu định danh có thể chứa ký tự phân tách, hãy escape, dùng tiền tố độ dài hoặc một cách mã hóa chuẩn hóa khác để hai định danh khác nhau không tạo cùng một khóa. Giữ nhất quán phiên bản khóa và phạm vi tenant/phân quyền ở mọi đường đọc, ghi và vô hiệu hóa. Không đưa bí mật trực tiếp vào khóa cache nếu khóa có thể xuất hiện trong log, metric, dashboard hoặc công cụ quản trị. Dùng định danh ổn định không bí mật hoặc giá trị băm khi phù hợp.
 
 ## 3. Chọn TTL từ ngân sách độ cũ, không từ thói quen
 
@@ -168,7 +168,7 @@ commit
 DEL khóa cache
 ```
 
-Xóa thường dễ lập luận hơn việc cố cập nhật cơ sở dữ liệu và cache thành đúng cùng một giá trị qua hai lần ghi độc lập. Lần đọc kế tiếp tái tạo từ nguồn chuẩn.
+Xóa thường dễ lập luận hơn việc cố cập nhật cơ sở dữ liệu và cache thành đúng cùng một giá trị qua hai lần ghi độc lập. Lần đọc kế tiếp tái tạo từ nguồn chuẩn. **Commit rồi vô hiệu hóa không phải một giao dịch nguyên tử giữa cơ sở dữ liệu và cache:** nếu vô hiệu hóa thất bại sau commit, entry cũ có thể vẫn tồn tại. Hãy chọn chính sách tường minh (ví dụ TTL có giới hạn, sự kiện vô hiệu hóa bền vững có thử lại, hoặc đọc có kiểm tra phiên bản) theo yêu cầu độ tươi; không coi lệnh xóa kiểu best-effort là bảo đảm.
 
 Nhưng thứ tự vẫn quan trọng. Nếu vô hiệu hóa trước commit, có thể xảy ra race:
 
