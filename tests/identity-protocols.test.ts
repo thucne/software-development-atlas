@@ -162,7 +162,7 @@ describe('Identity protocols and Keycloak lessons', () => {
       const source = lesson(relativePath);
       expect(source, relativePath).toContain('lastVerified: 2026-11-18');
       expect(source, relativePath).toMatch(/CAS/i);
-      expect(source, relativePath).toMatch(/single validation attempt|một lượt xác minh/i);
+      expect(source, relativePath).toMatch(/one ticket validation attempt|một lượt xác minh/i);
       expect(source, relativePath).toMatch(/not an atomic transaction|không phải giao dịch nguyên tử/i);
     }
   });
