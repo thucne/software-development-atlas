@@ -37,6 +37,7 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 ## Releases & Milestones
 
 ### November 18, 2026 — Wave 1 full-pair content review
+- [Service Resilience](/docs/backend-engineering/service-resilience): Clarify optional-only fallback versus explicit critical-path failure, scope instance/fleet retry budgets, label invented timings in a hypothetical outage and anchor circuit/bulkhead guidance to primary sources; align EN/VI.
 - [Keycloak in Practice](/docs/backend-engineering/keycloak-in-practice): Verified keycloak-js does not auto-inject Bearer headers; applications call `updateToken()` and attach access tokens. Scoped silent SSO/session iframe behavior under third-party-cookie blocking, PKCE adapter defaults and BFF limits; aligned EN/VI guidance.
 - [OAuth 2.0 & OpenID Connect](/docs/backend-engineering/oauth-and-oidc): Verified browser public-client refresh-token rotation/sender constraints and lifetime limits per RFC 10017/9700, separated BFF from browser-only code exchange and clarified token misuse and Vietnamese teaching.
 - [SSO & Identity Federation](/docs/backend-engineering/sso-and-identity-federation): Rechecked OIDC/SAML identity trust, one-validation CAS tickets and best-effort cross-app logout; improved EN/VI learning parity and natural Vietnamese.
