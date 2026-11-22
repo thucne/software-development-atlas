@@ -4,7 +4,7 @@ description: Vận hành ranh giới danh tính và truy cập bằng cách tác
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-22
 reviewAfterDays: 180
 topics:
   - backend
@@ -51,7 +51,7 @@ flowchart LR
 - **Mặc định từ chối ở cấp đối tượng:** Kiểm tra token hoặc role ở route không tự phân quyền cho object do client chỉ định. Thực thi chính sách tài nguyên (RBAC có scope, ABAC, ReBAC hoặc tương đương), kiểm tra owner/tenant nếu phù hợp và từ chối khi không có grant rõ ràng.
 - **Quản lý vòng đời phiên theo threat model:** Chống session fixation, rotate session khi đổi mức quyền, thiết lập idle/overall timeout và cơ chế thu hồi thực tế. JWT tự chứa đã phát hành không bị vô hiệu hóa tức thì khắp các service chỉ bằng xóa session ở một node; có thể cần TTL ngắn, denylist, introspection hoặc version.
 - **Danh tính dịch vụ và máy móc (Service Identity):** Worker chạy ngầm, cron job và các microservice nội bộ cũng là các principal độc lập. Phải cấp quyền tối thiểu (least privilege) với credential ngắn hạn thay vì dùng chung API key hay bỏ qua phân quyền chỉ vì là traffic nội bộ.
-- **Cạm bẫy chết người:** Mắc lỗ hổng IDOR / BOLA do chỉ kiểm tra người dùng đã đăng nhập mà quên kiểm tra quyền sở hữu tài nguyên, dẫn đến việc kẻ tấn công chỉ cần đổi `userId` hoặc `resourceId` trong URL là xem trộm hoặc thao túng toàn bộ dữ liệu của nạn nhân.
+- **Lỗi có tác động lớn:** Nếu chỉ kiểm tra đăng nhập mà bỏ qua phân quyền cấp đối tượng, người dùng đã xác thực có thể truy cập dữ liệu của người hoặc tenant khác bằng cách đổi `userId` hay `resourceId` khi endpoint thiếu kiểm tra phù hợp (IDOR / BOLA).
 
 <TermBox term="Principal">
 **Principal** là danh tính bảo mật mà ứng dụng dùng khi ra quyết định sau bước xác thực. Nó thường gồm một định danh chủ thể ổn định cùng một số thuộc tính được chọn như tenant, role, phương thức xác thực hoặc mức assurance.
@@ -158,7 +158,9 @@ TỐT HƠN:
   return invoice
 ```
 
-Scoping lookup rồi áp policy rõ ràng tạo defense in depth và giảm khả năng vô tình tải dữ liệu tenant khác trước khi kiểm quyền.
+Giới hạn phạm vi truy vấn rồi kiểm tra chính sách rõ ràng giúp tạo nhiều lớp bảo vệ. Tenant ID phải lấy từ ngữ cảnh danh tính đã được server xác minh, không lấy trực tiếp từ tham số request. Với hệ thống nhiều tenant, nên bổ sung cơ chế cô lập tại tầng truy cập dữ liệu hoặc cơ sở dữ liệu nếu được hỗ trợ; một truy vấn có giới hạn phạm vi không bảo vệ được các endpoint khác hay luồng quản trị xuyên tenant.
+
+**Kiểm thử phủ định giả định:** Với phiên hợp lệ thuộc `tenant:acme`, yêu cầu đọc hóa đơn của `tenant:other` phải bị từ chối an toàn và không làm lộ trường dữ liệu. Nếu chính sách còn kiểm tra chủ sở hữu, hãy thử cả hóa đơn cùng tenant nhưng không thuộc người gọi. Tenant và invoice ID ở đây là dữ liệu kiểm thử tự đặt, không phải bằng chứng của một vụ rò rỉ thật.
 
 ## 5. Role chỉ là input của policy, không phải toàn bộ policy
 
