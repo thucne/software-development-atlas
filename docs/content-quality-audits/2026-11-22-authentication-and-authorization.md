@@ -26,3 +26,8 @@
 - Validate any further consequential claims against primary sources; the negative test is a proposed fixture, not a test run.
 - Obtain exact PR-head unit/content inventory, lint, typecheck, build, and Chromium E2E results, plus applicable merged-main gate evidence.
 - Do not check #116 or #119 until the entire rubric is satisfied.
+
+## CI follow-up (2026-11-24)
+
+- [Run 45092621614](https://github.com/thucne/software-development-atlas/actions/runs/45092621614) failed 3 of 746 tests (743 passed): distributed replication, frontend modernization and test strategy all detected the same footer/changelog date mismatch (2026-11-18 vs 2026-11-23). Subsequent gates were skipped.
+- Synchronized `lib/site-metadata.ts` and the exact expected footer label in `tests/e2e/docs-shell.spec.ts` to the actual changelog date, 2026-11-23. The equality checks and browser assertion remain intact. Fresh CI is required; no certification yet.
