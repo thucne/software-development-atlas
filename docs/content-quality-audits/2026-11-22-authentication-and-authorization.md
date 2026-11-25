@@ -31,3 +31,8 @@
 
 - [Run 45092621614](https://github.com/thucne/software-development-atlas/actions/runs/45092621614) failed 3 of 746 tests (743 passed): distributed replication, frontend modernization and test strategy all detected the same footer/changelog date mismatch (2026-11-18 vs 2026-11-23). Subsequent gates were skipped.
 - Synchronized `lib/site-metadata.ts` and the exact expected footer label in `tests/e2e/docs-shell.spec.ts` to the actual changelog date, 2026-11-23. The equality checks and browser assertion remain intact. Fresh CI is required; no certification yet.
+
+## CI follow-up (2026-11-25)
+
+- Exact head `23c7a7dbd1fecb4984a712a34e9f4a2ac36fbd07`: [run 45308143866](https://github.com/thucne/software-development-atlas/actions/runs/45308143866) failed 2/746 tests; 744 passed. Containers and Property-Based Testing still expected November 18 site metadata and E2E footer text. Inventory, lint, typecheck, build and browser E2E were skipped.
+- Updated both tests' exact expected metadata and footer strings to November 23, matching the rolling changelog and actual footer assertion. All existing assertions retained. Await full CI on the new head; no certification or merge yet.
