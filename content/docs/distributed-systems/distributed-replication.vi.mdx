@@ -4,7 +4,7 @@ description: Suy luận về sao chép phân tán qua quyền ghi, thứ tự c�
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics: [distributed-systems, replication, failover, consistency, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, database-replication]
@@ -160,6 +160,9 @@ Failover không chỉ là “chuyển traffic sang một bản sao khác”. Nó
 Rào chắn bảo vệ trước nút từng hợp lệ, sau đó bị cô lập, rồi quay lại làm việc sau khi một nguồn quyền mới đã tiếp quản.
 </TermBox>
 
+**Lưu ý về enforcement:** Epoch/term tăng đơn điệu chưa tự tạo thành fencing. Tầng storage hoặc resource thực thi side effect phải từ chối generation cũ; một số topology cần cơ chế cô lập ngoài giao thức (ví dụ fencing nguồn điện hoặc storage). Hãy nêu đúng cơ chế mà hệ thống thực sự enforce.
+
+
 Nếu không có rào chắn, bên ghi cũ có thể quay lại sau failover và tạo hành vi **split-brain**: hai nút cùng chấp nhận các lần ghi không thể đồng thời thuộc về một lịch sử authoritative duy nhất.
 
 ```mermaid
@@ -299,7 +302,7 @@ Không. Replication factor mô tả số lượng copy dự định duy trì, kh
 
 ## Nguồn
 
-Nguồn chính được kiểm tra ngày **2026-11-05**:
+Nguồn chính được kiểm tra lại ngày **2026-11-27**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [Amazon Science — Dynamo: Amazon's highly available key-value store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store)
