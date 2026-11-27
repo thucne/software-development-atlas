@@ -36,6 +36,10 @@ The Atlas provides three built-in ways to discover new and recently revised cont
 
 ## Releases & Milestones
 
+### November 27, 2026 — Consensus and Distributed Replication Wave 1 review
+- [Consensus](/docs/distributed-systems/consensus): Scope minority-side liveness trade-offs to quorum-based consensus and state majority-table assumptions.
+- [Distributed Replication](/docs/distributed-systems/distributed-replication): Clarify that an epoch/term fences stale writes only when downstream enforces it; recheck PostgreSQL acknowledgment semantics.
+
 ### November 18, 2026 — Wave 1 full-pair content review
 - [Service Resilience](/docs/backend-engineering/service-resilience): Clarify optional-only fallback versus explicit critical-path failure, scope instance/fleet retry budgets, label invented timings in a hypothetical outage and anchor circuit/bulkhead guidance to primary sources; align EN/VI.
 - [Keycloak in Practice](/docs/backend-engineering/keycloak-in-practice): Verified keycloak-js does not auto-inject Bearer headers; applications call `updateToken()` and attach access tokens. Scoped silent SSO/session iframe behavior under third-party-cookie blocking, PKCE adapter defaults and BFF limits; aligned EN/VI guidance.
