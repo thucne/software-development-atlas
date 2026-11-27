@@ -27,10 +27,10 @@ Sao chép duy trì nhiều bản sao của trạng thái. Để đánh giá mứ
 ## Tóm tắt
 
 - **Sao chép xác lập thẩm quyền và thứ tự cập nhật, không chỉ lưu trữ thô:** Giao thức sao chép phải định rõ nút nào có quyền quyết định từng cập nhật, xếp thứ tự các thao tác ghi vào một nhật ký sao chép duy nhất, và bảo đảm các bản sao áp dụng dữ liệu một cách tất định.
-- **Ranh giới ACK xác định cam kết:** Replication bất đồng bộ có thể ACK trước khi follower lưu bền vững, tạo cửa sổ mất dữ liệu khi bản sao nguồn không thể phục hồi. Trong replication đồng bộ, hệ thống có thể chờ remote receipt, OS write, flush bền vững hoặc apply — tùy protocol/cấu hình. Nhãn `sync` **không tự bảo đảm remote fsync**.
+- **Thời điểm xác nhận quyết định mức cam kết:** Sao chép bất đồng bộ có thể trả ACK trước khi follower lưu dữ liệu bền vững, tạo ra khoảng thời gian có nguy cơ mất dữ liệu nếu bản sao nguồn không thể phục hồi. Với sao chép đồng bộ, hệ thống có thể chờ bản sao từ xa nhận dữ liệu, ghi vào hệ điều hành, flush xuống bộ nhớ lưu trữ bền vững hoặc áp dụng cập nhật — tùy giao thức và cấu hình. Nhãn `sync` **không tự bảo đảm remote fsync**.
 - **Độ trễ sao chép phân hóa theo từng chặng:** Một bản sao có thể chậm trễ ở khâu nhận gói tin qua mạng (đã nhận), lưu trữ xuống đĩa bền vững (đã lưu bền vững), nạp vào state machine (đã áp dụng), hoặc khâu sẵn sàng cho câu lệnh đọc quan sát (đã nhìn thấy).
-- **Failover cần bảo vệ quyền ghi:** Promotion phải ngăn primary cũ thay đổi trạng thái có thẩm quyền (epoch, fencing tại resource hoặc thu hồi quyền ghi). Không phải mọi topology đều phát fencing token; chỉ đổi DNS hoặc routing không tạo bất biến an toàn.
-- **Cạm bẫy chết người:** Ảo tưởng rằng hệ số sao chép bằng 3 ($N=3$) đồng nghĩa với việc không bao giờ mất dữ liệu. Nếu ranh giới xác nhận chỉ nằm ở Leader cục bộ và Leader gặp sự cố phần cứng vĩnh viễn trước khi kịp đồng bộ sang các follower, toàn bộ các lần ghi đã báo thành công cho client sẽ bốc hơi hoàn toàn.
+- **Chuyển đổi dự phòng cần bảo vệ quyền ghi:** Quá trình thăng cấp phải ngăn máy chủ chính cũ thay đổi trạng thái có thẩm quyền (bằng epoch, rào chắn tại tài nguyên hoặc thu hồi quyền ghi). Không phải kiến trúc nào cũng phát fencing token; chỉ đổi DNS hoặc định tuyến mạng không tạo ra bất biến an toàn.
+- **Cạm bẫy nghiêm trọng:** Không được cho rằng hệ số sao chép bằng 3 ($N=3$) đồng nghĩa với việc không thể mất dữ liệu. Nếu hệ thống chỉ xác nhận sau khi leader cục bộ lưu dữ liệu, nhưng leader hỏng vĩnh viễn trước khi cập nhật được sao chép sang follower, các lần ghi đã báo thành công cho client vẫn có thể bị mất.
 
 ```mermaid
 flowchart LR
@@ -181,9 +181,9 @@ sequenceDiagram
   A->>F: quay lại dưới vai trò bản sao không có quyền ghi
 ```
 
-Cơ chế cụ thể thay đổi theo hệ thống. Một nhóm consensus có thể quyết định leadership và thứ tự log đã commit. Bộ điều phối failover bên ngoài có thể dùng lease hoặc metadata store được phối hợp chặt. Hạ tầng lưu trữ có thể áp rào chắn ở tầng thấp hơn. Invariant vẫn giống nhau: **nguồn quyền cũ không được tiếp tục ghi sau khi nguồn quyền mới đã tồn tại**.
+Cơ chế cụ thể tùy từng hệ thống. Một nhóm đồng thuận có thể quyết định leader và thứ tự nhật ký đã cam kết. Bộ điều phối chuyển đổi dự phòng bên ngoài có thể dùng lease hoặc kho siêu dữ liệu được phối hợp chặt chẽ. Hạ tầng lưu trữ cũng có thể áp dụng rào chắn ở tầng thấp hơn. Nguyên tắc bất biến vẫn là: **nguồn thẩm quyền cũ không được tiếp tục ghi sau khi nguồn thẩm quyền mới đã được xác lập**.
 
-Tài liệu failover của PostgreSQL cảnh báo rõ rằng primary cũ khi khởi động lại cần cơ chế ngăn nó tiếp tục hành xử như primary sau khi standby đã được thăng cấp.
+Tài liệu chuyển đổi dự phòng của PostgreSQL cảnh báo rằng khi khởi động lại, máy chủ chính cũ cần có cơ chế ngăn nó tiếp tục hoạt động như máy chủ chính sau khi máy chủ dự phòng đã được thăng cấp.
 
 ## Kiến trúc nhiều bên ghi hoặc không có leader chuyển phần phức tạp sang khâu đối soát
 
@@ -232,7 +232,7 @@ shard B -> B1, B2, B3
 shard C -> C1, C2, C3
 ```
 
-Đổi shard key làm thay đổi cách dữ liệu được đặt giữa các partition. Đổi replication factor làm thay đổi số bản sao trong từng partition. Tách hai chiều này giúp phân tích capacity và failure rõ hơn.
+Thay đổi khóa phân mảnh (shard key) làm thay đổi cách dữ liệu được phân bố giữa các phân vùng. Thay đổi hệ số sao chép làm thay đổi số bản sao trong từng phân vùng. Tách hai chiều này giúp phân tích dung lượng và sự cố rõ ràng hơn.
 
 ## Sao chép và đồng thuận giải quyết hai bài toán khác nhau
 
@@ -240,9 +240,9 @@ Sao chép trả lời: **nhiều nút nhận và duy trì các bản sao trạng
 
 Đồng thuận trả lời: **các nút thống nhất về một giá trị hoặc lịch sử có thứ tự như thế nào khi xảy ra lỗi và độ trễ?**
 
-Nhiều replicated state machine kết hợp hai khái niệm: consensus protocol quyết định log entry nào đã commit, còn replication phân phối các entry đó sang thành viên khác.
+Nhiều máy trạng thái sao chép kết hợp hai khái niệm này: giao thức đồng thuận quyết định mục nhật ký nào đã được cam kết, còn cơ chế sao chép phân phối các mục đó tới những thành viên khác.
 
-Nhưng replication cũng tồn tại khi không có consensus protocol tạo ra một global committed history duy nhất. Hệ thống primary/standby bất đồng bộ và kho leaderless hội tụ cuối cùng là hai ví dụ.
+Tuy nhiên, sao chép vẫn tồn tại mà không cần giao thức đồng thuận tạo ra một lịch sử đã cam kết duy nhất cho toàn hệ thống. Sao chép bất đồng bộ giữa máy chủ chính và máy chủ dự phòng, cũng như kho dữ liệu không leader hội tụ cuối cùng, là hai ví dụ.
 
 Vì vậy đừng suy ra:
 
@@ -262,7 +262,7 @@ Lưu lượng được chuyển sang B, nhưng một nhóm ứng dụng cũ vẫ
 
 **Hậu quả:** Quyền của khách hàng lúc xuất hiện, lúc biến mất tùy thuộc bản sao nào trả lời yêu cầu đọc. Khâu đối soát không thể tự xác định một cách an toàn cập nhật nghiệp vụ nào trong hai lịch sử xung đột mới là dữ liệu đúng.
 
-**Nguyên nhân cốt lõi:** đội ngũ kỹ thuật xem việc thăng cấp (promotion) chỉ như một thao tác đổi hướng routing mạng đơn thuần. Nút ghi cũ không hề có rào chắn cô lập, khiến việc đứt kết nối với control plane không thể tước bỏ khả năng tiếp tục ghi đè dữ liệu có thẩm quyền của nó.
+**Nguyên nhân cốt lõi:** Đội ngũ kỹ thuật coi việc thăng cấp chỉ là thay đổi hướng định tuyến mạng. Nút ghi cũ không có cơ chế rào chắn, nên việc mất liên lạc với bộ điều khiển không làm mất khả năng ghi vào trạng thái có thẩm quyền của nó.
 
 **Cách khắc phục:** Gắn mọi thao tác ghi có thẩm quyền với epoch hoặc term hiện tại; buộc thành phần nhận thao tác ở phía sau từ chối mã quyền cũ; và chỉ thăng cấp nút mới sau khi cơ chế chuyển đổi dự phòng xác lập được một nguồn thẩm quyền duy nhất. Khi nút ghi cũ hoạt động trở lại, hãy đưa nó về vai trò bản sao chỉ đọc, cài snapshot an toàn hoặc đối soát phần nhật ký còn lưu giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép nó đủ điều kiện nhận quyền ghi trở lại.
 
@@ -283,7 +283,7 @@ Không. Hệ số sao chép chỉ mô tả số bản sao dự kiến duy trì, 
 
 - [ ] **Quyền ghi:** Đã nói rõ nút hoặc quy tắc nào được phép xếp thứ tự write cho từng đơn vị dữ liệu được sao chép chưa?
 - [ ] **Xác nhận:** Client chỉ thấy success sau mốc tiến độ nào của replica?
-- [ ] **Độ trễ:** Operator có phân biệt được receive, durable, apply và visibility lag khi các stage này khác nhau không?
+- [ ] **Độ trễ:** Người vận hành có phân biệt được độ trễ ở khâu nhận, lưu bền vững, áp dụng và hiển thị khi các giai đoạn này khác nhau không?
 - [ ] **Khởi tạo:** Replica mới hoặc quá cũ có thể cài snapshot rồi replay phần lịch sử còn lại an toàn không?
 - [ ] **Failover:** Bằng chứng nào khiến một candidate đủ điều kiện được thăng cấp?
 - [ ] **Rào chắn:** Write từ epoch, term hoặc lease cũ bị từ chối bằng cách nào sau khi quyền thay đổi?
@@ -293,12 +293,12 @@ Không. Hệ số sao chép chỉ mô tả số bản sao dự kiến duy trì, 
 
 ## Quy tắc cho agent
 
-- [ ] **Khôi phục authority model trước:** Xác định writer, leader, quorum rule hoặc conflict-resolution rule trước khi thay đổi code replication.
+- [ ] **Xác định mô hình thẩm quyền trước:** Xác định bên ghi, leader, quy tắc quorum hoặc quy tắc giải quyết xung đột trước khi thay đổi mã nguồn sao chép.
 - [ ] **Gọi tên acknowledgment point:** Không gọi replication là “đồng bộ” nếu chưa nói rõ đang chờ tiến độ từ xa nào.
 - [ ] **Xem lag là input của correctness:** Route read chấp nhận stale và read nhạy cảm về correctness theo freshness requirement tường minh.
 - [ ] **Rào chắn authority cũ:** Promotion chưa hoàn tất nếu writer cũ vẫn có thể sửa authoritative state.
-- [ ] **Tách các chiều:** Giữ partitioning, replication, consistency, durability và consensus tách biệt trong giải thích và test.
-- [ ] **Test recovery path:** Kiểm tra bootstrap, catch-up, failover, stale-writer rejoin và conflict reconciliation ở topology cho phép các hành vi đó.
+- [ ] **Phân biệt các khái niệm:** Giữ rõ sự khác nhau giữa phân vùng dữ liệu, sao chép, tính nhất quán, độ bền dữ liệu và đồng thuận trong phần giải thích cũng như kiểm thử.
+- [ ] **Kiểm thử đường phục hồi:** Kiểm tra quá trình khởi tạo bản sao, bắt kịp dữ liệu, chuyển đổi dự phòng, cho bên ghi cũ tham gia lại với quyền phù hợp và đối soát xung đột trong những kiến trúc có các hành vi này.
 
 ## Nguồn
 
