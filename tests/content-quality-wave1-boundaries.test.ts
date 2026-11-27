@@ -7,7 +7,7 @@ const repoRoot = process.cwd();
 const pairs = [
   {
     slug: 'distributed-systems/consensus',
-    en: ['Replication is not consensus', 'current-term commit', 'older-term entry'],
+    en: ['Replication is not consensus', 'current-term commit', 'an earlier-term entry'],
     vi: ['Sao chép không đồng nghĩa với đồng thuận', 'điều kiện cam kết trong nhiệm kỳ hiện tại', 'lịch sử đã cam kết'],
   },
   {
