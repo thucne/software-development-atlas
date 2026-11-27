@@ -4,7 +4,7 @@ description: Reason about distributed replication through authority, ordered upd
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics: [distributed-systems, replication, failover, consistency, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, database-replication]
@@ -160,6 +160,9 @@ A **fencing token** is a monotonically increasing authority value—such as an e
 Fencing protects against a node that was previously valid, became isolated, and later resumes work after a newer authority has already taken over.
 </TermBox>
 
+**Enforcement caveat:** A monotonically increasing epoch/term is not fencing by itself. The downstream storage or side-effecting resource must reject stale generations; some topologies instead require out-of-band isolation (such as power or storage fencing). State which mechanism is actually enforced.
+
+
 Without fencing, an old writer can return after failover and create **split-brain** behavior: two nodes accept writes that cannot both belong to one authoritative history.
 
 ```mermaid
@@ -299,7 +302,7 @@ No. Replication factor describes intended copy count, not the acknowledgment bou
 
 ## Sources
 
-Primary sources checked on **2026-11-05**:
+Primary sources rechecked on **2026-11-27**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [Amazon Science — Dynamo: Amazon's highly available key-value store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store)
