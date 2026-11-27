@@ -37,7 +37,7 @@ describe('Distributed Replication lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: reason');
       expect(source, relativePath).toMatch(/concepts:\n  - distributed-replication\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-27');
 
       const termBoxes = (source.match(/<TermBox/g) ?? []).length;
       expect(termBoxes, relativePath).toBeGreaterThanOrEqual(2);
@@ -63,6 +63,8 @@ describe('Distributed Replication lesson', () => {
       expect(source, relativePath).toMatch(/snapshot|catch[- ]?up|bootstrap|ảnh chụp|bắt kịp|khởi tạo/i);
       expect(source, relativePath).toMatch(/failover|promotion|promote|chuyển đổi dự phòng|thăng cấp/i);
       expect(source, relativePath).toMatch(/fenc|epoch|term|split[- ]brain|rào chắn|kỷ nguyên|nhiệm kỳ|hai.*leader/i);
+      expect(source, relativePath).toMatch(/downstream.*reject|resource.*reject|tầng.*từ chối|resource.*từ chối/i);
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
       expect(source, relativePath).toMatch(/replication factor|fault domain|hệ số sao chép|miền lỗi/i);
       expect(source, relativePath).toMatch(/multi[- ]leader|multi[- ]writer|leaderless|conflict|nhiều writer|không leader|xung đột/i);
       expect(source, relativePath).toMatch(/anti[- ]entropy|read repair|reconcil|đối soát|hòa giải|sửa.*đọc/i);
