@@ -30,7 +30,7 @@ concepts:
 
 ## Tóm tắt — tình huống BOLA giả định
 
-**Tình huống minh họa (giả định):** Một khách hàng đăng nhập thành công rồi gọi `GET /api/v1/users/1042/profile`. Nếu API chỉ kiểm tra JWT và role `user`, người đó có thể thử đổi ID thành `1043` để đọc bản ghi khác. Đây là kiểu lỗi **Broken Object Level Authorization (BOLA)**, được OWASP xếp ở API1:2023; ví dụ này **không phải báo cáo sự cố tại một công ty cụ thể**.
+**Tình huống minh họa (giả định):** Một khách hàng đăng nhập thành công rồi gọi `GET /api/v1/users/1042/profile`. Nếu API chỉ kiểm tra JWT và vai trò `user`, người đó có thể thử đổi mã định danh thành `1043` để đọc hồ sơ của người khác. Đây là kiểu lỗi **Broken Object Level Authorization (BOLA)**, được OWASP xếp ở API1:2023; ví dụ này **không phải báo cáo sự cố tại một công ty cụ thể**.
 
 Xác thực chứng minh quyền kiểm soát danh tính; phân quyền đánh giá **chủ thể + hành động + tài nguyên + ngữ cảnh** của request. Có thể thực thi bằng RBAC theo phạm vi, ABAC, quan hệ sở hữu hoặc kết hợp. Token có chữ ký chỉ hỗ trợ xác minh tính toàn vẹn và nguồn phát hành theo hợp đồng xác thực; nó không tự cấp quyền đọc object hay chống việc token bị đánh cắp.
 
@@ -47,14 +47,14 @@ flowchart LR
 > 💡 **Quy tắc bỏ túi:** Xác thực (Authentication) trả lời câu hỏi "bạn là ai"; Phân quyền (Authorization) trả lời câu hỏi "bạn được phép làm gì lúc này"—tuyệt đối không bao giờ đánh đồng một token hợp lệ hay vai trò chung chung với quyền truy cập vào một ID tài nguyên cụ thể.
 
 ### TL;DR 2.0
-- **Hai cổng kiểm soát độc lập:** Xác thực (Authentication) kiểm tra credential để tạo ra chủ thể (principal) đáng tin cậy; Phân quyền (Authorization) đưa ra quyết định cho phép hay từ chối dựa trên bộ tứ: `chủ thể + hành động + tài nguyên + ngữ cảnh` (`subject + action + resource + context`).
-- **Mặc định từ chối ở cấp đối tượng:** Kiểm tra token hoặc role ở route không tự phân quyền cho object do client chỉ định. Thực thi chính sách tài nguyên (RBAC có scope, ABAC, ReBAC hoặc tương đương), kiểm tra owner/tenant nếu phù hợp và từ chối khi không có grant rõ ràng.
-- **Quản lý vòng đời phiên theo threat model:** Chống session fixation, rotate session khi đổi mức quyền, thiết lập idle/overall timeout và cơ chế thu hồi thực tế. JWT tự chứa đã phát hành không bị vô hiệu hóa tức thì khắp các service chỉ bằng xóa session ở một node; có thể cần TTL ngắn, denylist, introspection hoặc version.
-- **Danh tính dịch vụ và máy móc (Service Identity):** Worker chạy ngầm, cron job và các microservice nội bộ cũng là các principal độc lập. Phải cấp quyền tối thiểu (least privilege) với credential ngắn hạn thay vì dùng chung API key hay bỏ qua phân quyền chỉ vì là traffic nội bộ.
-- **Lỗi có tác động lớn:** Nếu chỉ kiểm tra đăng nhập mà bỏ qua phân quyền cấp đối tượng, người dùng đã xác thực có thể truy cập dữ liệu của người hoặc tenant khác bằng cách đổi `userId` hay `resourceId` khi endpoint thiếu kiểm tra phù hợp (IDOR / BOLA).
+- **Hai cổng kiểm soát độc lập:** Xác thực (Authentication) kiểm tra thông tin xác thực để thiết lập một chủ thể bảo mật đáng tin cậy (principal); Phân quyền (Authorization) quyết định cho phép hay từ chối dựa trên bốn yếu tố: `chủ thể + hành động + tài nguyên + ngữ cảnh` (`subject + action + resource + context`).
+- **Mặc định từ chối ở cấp đối tượng:** Việc kiểm tra token hoặc vai trò tại tuyến API không tự cấp quyền trên đối tượng do client chỉ định. Hãy áp dụng chính sách ở cấp tài nguyên (RBAC có phạm vi, ABAC, ReBAC hoặc cơ chế tương đương), kiểm tra chủ sở hữu hoặc tenant khi phù hợp, và mặc định từ chối nếu không có quyền được cấp rõ ràng.
+- **Quản lý vòng đời phiên theo mô hình đe dọa:** Chống chiếm quyền phiên (session fixation), đổi mã phiên khi thay đổi mức quyền, thiết lập thời hạn không hoạt động và thời hạn tối đa cho phiên, đồng thời chọn cơ chế thu hồi phù hợp. JWT tự chứa đã phát hành không thể bị vô hiệu hóa tức thì trên mọi dịch vụ chỉ bằng cách xóa phiên ở một nút; khi cần, có thể dùng TTL ngắn, danh sách thu hồi (denylist), cơ chế introspection hoặc phiên bản token.
+- **Danh tính dịch vụ và máy móc (Service Identity):** Tác vụ nền, tác vụ định kỳ và các vi dịch vụ nội bộ cũng là những principal độc lập. Hãy cấp cho mỗi principal quyền tối thiểu cần thiết (least privilege) và thông tin xác thực có thời hạn ngắn; không dùng chung API key hoặc bỏ qua phân quyền chỉ vì yêu cầu xuất phát từ mạng nội bộ.
+- **Rủi ro có tác động lớn:** Nếu chỉ kiểm tra đăng nhập mà bỏ qua phân quyền ở cấp đối tượng, người dùng đã xác thực có thể truy cập dữ liệu của người khác hoặc tenant khác bằng cách thay `userId` hay `resourceId` tại API không kiểm tra quyền tương ứng (IDOR / BOLA).
 
 <TermBox term="Principal">
-**Principal** là danh tính bảo mật mà ứng dụng dùng khi ra quyết định sau bước xác thực. Nó thường gồm một định danh chủ thể ổn định cùng một số thuộc tính được chọn như tenant, role, phương thức xác thực hoặc mức assurance.
+**Principal** là danh tính bảo mật mà ứng dụng dùng khi ra quyết định sau bước xác thực. Principal thường gồm một định danh chủ thể ổn định và một số thuộc tính được chọn, chẳng hạn tenant, vai trò, phương thức xác thực hoặc mức bảo đảm.
 
 **Tại sao quan trọng:** code nghiệp vụ phải phân quyền trên một principal rõ ràng thay vì suy đoán danh tính từ trường request do client kiểm soát.
 </TermBox>
@@ -69,9 +69,9 @@ Cần tách ba khái niệm:
 2. **Xác thực** hỏi claimant hiện có kiểm soát authenticator gắn với tài khoản/chủ thể đó hay không.
 3. **Phân quyền** hỏi principal đã xác thực được phép làm gì ở thời điểm này.
 
-Theo [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), hệ thống **áp dụng khung assurance NIST** ở AAL2 phải sử dụng hai yếu tố xác thực và cung cấp ít nhất một lựa chọn kháng phishing; AAL3 yêu cầu phương thức kháng phishing. Đây là tiêu chuẩn cho bối cảnh áp dụng thích hợp, đặc biệt hệ thống chính phủ Hoa Kỳ, **không phải yêu cầu bắt buộc với mọi website**. Chọn mức bảo đảm theo threat model và quy định liên quan.
+Theo [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), hệ thống **áp dụng khung mức bảo đảm NIST** ở AAL2 phải sử dụng hai yếu tố xác thực và cung cấp ít nhất một phương thức kháng lừa đảo (phishing-resistant); AAL3 yêu cầu phương thức xác thực kháng lừa đảo. Đây là yêu cầu trong các bối cảnh thuộc phạm vi áp dụng của tiêu chuẩn, đặc biệt là dịch vụ chính phủ Hoa Kỳ, **không phải quy định bắt buộc cho mọi website**. Hãy chọn mức bảo đảm dựa trên mô hình đe dọa và các quy định có liên quan.
 
-Điều đó không có nghĩa là luôn ép phương thức mạnh nhất cho mọi trang. Hãy chọn mức xác thực theo impact và threat model, rồi step-up khi thao tác nhạy cảm cần bằng chứng mạnh hơn.
+Điều đó không có nghĩa là phải buộc người dùng sử dụng phương thức mạnh nhất ở mọi trang. Hãy chọn mức xác thực theo mức độ tác động và mô hình đe dọa; chỉ yêu cầu xác thực tăng cường (step-up) khi thao tác nhạy cảm cần bằng chứng mạnh hơn.
 
 <TermBox term="Xác thực kháng phishing">
 Một phương thức **xác thực kháng phishing** dùng giao thức khiến verifier do kẻ tấn công kiểm soát không thể replay hoặc chuyển tiếp bí mật xác thực để giả mạo người dùng tại verifier hợp lệ.
@@ -81,7 +81,7 @@ Một phương thức **xác thực kháng phishing** dùng giao thức khiến 
 
 ## 2. Xây dựng principal một cách có chủ đích
 
-Sau khi xác minh credential, hãy dựng principal tối thiểu từ dữ liệu danh tính mà server tin cậy. Các trường thường gặp:
+Sau khi xác minh thông tin xác thực, hãy tạo principal tối thiểu từ dữ liệu danh tính mà máy chủ tin cậy. Các trường thường gặp gồm:
 
 ```text
 subject_id
@@ -93,9 +93,9 @@ authentication_time
 authentication_method / assurance
 ```
 
-Không sao chép tùy tiện claim từ client vào principal. Token đã ký vẫn cần kiểm tra signature, issuer, audience, lifetime và kỳ vọng claim riêng của ứng dụng trước khi claim trở thành input đáng tin cậy.
+Không sao chép tùy tiện claim do client gửi vào principal. Với token đã ký, vẫn phải kiểm tra chữ ký (signature), bên phát hành (issuer), đối tượng nhận (audience), thời hạn hiệu lực (lifetime) và các claim mà ứng dụng mong đợi trước khi dùng chúng làm đầu vào đáng tin cậy.
 
-Nếu cần thu hồi quyền nhanh, tránh nhét permission dễ thay đổi vào credential sống quá lâu. Một token còn hợp lệ về mật mã vẫn có thể biểu diễn authority mà ứng dụng không còn muốn cấp.
+Nếu cần thu hồi quyền nhanh, tránh đưa các quyền thường xuyên thay đổi vào thông tin xác thực có thời hạn quá dài. Một token vẫn hợp lệ về mặt mật mã có thể tiếp tục thể hiện thẩm quyền mà ứng dụng không còn muốn cấp.
 
 ## 3. Biến phân quyền thành một quyết định rõ ràng
 
@@ -120,7 +120,7 @@ tài nguyên = invoice:inv_42 thuộc tenant:acme
 ngữ cảnh  = phiên khách hàng bình thường, region=VN
 ```
 
-Phân quyền phải **mặc định từ chối**. Nếu không có policy nào cấp quyền rõ ràng cho thao tác, hãy reject.
+Phân quyền phải tuân theo nguyên tắc **mặc định từ chối**. Nếu không có chính sách nào cấp quyền rõ ràng cho thao tác, hãy từ chối yêu cầu.
 
 ```mermaid
 flowchart TD
@@ -135,17 +135,17 @@ flowchart TD
   B -->|có| E[Thực thi]
 ```
 
-OWASP Authorization Cheat Sheet khuyến nghị deny-by-default và kiểm permission trên mọi request. Middleware hoặc policy infrastructure tập trung có thể giúp enforcement nhất quán, nhưng policy vẫn phải nhận đủ thông tin tài nguyên và hành động để đưa ra quyết định thật.
+OWASP Authorization Cheat Sheet khuyến nghị nguyên tắc mặc định từ chối và kiểm tra quyền trên mọi yêu cầu. Middleware hoặc hạ tầng chính sách tập trung có thể giúp việc thực thi nhất quán hơn, nhưng chính sách vẫn phải nhận đủ thông tin về tài nguyên và hành động để đưa ra quyết định chính xác.
 
-## 4. Kiểm tra route chưa đủ: phải phân quyền trên object
+## 4. Kiểm tra tuyến API chưa đủ: phải phân quyền trên đối tượng
 
-Một route như `GET /invoices/:id` có thể chỉ cho khách hàng đã đăng nhập truy cập mà vẫn dễ bị khai thác.
+Một tuyến API như `GET /invoices/:id` có thể chỉ cho khách hàng đã đăng nhập truy cập nhưng vẫn tồn tại lỗ hổng.
 
-Nếu handler tải `invoice_id = 42` rồi trả về chỉ vì caller đã đăng nhập, hệ thống có xác thực nhưng thiếu phân quyền cấp đối tượng.
+Nếu bộ xử lý yêu cầu tải `invoice_id = 42` rồi trả dữ liệu chỉ vì người gọi đã đăng nhập, hệ thống mới có xác thực mà chưa có phân quyền ở cấp đối tượng.
 
 OWASP gọi lớp lỗi này là **Broken Object Level Authorization (BOLA)**. Cách sửa không phải chỉ đổi ID sang UUID khó đoán. ID ngẫu nhiên giảm khả năng đoán nhưng mọi access vẫn phải được authorize.
 
-Khi có thể, hãy đưa ownership scope đáng tin cậy vào ngay truy vấn dữ liệu:
+Khi có thể, hãy đưa phạm vi sở hữu đã được xác minh vào ngay trong truy vấn dữ liệu:
 
 ```text
 TỆ:
@@ -158,22 +158,22 @@ TỐT HƠN:
   return invoice
 ```
 
-Giới hạn phạm vi truy vấn rồi kiểm tra chính sách rõ ràng giúp tạo nhiều lớp bảo vệ. Tenant ID phải lấy từ ngữ cảnh danh tính đã được server xác minh, không lấy trực tiếp từ tham số request. Với hệ thống nhiều tenant, nên bổ sung cơ chế cô lập tại tầng truy cập dữ liệu hoặc cơ sở dữ liệu nếu được hỗ trợ; một truy vấn có giới hạn phạm vi không bảo vệ được các endpoint khác hay luồng quản trị xuyên tenant.
+Giới hạn truy vấn theo tenant rồi kiểm tra chính sách riêng giúp tạo thêm một lớp bảo vệ. Tenant ID phải xuất phát từ ngữ cảnh danh tính do máy chủ xác minh, không được lấy trực tiếp từ tham số của yêu cầu. Với hệ thống nhiều tenant, nên tăng cường cô lập tại tầng truy cập dữ liệu hoặc cơ sở dữ liệu nếu nền tảng hỗ trợ; một truy vấn có giới hạn không bảo vệ được các API khác hay những luồng quản trị cần truy cập qua nhiều tenant.
 
-**Kiểm thử phủ định giả định:** Với phiên hợp lệ thuộc `tenant:acme`, yêu cầu đọc hóa đơn của `tenant:other` phải bị từ chối an toàn và không làm lộ trường dữ liệu. Nếu chính sách còn kiểm tra chủ sở hữu, hãy thử cả hóa đơn cùng tenant nhưng không thuộc người gọi. Tenant và invoice ID ở đây là dữ liệu kiểm thử tự đặt, không phải bằng chứng của một vụ rò rỉ thật.
+**Kiểm thử phủ định (tình huống giả định):** Với phiên hợp lệ thuộc `tenant:acme`, yêu cầu đọc hóa đơn của `tenant:other` phải bị từ chối an toàn, không để lộ bất kỳ trường dữ liệu nào. Nếu chính sách còn xét quyền sở hữu, hãy thử thêm trường hợp hóa đơn cùng tenant nhưng không thuộc người gọi. Tên tenant và mã hóa đơn ở đây chỉ là dữ liệu kiểm thử tự tạo, không phải bằng chứng về một vụ rò rỉ có thật.
 
-## 5. Role chỉ là input của policy, không phải toàn bộ policy
+## 5. Vai trò chỉ là đầu vào của chính sách, không phải toàn bộ chính sách
 
-RBAC hữu ích cho quyền thô như “support agent được vào support tools”, nhưng thường không đủ cho các rule như:
+RBAC hữu ích cho những quyền ở mức khái quát, chẳng hạn “nhân viên hỗ trợ được sử dụng công cụ hỗ trợ”, nhưng thường không đủ để diễn đạt các quy tắc như:
 
 - người dùng chỉ được sửa hồ sơ của chính mình;
 - thành viên project chỉ được đọc repository khi membership còn hiệu lực;
 - approver chỉ duyệt payment dưới giới hạn cấu hình và không được duyệt yêu cầu của chính mình;
-- một service chỉ được ghi vào đúng tenant hoặc queue đã chỉ định.
+- một dịch vụ chỉ được ghi vào đúng tenant hoặc hàng đợi đã chỉ định.
 
-Những quyết định này phụ thuộc thuộc tính hoặc quan hệ giữa principal, tài nguyên và ngữ cảnh. Rule phải đủ gần domain để thấy các fact đó, đồng thời enforcement phải đủ nhất quán để một endpoint bị quên không tạo lỗ hổng.
+Những quyết định này phụ thuộc vào thuộc tính hoặc mối quan hệ giữa principal, tài nguyên và ngữ cảnh. Quy tắc cần gắn đủ chặt với nghiệp vụ để truy cập được các dữ kiện đó; việc thực thi cũng phải nhất quán để không có API nào bị bỏ sót và trở thành đường vòng.
 
-**Giới hạn thu hồi token:** Việc logout hoặc thay đổi role không làm mọi access token còn hạn tại service khác tự hết hiệu lực. Thiết kế TTL, `token_version`, denylist, introspection hoặc kiểm tra policy server-side; nếu phải reauthenticate, vẫn cần đánh giá lại quyền object sau đó.
+**Giới hạn thu hồi token:** Đăng xuất hoặc thay đổi vai trò không tự động làm mất hiệu lực các access token còn hạn ở những dịch vụ khác. Hãy cân nhắc TTL, `token_version`, danh sách thu hồi (denylist), introspection hoặc kiểm tra chính sách ở phía máy chủ. Sau khi người dùng xác thực lại, hệ thống vẫn phải đánh giá quyền trên đối tượng như bình thường.
 
 ## 6. Vòng đời phiên là một phần của xác thực
 
@@ -198,16 +198,16 @@ sequenceDiagram
   A->>S: rotate hoặc cập nhật session state
 ```
 
-Vận hành session với rule vòng đời rõ ràng:
+Hãy vận hành phiên theo các quy tắc vòng đời rõ ràng:
 
-- dùng session ID khó đoán hoặc token đã được xác minh đúng;
-- rotate session ID sau xác thực và sau thay đổi privilege để ngăn session fixation;
-- định nghĩa inactivity timeout và overall lifetime theo risk;
-- yêu cầu **xác thực lại** cho thao tác nhạy cảm hoặc sự kiện rủi ro như account recovery, đổi credential hoặc hành vi đáng ngờ;
-- hỗ trợ **thu hồi** sau logout, lộ credential, đổi permission hoặc hành động quản trị khi threat model cần mất authority ngay;
+- sử dụng mã phiên khó đoán hoặc token đã được xác minh đầy đủ;
+- cấp mã phiên mới sau khi xác thực hoặc thay đổi quyền để ngăn chiếm quyền phiên (session fixation);
+- xác định thời hạn không hoạt động và tổng thời hạn của phiên theo mức độ rủi ro;
+- yêu cầu **xác thực lại** trước thao tác nhạy cảm hoặc khi xuất hiện dấu hiệu rủi ro, chẳng hạn khôi phục tài khoản, thay đổi thông tin xác thực hoặc hoạt động bất thường;
+- hỗ trợ **thu hồi phiên hoặc token** sau khi đăng xuất, lộ thông tin xác thực, thay đổi quyền hoặc có yêu cầu quản trị, khi mô hình đe dọa đòi hỏi phải chấm dứt thẩm quyền ngay;
 - không coi token expiration là cùng một thứ với revocation.
 
-OWASP Authentication và Session Management guidance khuyến nghị reauthentication cho sự kiện rủi ro/thao tác nhạy cảm và renewal session sau thay đổi privilege.
+Hướng dẫn OWASP về xác thực và quản lý phiên khuyến nghị yêu cầu xác thực lại khi có sự kiện rủi ro hoặc thao tác nhạy cảm, đồng thời cấp lại mã phiên sau khi thay đổi mức quyền.
 
 ## 7. Step-up authentication và phân quyền phối hợp với nhau
 
@@ -222,13 +222,13 @@ thêm payout account    -> policy ưu tiên/yêu cầu MFA kháng phishing
 duyệt payout lớn       -> xác thực mạnh hơn + rule phân quyền độc lập
 ```
 
-Độ mạnh xác thực là input cho quyết định phân quyền, không thay thế phân quyền. Một admin vừa xác thực lại vẫn có thể bị cấm duyệt payment của chính mình.
+Mức độ mạnh của xác thực là một đầu vào cho quyết định phân quyền, chứ không thay thế quyết định đó. Một quản trị viên vừa xác thực lại vẫn có thể bị cấm phê duyệt khoản thanh toán của chính mình.
 
-## 8. Service identity cũng là principal
+## 8. Danh tính dịch vụ cũng là principal
 
 Background worker, scheduled job, CI và service đều là principal dù không có con người trực tiếp thao tác.
 
-Hãy dùng **danh tính dịch vụ** hoặc danh tính máy riêng với authority hẹp. Ưu tiên workload credential ngắn hạn hoặc platform identity thay vì copy user token sống lâu hay dùng chung API key.
+Hãy cấp **danh tính dịch vụ** hoặc danh tính máy riêng với thẩm quyền được giới hạn chặt chẽ. Ưu tiên thông tin xác thực ngắn hạn dành cho workload hoặc cơ chế định danh của nền tảng, thay vì sao chép token người dùng có thời hạn dài hay dùng chung API key.
 
 Service principal vẫn cần được đánh giá theo:
 
@@ -236,9 +236,9 @@ Service principal vẫn cần được đánh giá theo:
 chủ thể + hành động + tài nguyên + ngữ cảnh
 ```
 
-Các restriction hữu ích gồm audience, environment, namespace, tenant, operation và credential lifetime.
+Các giới hạn hữu ích có thể bao gồm đối tượng nhận (audience), môi trường (environment), namespace, tenant, thao tác được phép và thời hạn của thông tin xác thực.
 
-Đừng biến “internal traffic” thành bypass phân quyền. Vị trí mạng chỉ là context, không chứng minh mọi caller nội bộ đều nên có mọi quyền.
+Đừng biến “lưu lượng nội bộ” thành lý do bỏ qua phân quyền. Vị trí mạng chỉ là một yếu tố của ngữ cảnh, không chứng minh rằng mọi bên gọi từ mạng nội bộ đều nên có toàn bộ quyền.
 
 ## 9. Từ chối phải an toàn và để lại bằng chứng hữu ích
 
@@ -259,47 +259,47 @@ policy hoặc rule identifier
 reason category
 ```
 
-Theo dõi denial rate và pattern phân quyền bất thường, nhưng không log bearer token, mật khẩu, session secret hoặc payload nhạy cảm.
+Theo dõi tỷ lệ từ chối quyền và các mẫu truy cập bất thường, nhưng không ghi nhật ký bearer token, mật khẩu, bí mật phiên hoặc dữ liệu nhạy cảm trong nội dung yêu cầu.
 
-Audit log là bằng chứng, không phải enforcement. Một hành động trái phép được log hoàn hảo vẫn là hành động trái phép.
+Nhật ký kiểm toán là bằng chứng, không phải cơ chế ngăn chặn. Một hành động trái phép dù được ghi nhận đầy đủ vẫn là hành động trái phép.
 
-## Kịch bản minh họa (giả định): truy cập xuyên tenant
+## Kịch bản minh họa (giả định): truy cập trái phép giữa các tenant
 
-> **Tình huống:** Một endpoint hóa đơn SaaS yêu cầu phiên khách hàng hợp lệ. Handler nhận `/invoices/:id`, tải invoice bằng global ID rồi trả về. Không có policy nào so tenant của principal đã xác thực với tenant của invoice.
+> **Tình huống:** Một API hóa đơn SaaS yêu cầu khách hàng có phiên hợp lệ. Bộ xử lý nhận đường dẫn `/invoices/:id`, tìm hóa đơn bằng mã định danh toàn cục rồi trả dữ liệu. Hệ thống không có chính sách đối chiếu tenant của principal đã xác thực với tenant sở hữu hóa đơn.
 
-**Hậu quả:** Một khách hàng đổi invoice ID và đọc metadata hóa đơn của tenant khác. Vì mọi request đều có session hợp lệ, dashboard xác thực thông thường vẫn cho thấy tỷ lệ thành công bình thường.
+**Hậu quả:** Một khách hàng thay mã hóa đơn và đọc được metadata của hóa đơn thuộc tenant khác. Vì mọi yêu cầu đều đi kèm phiên hợp lệ, bảng theo dõi xác thực thông thường vẫn hiển thị tỷ lệ đăng nhập thành công như bình thường.
 
-**Nguyên nhân cốt lõi:** Service đồng nhất “khách hàng đã xác thực” với “được phép truy cập invoice này”. Authentication ở route-level có tồn tại nhưng resource-level authorization bị thiếu. Độ khó đoán của identifier cũng bị hiểu nhầm là security boundary.
+**Nguyên nhân cốt lõi:** Dịch vụ đánh đồng “khách hàng đã xác thực” với “được phép truy cập hóa đơn này”. Cơ chế xác thực ở tầng định tuyến đã có, nhưng phân quyền ở cấp tài nguyên lại bị bỏ sót. Hệ thống cũng nhầm độ khó đoán của mã định danh với một ranh giới bảo mật.
 
-**Cách khắc phục chuẩn:** Xác thực caller, dựng principal đáng tin cậy, tải object trong tenant scope của principal khi có thể, sau đó áp policy `chủ thể + hành động + tài nguyên + ngữ cảnh` rõ ràng. Mặc định từ chối, test truy cập object xuyên tenant và phát audit evidence an toàn cho các quyết định deny.
+**Cách khắc phục chuẩn:** Xác thực bên gọi, tạo principal đáng tin cậy, truy vấn đối tượng trong phạm vi tenant của principal khi có thể, sau đó áp dụng chính sách rõ ràng dựa trên `chủ thể + hành động + tài nguyên + ngữ cảnh`. Mặc định từ chối, kiểm thử quyền truy cập đối tượng giữa các tenant và ghi lại bằng chứng kiểm toán an toàn cho những quyết định từ chối.
 
 ## Checklist vận hành ranh giới truy cập
 
 - [ ] **Xác thực:** Độ mạnh authenticator có phù hợp với risk của hành động không?
 - [ ] **Principal:** Identity và authorization attributes có chỉ đến từ dữ liệu server đã xác minh không?
-- [ ] **Mặc định từ chối:** Policy không match có deny thay vì ngầm permit không?
+- [ ] **Mặc định từ chối:** Khi không có quy tắc nào phù hợp, hệ thống có từ chối thay vì ngầm cho phép không?
 - [ ] **Mọi request:** Authorization có được enforce ở mọi protected path, không chỉ UI hoặc một nhóm controller không?
-- [ ] **Phân quyền cấp tài nguyên:** Quyền có dựa trên object/tenant/relationship thật thay vì chỉ route role không?
-- [ ] **Field nhạy cảm:** Các property đọc/ghi có bị giới hạn bởi policy thay vì generic serialization/binding không?
-- [ ] **Phiên:** Session ID có rotate sau authentication và privilege change không?
+- [ ] **Phân quyền cấp tài nguyên:** Quyền có được xác định dựa trên đối tượng, tenant và mối quan hệ thực tế thay vì chỉ dựa vào vai trò ở tuyến API không?
+- [ ] **Trường dữ liệu nhạy cảm:** Các thuộc tính được đọc hoặc ghi có bị giới hạn theo chính sách, thay vì phụ thuộc hoàn toàn vào cơ chế tuần tự hóa hoặc liên kết dữ liệu tự động không?
+- [ ] **Phiên:** Mã phiên có được cấp lại sau khi xác thực hoặc thay đổi quyền không?
 - [ ] **Xác thực lại:** Sensitive action và risk event có yêu cầu authentication đủ mới/đủ mạnh không?
 - [ ] **Thu hồi:** Authority bị lộ hoặc bị rút có thể dừng trước lúc token tự hết hạn khi cần không?
 - [ ] **Danh tính dịch vụ:** Máy có dùng principal riêng, ngắn hạn, ít quyền thay vì mượn danh tính người dùng không?
 - [ ] **Audit:** Operator có tái dựng allow/deny decision mà không lưu secret không?
-- [ ] **Test:** Cross-user, cross-tenant, privilege escalation và missing-policy cases có được machine-check không?
+- [ ] **Kiểm thử:** Các trường hợp truy cập chéo người dùng, chéo tenant, leo thang đặc quyền và thiếu chính sách có được kiểm tra tự động không?
 
 ## Kiểm tra mental model
 
-> Một người dùng có phiên hợp lệ với mức mạnh tương đương AAL2 và gọi `DELETE /projects/alpha`. Route chỉ cho user đã đăng nhập có role `member`. Như vậy đã đủ để authorize xóa project chưa?
+> Một người dùng có phiên hợp lệ ở mức tương đương AAL2 gọi `DELETE /projects/alpha`. Tuyến API chỉ yêu cầu người dùng đã đăng nhập và có vai trò `member`. Điều đó đã đủ để cấp quyền xóa project chưa?
 
 <details>
 <summary>Xem giải thích chi tiết</summary>
 
-Chưa. Xác thực mạnh chỉ tạo confidence về ai đang kiểm soát session; role `member` chỉ là coarse entitlement. Service vẫn cần một quyết định resource-level cho hành động xóa.
+Chưa. Xác thực mạnh làm tăng mức tin cậy về người đang kiểm soát phiên; vai trò `member` chỉ thể hiện một nhóm quyền khái quát. Dịch vụ vẫn cần đưa ra quyết định phân quyền ở cấp tài nguyên cho hành động xóa.
 
 Một check tốt cần chủ thể đã xác thực, `project.delete`, resource `project:alpha` thật và ngữ cảnh liên quan như organization membership, ownership, trạng thái project, separation-of-duties và authentication freshness nếu xóa là thao tác nhạy cảm.
 
-Nếu không có rule rõ ràng cấp quyền cho tổ hợp đó, hãy deny. Nếu thao tác cần authentication mới hơn, hãy xác thực lại rồi chạy authorization lần nữa; reauthentication không phải automatic grant.
+Nếu không có quy tắc rõ ràng cấp quyền cho tổ hợp đó, hãy từ chối. Nếu thao tác yêu cầu xác thực mới hơn, hãy xác thực lại rồi thực hiện đánh giá phân quyền lần nữa; việc xác thực lại không tự động đồng nghĩa với được cấp quyền.
 </details>
 
 ## Agent rule
