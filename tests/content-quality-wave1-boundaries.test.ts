@@ -6,6 +6,11 @@ const repoRoot = process.cwd();
 
 const pairs = [
   {
+    slug: 'distributed-systems/consensus',
+    en: ['Replication is not consensus', 'current-term commit', 'older-term entry'],
+    vi: ['Sao chép không đồng nghĩa với đồng thuận', 'điều kiện cam kết trong nhiệm kỳ hiện tại', 'lịch sử đã cam kết'],
+  },
+  {
     slug: 'distributed-systems/partial-failure',
     en: ['does not automatically halt the thread', 'Cancellation is not rollback', 'idempotency key alone'],
     vi: ['không tự động làm dừng thread', 'Cancellation không phải rollback', 'idempotency key'],
@@ -35,7 +40,7 @@ describe('Wave 1 technical-boundary and evidence regression', () => {
         const source = readFileSync(path.join(repoRoot, relativePath), 'utf8');
         const checkedDate = pair.slug === 'distributed-systems/partial-failure'
           ? '2026-11-18'
-          : pair.slug === 'distributed-systems/distributed-replication' ? '2026-11-27' : '2026-11-05';
+          : pair.slug === 'distributed-systems/distributed-replication' || pair.slug === 'distributed-systems/consensus' ? '2026-11-27' : '2026-11-05';
         expect(source, relativePath).toContain(`lastVerified: ${checkedDate}`);
         for (const expected of pair[locale]) {
           expect(source, `${relativePath}: ${expected}`).toContain(expected);
