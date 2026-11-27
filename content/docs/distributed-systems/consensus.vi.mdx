@@ -141,7 +141,7 @@ quorum B = {3, 4, 5}
 
 Phần chồng lấp đó giúp protocol mang thông tin safety từ quyết định trước sang quyết định sau. Proof consensus thực tế có nhiều điều kiện hơn quan sát này, nhưng quorum intersection là hình dạng cốt lõi cần nhận diện.
 
-Group số lẻ rất phổ biến vì thêm một node để thành group số chẵn thường tăng cost mà không tăng simple-majority failure tolerance:
+Bảng giả định membership cố định, majority quorum đơn giản và lỗi node độc lập; lỗi tương quan hoặc thay đổi membership có thể làm kết quả vận hành khác đi. Group số lẻ rất phổ biến vì thêm một node để thành group số chẵn thường tăng cost mà không tăng simple-majority failure tolerance:
 
 | Số member | Majority | Số member lỗi vĩnh viễn chịu được trước khi mất quorum |
 | ---: | ---: | ---: |
