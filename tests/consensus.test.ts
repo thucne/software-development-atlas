@@ -37,7 +37,7 @@ describe('Consensus lesson', () => {
       expect(source, relativePath).toContain('contentType: deep-dive');
       expect(source, relativePath).toContain('learningDepth: recognize');
       expect(source, relativePath).toMatch(/concepts:\n  - consensus\n---/);
-      expect(source, relativePath).toContain('lastVerified: 2026-11-05');
+      expect(source, relativePath).toContain('lastVerified: 2026-11-27');
 
       const termBoxes = (source.match(/<TermBox/g) ?? []).length;
       expect(termBoxes, relativePath).toBeGreaterThanOrEqual(2);
@@ -66,6 +66,9 @@ describe('Consensus lesson', () => {
       expect(source, relativePath).toMatch(/minority|thiểu số/i);
       expect(source, relativePath).toMatch(/lose.*quorum|quorum.*lost|mất.*quorum|mất.*đa số/i);
       expect(source, relativePath).toMatch(/safety|liveness|an toàn|tiến triển/i);
+      expect(source, relativePath).toMatch(/quorum-based consensus|consensus.*quorum|consensus.*đánh đổi liveness|quorum.*safety/i);
+      expect(source, relativePath).toMatch(/fixed membership|independent member failures|membership cố định|lỗi node độc lập/i);
+      expect(source, relativePath).toMatch(/hypothetical|giả định/i);
       expect(source, relativePath).toMatch(/crash fault|crash failure|Byzantine|lỗi crash|lỗi dừng|Byzantine/i);
       expect(source, relativePath).toMatch(/odd.*member|3.*member|5.*member|số lẻ|3.*node|5.*node/i);
       expect(source, relativePath).toMatch(/latency|RTT|disk|độ trễ|đĩa/i);
