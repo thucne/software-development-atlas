@@ -36,8 +36,8 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 
 ## Các mốc phát hành quan trọng
 ### Ngày 27 tháng 11, 2026 — Rà soát Consensus và Distributed Replication (Wave 1)
-- [Đồng thuận phân tán](/vi/docs/distributed-systems/consensus): Làm rõ liveness của nhánh thiểu số chỉ trong quorum-based consensus và giả định của bảng majority.
-- [Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication): Nêu rõ epoch/term chỉ fencing khi resource downstream thực sự từ chối generation cũ; đối chiếu PostgreSQL acknowledgment semantics.
+- [Đồng thuận phân tán](/vi/docs/distributed-systems/consensus): Giới hạn đánh đổi về khả năng tiến triển của phía thiểu số trong bối cảnh đồng thuận dựa trên quorum, nêu rõ giả định của bảng đa số và biên tập lại diễn giải tiếng Việt về bỏ phiếu, cam kết trong nhiệm kỳ hiện tại và tính an toàn của quorum.
+- [Sao chép phân tán](/vi/docs/distributed-systems/distributed-replication): Làm rõ epoch/term chỉ rào chắn được bên ghi cũ khi tài nguyên nhận thao tác thực sự từ chối thế hệ quyền cũ; đối chiếu thời điểm xác nhận trong PostgreSQL và biên tập lại cách diễn đạt tiếng Việt về sao chép, chuyển đổi dự phòng và phục hồi.
 
 ### Ngày 18 tháng 11 năm 2026 — Rà soát toàn bộ cặp bài Wave 1
 - [Khả năng chống chịu dịch vụ](/vi/docs/backend-engineering/service-resilience): Phân biệt fallback an toàn với lỗi bắt buộc, nêu rõ phạm vi retry budget theo instance/hệ thống, ghi nhãn số liệu sự cố giả định và dẫn nguồn chính thống cho circuit breaker/bulkhead; đồng bộ EN/VI.
