@@ -264,7 +264,7 @@ Lưu lượng được chuyển sang B, nhưng một nhóm ứng dụng cũ vẫ
 
 **Nguyên nhân cốt lõi:** Đội ngũ kỹ thuật coi việc thăng cấp chỉ là thay đổi hướng định tuyến mạng. Nút ghi cũ không có cơ chế rào chắn, nên việc mất liên lạc với bộ điều khiển không làm mất khả năng ghi vào trạng thái có thẩm quyền của nó.
 
-**Cách khắc phục:** Gắn mọi thao tác ghi có thẩm quyền với epoch hoặc term hiện tại; buộc thành phần nhận thao tác ở phía sau từ chối mã quyền cũ; và chỉ thăng cấp nút mới sau khi cơ chế chuyển đổi dự phòng xác lập được một nguồn thẩm quyền duy nhất. Khi nút ghi cũ hoạt động trở lại, hãy đưa nó về vai trò bản sao chỉ đọc, cài snapshot an toàn hoặc đối soát phần nhật ký còn lưu giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép nó đủ điều kiện nhận quyền ghi trở lại.
+**Cách khắc phục chuẩn:** Gắn mọi thao tác ghi có thẩm quyền với epoch hoặc term hiện tại; buộc thành phần nhận thao tác ở phía sau từ chối mã quyền cũ; và chỉ thăng cấp nút mới sau khi cơ chế chuyển đổi dự phòng xác lập được một nguồn thẩm quyền duy nhất. Khi nút ghi cũ hoạt động trở lại, hãy đưa nó về vai trò bản sao chỉ đọc, cài snapshot an toàn hoặc đối soát phần nhật ký còn lưu giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép nó đủ điều kiện nhận quyền ghi trở lại.
 
 ## Tự kiểm tra
 

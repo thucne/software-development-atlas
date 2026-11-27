@@ -230,7 +230,7 @@ Phía có 3 thành viên bầu được leader mới và tiếp tục cam kết 
 
 **Nguyên nhân cốt lõi:** Cơ chế dự phòng tự chế vẫn coi leader được biết đến gần nhất là có thẩm quyền sau khi nút đó mất quorum. Đội ngũ đã nhầm lẫn giữa việc tiến trình còn hoạt động và việc nút đó còn quyền tham gia đồng thuận, rồi tự ý vượt qua ranh giới cam kết.
 
-**Cách khắc phục:** Mọi thao tác ghi được cơ chế đồng thuận bảo vệ phải dựa trên thẩm quyền do quorum hiện tại xác lập. Phía thiểu số phải từ chối hoặc chặn thao tác ghi (fail closed), trạng thái mất quorum cần được thể hiện rõ trong vận hành, và tác động bên ngoài chỉ được kích hoạt từ dữ liệu đã cam kết chứ không phải từ quan sát cục bộ chưa cam kết. Nếu quorum mất vĩnh viễn, hãy thực hiện quy trình phục hồi thảm họa đã được định nghĩa thay vì tự tạo ra một lịch sử dữ liệu thứ hai.
+**Cách khắc phục chuẩn:** Mọi thao tác ghi được cơ chế đồng thuận bảo vệ phải dựa trên thẩm quyền do quorum hiện tại xác lập. Phía thiểu số phải từ chối hoặc chặn thao tác ghi (fail closed), trạng thái mất quorum cần được thể hiện rõ trong vận hành, và tác động bên ngoài chỉ được kích hoạt từ dữ liệu đã cam kết chứ không phải từ quan sát cục bộ chưa cam kết. Nếu quorum mất vĩnh viễn, hãy thực hiện quy trình phục hồi thảm họa đã được định nghĩa thay vì tự tạo ra một lịch sử dữ liệu thứ hai.
 
 ## Tự kiểm tra
 
