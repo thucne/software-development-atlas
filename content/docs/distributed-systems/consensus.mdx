@@ -4,7 +4,7 @@ description: Recognize consensus as the coordination problem of choosing one com
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics: [distributed-systems, consensus, quorum, raft, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, distributed-replication]
@@ -29,7 +29,7 @@ Consensus preserves **committed history** under its supported crash/partition fa
 - **Consensus is agreement on committed history; replication is not consensus:** Merely shipping log entries to followers does not mean nodes agreed on which history is authoritative; consensus protocols establish an undeniable commit boundary.
 - **Quorum intersection plus Raft's safety rules:** Majorities overlap, but overlap alone does not establish leader completeness. Up-to-date-log election restrictions, log matching and current-term commit conditions are also required.
 - **Terms and old leaders:** An isolated former leader may still believe it is leader. It cannot commit without quorum; safety does not require every process to simultaneously agree who holds leadership.
-- **Safety always trumps liveness under partition:** When a network partition divides a 5-member cluster into a majority (3 nodes) and a minority (2 nodes), the majority continues making progress while the minority must reject writes to prevent split-brain history.
+- **Quorum-based consensus trades minority-side liveness for safety:** When a network partition divides a 5-member cluster into a majority (3 nodes) and a minority (2 nodes), the majority can make progress only while election, log-safety and quorum conditions hold; the minority cannot commit new history. This is a protocol-specific behavior, not a claim that every distributed service must use the same availability policy.
 - **Failure mode:** Treating a locally appended but uncommitted log entry as a durable business decision. An uncommitted entry **may be overwritten** after a leader change; only acknowledge after the protocol's commit condition.
 
 ```mermaid
@@ -141,7 +141,7 @@ intersection = {3}
 
 That overlap lets the protocol carry safety information from one decision to the next. Real consensus proofs include more conditions than this one observation, but quorum intersection is the core shape to recognize.
 
-Odd-sized groups are common because an even-sized group often increases cost without increasing simple majority failure tolerance:
+The table assumes a fixed membership set, simple majority quorums, and independent member failures; correlated failures or membership changes alter the operational result. Odd-sized groups are common because an even-sized group often increases cost without increasing simple majority failure tolerance:
 
 | Members | Majority | Permanent member failures tolerated before quorum is lost |
 | ---: | ---: | ---: |
@@ -265,7 +265,7 @@ No. A previous leadership role does not replace the current quorum requirement. 
 
 ## Sources
 
-Primary sources checked on **2026-09-17**:
+Primary sources rechecked on **2026-11-27**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [etcd v3.7 — Failure modes](https://etcd.io/docs/v3.7/op-guide/failures/)
