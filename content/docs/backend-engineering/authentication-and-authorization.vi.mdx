@@ -28,7 +28,7 @@ concepts:
   - authentication-and-authorization
 ---
 
-## Tóm tắt — tình huống BOLA giả định
+## Ví dụ mở đầu (giả định): BOLA xuyên tenant
 
 **Tình huống minh họa (giả định):** Một khách hàng đăng nhập thành công rồi gọi `GET /api/v1/users/1042/profile`. Nếu API chỉ kiểm tra JWT và vai trò `user`, người đó có thể thử đổi mã định danh thành `1043` để đọc hồ sơ của người khác. Đây là kiểu lỗi **Broken Object Level Authorization (BOLA)**, được OWASP xếp ở API1:2023; ví dụ này **không phải báo cáo sự cố tại một công ty cụ thể**.
 
