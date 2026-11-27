@@ -1,0 +1,56 @@
+# Wave 1 EN/VI review in progress — Authentication & Authorization (2026-11-22)
+
+- Pair: `content/docs/backend-engineering/authentication-and-authorization.mdx` + `.vi.mdx`.
+- Trackers: #116 and #119.
+- **Status: NOT CERTIFIED.** Both complete articles were read; this is a focused corrective pass, not a claim that every rubric gate has been proven.
+
+## Reviewed and corrected
+- Both languages: scoped invoice lookup must derive the tenant from validated server-side identity, not client input; a scoped query is defense in depth, not a replacement for policy checks on all endpoints.
+- Both languages: changed dramatic absolute failure wording to a conditional IDOR/BOLA failure mode.
+- Both languages: added an explicitly hypothetical cross-tenant and same-tenant negative-test example, with no invented real incident.
+- Updated both `lastVerified` fields to 2026-11-22 for the rechecked authorization claims.
+
+## Primary references
+- [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html): deny by default, validate permissions on every request, object-specific authorization.
+- [OWASP API1:2023 BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/): object-level access failures.
+- [NIST SP 800-63B-4 AAL requirements](https://pages.nist.gov/800-63-4/sp800-63b/aal/): AAL2 two factors and phishing-resistant option; framework-specific rather than a universal requirement.
+
+## CI failure triage (2026-11-23)
+
+- Initial PR head `520199b8869d9662ffbc58dac27ef0b2d9e49372` failed [Actions #45003040295](https://github.com/thucne/software-development-atlas/actions/runs/45003040295): 2 failing assertions out of 746 (105/107 test files passed), before inventory/lint/typecheck/build/E2E could run. The failures were the rolling changelog freshness invariant and an auth regression test still expecting the previous `lastVerified` date.
+- Fixed the **content** by adding EN/VI rolling changelog entries and updating their freshness dates; strengthened the existing regression test with the new date and EN/VI scoped-tenant claims. No assertions were removed and no tests or CI gates were bypassed.
+- The latest PR SHA still requires a fresh full Actions run. An earlier failing SHA must not be credited as success.
+
+## Still required before certification
+- EN/VI rolling changelogs now reconciled; finish reviewing all links, examples, Mermaid diagrams, exercises, and teaching-order issues.
+- Validate any further consequential claims against primary sources; the negative test is a proposed fixture, not a test run.
+- Obtain exact PR-head unit/content inventory, lint, typecheck, build, and Chromium E2E results, plus applicable merged-main gate evidence.
+- Do not check #116 or #119 until the entire rubric is satisfied.
+
+## CI follow-up (2026-11-24)
+
+- [Run 45092621614](https://github.com/thucne/software-development-atlas/actions/runs/45092621614) failed 3 of 746 tests (743 passed): distributed replication, frontend modernization and test strategy all detected the same footer/changelog date mismatch (2026-11-18 vs 2026-11-23). Subsequent gates were skipped.
+- Synchronized `lib/site-metadata.ts` and the exact expected footer label in `tests/e2e/docs-shell.spec.ts` to the actual changelog date, 2026-11-23. The equality checks and browser assertion remain intact. Fresh CI is required; no certification yet.
+
+## CI follow-up (2026-11-25)
+
+- Exact head `23c7a7dbd1fecb4984a712a34e9f4a2ac36fbd07`: [run 45308143866](https://github.com/thucne/software-development-atlas/actions/runs/45308143866) failed 2/746 tests; 744 passed. Containers and Property-Based Testing still expected November 18 site metadata and E2E footer text. Inventory, lint, typecheck, build and browser E2E were skipped.
+- Updated both tests' exact expected metadata and footer strings to November 23, matching the rolling changelog and actual footer assertion. All existing assertions retained. Await full CI on the new head; no certification or merge yet.
+
+
+## Exact-head retry queued (2026-11-27)
+
+- Current branch source has the EN/VI changelog and `lib/site-metadata.ts` at 2026-11-23; all three stale freshness-test expectations now match that date, and the footer equality assertion remains strict.
+- Prior run #45308143866 failed before inventory/lint/typecheck/build/E2E because those three tests still expected 2026-11-18. Current branch files contain the corrected expectations; this commit is an evidence checkpoint to trigger a fresh run on the exact resulting SHA.
+- Certification remains blocked until the new run's unit/content, inventory, lint, typecheck, build and Chromium E2E all pass and the remaining full-rubric links/examples/crosslinks review is completed. No tests or gates are weakened.
+
+
+## Full-pair follow-up and standards clarification — 2026-11-27
+
+- Re-read the complete EN and VI lessons, including frontmatter, all numbered sections, three Mermaid diagrams, conceptual code/pseudocode examples, both explicitly hypothetical BOLA scenarios, the operational checklist, self-check with revealed answer, agent rule, related routes and source links.
+- Rechecked NIST SP 800-63B-4 against the [official AAL requirements](https://pages.nist.gov/800-63-4/sp800-63b/aal/): AAL2 requires two distinct factors and requires verifiers to offer a phishing-resistant option; AAL3 requires two distinct factors and a phishing-resistant cryptographic authenticator with a non-exportable authentication key. The revised EN/VI wording is scoped to organizations applying the NIST framework, not all websites.
+- Reconfirmed OWASP [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) (deny by default, check every request), [API1:2023 BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/) (object-level checks for every object-ID path), and [Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) (session renewal after privilege changes and reauthentication after high-risk events).
+- Completed a Vietnamese editorial pass across the summary, principal/authentication explanations, tenant and object authorization, policy/role discussion, session lifecycle, service identity, audit evidence, hypothetical scenario, checklist, self-check and agent rule. Technical identifiers and standards terms remain where they aid precision; surrounding prose was rewritten to avoid English verb/noun piles. No code assertions or quality gates were removed.
+- Both lesson frontmatter dates are now synchronized to `lastVerified: 2026-11-27`; both changelog entries and the site footer metadata/assertions are synchronized to 2026-11-27.
+- Exact-head Actions [#45924202884](https://github.com/thucne/software-development-atlas/actions/runs/45924202884) passed all unit/content, inventory, lint, typecheck, build and Chromium E2E steps on its then-current head `ae1670fd9603c21ec61625fae34db12554f43586`. Vercel status was also success on that head. **This run predates the Vietnamese editorial and NIST follow-up edits in this section and does not validate the current head.**
+- **Status: NOT CERTIFIED.** The current content and date/test changes need a fresh complete Actions run on the new exact head. Keep #155 draft and do not check #116/#119 until the current PR-head gates pass, the resulting merged-main gates pass, and the final editorial review is recorded. No tests or CI requirements were weakened.

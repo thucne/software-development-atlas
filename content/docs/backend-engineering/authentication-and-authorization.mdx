@@ -4,7 +4,7 @@ description: Operate identity and access boundaries by separating authentication
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics:
   - backend
@@ -28,7 +28,7 @@ concepts:
   - authentication-and-authorization
 ---
 
-## TL;DR — illustrative BOLA scenario
+## Opening example (hypothetical): BOLA across tenants
 
 **Illustrative scenario (hypothetical):** A customer signs in and calls `GET /api/v1/users/1042/profile`. If the API checks only a signed JWT and a broad `user` role, they may change the ID to `1043` and access another person's record. This is **Broken Object Level Authorization (BOLA)**, classified as API1:2023 by OWASP; it is **not a documented fintech breach**.
 
@@ -51,7 +51,7 @@ flowchart LR
 - **Deny by default at the resource level:** A valid token or generic role does not authorize a client-supplied object ID. Enforce scoped RBAC, ABAC, relationship rules or equivalent resource policy; check tenant/ownership as needed and deny without an explicit grant.
 - **Session lifecycle follows the threat model:** Defend against fixation, rotate session credentials across privilege changes, set idle/overall expiry and implement revocation according to the token type. Already issued self-contained JWTs are not instantly revoked at every service by deleting a local session; short TTLs, denylisting, introspection or token versions may be needed.
 - **Service & machine identity parity:** Background workers, message consumers, and microservices must authenticate as distinct service principals with minimal, scoped privileges rather than reusing broad user tokens or bypassing checks via internal network assumptions.
-- **Fatal pitfall:** Confusing successful authentication with resource authorization (IDOR / BOLA)—allowing an authenticated user to access another tenant's or user's sensitive data simply by tampering with an object identifier in a route or query parameter.
+- **High-impact failure mode:** Confusing successful authentication with resource authorization (IDOR / BOLA) can let an authenticated user access another tenant's or user's sensitive data by changing an object identifier when object-level checks are missing.
 
 <TermBox term="Principal">
 A **principal** is the runtime security identity used for decisions after authentication. It typically contains a stable subject identifier plus selected attributes such as tenant, roles, authentication method, or assurance information.
@@ -69,7 +69,7 @@ Keep three concepts distinct:
 2. **Authentication** asks whether the claimant now controls an authenticator bound to that account or subject.
 3. **Authorization** asks what the authenticated principal may do now.
 
-Under [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), systems **adopting the NIST assurance framework** use two distinct factors at AAL2 and must offer a phishing-resistant option; AAL3 requires phishing-resistant authentication. These are requirements for the framework's applicable contexts, notably U.S. government services, **not universal mandates on all websites**. Choose the assurance level by threat model and applicable requirements.
+Under [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b/aal/), systems **adopting the NIST assurance framework** use two distinct factors at AAL2 and verifiers must offer a phishing-resistant option. AAL3 requires two distinct factors and a phishing-resistant cryptographic authenticator with a non-exportable authentication key. These are requirements for organizations applying the framework, notably U.S. government services, **not universal mandates on all websites**. Choose the assurance level by threat model and applicable requirements.
 
 Do not translate that into “always force the strongest factor everywhere.” Select authentication strength according to impact and threat model, then step up when a sensitive action needs stronger evidence.
 
@@ -152,7 +152,9 @@ BETTER:
   return invoice
 ```
 
-Scoping the lookup and then making an explicit policy decision provides defense in depth. It also avoids accidentally loading data from another tenant before checking ownership.
+Scoping the lookup and then making an explicit policy decision provides defense in depth. The tenant identifier must come from validated server-side identity context, not a request parameter. In a multi-tenant system, also enforce tenant isolation at the database/data-access boundary where supported; a scoped lookup alone does not protect unrelated endpoints or privileged cross-tenant workflows.
+
+**Hypothetical negative test:** Given a valid session for `tenant:acme`, requesting an invoice belonging to `tenant:other` must return a safe denial without exposing its fields. Repeat the test for a same-tenant invoice the caller does not own when ownership is part of policy. The invoice IDs and tenants are invented test fixtures, not evidence of a real breach.
 
 ## 5. Roles are inputs to policy, not the whole policy
 

@@ -4,7 +4,7 @@ description: Theo dõi các bài học mới, deep dive, architecture walkthroug
 category: start-here
 level: beginner
 status: evergreen
-lastVerified: 2026-11-18
+lastVerified: 2026-11-27
 reviewAfterDays: 365
 topics:
   - atlas
@@ -35,6 +35,10 @@ Atlas cung cấp 3 cơ chế tích hợp sẵn giúp bạn nhanh chóng phát hi
 ---
 
 ## Các mốc phát hành quan trọng
+
+### Ngày 27 tháng 11 năm 2026 — Rà soát ranh giới xác thực và phân quyền
+- [Xác thực & Phân quyền](/vi/docs/backend-engineering/authentication-and-authorization): Làm rõ tenant scope phải xuất phát từ principal do máy chủ xác minh, không lấy từ tham số client; tăng cường phân quyền ở cấp tài nguyên và bổ sung kiểm thử phủ định xuyên tenant có nhãn giả định. Kiểm chứng lại NIST SP 800-63B-4 cho AAL2/AAL3, gồm yêu cầu khóa xác thực không thể xuất ở AAL3, đồng thời biên tập lại cách diễn đạt tiếng Việt. Chưa chứng nhận hoàn tất toàn bộ cặp bài.
+
 
 ### Ngày 18 tháng 11 năm 2026 — Rà soát toàn bộ cặp bài Wave 1
 - [Khả năng chống chịu dịch vụ](/vi/docs/backend-engineering/service-resilience): Phân biệt fallback an toàn với lỗi bắt buộc, nêu rõ phạm vi retry budget theo instance/hệ thống, ghi nhãn số liệu sự cố giả định và dẫn nguồn chính thống cho circuit breaker/bulkhead; đồng bộ EN/VI.
