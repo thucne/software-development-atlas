@@ -24,3 +24,12 @@ Read both complete lessons: opening five-node partition example, TL;DR, quorum t
 - Updated both lesson `lastVerified` and source-review dates to 2026-11-27.
 - Added regression assertions for the scoped quorum/liveness statement, table assumptions and hypothetical labeling; updated the existing paired-date assertion.
 - No live Raft/etcd cluster, partition injection or membership-change simulation was run. CI is required to verify content/unit, inventory, lint, typecheck, build and Chromium E2E on the exact SHA.
+
+
+## Vietnamese editorial follow-up — 2026-11-27
+
+- Re-read the paired EN/VI copy after the first audit and refined Vietnamese headings, explanatory paragraphs, failure scenarios, exercise language and review checklist. The VI prose now expresses replication/consensus, safety/liveness, leader election, current-term commit and minority-quorum behavior in Vietnamese sentence structure; protocol/API names remain where they identify exact technical concepts.
+- Reconfirmed the Raft paper's election restriction, leader completeness, log matching and current-term commit rule against the [official extended paper](https://raft.github.io/raft.pdf), especially the explanation that an older-term entry replicated to a majority is not thereby committed.
+- Reconfirmed the etcd v3.7 [failure modes](https://etcd.io/docs/v3.7/op-guide/failures/), [disaster recovery](https://etcd.io/docs/v3.7/op-guide/recovery/) and [performance](https://etcd.io/docs/v3.7/op-guide/performance/) documentation. The v3.7 recovery guide states that loss of quorum prevents the cluster from reaching consensus and accepting updates; recovery is a deliberate snapshot/restore operation.
+- The consensus VI source-review date is synchronized to 2026-11-27. A paired regression test now checks the distinct replication/consensus boundary, current-term commit statement, and 2026-11-27 freshness for both locales.
+- The earlier green Actions run #45924532225 validated SHA `4fdb4097d2831cbb8b1d8deb1b25dd744f7d59a`, before the new VI editorial commits. **That run does not validate the current PR head.** Require full exact-head Actions and merged-main Actions after merge; no live Raft cluster, partition injection or membership-change simulation is claimed.
