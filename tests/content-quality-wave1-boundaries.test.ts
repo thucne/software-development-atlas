@@ -35,7 +35,7 @@ describe('Wave 1 technical-boundary and evidence regression', () => {
         const source = readFileSync(path.join(repoRoot, relativePath), 'utf8');
         const checkedDate = pair.slug === 'distributed-systems/partial-failure'
           ? '2026-11-18'
-          : '2026-11-05';
+          : pair.slug === 'distributed-systems/distributed-replication' ? '2026-11-27' : '2026-11-05';
         expect(source, relativePath).toContain(`lastVerified: ${checkedDate}`);
         for (const expected of pair[locale]) {
           expect(source, `${relativePath}: ${expected}`).toContain(expected);
