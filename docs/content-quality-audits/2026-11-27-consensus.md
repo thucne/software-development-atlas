@@ -33,3 +33,10 @@ Read both complete lessons: opening five-node partition example, TL;DR, quorum t
 - Reconfirmed the etcd v3.7 [failure modes](https://etcd.io/docs/v3.7/op-guide/failures/), [disaster recovery](https://etcd.io/docs/v3.7/op-guide/recovery/) and [performance](https://etcd.io/docs/v3.7/op-guide/performance/) documentation. The v3.7 recovery guide states that loss of quorum prevents the cluster from reaching consensus and accepting updates; recovery is a deliberate snapshot/restore operation.
 - The consensus VI source-review date is synchronized to 2026-11-27. A paired regression test now checks the distinct replication/consensus boundary, current-term commit statement, and 2026-11-27 freshness for both locales.
 - The earlier green Actions run #45924532225 validated SHA `4fdb4097d2831cbb8b1d8deb1b25dd744f7d59a`, before the new VI editorial commits. **That run does not validate the current PR head.** Require full exact-head Actions and merged-main Actions after merge; no live Raft cluster, partition injection or membership-change simulation is claimed.
+
+
+## Regression assertion correction — 2026-11-27
+
+- Actions run [#45936198582](https://github.com/thucne/software-development-atlas/actions/runs/45936198582) failed in the content/freshness test before inventory and downstream gates because the new EN regression assertion expected the literal `older-term entry`, while the article's precise sentence uses `an earlier-term entry`.
+- Corrected only the expected literal in `tests/content-quality-wave1-boundaries.test.ts` to match the source wording. The test still requires the lesson to explain that an entry from an earlier term may be replicated to a majority without thereby being safely declared committed. No test was removed, relaxed, or skipped.
+- The latest source content remains unchanged by this assertion-only correction. A fresh Actions run on the new exact PR head is required; run #45936198582 must not be treated as validation of that new head.
