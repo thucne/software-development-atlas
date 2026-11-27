@@ -28,7 +28,7 @@ concepts:
   - authentication-and-authorization
 ---
 
-## TL;DR — illustrative BOLA scenario
+## Opening example (hypothetical): BOLA across tenants
 
 **Illustrative scenario (hypothetical):** A customer signs in and calls `GET /api/v1/users/1042/profile`. If the API checks only a signed JWT and a broad `user` role, they may change the ID to `1043` and access another person's record. This is **Broken Object Level Authorization (BOLA)**, classified as API1:2023 by OWASP; it is **not a documented fintech breach**.
 
