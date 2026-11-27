@@ -1,6 +1,6 @@
 ---
 title: "Sao chép phân tán: Giữ các bản sao đúng qua sự cố và chuyển đổi dự phòng"
-description: Suy luận về sao chép phân tán qua quyền ghi, thứ tự cập nhật, ranh giới xác nhận, độ trễ, bắt kịp, rào chắn khi chuyển đổi dự phòng, đối soát nhiều bên ghi, vị trí bản sao và ranh giới với đồng thuận.
+description: Hiểu cách sao chép phân tán duy trì các bản sao qua cơ chế cấp quyền ghi, thứ tự cập nhật, thời điểm xác nhận, độ trễ, quá trình bắt kịp, rào chắn khi chuyển đổi dự phòng, đối soát khi có nhiều bên ghi và mối quan hệ với đồng thuận.
 category: distributed-systems
 level: intermediate
 status: evolving
@@ -18,9 +18,9 @@ concepts:
 
 # Sao chép phân tán: Giữ các bản sao đúng qua sự cố và chuyển đổi dự phòng
 
-**Tình huống minh họa (giả định):** Người dùng đổi mật khẩu nhưng lượt đăng nhập tiếp theo đọc từ replica chưa bắt kịp nên gặp dữ liệu cũ. Trong một topology khác, standby được thăng cấp khi client vẫn ghi vào primary trước đó. Nếu quyền ghi không được thực thi, hai writer có thể tạo lịch sử xung đột. Đây là các ví dụ thiết kế, không phải sự cố có đo độ trễ thực tế.
+**Tình huống minh họa (giả định):** Người dùng đổi mật khẩu, nhưng lần đăng nhập tiếp theo đọc dữ liệu từ một bản sao chưa bắt kịp nên vẫn thấy mật khẩu cũ. Trong một kiến trúc khác, máy chủ dự phòng được thăng cấp trong khi ứng dụng vẫn có thể ghi vào máy chủ chính cũ. Nếu hệ thống không thực thi việc thu hồi quyền ghi cũ, hai bên có thể tạo ra hai lịch sử xung đột. Đây là các tình huống minh họa, không phải sự cố thực tế có số liệu độ trễ.
 
-Replication duy trì nhiều bản sao trạng thái. Để đánh giá mức an toàn, phải biết **thời điểm ACK**, ai có quyền ghi và cách failover ngăn writer cũ.
+Sao chép duy trì nhiều bản sao của trạng thái. Để đánh giá mức an toàn, cần biết **thời điểm xác nhận (ACK)**, bên nào có quyền ghi và cơ chế chuyển đổi dự phòng ngăn bên ghi cũ tiếp tục ghi như thế nào.
 
 > 💡 **Quy tắc bỏ túi:** Hãy xem sao chép phân tán là giao thức về thẩm quyền và bản sao với ranh giới lỗi tường minh, không đơn thuần là đồng bộ dữ liệu nền. Đừng bao giờ đánh đồng $N$ bản sao với việc luôn có $N$ dữ liệu mới nhất, và tuyệt đối không bao giờ failover mà thiếu cơ chế rào chắn cô lập bên ghi cũ.
 
@@ -49,11 +49,11 @@ flowchart LR
 Hệ số bằng ba chỉ nói nên có bao nhiêu bản sao. Nó không tự nói các bản sao nằm ở đâu, mới đến mức nào, bản sao nào được ghi hoặc hệ thống chịu được bao nhiêu lỗi tương quan.
 </TermBox>
 
-## Sao chép phân tán rộng hơn sao chép database
+## Sao chép phân tán rộng hơn sao chép cơ sở dữ liệu
 
-Bài **Database Replication** trong Atlas giải thích sâu một họ cơ chế cụ thể: nhật ký database, replay trên standby, commit đồng bộ và bất đồng bộ, định tuyến đọc và chuyển đổi dự phòng.
+Bài **Sao chép cơ sở dữ liệu (Database Replication)** trong Atlas giải thích chi tiết một nhóm cơ chế cụ thể: nhật ký cơ sở dữ liệu, phát lại trên máy chủ dự phòng, cam kết đồng bộ và bất đồng bộ, định tuyến truy vấn đọc và chuyển đổi dự phòng.
 
-Sao chép phân tán là ý tưởng hệ thống rộng hơn. Trạng thái được sao chép có thể là:
+Sao chép phân tán là khái niệm rộng hơn ở cấp hệ thống. Trạng thái được sao chép có thể là:
 
 - một shard database;
 - một bản ghi metadata;
@@ -62,16 +62,16 @@ Sao chép phân tán là ý tưởng hệ thống rộng hơn. Trạng thái đ�
 - nhật ký của state machine được sao chép;
 - chỉ mục đối tượng hoặc service registry.
 
-Ngay cả khi không có SQL database, các câu hỏi cốt lõi vẫn lặp lại: ai sắp thứ tự lần ghi, xác nhận nào được tính, một bản sao chậm phục hồi ra sao và điều gì ngăn hai nguồn quyền ghi cùng phân kỳ sau network partition.
+Ngay cả khi không dùng cơ sở dữ liệu SQL, các câu hỏi cốt lõi vẫn giống nhau: bên nào sắp thứ tự các lần ghi, loại xác nhận nào được tính, bản sao chậm được phục hồi ra sao và điều gì ngăn hai bên có quyền ghi tạo ra lịch sử khác nhau sau khi mạng bị phân vùng.
 
-## Một lịch sử có thứ tự cần quy tắc về quyền ghi
+## Lịch sử cập nhật có thứ tự cần quy tắc xác định bên có quyền ghi
 
-Một topology phổ biến có một bên ghi đang hoạt động, thường gọi là **leader**, cùng nhiều follower. Leader chọn thứ tự cho các cập nhật được chấp nhận và follower tái tạo lịch sử theo thứ tự đó.
+Một kiến trúc phổ biến có một nút đang giữ quyền ghi, thường gọi là **leader**, cùng nhiều nút theo sau (follower). Leader xác định thứ tự các cập nhật được chấp nhận; các follower tái tạo lịch sử theo đúng thứ tự đó.
 
 <TermBox term="Nhật ký sao chép">
-**Nhật ký sao chép** là bản ghi có thứ tự của thay đổi trạng thái hoặc command để các bản sao có thể replay và tái tạo cùng trạng thái logic.
+**Nhật ký sao chép** là bản ghi có thứ tự của các thay đổi trạng thái hoặc lệnh, cho phép những bản sao phát lại (replay) và tái tạo cùng một trạng thái logic.
 
-Điều quan trọng là quan hệ thứ tự mà giao thức dùng. Biểu diễn lưu trữ có thể là WAL của database, command log được sao chép, luồng append-only hoặc dạng đặc thù khác.
+Điều quan trọng là quan hệ thứ tự do giao thức xác lập. Dữ liệu có thể được lưu dưới dạng WAL của cơ sở dữ liệu, nhật ký lệnh được sao chép, luồng chỉ ghi nối tiếp (append-only) hoặc một định dạng riêng khác.
 </TermBox>
 
 Có thể suy luận luồng leader-based như sau:
@@ -87,15 +87,15 @@ yêu cầu cập nhật
 
 Vì thế “follower đã nhận byte” và “follower đã có thể phục vụ trạng thái mới” không nhất thiết là cùng một mốc.
 
-**Ví dụ PostgreSQL:** [Tài liệu synchronous replication](https://www.postgresql.org/docs/current/warm-standby.html) phân biệt `remote_write` (standby đã ghi WAL vào filesystem nhưng chưa đảm bảo flush bền vững), `on` (chờ WAL flush tại synchronous standby cấu hình đúng) và `remote_apply` (chờ replay để thay đổi nhìn thấy khi đọc). Kiểm tra `synchronous_standby_names` và thiết lập từng transaction thay vì suy ra từ nhãn “đồng bộ”.
+**Ví dụ PostgreSQL:** [Tài liệu về sao chép đồng bộ](https://www.postgresql.org/docs/current/warm-standby.html) phân biệt `remote_write` (máy chủ dự phòng đã ghi WAL vào hệ thống tệp, nhưng chưa chắc dữ liệu đã được xả xuống bộ nhớ lưu trữ bền vững), `on` (chờ WAL được flush tại máy chủ dự phòng đồng bộ đã cấu hình) và `remote_apply` (chờ phát lại để thay đổi có thể được truy vấn đọc nhìn thấy). Cần kiểm tra `synchronous_standby_names` và thiết lập của từng giao dịch, không suy diễn chỉ từ nhãn “đồng bộ”.
 
-## Ranh giới xác nhận định nghĩa contract của lần ghi
+## Thời điểm xác nhận quyết định cam kết của thao tác ghi
 
-Giao thức sao chép chọn một mốc mà tại đó lần ghi được xem là thành công từ góc nhìn client.
+Giao thức sao chép chọn một thời điểm mà từ góc nhìn của client, thao tác ghi được xem là thành công.
 
-Với **sao chép bất đồng bộ**, nút có quyền ghi có thể xác nhận trước khi một bản sao khác lưu bền vững hoặc áp dụng cập nhật. Cách này không đặt độ trễ của bản sao từ xa lên write path, nhưng việc mất đột ngột bản sao có quyền có thể để lộ một cửa sổ mất dữ liệu.
+Với **sao chép bất đồng bộ**, nút có quyền ghi có thể trả xác nhận trước khi bản sao khác lưu bền vững hoặc áp dụng cập nhật. Cách này không buộc thao tác ghi phải chờ độ trễ của bản sao từ xa, nhưng nếu nút có quyền ghi bị mất đột ngột thì dữ liệu trong khoảng thời gian đó có thể bị mất.
 
-Với **sao chép đồng bộ**, giao thức chờ một dạng xác nhận từ xa trước khi trả thành công. Cách này thu hẹp một số cửa sổ lỗi, nhưng gắn độ trễ và availability của write path vào những thành viên bắt buộc phải phản hồi.
+Với **sao chép đồng bộ**, giao thức chờ một hình thức xác nhận từ xa trước khi trả kết quả thành công. Cách này thu hẹp một số khoảng thời gian có nguy cơ mất dữ liệu, nhưng khiến độ trễ và khả năng phục vụ của thao tác ghi phụ thuộc vào những thành viên bắt buộc phải phản hồi.
 
 ```mermaid
 sequenceDiagram
@@ -113,28 +113,28 @@ sequenceDiagram
   R2-->>L: bắt kịp sau
 ```
 
-Hai nhãn “đồng bộ” và “bất đồng bộ” chưa đủ nếu không nói rõ mốc xác nhận. Hệ thống có thể chờ nhận dữ liệu, lưu bền vững, áp dụng vào state machine hoặc một điều kiện quorum cụ thể. Mỗi lựa chọn tạo ra guarantee khác nhau.
+Hai nhãn “đồng bộ” và “bất đồng bộ” chưa đủ nếu không nêu rõ thời điểm xác nhận. Hệ thống có thể chờ nhận dữ liệu, lưu dữ liệu bền vững, áp dụng dữ liệu vào máy trạng thái hoặc đạt một điều kiện quorum cụ thể. Mỗi lựa chọn mang lại một mức bảo đảm khác nhau.
 
-PostgreSQL là ví dụ cụ thể hữu ích: streaming replication mặc định bất đồng bộ, còn synchronous replication có thể khiến commit chờ tiến độ của standby được cấu hình. Đây là cơ chế riêng của database dùng để minh họa ý tưởng tổng quát về ranh giới xác nhận.
+PostgreSQL là ví dụ cụ thể: cơ chế sao chép luồng (streaming replication) mặc định hoạt động bất đồng bộ, còn sao chép đồng bộ có thể buộc thao tác cam kết chờ máy chủ dự phòng đã cấu hình đạt đến một mốc nhất định. Đây là cơ chế riêng của cơ sở dữ liệu, dùng để minh họa khái niệm tổng quát về thời điểm xác nhận.
 
 ## Độ trễ sao chép là khoảng cách tới một mốc tiến độ cụ thể
 
-**Độ trễ sao chép** không phải một con số duy nhất cho mọi hệ thống. Một bản sao có thể chậm ở các stage khác nhau:
+**Độ trễ sao chép** không phải một con số duy nhất cho mọi hệ thống. Một bản sao có thể chậm ở những giai đoạn khác nhau:
 
 | Mốc tiến độ | Câu hỏi |
 | --- | --- |
 | Đã nhận | Bản sao đã nhận cập nhật chưa? |
-| Đã lưu bền vững | Cập nhật đã nằm trên durable media chưa? |
-| Đã áp dụng | State machine cục bộ đã áp dụng cập nhật chưa? |
-| Đã nhìn thấy | Read cục bộ đã quan sát được cập nhật chưa? |
+| Đã lưu bền vững | Cập nhật đã được ghi xuống thiết bị lưu trữ bền vững chưa? |
+| Đã áp dụng | Máy trạng thái cục bộ đã áp dụng cập nhật chưa? |
+| Đã nhìn thấy | Truy vấn đọc tại chỗ đã nhìn thấy cập nhật chưa? |
 
-Một nút trông “khỏe” vẫn có thể quá cũ cho request nhạy cảm về correctness.
+Một nút có vẻ “khỏe mạnh” vẫn có thể chứa dữ liệu quá cũ đối với yêu cầu đọc cần bảo đảm tính đúng đắn.
 
-Điều này nối trực tiếp với bài **Tính nhất quán phân tán** trước đó: sao chép tạo ra nhiều điểm quan sát, còn consistency contract quyết định điểm quan sát nào được phép dùng cho từng read path.
+Điều này nối trực tiếp với bài **Tính nhất quán phân tán** trước đó: sao chép tạo ra nhiều trạng thái mà client có thể quan sát, còn hợp đồng nhất quán quyết định trạng thái nào được phép dùng cho từng luồng đọc.
 
 ## Bản sao phải khởi tạo trước khi có thể liên tục theo kịp
 
-Một nút mới không thể mãi mãi replay toàn bộ lịch sử không giới hạn từ đầu. Vì vậy các hệ thống sao chép thường kết hợp snapshot hoặc base image với phần đuôi nhật ký mới hơn.
+Một nút mới thường không thể phát lại toàn bộ lịch sử không giới hạn kể từ đầu. Vì vậy, các hệ thống sao chép thường cài một ảnh chụp trạng thái (snapshot) hoặc bản dữ liệu nền, rồi phát lại phần nhật ký phát sinh sau đó.
 
 ```mermaid
 flowchart LR
@@ -144,26 +144,26 @@ flowchart LR
   C -- "rồi" --> P["Đủ điều kiện làm bản sao bình thường"]
 ```
 
-Bản sao vừa quay lại cũng gặp cùng câu hỏi. Nếu nhật ký còn giữ phần lịch sử nó bị thiếu, bản sao có thể bắt kịp theo kiểu tăng dần. Nếu phần lịch sử cần thiết đã bị compact hoặc xóa, bản sao có thể phải cài snapshot mới.
+Một bản sao vừa hoạt động trở lại cũng gặp vấn đề tương tự. Nếu nhật ký vẫn còn phần lịch sử mà nó bị thiếu, bản sao có thể đồng bộ bù từng phần. Nếu phần lịch sử cần thiết đã bị gom gọn hoặc xóa, bản sao có thể phải cài lại một snapshot mới.
 
-Bài báo Raft mô tả snapshot thay thế phần prefix đã commit của log và có thể được gửi tới follower tụt quá xa. PostgreSQL cũng mô tả trạng thái catch-up của standby và trường hợp phải khởi tạo lại khi WAL cần thiết không còn được giữ.
+Bài báo Raft mô tả cách snapshot thay thế phần đầu nhật ký đã cam kết và được gửi tới follower tụt lại quá xa. PostgreSQL cũng giải thích quá trình bắt kịp của máy chủ dự phòng và trường hợp phải khởi tạo lại khi WAL cần thiết không còn được lưu giữ.
 
-Về vận hành, bootstrap không miễn phí. Snapshot lớn có thể tiêu thụ băng thông, I/O lưu trữ, CPU và băng thông của leader ngay lúc cluster đang suy giảm.
+Về vận hành, quá trình khởi tạo bản sao không miễn phí. Một snapshot lớn có thể tiêu tốn băng thông mạng, hoạt động đọc/ghi lưu trữ, CPU và tài nguyên của leader đúng lúc cả cụm đang gặp sự cố.
 
-## Failover thay đổi quyền ghi, nên bên ghi cũ phải bị rào chắn
+## Chuyển đổi dự phòng thay đổi quyền ghi, vì vậy phải rào chắn bên ghi cũ
 
-Failover không chỉ là “chuyển traffic sang một bản sao khác”. Nó thay đổi nút nào được phép chấp nhận lần ghi có tính authoritative.
+Chuyển đổi dự phòng không chỉ là “chuyển lưu lượng sang một bản sao khác”. Thao tác này thay đổi nút nào được phép tiếp nhận các lần ghi có thẩm quyền.
 
 <TermBox term="Fencing token">
-**Fencing token / token rào chắn** là giá trị quyền tăng đơn điệu, chẳng hạn epoch, term hoặc thế hệ lease, cho phép thành phần downstream từ chối công việc đến từ một nguồn quyền cũ.
+**Fencing token (mã rào chắn)** là một giá trị thẩm quyền tăng đơn điệu, chẳng hạn epoch, term hoặc thế hệ lease, cho phép thành phần nhận thao tác ở phía sau từ chối yêu cầu đến từ nguồn thẩm quyền cũ.
 
 Rào chắn bảo vệ trước nút từng hợp lệ, sau đó bị cô lập, rồi quay lại làm việc sau khi một nguồn quyền mới đã tiếp quản.
 </TermBox>
 
-**Lưu ý về enforcement:** Epoch/term tăng đơn điệu chưa tự tạo thành fencing. Tầng storage hoặc resource thực thi side effect phải từ chối generation cũ; một số topology cần cơ chế cô lập ngoài giao thức (ví dụ fencing nguồn điện hoặc storage). Hãy nêu đúng cơ chế mà hệ thống thực sự enforce.
+**Lưu ý về thực thi:** Epoch hoặc term tăng đơn điệu chưa tự tạo ra cơ chế rào chắn. Tầng lưu trữ hoặc tài nguyên trực tiếp thực hiện tác động phải từ chối các thế hệ quyền cũ. Một số kiến trúc còn cần biện pháp cô lập nằm ngoài giao thức, chẳng hạn ngắt nguồn điện hoặc khóa quyền truy cập lưu trữ. Hãy mô tả đúng cơ chế mà hệ thống thực sự áp dụng.
 
 
-Nếu không có rào chắn, bên ghi cũ có thể quay lại sau failover và tạo hành vi **split-brain**: hai nút cùng chấp nhận các lần ghi không thể đồng thời thuộc về một lịch sử authoritative duy nhất.
+Nếu không có rào chắn, bên ghi cũ có thể hoạt động trở lại sau khi chuyển đổi dự phòng và gây ra tình trạng **split-brain**: hai nút cùng chấp nhận các lần ghi, tạo nên hai lịch sử không thể đồng thời là lịch sử có thẩm quyền duy nhất.
 
 ```mermaid
 sequenceDiagram
@@ -185,28 +185,28 @@ Cơ chế cụ thể thay đổi theo hệ thống. Một nhóm consensus có th
 
 Tài liệu failover của PostgreSQL cảnh báo rõ rằng primary cũ khi khởi động lại cần cơ chế ngăn nó tiếp tục hành xử như primary sau khi standby đã được thăng cấp.
 
-## Topology nhiều bên ghi và không leader chuyển complexity sang hòa giải
+## Kiến trúc nhiều bên ghi hoặc không có leader chuyển phần phức tạp sang khâu đối soát
 
 Không phải topology sao chép nào cũng chọn một bên ghi đang hoạt động.
 
-Thiết kế **multi-leader** có thể nhận lần ghi ở nhiều leader rồi hòa giải xung đột sau. Thiết kế **leaderless** có thể gửi read và write trực tiếp tới nhiều bản sao mà không có một nguồn xếp thứ tự cố định.
+Thiết kế **nhiều leader (multi-leader)** có thể tiếp nhận thao tác ghi tại nhiều leader rồi đối soát xung đột sau. Thiết kế **không leader cố định (leaderless)** có thể gửi yêu cầu đọc và ghi trực tiếp tới nhiều bản sao mà không có một nguồn sắp thứ tự cố định.
 
 Các thiết kế này giảm phụ thuộc vào một vị trí ghi duy nhất, nhưng cập nhật đồng thời có thể không có một thứ tự tự nhiên duy nhất. Giao thức phải định nghĩa cách so sánh và hòa giải các version.
 
-Dynamo là ví dụ leaderless kinh điển. Thiết kế này dùng versioning cho object và conflict resolution có sự hỗ trợ của application để hệ thống vẫn đạt availability cao trong một số tình huống lỗi. Nó cũng dùng các cơ chế repair để đưa bản sao dần hội tụ trở lại.
+Dynamo là ví dụ kinh điển về kiến trúc không có leader cố định. Thiết kế này dùng thông tin phiên bản của đối tượng và cơ chế giải quyết xung đột có sự tham gia của ứng dụng để duy trì khả năng phục vụ trong một số tình huống lỗi. Hệ thống cũng dùng các cơ chế sửa chữa để đưa các bản sao dần hội tụ trở lại.
 
 Các cơ chế hòa giải hữu ích gồm:
 
-- metadata version giúp phát hiện các sibling đồng thời thay vì âm thầm ghi đè;
-- read repair cập nhật bản sao cũ trong quá trình phục vụ read;
-- anti-entropy so sánh dải bản sao ở background;
+- siêu dữ liệu phiên bản giúp phát hiện các nhánh cập nhật đồng thời thay vì âm thầm ghi đè lẫn nhau;
+- cơ chế sửa khi đọc (read repair) cập nhật các bản sao cũ ngay trong quá trình trả kết quả đọc;
+- cơ chế đối chiếu định kỳ (anti-entropy) so sánh các vùng dữ liệu giữa những bản sao trong nền;
 - quy tắc merge theo nghiệp vụ khi hệ thống không thể tự suy ra ý định đúng.
 
-Quorum có thể là một phần của giao thức replication leaderless, nhưng **quorum arithmetic không tự động là consensus** và không tự chứng minh một lịch sử global linearizable duy nhất.
+Quorum có thể là một phần của giao thức sao chép không leader, nhưng **phép tính quorum không tự động trở thành đồng thuận** và cũng không chứng minh được rằng toàn hệ thống có một lịch sử duy nhất với tính tuyến tính hóa (linearizability).
 
-## Hệ số sao chép không tự đồng nghĩa với khả năng chịu lỗi
+## Hệ số sao chép không tự bảo đảm khả năng chịu lỗi
 
-Ba bản sao chạy trên ba process vẫn có thể chung một fault domain.
+Ba bản sao chạy trên ba tiến trình khác nhau vẫn có thể cùng nằm trong một miền lỗi.
 
 Ví dụ lỗi tương quan:
 
@@ -216,13 +216,13 @@ Ví dụ lỗi tương quan:
 - mọi nút cùng mất một dependency dùng chung;
 - automation của operator xóa hoặc làm hỏng mọi bản sao.
 
-Hãy đặt bản sao theo loại failure mà yêu cầu availability thực sự cần chịu. Có thể phải trải qua disk, host, zone hoặc region, nhưng phạm vi càng rộng thì network latency và complexity vận hành càng tăng.
+Hãy bố trí bản sao theo loại sự cố mà yêu cầu sẵn sàng thực sự cần chịu được. Có thể phải phân tán bản sao qua nhiều ổ đĩa, máy chủ, vùng sẵn sàng hoặc khu vực địa lý; tuy nhiên, phạm vi phân tán càng rộng thì độ trễ mạng và độ phức tạp vận hành càng tăng.
 
-Sao chép làm tăng khả năng còn một bản sao hợp lệ. Nó không thay thế backup, point-in-time recovery hoặc cơ chế bảo vệ khỏi logical corruption được sao chép trung thực sang mọi bản sao.
+Sao chép làm tăng khả năng còn ít nhất một bản sao hợp lệ. Tuy nhiên, nó không thay thế bản sao lưu, khả năng phục hồi về một thời điểm cụ thể (point-in-time recovery) hay cơ chế bảo vệ khỏi lỗi logic bị sao chép nguyên vẹn sang mọi bản sao.
 
-## Partitioning và replication là hai chiều độc lập
+## Phân vùng dữ liệu và sao chép là hai chiều độc lập
 
-**Partitioning** quyết định một nút chịu trách nhiệm cho tập con dữ liệu nào. **Replication** quyết định tập con đó có bao nhiêu bản sao và các bản sao phối hợp ra sao.
+**Phân vùng dữ liệu (partitioning)** xác định mỗi nút chịu trách nhiệm cho phần dữ liệu nào. **Sao chép (replication)** xác định phần dữ liệu đó có bao nhiêu bản sao và các bản sao phối hợp với nhau ra sao.
 
 Một hệ thống sharded thường kết hợp cả hai:
 
@@ -234,11 +234,11 @@ shard C -> C1, C2, C3
 
 Đổi shard key làm thay đổi cách dữ liệu được đặt giữa các partition. Đổi replication factor làm thay đổi số bản sao trong từng partition. Tách hai chiều này giúp phân tích capacity và failure rõ hơn.
 
-## Replication và consensus giải quyết hai bài toán khác nhau
+## Sao chép và đồng thuận giải quyết hai bài toán khác nhau
 
-Replication trả lời: **nhiều nút nhận và duy trì bản sao trạng thái bằng cách nào?**
+Sao chép trả lời: **nhiều nút nhận và duy trì các bản sao trạng thái bằng cách nào?**
 
-Consensus trả lời: **các nút đồng ý về một giá trị hoặc lịch sử có thứ tự bằng cách nào khi có failure và delay?**
+Đồng thuận trả lời: **các nút thống nhất về một giá trị hoặc lịch sử có thứ tự như thế nào khi xảy ra lỗi và độ trễ?**
 
 Nhiều replicated state machine kết hợp hai khái niệm: consensus protocol quyết định log entry nào đã commit, còn replication phân phối các entry đó sang thành viên khác.
 
@@ -254,28 +254,28 @@ hoặc:
 
 Bài Atlas kế tiếp sẽ tách riêng khái niệm consensus.
 
-## Tình huống minh họa (giả định): hai writer sau failover
+## Tình huống minh họa (giả định): hai bên cùng ghi sau khi chuyển đổi dự phòng
 
-Một service theo vùng lưu trạng thái entitlement của khách hàng trên ba bản sao. Nút ghi A đang giữ epoch 41. Network partition cô lập A khỏi bộ điều phối failover, và bộ điều phối thăng cấp nút ghi B với epoch 42.
+Một dịch vụ theo khu vực lưu trạng thái quyền sử dụng của khách hàng trên ba bản sao. Nút ghi A đang giữ epoch 41. Sự cố phân vùng mạng khiến A mất liên lạc với bộ điều phối chuyển đổi dự phòng; bộ điều phối thăng cấp nút ghi B với epoch 42.
 
-Traffic chuyển sang B, nhưng A vẫn có thể được một application pool cũ truy cập. A tiếp tục nhận cập nhật entitlement trong vài phút. Khi kết nối trở lại, các bản sao chứa hai lịch sử đều trông có vẻ hợp lệ.
+Lưu lượng được chuyển sang B, nhưng một nhóm ứng dụng cũ vẫn có thể truy cập A. A tiếp tục nhận các cập nhật quyền sử dụng trong vài phút. Khi kết nối được khôi phục, các bản sao chứa hai lịch sử đều có vẻ hợp lệ.
 
-**Hậu quả:** quyền của khách hàng xuất hiện rồi biến mất chập chờn tùy thuộc bản sao nào tiếp nhận request đọc; khâu đối soát (reconciliation) hoàn toàn bất lực vì không thể đoán định một cách an toàn xem cập nhật nghiệp vụ xung đột nào mới là dữ liệu chuẩn.
+**Hậu quả:** Quyền của khách hàng lúc xuất hiện, lúc biến mất tùy thuộc bản sao nào trả lời yêu cầu đọc. Khâu đối soát không thể tự xác định một cách an toàn cập nhật nghiệp vụ nào trong hai lịch sử xung đột mới là dữ liệu đúng.
 
 **Nguyên nhân cốt lõi:** đội ngũ kỹ thuật xem việc thăng cấp (promotion) chỉ như một thao tác đổi hướng routing mạng đơn thuần. Nút ghi cũ không hề có rào chắn cô lập, khiến việc đứt kết nối với control plane không thể tước bỏ khả năng tiếp tục ghi đè dữ liệu có thẩm quyền của nó.
 
-**Cách khắc phục chuẩn:** gắn chặt mọi lần ghi có thẩm quyền với số epoch hoặc term hiện tại, buộc trạng thái downstream từ chối thẳng thừng token quyền cũ và chỉ cho phép thăng cấp sau khi cơ chế failover xác lập được một nguồn quyền duy nhất. Khi nút ghi cũ quay lại mạng, giáng cấp nó về làm bản sao không có quyền ghi, cài ảnh chụp (snapshot) an toàn hoặc đối soát phần nhật ký còn giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép ứng cử trở lại.
+**Cách khắc phục:** Gắn mọi thao tác ghi có thẩm quyền với epoch hoặc term hiện tại; buộc thành phần nhận thao tác ở phía sau từ chối mã quyền cũ; và chỉ thăng cấp nút mới sau khi cơ chế chuyển đổi dự phòng xác lập được một nguồn thẩm quyền duy nhất. Khi nút ghi cũ hoạt động trở lại, hãy đưa nó về vai trò bản sao chỉ đọc, cài snapshot an toàn hoặc đối soát phần nhật ký còn lưu giữ, rồi xác minh nó đã bắt kịp hoàn toàn trước khi cho phép nó đủ điều kiện nhận quyền ghi trở lại.
 
 ## Tự kiểm tra
 
-Một service có ba bản sao trả success ngay sau khi chỉ nút ghi hiện tại lưu bền vững cập nhật. Hai follower nhận cập nhật sau. Nút ghi crash ngay sau khi trả success, trước khi follower nào nhận được cập nhật.
+Một dịch vụ có ba bản sao trả kết quả thành công ngay sau khi nút ghi hiện tại lưu bền vững cập nhật. Hai follower chỉ nhận cập nhật sau đó. Nút ghi gặp sự cố dừng ngay sau khi trả kết quả thành công, trước khi bất kỳ follower nào nhận được cập nhật.
 
 Replication factor bằng ba có đảm bảo lần ghi đã xác nhận vẫn tồn tại không?
 
 <details>
 <summary>Xem giải thích chi tiết</summary>
 
-Không. Replication factor mô tả số lượng copy dự định duy trì, không mô tả acknowledgment boundary. Với chính sách bất đồng bộ này, success xảy ra trước khi follower nào có cập nhật, nên mất writer trong cửa sổ đó có thể làm mất lần ghi đã được xác nhận. Muốn thu hẹp cửa sổ này, write contract phải chờ tiến độ từ xa cần thiết và chấp nhận trade-off tương ứng về latency và availability.
+Không. Hệ số sao chép chỉ mô tả số bản sao dự kiến duy trì, chứ không xác định thời điểm xác nhận. Với chính sách bất đồng bộ này, hệ thống trả kết quả thành công trước khi bất kỳ follower nào nhận được cập nhật. Vì vậy, nếu nút ghi gặp sự cố trong khoảng thời gian đó, lần ghi đã xác nhận vẫn có thể bị mất. Muốn thu hẹp khoảng thời gian rủi ro này, cam kết của thao tác ghi phải chờ bản sao từ xa đạt đến mốc cần thiết, đồng thời chấp nhận đánh đổi về độ trễ và khả năng phục vụ.
 
 </details>
 
@@ -302,7 +302,7 @@ Không. Replication factor mô tả số lượng copy dự định duy trì, kh
 
 ## Nguồn
 
-Nguồn chính được kiểm tra lại ngày **2026-11-27**:
+Các nguồn chính được kiểm tra lại ngày **2026-11-27**:
 
 - [Ongaro & Ousterhout — In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
 - [Amazon Science — Dynamo: Amazon's highly available key-value store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store)
