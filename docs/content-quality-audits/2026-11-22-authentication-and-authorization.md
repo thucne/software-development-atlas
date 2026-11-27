@@ -36,3 +36,10 @@
 
 - Exact head `23c7a7dbd1fecb4984a712a34e9f4a2ac36fbd07`: [run 45308143866](https://github.com/thucne/software-development-atlas/actions/runs/45308143866) failed 2/746 tests; 744 passed. Containers and Property-Based Testing still expected November 18 site metadata and E2E footer text. Inventory, lint, typecheck, build and browser E2E were skipped.
 - Updated both tests' exact expected metadata and footer strings to November 23, matching the rolling changelog and actual footer assertion. All existing assertions retained. Await full CI on the new head; no certification or merge yet.
+
+
+## Exact-head retry queued (2026-11-27)
+
+- Current branch source has the EN/VI changelog and `lib/site-metadata.ts` at 2026-11-23; all three stale freshness-test expectations now match that date, and the footer equality assertion remains strict.
+- Prior run #45308143866 failed before inventory/lint/typecheck/build/E2E because those three tests still expected 2026-11-18. Current branch files contain the corrected expectations; this commit is an evidence checkpoint to trigger a fresh run on the exact resulting SHA.
+- Certification remains blocked until the new run's unit/content, inventory, lint, typecheck, build and Chromium E2E all pass and the remaining full-rubric links/examples/crosslinks review is completed. No tests or gates are weakened.
