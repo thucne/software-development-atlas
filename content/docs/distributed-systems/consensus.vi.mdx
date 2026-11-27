@@ -30,7 +30,7 @@ concepts:
 - **Giao điểm quorum phải đi cùng các quy tắc an toàn của Raft:** Hai nhóm đa số có thành viên chung, nhưng chỉ đếm thành viên không chứng minh leader mới giữ đủ mọi mục đã cam kết. Cần thêm quy tắc bỏ phiếu dựa trên nhật ký, tính khớp nhật ký và điều kiện cam kết trong nhiệm kỳ hiện tại.
 - **Bầu chọn theo nhiệm kỳ:** Nút bị cô lập có thể vẫn nghĩ mình là leader, nhưng không thể cam kết thao tác ghi nếu không có quorum. Tính an toàn không đòi hỏi mọi nút phải đồng thời nhận biết cùng một leader.
 - **Đồng thuận dựa trên quorum có thể hy sinh khả năng tiến triển ở phía thiểu số để giữ an toàn:** Khi phân vùng mạng chia cụm 5 nút thành phía đa số (3 nút) và phía thiểu số (2 nút), phía đa số chỉ tiếp tục khi còn đáp ứng các điều kiện bầu chọn leader, an toàn nhật ký và quorum; phía thiểu số không thể cam kết lịch sử mới. Đây là hành vi của giao thức cụ thể, không phải chính sách sẵn sàng bắt buộc cho mọi dịch vụ phân tán.
-- **Rủi ro:** Xem entry mới append cục bộ nhưng chưa commit là quyết định nghiệp vụ bền vững. Entry chưa commit **có thể bị ghi đè** sau khi leader đổi; chỉ trả thành công khi đạt điều kiện commit.
+- **Rủi ro:** Coi một mục nhật ký vừa được ghi cục bộ nhưng chưa cam kết là quyết định nghiệp vụ bền vững. Mục chưa cam kết **có thể bị ghi đè** sau khi leader thay đổi; chỉ trả kết quả thành công khi đã đáp ứng điều kiện cam kết.
 
 ```mermaid
 flowchart LR
@@ -76,7 +76,7 @@ Hai từ giúp phân loại điều consensus system cố giữ:
 
 Khi mạng bị phân vùng kéo dài, giao thức có thể chủ động hy sinh khả năng tiến triển ở phía thiểu số để giữ tính an toàn. Từ chối thao tác ghi đôi khi chính là kết quả đúng.
 
-Đây cũng là thói quen suy luận từ các bài trước: timeout hoặc peer unreachable không chứng minh peer đã chết. Vì vậy consensus protocol cần voting rule và history rule vẫn an toàn khi failure detection không hoàn hảo.
+Điều này tiếp nối nguyên tắc từ các bài trước: hết thời gian chờ hoặc không liên lạc được với nút ngang hàng không chứng minh nút đó đã hỏng. Vì vậy, giao thức đồng thuận cần có quy tắc bỏ phiếu và bảo toàn lịch sử vẫn an toàn ngay cả khi cơ chế phát hiện lỗi không hoàn hảo.
 
 <TermBox term="Term / epoch">
 **Term** hoặc **epoch (thế hệ)** là một mốc logic chỉ tăng, dùng để phân biệt quyền điều phối cũ với quyền điều phối mới.
@@ -106,7 +106,7 @@ sequenceDiagram
 
 Một nút chỉ nhớ rằng mình *từng là leader* thì chưa đủ. Quyền điều phối của nó phụ thuộc vào nhiệm kỳ hiện tại và quy tắc quorum của giao thức.
 
-Leader election chỉ là một phần của consensus. Câu hỏi safety khó hơn nằm ở chuyện lịch sử được xử lý thế nào trước, trong và sau khi leadership đổi.
+Bầu chọn leader chỉ là một phần của đồng thuận. Vấn đề an toàn khó hơn là xử lý lịch sử ra sao trước, trong và sau khi quyền lãnh đạo thay đổi.
 
 ## Nhật ký sao chép phân biệt đề xuất với mục đã cam kết
 
@@ -118,12 +118,12 @@ Raft là thuật toán đồng thuận dùng để quản lý một **nhật ký
 2. leader append entry cục bộ;
 3. follower sao chép entry;
 4. protocol quan sát điều kiện quorum cần thiết;
-5. entry trở thành committed theo rule của protocol;
-6. replica apply các entry đã committed vào state machine theo thứ tự.
+5. mục nhật ký được cam kết theo quy tắc của giao thức;
+6. các bản sao áp dụng lần lượt những mục đã cam kết vào máy trạng thái theo đúng thứ tự.
 
 Một mục **chưa được cam kết (uncommitted)** có thể biến mất hoặc bị ghi đè sau khi quyền lãnh đạo thay đổi. Client và người vận hành không được đánh đồng việc “nhìn thấy mục đó trong nhật ký của một nút” với việc “cả cụm đã cam kết mục đó”.
 
-Tài liệu failure hiện tại của etcd minh họa đúng boundary này: sau leader failure, write đã gửi nhưng chưa commit có thể mất, trong khi write đã committed được consensus rule bảo toàn.
+Tài liệu về tình huống lỗi của etcd minh họa rõ ranh giới này: sau khi leader gặp sự cố, các thao tác ghi đã gửi nhưng chưa cam kết có thể bị mất, trong khi các thao tác đã cam kết được quy tắc đồng thuận bảo toàn.
 
 **Chỉ có giao điểm quorum vẫn chưa đủ để kết luận đã cam kết.** [Bài báo Raft](https://pdos.csail.mit.edu/6.824/papers/raft-extended.pdf) chỉ ra rằng một mục thuộc nhiệm kỳ trước có thể đã được sao chép tới đa số nút nhưng leader vẫn không thể tuyên bố mục đó đã cam kết chỉ dựa trên số lượng bản sao. Raft trực tiếp cam kết các mục thuộc **nhiệm kỳ hiện tại** khi đạt quorum; các mục cũ được cam kết gián tiếp thông qua tính khớp của nhật ký.
 
@@ -139,7 +139,7 @@ quorum B = {3, 4, 5}
 điểm giao nhau = {3}
 ```
 
-Phần chồng lấp đó giúp protocol mang thông tin safety từ quyết định trước sang quyết định sau. Proof consensus thực tế có nhiều điều kiện hơn quan sát này, nhưng quorum intersection là hình dạng cốt lõi cần nhận diện.
+Thành viên chung đó giúp giao thức mang thông tin an toàn từ quyết định trước sang quyết định sau. Các chứng minh đồng thuận thực tế còn cần nhiều điều kiện khác, nhưng giao điểm quorum là cấu trúc cốt lõi cần nhận biết.
 
 Bảng này giả định tập thành viên cố định, quorum đa số đơn giản và lỗi giữa các nút độc lập. Lỗi tương quan hoặc thay đổi thành viên có thể làm kết quả vận hành khác đi. Các cụm có số nút lẻ thường được dùng vì thêm một nút để chuyển sang số chẵn thường làm tăng chi phí mà không tăng số lỗi nút đơn lẻ mà quorum đa số có thể chịu được:
 
@@ -151,7 +151,7 @@ Bảng này giả định tập thành viên cố định, quorum đa số đơn
 | 6 | 4 | 2 |
 | 7 | 4 | 3 |
 
-Điều này **không** có nghĩa “luôn dùng năm node” hoặc “thêm member là miễn phí”. Group rộng hơn đưa thêm replication, disk và network work vào consensus path.
+Điều này **không** có nghĩa là “luôn dùng năm nút” hay “thêm thành viên không tốn chi phí”. Cụm lớn hơn làm tăng lượng sao chép, hoạt động đĩa và lưu lượng mạng trên đường xử lý đồng thuận.
 
 ## Phân vùng mạng tạo ra phía đa số và phía thiểu số
 
@@ -177,7 +177,7 @@ flowchart LR
 
 Phía thiểu số vẫn có thể đang chạy, ổ đĩa vẫn hoạt động và tiến trình vẫn vượt qua bước kiểm tra sức khỏe. Tuy nhiên, phía này không có đủ phiếu để thiết lập một lịch sử mới đã cam kết một cách an toàn.
 
-Nếu toàn cluster mất quorum, write cần consensus phải dừng. etcd ghi rõ điều này: mất đa số nghĩa cluster không thể nhận write mới cho đến khi quorum được khôi phục hoặc disaster recovery chủ đích tạo cluster mới từ một recovery point đáng tin cậy.
+Nếu toàn bộ cụm mất quorum, các thao tác ghi cần đồng thuận phải dừng. Tài liệu etcd nêu rõ rằng khi mất đa số, cụm không thể nhận thao tác ghi mới cho đến khi khôi phục quorum hoặc chủ động phục hồi thảm họa bằng cách tạo cụm mới từ một điểm khôi phục đáng tin cậy.
 
 Đó là lý do “ép node bị cô lập tiếp tục phục vụ write” thường là availability shortcut nguy hiểm, không phải một chỉnh sửa vận hành vô hại.
 
@@ -204,13 +204,13 @@ phân bố rộng hơn theo failure domain
   -> cần hiểu quorum placement nghiêm ngặt hơn
 ```
 
-Vì vậy consensus phù hợp nhất với state thực sự cần một đường quyết định authoritative: cluster membership, leader ownership, metadata, coordination record, strongly ordered state-machine command và control state tương tự.
+Vì vậy, đồng thuận phù hợp nhất với những trạng thái thực sự cần một nguồn quyết định có thẩm quyền duy nhất, chẳng hạn danh sách thành viên cụm, quyền giữ vai trò leader, siêu dữ liệu, bản ghi điều phối, lệnh có thứ tự chặt chẽ của máy trạng thái và các trạng thái điều khiển tương tự.
 
 ## Đồng thuận không bảo đảm mọi tác động nghiệp vụ chỉ xảy ra đúng một lần
 
 Một nhóm đồng thuận có thể quyết định rằng mục nhật ký 184 được ghi nhận đúng một lần trong lịch sử nội bộ. Điều đó không tự động bảo đảm email, khoản thu thanh toán, webhook hay thao tác ghi vào cơ sở dữ liệu bên ngoài cũng chỉ xảy ra đúng một lần.
 
-Ngay khi committed command kích hoạt effect bên ngoài consensus state machine, **Delivery Semantics**, idempotency, transaction và reconciliation lại trở nên quan trọng.
+Ngay khi một lệnh đã cam kết kích hoạt tác động bên ngoài máy trạng thái đồng thuận, các khái niệm **ngữ nghĩa chuyển phát (Delivery Semantics)**, tính lũy đẳng, giao dịch và đối soát lại trở nên quan trọng.
 
 Giữ các boundary này tách biệt:
 
@@ -234,7 +234,7 @@ Phía có 3 thành viên bầu được leader mới và tiếp tục cam kết 
 
 ## Tự kiểm tra
 
-Một group kiểu Raft có 5 member bị partition thành phía 2 member chứa leader trước đó và phía 3 member. Leader cũ vẫn reachable từ client nhưng không reach được ba member kia. Nó có thể an toàn tiếp tục commit entry mới chỉ vì trước partition nó là leader không?
+Một nhóm kiểu Raft gồm 5 thành viên bị phân vùng mạng thành phía 2 thành viên có leader cũ và phía 3 thành viên còn lại. Client vẫn liên lạc được với leader cũ, nhưng leader này không thể liên lạc với ba thành viên kia. Nó có được phép tiếp tục cam kết mục nhật ký mới chỉ vì từng là leader trước khi mạng bị phân vùng không?
 
 <details>
 <summary>Xem giải thích chi tiết</summary>
@@ -245,20 +245,20 @@ Không. Vai trò leader trước đây không thay thế yêu cầu quorum hiệ
 
 ## Danh sách kiểm tra rà soát
 
-- [ ] **Scope agreement:** Consensus group đang làm authoritative cho giá trị, log hay metadata history nào?
-- [ ] **Quorum:** Cần bao nhiêu member cho election và commit, và các member đó nằm trong failure domain nào?
+- [ ] **Phạm vi đồng thuận:** Nhóm đồng thuận đang xác lập thẩm quyền cho giá trị, nhật ký hay lịch sử siêu dữ liệu nào?
+- [ ] **Quorum:** Cần bao nhiêu thành viên để bầu leader và cam kết dữ liệu; các thành viên đó nằm trong những miền lỗi nào?
 - [ ] **Thẩm quyền:** Term, epoch, ballot hoặc mã thế hệ tương đương vô hiệu hóa leader cũ bằng cách nào?
-- [ ] **Commit boundary:** Operator và client có phân biệt state đã replicate nhưng chưa commit với committed state không?
+- [ ] **Ranh giới cam kết:** Người vận hành và client có phân biệt trạng thái đã sao chép nhưng chưa cam kết với trạng thái đã cam kết không?
 - [ ] **Partition behavior:** Phía thiểu số trả gì khi không thể tạo quorum?
 - [ ] **Mô hình lỗi:** Giao thức chỉ được thiết kế để chịu lỗi dừng (crash fault), hay hỗ trợ mô hình mạnh hơn như lỗi Byzantine?
-- [ ] **Latency:** Network RTT và durable-storage latency nào nằm trên consensus path?
-- [ ] **Recovery:** Quy trình majority-loss recovery có được tài liệu hóa và test mà không âm thầm tạo hai authoritative history không?
+- [ ] **Độ trễ:** Thời gian khứ hồi mạng (RTT) và độ trễ ghi lưu trữ bền vững nào nằm trên đường xử lý đồng thuận?
+- [ ] **Phục hồi:** Quy trình phục hồi sau khi mất đa số có được ghi thành tài liệu và kiểm thử để tránh âm thầm tạo ra hai lịch sử có thẩm quyền không?
 
 ## Quy tắc dành cho tác tử hỗ trợ lập trình
 
-- [ ] **Không suy consensus từ bản sao:** Tìm election rule và commit rule thật trước khi claim một lịch sử authoritative.
-- [ ] **Nêu rõ quorum:** Chỉ ra participant nào và bao nhiêu vote thiết lập authority hoặc commitment.
-- [ ] **Tôn trọng state chưa commit:** Không nâng local log entry thành business truth chỉ vì một node đã persist nó.
+- [ ] **Không suy ra đồng thuận chỉ từ việc đã sao chép:** Xác định quy tắc bầu chọn và quy tắc cam kết thực tế trước khi kết luận lịch sử nào có thẩm quyền.
+- [ ] **Nêu rõ quorum:** Chỉ ra những thành viên nào và cần bao nhiêu phiếu để xác lập thẩm quyền hoặc cam kết.
+- [ ] **Tôn trọng trạng thái chưa cam kết:** Không coi một mục nhật ký cục bộ là dữ liệu nghiệp vụ chính thức chỉ vì một nút đã lưu nó bền vững.
 - [ ] **Fail closed khi mất quorum:** Không phát minh write bypass tạo independent minority history.
 - [ ] **Tách scope:** Phân biệt consensus, replication, consistency, delivery semantics và guarantee của external side effect.
 - [ ] **Xác minh failure model:** Không mô tả crash-fault protocol là Byzantine fault tolerant nếu protocol thực tế không cung cấp thuộc tính đó.
