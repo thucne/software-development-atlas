@@ -22,8 +22,8 @@ const pairs = [
   },
   {
     slug: 'backend-engineering/authentication-and-authorization',
-    en: ['BOLA', 'NIST', 'not universal mandates on all websites', 'JWT'],
-    vi: ['BOLA', 'NIST', 'không phải yêu cầu bắt buộc với mọi website', 'JWT'],
+    en: ['BOLA', 'NIST', 'not universal mandates on all websites', 'non-exportable authentication key', 'JWT'],
+    vi: ['BOLA', 'NIST', 'không phải quy định bắt buộc cho mọi website', 'khóa xác thực không thể xuất', 'JWT'],
   },
 ] as const;
 
@@ -36,7 +36,7 @@ describe('Wave 1 technical-boundary and evidence regression', () => {
         const checkedDate = pair.slug === 'distributed-systems/partial-failure'
           ? '2026-11-18'
           : pair.slug === 'backend-engineering/authentication-and-authorization'
-            ? '2026-11-22'
+            ? '2026-11-27'
             : '2026-11-05';
         expect(source, relativePath).toContain(`lastVerified: ${checkedDate}`);
         for (const expected of pair[locale]) {

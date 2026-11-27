@@ -4,7 +4,7 @@ description: Vận hành ranh giới danh tính và truy cập bằng cách tác
 category: backend-engineering
 level: intermediate
 status: evolving
-lastVerified: 2026-11-22
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics:
   - backend
@@ -69,7 +69,7 @@ Cần tách ba khái niệm:
 2. **Xác thực** hỏi claimant hiện có kiểm soát authenticator gắn với tài khoản/chủ thể đó hay không.
 3. **Phân quyền** xác định principal đã xác thực được phép thực hiện hành động nào vào thời điểm hiện tại.
 
-Theo [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html), hệ thống **áp dụng khung mức bảo đảm NIST** ở AAL2 phải sử dụng hai yếu tố xác thực và cung cấp ít nhất một phương thức kháng lừa đảo (phishing-resistant); AAL3 yêu cầu phương thức xác thực kháng lừa đảo. Đây là yêu cầu trong các bối cảnh thuộc phạm vi áp dụng của tiêu chuẩn, đặc biệt là dịch vụ chính phủ Hoa Kỳ, **không phải quy định bắt buộc cho mọi website**. Hãy chọn mức bảo đảm dựa trên mô hình đe dọa và các quy định có liên quan.
+Theo [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b/aal/), hệ thống **áp dụng khung mức bảo đảm NIST** ở AAL2 phải sử dụng hai yếu tố xác thực và bên xác minh phải cung cấp ít nhất một phương thức chống lừa đảo (phishing-resistant). AAL3 yêu cầu hai yếu tố xác thực cùng một bộ xác thực mật mã chống lừa đảo, sử dụng khóa xác thực không thể xuất (non-exportable). Đây là yêu cầu dành cho tổ chức áp dụng khung tiêu chuẩn này, đặc biệt là dịch vụ chính phủ Hoa Kỳ, **không phải quy định bắt buộc cho mọi website**. Hãy chọn mức bảo đảm dựa trên mô hình đe dọa và các quy định có liên quan.
 
 Điều đó không có nghĩa là phải buộc người dùng sử dụng phương thức mạnh nhất ở mọi trang. Hãy chọn mức xác thực theo mức độ tác động và mô hình đe dọa; chỉ yêu cầu xác thực tăng cường (step-up) khi thao tác nhạy cảm cần bằng chứng mạnh hơn.
 
