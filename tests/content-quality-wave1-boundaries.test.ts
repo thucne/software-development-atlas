@@ -45,7 +45,7 @@ describe('Wave 1 technical-boundary and evidence regression', () => {
         expect(source, relativePath).toMatch(/hypothetical|giả định/i);
         if (pair.slug === 'backend-engineering/authentication-and-authorization') {
           expect(source, relativePath).toContain('tenant:other');
-          expect(source, relativePath).toContain(locale === 'en' ? 'validated server-side identity' : 'server xác minh');
+          expect(source, relativePath).toContain(locale === 'en' ? 'validated server-side identity' : 'máy chủ xác minh');
         }
       }
     });
