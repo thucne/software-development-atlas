@@ -4,7 +4,7 @@ description: Nhận diện consensus như bài toán điều phối để chọn
 category: distributed-systems
 level: intermediate
 status: evolving
-lastVerified: 2026-11-05
+lastVerified: 2026-11-27
 reviewAfterDays: 180
 topics: [distributed-systems, consensus, quorum, raft, fault-tolerance]
 prerequisites: [partial-failure, distributed-consistency, distributed-replication]
@@ -29,7 +29,7 @@ Consensus bảo toàn **lịch sử đã commit** trong mô hình lỗi crash/pa
 - **Đồng thuận là thống nhất lịch sử đã commit; sao chép không tự động là đồng thuận:** Việc gửi các entry nhật ký sang follower chỉ là sao chép; giao thức đồng thuận (consensus) bắt buộc các node phải thống nhất xem lịch sử nào có thẩm quyền tối cao và thiết lập ranh giới commit không thể chối cãi.
 - **Quorum intersection đi kèm quy tắc Raft:** Hai majority có giao điểm, nhưng phép đếm không tự chứng minh leader mới chứa mọi entry đã commit. Quy tắc vote theo log, log matching và current-term commit mới hoàn thiện lập luận.
 - **Election theo term:** Node bị cô lập có thể vẫn tin mình là leader, nhưng không thể commit nếu thiếu quorum. Safety không yêu cầu mọi node đồng thời nhìn thấy cùng một leader duy nhất.
-- **An toàn (Safety) luôn xếp trên tiến triển (Liveness) khi phân vùng mạng:** Khi đứt mạng chia cắt cụm 5 node thành nhánh đa số (3 node) và nhánh thiểu số (2 node), nhánh đa số tiếp tục tiến triển còn nhánh thiểu số bắt buộc phải từ chối ghi để ngăn chặn phân kỳ lịch sử.
+- **Consensus dựa trên quorum đánh đổi liveness của nhánh thiểu số để giữ safety:** Khi partition chia cụm 5 node thành nhánh đa số (3) và thiểu số (2), nhánh đa số chỉ có thể tiến triển nếu vẫn đáp ứng điều kiện bầu leader, log-safety và quorum; nhánh thiểu số không thể commit lịch sử mới. Đây là hành vi của giao thức cụ thể, không phải khẳng định mọi distributed service đều phải áp dụng cùng một availability policy.
 - **Rủi ro:** Xem entry mới append cục bộ nhưng chưa commit là quyết định nghiệp vụ bền vững. Entry chưa commit **có thể bị ghi đè** sau khi leader đổi; chỉ trả thành công khi đạt điều kiện commit.
 
 ```mermaid
