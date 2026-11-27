@@ -25,3 +25,12 @@ Read both complete lessons: hypothetical stale-read/failover opening, TL;DR, rep
 - Updated both lesson `lastVerified` and source-review dates to 2026-11-27.
 - Added regression assertions for downstream fencing enforcement and hypothetical scenario labeling; updated the existing paired-date assertion.
 - No live PostgreSQL failover, storage-fencing, replica-lag or multi-writer conflict test was run. Exact-SHA GitHub Actions must validate the changes.
+
+
+## Vietnamese editorial follow-up — 2026-11-27
+
+- Re-read the paired EN/VI copy and refined Vietnamese prose for the acknowledgment boundary, lag stages, snapshot bootstrap/catch-up, fencing, failover, multi-writer reconciliation, fault-domain placement, partitioning distinction, self-check and review checklist. Exact configuration names and protocol fields such as `remote_write`, `remote_apply`, WAL, epoch and lease remain unchanged where precision requires them.
+- Rechecked the official PostgreSQL [synchronous replication documentation](https://www.postgresql.org/docs/current/warm-standby.html): `remote_write` waits for OS-level write but not standby disk flush; `remote_apply` waits until replay makes the transaction visible. The `on` mode waits for configured synchronous-standby WAL flush, subject to configuration.
+- Rechecked PostgreSQL's [failover guidance](https://www.postgresql.org/docs/current/warm-standby-failover.html): the old primary must be informed/fenced after standby promotion to prevent both systems believing they are primary. Rechecked Amazon's original [Dynamo paper](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store) for versioning and application-assisted conflict resolution.
+- A paired regression test continues to assert the critical `remote_write`, `remote_apply` and remote-fsync caveat while keeping the 2026-11-27 date assertion. No assertion was removed or weakened.
+- The earlier green Actions run #45924532225 validated SHA `4fdb4097d2831cbb8b1d8deb1b25dd744f7d59a`, before the new VI editorial commits. **That run does not validate the current PR head.** Require full exact-head Actions and merged-main Actions after merge. No live PostgreSQL failover, storage-fencing or multi-writer integration test is claimed.
